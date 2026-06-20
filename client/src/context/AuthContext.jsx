@@ -39,14 +39,14 @@ export function AuthProvider({ children }) {
   }, [restoreSession]);
 
   const login = async (email, password) => {
-    const { token, user: loggedInUser } = await api.post('/api/auth/login', { email, password });
-    setToken(token);
+    const { token, user: loggedInUser } = await api.post('/auth/login', { email, password });    setToken(token);
     setUser(loggedInUser);
     return loggedInUser;
   };
 
   const register = async (name, email, password) => {
-    const { token, user: loggedInUser } = await api.post('/api/auth/login', { email, password });    setToken(token);
+    const { token, user: loggedInUser } = await api.post('/auth/register', { name, email, password });
+    setToken(token);
     setUser(newUser);
     return newUser;
   };
