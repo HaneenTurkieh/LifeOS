@@ -10,8 +10,11 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use((req, res, next) => {
-    const allowedOrigins = ['http://localhost:5173', 'https://life-os-three-xi.vercel.app'];
-    const origin = req.headers.origin;
+    const allowedOrigins = [
+        'http://localhost:5173', 
+        'https://life-os-three-xi.vercel.app',
+        'https://life-os-git-main-ctrl-alt-elite07.vercel.app' // Add this!
+      ];    const origin = req.headers.origin;
     
     if (allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
