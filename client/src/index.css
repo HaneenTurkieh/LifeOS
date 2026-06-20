@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-app-gradient text-ink font-body;
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(124, 106, 240, 0.25); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124, 106, 240, 0.45); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid #7C6AF0;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/55 backdrop-blur-xl border border-white/60 shadow-glass;
+  }
+  .glass-card {
+    @apply bg-white/60 backdrop-blur-xl border border-white/70 shadow-glass rounded-3xl;
+  }
+  .input-field {
+    @apply w-full rounded-2xl border border-lavender-200/70 bg-white/70 px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 outline-none transition focus:border-lavender-400 focus:ring-2 focus:ring-lavender-200;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-lavender-500 to-lavender-700 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 border border-white/80 px-5 py-2.5 text-sm font-semibold text-ink/80 shadow-sm transition hover:bg-white active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-ink/60 transition hover:bg-white/60 hover:text-ink;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.7) 37%, rgba(255,255,255,0.4) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+.dark body {
+    @apply bg-[#0c0a1a] text-white/90;
+    background-image: radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%);
+  }
+  .dark .glass-card,
+  .dark .glass-panel {
+    @apply bg-white/[0.06] border-white/10 text-white;
+  }
+  .dark .input-field {
+    @apply bg-white/[0.05] border-white/15 text-white placeholder:text-white/30;
+  }
+  .dark .text-ink { color: rgba(255,255,255,0.9); }
+  .dark .text-ink\/50, .dark .text-ink\/45, .dark .text-ink\/40 { color: rgba(255,255,255,0.45); }
