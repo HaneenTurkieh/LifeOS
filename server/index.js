@@ -9,10 +9,25 @@ const { authenticate } = require('./lib/auth');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({
-    origin: ['http://localhost:5173', 'https://life-os-three-xi.vercel.app'],
-    credentials: true
-  }));
+app.use((req, res, next) => {
+    const allowedOrigins = ['http://localhost:5173', 'https://life-os-three-xi.vercel.app'];
+    const origin = req.headers.origin;
+    
+    if (allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
+    // Handle preflight OPTIONS requests instantly
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    
+    next();
+  });
 app.use(express.json());
 
 // Make sure the DB file + tables exist (and migrations have run) before
