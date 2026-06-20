@@ -9,7 +9,10 @@ const { authenticate } = require('./lib/auth');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173', 'https://life-os-three-xi.vercel.app'],
+    credentials: true
+  }));
 app.use(express.json());
 
 // Make sure the DB file + tables exist (and migrations have run) before
