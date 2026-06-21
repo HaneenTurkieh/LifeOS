@@ -4,8 +4,6 @@ import {
   LayoutDashboard, ListChecks, Target, Dumbbell, Sparkles, BarChart3,
 } from 'lucide-react';
 
-// Trimmed-down nav for small screens — the full set lives in the
-// desktop Sidebar; mobile keeps the most-used five plus "more" via Analytics page links.
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
   { to: '/tasks', icon: ListChecks, label: 'Tasks' },
@@ -26,13 +24,13 @@ export default function MobileNav() {
             end={to === '/'}
             className={({ isActive }) =>
               `flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 text-[10px] font-medium transition-colors ${
-                isActive ? 'text-lavender-600' : 'text-ink/40'
+                isActive ? 'text-lavender-600 dark:text-lavender-300' : 'text-ink/40 dark:text-white/40'
               }`
             }
           >
             {({ isActive }) => (
               <>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${isActive ? 'bg-lavender-100' : ''}`}>
+                <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${isActive ? 'bg-lavender-100 dark:bg-lavender-500/15' : ''}`}>
                   <Icon size={17} />
                 </div>
                 {label}

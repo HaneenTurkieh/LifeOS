@@ -35,15 +35,28 @@ export default {
             400: '#FF9C8A',
             500: '#FF7A63',
           },
+          // Dark-theme surface scale — used by the tiered glass-card system
+          // in index.css so dark mode has real depth instead of one flat tone.
+          midnight: {
+            950: '#08070F',
+            900: '#0C0A1A',
+            800: '#161329',
+            700: '#1F1A3D',
+          },
         },
         boxShadow: {
           glass: '0 8px 32px 0 rgba(76, 70, 150, 0.12)',
           'glass-lg': '0 20px 60px -10px rgba(76, 70, 150, 0.25)',
+          'glass-xl': '0 30px 80px -16px rgba(76, 70, 150, 0.35)',
           glow: '0 0 0 1px rgba(255,255,255,0.4) inset, 0 8px 32px 0 rgba(76, 70, 150, 0.12)',
+          'glow-lg': '0 0 0 1px rgba(255,255,255,0.5) inset, 0 12px 40px 0 rgba(124,106,240,0.35)',
+          'inner-highlight': 'inset 0 1px 0 0 rgba(255,255,255,0.5)',
         },
         backgroundImage: {
           'app-gradient': 'radial-gradient(circle at 10% 0%, #EFEAFF 0%, #F4F6FB 35%, #EAF4F6 100%)',
+          'app-gradient-dark': 'radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%)',
           'card-sheen': 'linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.25) 100%)',
+          'hero-gradient': 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 45%, #4634B8 100%)',
         },
         borderRadius: {
           '2xl': '1.25rem',
@@ -54,11 +67,26 @@ export default {
           floaty: { '0%, 100%': { transform: 'translateY(0px)' }, '50%': { transform: 'translateY(-8px)' } },
           popIn: { '0%': { opacity: 0, transform: 'scale(0.9) translateY(8px)' }, '100%': { opacity: 1, transform: 'scale(1) translateY(0)' } },
           shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
+          flicker: {
+            '0%, 100%': { transform: 'scale(1) rotate(0deg)', opacity: 1 },
+            '25%': { transform: 'scale(1.05) rotate(-2deg)', opacity: 0.92 },
+            '50%': { transform: 'scale(0.97) rotate(1deg)', opacity: 1 },
+            '75%': { transform: 'scale(1.03) rotate(-1deg)', opacity: 0.95 },
+          },
+          glowPulse: {
+            '0%, 100%': { boxShadow: '0 0 0 0 rgba(124,106,240,0.4)' },
+            '50%': { boxShadow: '0 0 0 12px rgba(124,106,240,0)' },
+          },
         },
         animation: {
           floaty: 'floaty 5s ease-in-out infinite',
           popIn: 'popIn 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-          shimmer: 'shimmer 2.5s linear infinite',
+          shimmer: 'shimmer 1.6s linear infinite',
+          flicker: 'flicker 2.2s ease-in-out infinite',
+          glowPulse: 'glowPulse 1.8s ease-out infinite',
+        },
+        transitionTimingFunction: {
+          premium: 'cubic-bezier(0.16, 1, 0.3, 1)',
         },
       },
     },
