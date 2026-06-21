@@ -1,8 +1,9 @@
 // db/connection.js
 // Opens (or creates) the SQLite file, applies the schema, and runs small
-// migrations so an existing (pre-auth) dashboard.sqlite3 gets upgraded
-// in place instead of breaking. Using better-sqlite3 because it's
-// synchronous and simple — no callbacks needed for queries.
+// migrations so an existing database gets upgraded in place instead of
+// breaking. Using better-sqlite3 because it's synchronous and simple —
+// no callbacks needed for queries, and synchronous transactions give us
+// real atomicity against concurrent request handling (see routes/auth.js).
 
 const path = require('path');
 const fs = require('fs');
@@ -15,18 +16,24 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// 1. Create any table that doesn't exist yet (fresh installs get
-//    everything in its final shape straight away).
+// 1. Create any table/index that doesn't exist yet (fresh installs get
+//    everything in its final shape straight away). NOTE: schema.sql's
+//    CREATE UNIQUE INDEX for case-insensitive email must NOT run until
+//    after the quarantine step below, so we strip it out of the bulk
+//    exec and run it separately at the end of this file.
 const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
-db.exec(schema);
+const schemaWithoutEmailIndex = schema.replace(
+  /CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase[^;]*;/,
+  ''
+);
+db.exec(schemaWithoutEmailIndex);
 
-// 2. Migrate tables that already existed before the auth system was
-//    added — they're missing a user_id column. CREATE TABLE IF NOT EXISTS
-//    above silently skips tables that already exist, so we patch them here.
 function hasColumn(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
 }
 
+// 2. Migrate tables that already existed before the auth system was
+//    added — they're missing a user_id column.
 const USER_SCOPED_TABLES = [
   'tasks', 'habits', 'goals', 'learning_items', 'internships',
   'cv_projects', 'cv_skills', 'cv_certifications', 'projects', 'xp_log',
@@ -35,18 +42,10 @@ const USER_SCOPED_TABLES = [
 db.transaction(() => {
   USER_SCOPED_TABLES.forEach((table) => {
     if (!hasColumn(table, 'user_id')) {
-      // SQLite can't add a column with a REFERENCES constraint via a
-      // simple ALTER TABLE ADD COLUMN in older versions, so we add a
-      // plain nullable column — the foreign key relationship is still
-      // enforced logically by every route, just not by SQLite itself.
       db.exec(`ALTER TABLE ${table} ADD COLUMN user_id INTEGER`);
     }
   });
 
-  // moods needs a full rebuild: its old UNIQUE(date) constraint must
-  // become UNIQUE(user_id, date) so multiple users can each have a
-  // mood entry for the same day. SQLite can't alter constraints in
-  // place, so we recreate the table and copy the data across.
   if (!hasColumn('moods', 'user_id')) {
     db.exec(`
       ALTER TABLE moods RENAME TO moods_old;
@@ -67,5 +66,47 @@ db.transaction(() => {
     `);
   }
 })();
+
+// 3. AUTH FIX — case-insensitive email uniqueness.
+//    SQLite's default column-level UNIQUE is case-sensitive, so
+//    "Foo@x.com" and "foo@x.com" could previously exist as two separate
+//    accounts. Before adding a case-insensitive unique index, we must
+//    make sure no such duplicates already exist, or CREATE INDEX itself
+//    will fail and the server won't start.
+//
+//    Strategy: NEVER delete user data. Any case-duplicate beyond the
+//    first (oldest, by id) gets its email quarantined to a clearly-
+//    marked placeholder so the account and all its data are preserved,
+//    and a loud warning is logged so an admin can manually merge or
+//    contact the affected user.
+const duplicateGroups = db.prepare(`
+  SELECT LOWER(email) AS lemail, COUNT(*) AS c, GROUP_CONCAT(id) AS ids
+  FROM users
+  GROUP BY LOWER(email)
+  HAVING c > 1
+`).all();
+
+if (duplicateGroups.length > 0) {
+  console.warn(
+    `⚠️  Found ${duplicateGroups.length} email address(es) with case-duplicate accounts. ` +
+    `Quarantining the newer duplicate(s) so the app can enforce uniqueness going forward. ` +
+    `No data was deleted — review and merge manually if needed.`
+  );
+
+  const quarantine = db.prepare(`UPDATE users SET email = ? WHERE id = ?`);
+  db.transaction(() => {
+    duplicateGroups.forEach((group) => {
+      const ids = group.ids.split(',').map(Number).sort((a, b) => a - b);
+      const [keepId, ...duplicateIds] = ids; // keep the oldest account using the real email
+      duplicateIds.forEach((id) => {
+        const quarantinedEmail = `quarantined+dup${id}_${Date.now()}@${group.lemail.split('@')[1] || 'invalid.local'}`;
+        quarantine.run(quarantinedEmail, id);
+        console.warn(`   → user id ${id} (duplicate of "${group.lemail}", kept id ${keepId} as primary) renamed to: ${quarantinedEmail}`);
+      });
+    });
+  })();
+}
+
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase ON users(email COLLATE NOCASE)`);
 
 module.exports = db;

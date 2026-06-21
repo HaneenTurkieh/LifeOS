@@ -1,8 +1,9 @@
 // lib/auth.js
-// Password hashing + JWT helpers, and the Express middleware that
-// protects routes. Centralized here so routes/auth.js and index.js
-// both stay simple.
+// Password hashing + JWT helpers, password-reset token helpers, and the
+// Express middleware that protects routes. Centralized here so
+// routes/auth.js and index.js both stay simple.
 
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -25,8 +26,6 @@ function comparePassword(plainPassword, hash) {
 }
 
 function signToken(user) {
-  // Keep the payload small — id is all most routes need; name/email are
-  // convenient for the frontend to read without an extra request.
   return jwt.sign(
     { id: user.id, name: user.name, email: user.email },
     JWT_SECRET,
@@ -56,4 +55,29 @@ function authenticate(req, res, next) {
   }
 }
 
-module.exports = { hashPassword, comparePassword, signToken, verifyToken, authenticate };
+// ---------- Password reset tokens ----------
+// The raw token goes in the emailed link only. We store a SHA-256 hash
+// of it (same principle as never storing plaintext passwords) so a DB
+// leak alone can't be used to reset anyone's password.
+
+function generateResetToken() {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  return { rawToken, tokenHash };
+}
+
+function hashResetToken(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+function timingSafeEqual(a, b) {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+module.exports = {
+  hashPassword, comparePassword, signToken, verifyToken, authenticate,
+  generateResetToken, hashResetToken, timingSafeEqual,
+};

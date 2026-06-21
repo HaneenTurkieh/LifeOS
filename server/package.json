@@ -5,19 +5,20 @@
     "type": "commonjs",
     "main": "index.js",
     "scripts": {
-      "dev": "nodemon index.js",
-      "start": "node index.js",
-      "seed": "node db/seed.js"
+        "dev": "nodemon index.js",
+        "start": "node index.js",
+        "seed": "node db/seed.js"
     },
     "dependencies": {
-      "bcryptjs": "^2.4.3",
-      "better-sqlite3": "^11.3.0",
-      "cors": "^2.8.5",
-      "dotenv": "^16.4.5",
-      "express": "^4.19.2",
-      "jsonwebtoken": "^9.0.2"
+        "bcryptjs": "^2.4.3",
+        "better-sqlite3": "^11.3.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.5",
+        "express": "^4.19.2",
+        "jsonwebtoken": "^9.0.2",
+        "resend": "^4.8.0"
     },
     "devDependencies": {
-      "nodemon": "^3.1.4"
+        "nodemon": "^3.1.4"
     }
-  }
+}
