@@ -4,6 +4,8 @@ import Sidebar from './components/Sidebar.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Tasks from './pages/Tasks.jsx';
 import Goals from './pages/Goals.jsx';
@@ -21,6 +23,8 @@ export default function App() {
     <Routes>
       {/* Public — no session required */}
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Everything else requires a logged-in user */}
       <Route
@@ -35,8 +39,6 @@ export default function App() {
   );
 }
 
-// The dashboard chrome (sidebar + content area) only renders once the
-// user is authenticated — ProtectedRoute above guards this whole tree.
 function AppShell() {
   return (
     <div className="min-h-screen flex">

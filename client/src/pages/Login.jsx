@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TreePine, Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useToast } from '../context/ToastContext.jsx';
 
 const DEMO_EMAIL = 'demo@aurora.app';
 const DEMO_PASSWORD = 'password123';
@@ -19,7 +18,6 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   const { login, register } = useAuth();
-  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo = location.state?.from?.pathname || '/';
@@ -40,6 +38,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return; // defensive guard against double-submit, in addition to the disabled button
     setError('');
 
     if (!isLogin && password !== confirmPassword) {
@@ -64,7 +63,6 @@ export default function Login() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#0c0a1a] flex items-center justify-center px-4 py-10">
-      {/* Decorative flowing gradient blobs — echoes the app's lavender palette on a dark canvas */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-24 h-[26rem] w-[26rem] rounded-full bg-lavender-600/40 blur-[100px] animate-floaty" />
         <div className="absolute top-1/3 -right-32 h-[30rem] w-[30rem] rounded-full bg-lavender-400/30 blur-[110px] animate-floaty" style={{ animationDelay: '1.2s' }} />
@@ -75,14 +73,12 @@ export default function Login() {
         />
       </div>
 
-      {/* Card */}
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         className="relative w-full max-w-sm rounded-[2rem] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-glass-lg px-7 py-9 sm:px-9 sm:py-10"
       >
-        {/* Logo */}
         <div className="flex flex-col items-center mb-7">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-lavender-400 to-lavender-700 shadow-glow">
             <TreePine className="text-white" size={26} />
@@ -90,7 +86,6 @@ export default function Login() {
           <p className="mt-3 font-display text-sm font-bold tracking-[0.35em] text-white/80">AURORA</p>
         </div>
 
-        {/* Heading */}
         <div className="text-center mb-7">
           <AnimatePresence mode="wait">
             <motion.h1
@@ -107,7 +102,6 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Error banner */}
         <AnimatePresence>
           {error && (
             <motion.div
@@ -180,13 +174,9 @@ export default function Login() {
           </AnimatePresence>
 
           {isLogin && (
-            <button
-              type="button"
-              onClick={() => toast.push({ type: 'error', title: 'Not set up yet', message: 'Password reset isn\'t wired up in this starter project.' })}
-              className="self-start text-xs text-white/45 hover:text-white/70 transition -mt-1"
-            >
+            <Link to="/forgot-password" className="self-start text-xs text-white/45 hover:text-white/70 transition -mt-1">
               Forgot Password ?
-            </button>
+            </Link>
           )}
 
           <motion.button
@@ -197,7 +187,6 @@ export default function Login() {
           </motion.button>
         </form>
 
-        {/* Demo account shortcut */}
         <button
           onClick={fillDemoAccount}
           type="button"
