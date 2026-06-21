@@ -31,9 +31,6 @@ export default function Dashboard() {
   const load = useCallback(async () => {
     try {
       const dash = await api.get('/dashboard');
-      // Level-up detection: compare against the last level we saw. Only
-      // fires after the very first load has established a baseline, so
-      // it never falsely fires on initial page load.
       if (prevLevel.current !== null && dash.level.level > prevLevel.current) {
         toast.levelUp(dash.level.level);
       }
@@ -83,7 +80,6 @@ export default function Dashboard() {
       <DashboardHero data={data} userName={user?.name} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left column: tasks + habits — primary content, tier 2 for slightly more presence */}
         <div className="lg:col-span-2 flex flex-col gap-5">
           <GlassCard tier={2} delay={0.1} className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -157,7 +153,6 @@ export default function Dashboard() {
           </GlassCard>
         </div>
 
-        {/* Right column — supporting content, tier 1 */}
         <div className="flex flex-col gap-5">
           <GlassCard delay={0.1} className="p-6 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-lavender-200/40 dark:bg-lavender-500/10 blur-2xl animate-floaty" />
