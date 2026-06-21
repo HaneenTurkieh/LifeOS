@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  LayoutDashboard, ListChecks, Target, BookOpen, Dumbbell, BarChart3,
+  LayoutDashboard, Clock, ListChecks, Target, BookOpen, Dumbbell, BarChart3,
   Briefcase, FileText, FolderKanban, Sparkles, TreePine, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+{ to: '/history', icon: Clock, label: 'History' },
   { to: '/tasks', icon: ListChecks, label: 'Tasks' },
   { to: '/goals', icon: Target, label: 'Goals' },
   { to: '/habits', icon: Dumbbell, label: 'Habits' },
