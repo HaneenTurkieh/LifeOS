@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ListChecks, Target, BookOpen, Dumbbell, BarChart3,
-  Briefcase, User, FolderKanban, Sparkles, TreePine,
+  Briefcase, FileUser, FolderKanban, Sparkles, TreePine, Settings,
 } from 'lucide-react';
+import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -15,10 +16,12 @@ const NAV = [
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/internships', icon: Briefcase, label: 'Internships' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
-  { to: '/cv', icon: User, label: 'CV Builder' },
+  { to: '/cv', icon: FileUser, label: 'CV Builder' },
 ];
 
 export default function Sidebar() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
     <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6">
       <div className="glass-panel flex flex-col items-center gap-1 rounded-[2rem] px-2.5 py-4 sticky top-6">
@@ -36,18 +39,30 @@ export default function Sidebar() {
                 `group relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-200 ${
                   isActive
                     ? 'bg-gradient-to-br from-lavender-500 to-lavender-700 text-white shadow-glow scale-105'
-                    : 'text-ink/40 hover:bg-white/70 hover:text-lavender-600'
+                    : 'text-ink/40 dark:text-white/40 hover:bg-white/70 dark:hover:bg-white/10 hover:text-lavender-600 dark:hover:text-lavender-300'
                 }`
               }
             >
               <Icon size={19} strokeWidth={2.1} />
-              <span className="pointer-events-none absolute left-[3.25rem] z-50 whitespace-nowrap rounded-xl bg-ink/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+              <span className="pointer-events-none absolute left-[3.25rem] z-50 whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
                 {label}
               </span>
             </NavLink>
           ))}
         </nav>
+
+        <div className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl text-ink/40 dark:text-white/40 hover:bg-white/70 dark:hover:bg-white/10 hover:text-lavender-600 dark:hover:text-lavender-300 transition-all duration-200"
+          >
+            <Settings size={19} strokeWidth={2.1} />
+          </button>
+        </div>
       </div>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </aside>
   );
 }

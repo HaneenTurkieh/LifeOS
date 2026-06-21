@@ -1,5 +1,6 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import Sidebar from './components/Sidebar.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -39,24 +40,38 @@ export default function App() {
   );
 }
 
+// The dashboard chrome (sidebar + content area) only renders once the
+// user is authenticated — ProtectedRoute above guards this whole tree.
 function AppShell() {
+  const location = useLocation();
+
   return (
     <div className="min-h-screen flex">
       <Sidebar />
       <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-10 pt-6 max-w-[1600px] mx-auto w-full">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/habits" element={<Habits />} />
-          <Route path="/learning" element={<Learning />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/internships" element={<Internships />} />
-          <Route path="/cv" element={<CVBuilder />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/ai" element={<AITools />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        {/* Subtle per-route entrance transition — keyed by pathname so each
+            navigation gets a fresh, smooth fade + slide without fighting
+            React Router's own mount/unmount timing. */}
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <Routes location={location}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/habits" element={<Habits />} />
+            <Route path="/learning" element={<Learning />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/internships" element={<Internships />} />
+            <Route path="/cv" element={<CVBuilder />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/ai" element={<AITools />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </motion.div>
       </main>
       <MobileNav />
     </div>

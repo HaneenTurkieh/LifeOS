@@ -13,12 +13,27 @@ html, body, #root {
 body {
   @apply bg-app-gradient text-ink font-body;
   background-attachment: fixed;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+.dark body {
+  @apply bg-app-gradient-dark text-white/90;
+  background-attachment: fixed;
+}
+
+/* Smooth, scoped theme transitions — only on the properties that change
+   between light/dark, not on layout/transform, so toggling never jitters
+   or tanks performance. */
+.glass-card, .glass-panel, .input-field, .pill, .btn-secondary, .btn-ghost {
+  transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(124, 106, 240, 0.25); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(124, 106, 240, 0.45); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(154, 139, 251, 0.25); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(154, 139, 251, 0.4); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -35,23 +50,29 @@ body {
 }
 
 @layer components {
+  /* Base glass surface (tier 1) — used directly via className in places
+     that don't go through the <GlassCard> component (modals, toasts,
+     kanban columns, empty states). Dark-mode aware. */
   .glass-panel {
-    @apply bg-white/55 backdrop-blur-xl border border-white/60 shadow-glass;
+    @apply bg-white/55 dark:bg-white/[0.04] backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-glass dark:shadow-none;
   }
   .glass-card {
-    @apply bg-white/60 backdrop-blur-xl border border-white/70 shadow-glass rounded-3xl;
+    @apply bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl border border-white/70 dark:border-white/10 shadow-glass dark:shadow-none rounded-3xl;
+  }
+  .glass-card-interactive {
+    @apply glass-card transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:shadow-glass-lg dark:hover:border-white/20 cursor-pointer;
   }
   .input-field {
-    @apply w-full rounded-2xl border border-lavender-200/70 bg-white/70 px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 outline-none transition focus:border-lavender-400 focus:ring-2 focus:ring-lavender-200;
+    @apply w-full rounded-2xl border border-lavender-200/70 dark:border-white/15 bg-white/70 dark:bg-white/[0.05] px-4 py-2.5 text-sm text-ink dark:text-white placeholder:text-ink/40 dark:placeholder:text-white/30 outline-none transition focus:border-lavender-400 focus:ring-2 focus:ring-lavender-200 dark:focus:ring-lavender-500/30;
   }
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-lavender-500 to-lavender-700 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 border border-white/80 px-5 py-2.5 text-sm font-semibold text-ink/80 shadow-sm transition hover:bg-white active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 dark:bg-white/[0.06] border border-white/80 dark:border-white/15 px-5 py-2.5 text-sm font-semibold text-ink/80 dark:text-white/80 shadow-sm transition hover:bg-white dark:hover:bg-white/10 active:scale-[0.98];
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-ink/60 transition hover:bg-white/60 hover:text-ink;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-ink/60 dark:text-white/50 transition hover:bg-white/60 dark:hover:bg-white/10 hover:text-ink dark:hover:text-white;
   }
   .pill {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
@@ -63,16 +84,57 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.6s linear infinite;
 }
-.dark body {
-    @apply bg-[#0c0a1a] text-white/90;
-    background-image: radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%);
-  }
-  .dark .glass-card,
-  .dark .glass-panel {
-    @apply bg-white/[0.06] border-white/10 text-white;
-  }
-  .dark .input-field {
-    @apply bg-white/[0.05] border-white/15 text-white placeholder:text-white/30;
-  }
-  .dark .text-ink { color: rgba(255,255,255,0.9); }
-  .dark .text-ink\/50, .dark .text-ink\/45, .dark .text-ink\/40 { color: rgba(255,255,255,0.45); }
+.dark .skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.09) 37%, rgba(255,255,255,0.03) 63%);
+  background-size: 200% 100%;
+}
+
+/* ============================================================
+   Dark-mode compatibility layer
+   ============================================================
+   Tasks.jsx, Goals.jsx, Habits.jsx, Internships.jsx, Projects.jsx,
+   Learning.jsx, CVBuilder.jsx and Analytics.jsx were intentionally left
+   untouched this round (per "preserve existing pages, don't redesign
+   from scratch") — they still use light-theme utility classes directly
+   (e.g. bg-white/70, text-ink) rather than the dark:-aware shared
+   components. Rather than rewriting eight page files just to sprinkle
+   dark: variants through them, this single block overrides the small,
+   consistent set of utility classes those pages actually use whenever
+   .dark is active on <html>. This keeps dark mode centralized,
+   low-risk, and easy to delete once those pages get their own
+   incremental dark-mode pass. */
+.dark .bg-white\/40  { background-color: rgba(255,255,255,0.035); }
+.dark .bg-white\/50  { background-color: rgba(255,255,255,0.04); }
+.dark .bg-white\/60  { background-color: rgba(255,255,255,0.045); }
+.dark .bg-white\/70  { background-color: rgba(255,255,255,0.06); }
+.dark .bg-white\/90  { background-color: rgba(255,255,255,0.09); }
+.dark .hover\:bg-white:hover { background-color: rgba(255,255,255,0.08); }
+.dark .hover\:bg-white\/60:hover { background-color: rgba(255,255,255,0.07); }
+.dark .hover\:bg-white\/70:hover { background-color: rgba(255,255,255,0.08); }
+.dark .hover\:bg-white\/90:hover { background-color: rgba(255,255,255,0.1); }
+
+.dark .border-white\/60 { border-color: rgba(255,255,255,0.08); }
+.dark .border-white\/70 { border-color: rgba(255,255,255,0.1); }
+.dark .border-white\/80 { border-color: rgba(255,255,255,0.12); }
+
+.dark .text-ink      { color: rgba(255,255,255,0.92); }
+.dark .text-ink\/80   { color: rgba(255,255,255,0.75); }
+.dark .text-ink\/70   { color: rgba(255,255,255,0.65); }
+.dark .text-ink\/60   { color: rgba(255,255,255,0.55); }
+.dark .text-ink\/55   { color: rgba(255,255,255,0.5); }
+.dark .text-ink\/50   { color: rgba(255,255,255,0.45); }
+.dark .text-ink\/45   { color: rgba(255,255,255,0.4); }
+.dark .text-ink\/40   { color: rgba(255,255,255,0.35); }
+.dark .text-ink\/35   { color: rgba(255,255,255,0.3); }
+.dark .text-ink\/30   { color: rgba(255,255,255,0.25); }
+.dark .text-ink\/25   { color: rgba(255,255,255,0.22); }
+
+.dark .bg-ink\/5      { background-color: rgba(255,255,255,0.06); }
+.dark .divide-white\/50 > * + * { border-color: rgba(255,255,255,0.08); }
+
+.dark .bg-lavender-50  { background-color: rgba(124,106,240,0.1); }
+.dark .bg-lavender-100 { background-color: rgba(124,106,240,0.16); }
+.dark .text-lavender-700 { color: #BBB0FF; }
+.dark .bg-sage-50  { background-color: rgba(76,195,138,0.1); }
+.dark .bg-sage-100 { background-color: rgba(76,195,138,0.16); }
+.dark .text-sage-700 { color: #7FD8A6; }

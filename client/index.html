@@ -5,9 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aurora — Personal Life Dashboard</title>
     <meta name="description" content="Your second brain for goals, habits, tasks and mood." />
+    <meta id="theme-color-meta" name="theme-color" content="#F4F6FB" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      // Anti-flash-of-incorrect-theme: this MUST run synchronously, before
+      // first paint, so the .dark class is already correct by the time
+      // anything renders. React only mounts after this has already run,
+      // so there is no flash — not even a single frame.
+      (function () {
+        try {
+          var STORAGE_KEY = 'aurora_theme';
+          var stored = localStorage.getItem(STORAGE_KEY) || 'system';
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = stored === 'dark' || (stored === 'system' && prefersDark);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.getElementById('theme-color-meta')?.setAttribute('content', '#0c0a1a');
+          }
+        } catch (e) {
+          // localStorage can throw in some privacy modes — fail silently to light mode.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
