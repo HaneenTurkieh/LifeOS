@@ -1,3 +1,5 @@
+import { playCompletionSound } from '../utils/sounds.js';
+import CompletionBurst from '../components/CompletionBurst.jsx';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -24,6 +26,7 @@ const MOODS = [
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [justCompletedId, setJustCompletedId] = useState(null);
   const toast = useToast();
   const { user } = useAuth();
   const prevLevel = useRef(null);
@@ -48,14 +51,22 @@ export default function Dashboard() {
   const toggleTask = async (task) => {
     const status = task.status === 'done' ? 'todo' : 'done';
     const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status });
-    if (xpAwarded) toast.xp(xpAwarded, task.title);
+    if (xpAwarded) {
+      toast.xp(xpAwarded, task.title);
+      playCompletionSound();
+      setJustCompletedId(task.id);
+      setTimeout(() => setJustCompletedId(null), 700);
+    }
     unlocked?.forEach((key) => toast.achievement(key.replace(/_/g, ' ')));
     load();
   };
 
   const toggleHabit = async (habit) => {
     const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, {});
-    if (xpAwarded) toast.xp(xpAwarded, habit.name);
+    if (xpAwarded) {
+      toast.xp(xpAwarded, habit.name);
+      playCompletionSound();
+    }
     unlocked?.forEach((key) => toast.achievement(key.replace(/_/g, ' ')));
     load();
   };
@@ -98,8 +109,9 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.04 }}
-                    className="flex items-center gap-3 rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] px-4 py-3 text-left transition-all duration-200 hover:bg-white/70 dark:hover:bg-white/[0.07] hover:-translate-y-0.5"
+                    className="relative flex items-center gap-3 rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] px-4 py-3 text-left transition-all duration-200 hover:bg-white/70 dark:hover:bg-white/[0.07] hover:-translate-y-0.5"
                   >
+                    <CompletionBurst show={justCompletedId === t.id} />
                     {t.status === 'done'
                       ? <CheckCircle2 className="text-sage-500 shrink-0" size={20} />
                       : <Circle className="text-ink/25 dark:text-white/25 shrink-0" size={20} />}
@@ -154,31 +166,30 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-col gap-5">
-          {/* replace the existing Mood-of-the-day GlassCard block with: */}
-<GlassCard delay={0.1} className="p-6 relative overflow-hidden">
-  <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-aurora-violet/15 blur-2xl animate-floaty" />
-  <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5">
-    <Smile size={14}/> Mood of the day
-  </p>
-  <div className="flex justify-between gap-1.5">
-    {MOODS.map((m) => (
-      <motion.button
-        key={m.value}
-        whileHover={{ y: -3, scale: 1.06 }}
-        whileTap={{ scale: 0.92, y: 0 }}
-        onClick={() => setMood(m.value)}
-        className={`flex flex-col items-center gap-1 rounded-2xl px-2.5 py-2.5 transition-all duration-200 ${
-          data.mood?.mood === m.value
-            ? 'clay shadow-glow-ring bg-white/90 dark:bg-white/10'
-            : 'hover:bg-white/50 dark:hover:bg-white/5'
-        }`}
-      >
-        <span className="text-2xl">{m.emoji}</span>
-        <span className="text-[10px] text-ink/45 dark:text-white/35">{m.label}</span>
-      </motion.button>
-    ))}
-  </div>
-</GlassCard>
+          <GlassCard delay={0.1} className="p-6 relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-aurora-violet/15 blur-2xl animate-floaty" />
+            <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5">
+              <Smile size={14}/> Mood of the day
+            </p>
+            <div className="flex justify-between gap-1.5">
+              {MOODS.map((m) => (
+                <motion.button
+                  key={m.value}
+                  whileHover={{ y: -3, scale: 1.06 }}
+                  whileTap={{ scale: 0.92, y: 0 }}
+                  onClick={() => setMood(m.value)}
+                  className={`flex flex-col items-center gap-1 rounded-2xl px-2.5 py-2.5 transition-all duration-200 ${
+                    data.mood?.mood === m.value
+                      ? 'clay shadow-glow-ring bg-white/90 dark:bg-white/10'
+                      : 'hover:bg-white/50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-2xl">{m.emoji}</span>
+                  <span className="text-[10px] text-ink/45 dark:text-white/35">{m.label}</span>
+                </motion.button>
+              ))}
+            </div>
+          </GlassCard>
 
           <GlassCard delay={0.15} className="p-6">
             <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5"><Quote size={14}/> Daily quote</p>
