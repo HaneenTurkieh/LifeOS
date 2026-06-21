@@ -114,6 +114,9 @@ const { lowPower, toggleLowPower } = usePerformance();
           )}
         </div>
       </div>
+<p className="text-center text-[10px] text-ink/30 dark:text-white/25 pt-2">
+          © {new Date().getFullYear()} Haneen Turkieh. All rights reserved.
+        </p>
     </Modal>
   );
 }
