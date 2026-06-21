@@ -158,8 +158,8 @@ body {
 /* With the Spline ribbons as a permanent background, dashboard text needs
    to stay high-contrast regardless of the light/dark toggle — glass cards
    sit on a colorful moving scene either way, not a flat light page. */
-.text-ink { color: rgba(255,255,255,0.95) !important; }
-.text-ink\/80, .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
-.text-ink\/60, .text-ink\/55, .text-ink\/50 { color: rgba(255,255,255,0.55) !important; }
-.text-ink\/45, .text-ink\/40, .text-ink\/35 { color: rgba(255,255,255,0.4) !important; }
-.text-ink\/30, .text-ink\/25 { color: rgba(255,255,255,0.3) !important; }
+.dark .text-ink { color: rgba(255,255,255,0.95) !important; }
+.dark .text-ink\/80, .dark .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
+.dark .text-ink\/60, .dark .text-ink\/55, .dark .text-ink\/50 { color: rgba(255,255,255,0.55) !important; }
+.dark .text-ink\/45, .dark .text-ink\/40, .dark .text-ink\/35 { color: rgba(255,255,255,0.4) !important; }
+.dark .text-ink\/30, .dark .text-ink\/25 { color: rgba(255,255,255,0.3) !important; }
