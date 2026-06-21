@@ -1,0 +1,10 @@
+{
+  "name": "Aurora — Personal Life Dashboard",
+  "short_name": "Aurora",
+  "description": "Your second brain for goals, habits, tasks and mood.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#c3a1f7",
+  "theme_color": "#c3a1f7",
+  "icons": []
+}
