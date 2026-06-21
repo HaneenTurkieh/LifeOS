@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Calendar, ListChecks } from 'lucide-react';
+import { Plus, Trash2, Pencil, Calendar, ListChecks } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
@@ -23,6 +23,9 @@ export default function Tasks() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  // null = creating a new task; otherwise holds the task being edited so
+  // we know to PUT instead of POST, and which row to refresh visually.
+  const [editingTask, setEditingTask] = useState(null);
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -45,7 +48,6 @@ export default function Tasks() {
     const moved = newTasks.find((t) => String(t.id) === draggableId);
     moved.status = destination.droppableId;
 
-    // Recompute local order optimistically for a snappy UI.
     const colTasks = newTasks.filter((t) => t.status === destination.droppableId && t.id !== moved.id);
     colTasks.splice(destination.index, 0, moved);
     colTasks.forEach((t, idx) => { t.position = idx; });
@@ -63,13 +65,37 @@ export default function Tasks() {
     load();
   };
 
-  const createTask = async (e) => {
+  const openCreateModal = () => {
+    setEditingTask(null);
+    setForm(emptyForm);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (task) => {
+    setEditingTask(task);
+    setForm({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      category: task.category,
+      deadline: task.deadline || '',
+    });
+    setModalOpen(true);
+  };
+
+  const submitForm = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
     try {
-      await api.post('/tasks', { ...form, deadline: form.deadline || null });
-      toast.success('Task added');
+      if (editingTask) {
+        await api.put(`/tasks/${editingTask.id}`, { ...form, deadline: form.deadline || null });
+        toast.success('Task updated');
+      } else {
+        await api.post('/tasks', { ...form, deadline: form.deadline || null });
+        toast.success('Task added');
+      }
       setForm(emptyForm);
+      setEditingTask(null);
       setModalOpen(false);
       load();
     } catch (err) { toast.error(err.message); }
@@ -89,11 +115,11 @@ export default function Tasks() {
         eyebrow="Task Manager"
         title="Drag, drop, get it done"
         subtitle="Organize everything you need to do across To Do, Doing and Done."
-        action={<button className="btn-primary" onClick={() => setModalOpen(true)}><Plus size={16}/> New task</button>}
+        action={<button className="btn-primary" onClick={openCreateModal}><Plus size={16}/> New task</button>}
       />
 
       {tasks.length === 0 ? (
-        <EmptyState icon={ListChecks} title="No tasks yet" message="Add your first task to get started." action={<button className="btn-primary mt-2" onClick={() => setModalOpen(true)}><Plus size={16}/> New task</button>} />
+        <EmptyState icon={ListChecks} title="No tasks yet" message="Add your first task to get started." action={<button className="btn-primary mt-2" onClick={openCreateModal}><Plus size={16}/> New task</button>} />
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -120,9 +146,14 @@ export default function Tasks() {
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <p className={`text-sm font-medium text-ink leading-snug ${task.status === 'done' ? 'line-through text-ink/40' : ''}`}>{task.title}</p>
-                                <button onClick={() => removeTask(task.id)} className="opacity-0 group-hover:opacity-100 text-ink/30 hover:text-coral-500 transition shrink-0">
-                                  <Trash2 size={14} />
-                                </button>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                                  <button onClick={() => openEditModal(task)} className="text-ink/30 hover:text-lavender-600">
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button onClick={() => removeTask(task.id)} className="text-ink/30 hover:text-coral-500">
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </div>
                               {task.description && <p className="text-xs text-ink/45 mt-1 line-clamp-2">{task.description}</p>}
                               <div className="flex items-center justify-between mt-3">
@@ -148,8 +179,8 @@ export default function Tasks() {
         </DragDropContext>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New task">
-        <form onSubmit={createTask} className="flex flex-col gap-3.5">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTask ? 'Edit task' : 'New task'}>
+        <form onSubmit={submitForm} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder="Task title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
           <textarea className="input-field" placeholder="Description (optional)" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
@@ -161,7 +192,7 @@ export default function Tasks() {
             <input className="input-field" placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           </div>
           <input type="date" className="input-field" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
-          <button type="submit" className="btn-primary justify-center mt-1">Add task</button>
+          <button type="submit" className="btn-primary justify-center mt-1">{editingTask ? 'Save changes' : 'Add task'}</button>
         </form>
       </Modal>
     </div>
