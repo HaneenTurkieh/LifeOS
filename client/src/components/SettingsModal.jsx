@@ -1,3 +1,5 @@
+import { MessageSquare } from 'lucide-react';
+import { api } from '../api/client.js';
 import React, { useState } from 'react';
 import { LogOut, Mail, Trash2, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +13,24 @@ export default function SettingsModal({ open, onClose }) {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
+const [feedback, setFeedback] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
+  const sendFeedback = async () => {
+    if (!feedback.trim()) return;
+    setSending(true);
+    try {
+      await api.post('/feedback', { message: feedback, email: user?.email });
+      setSent(true);
+      setFeedback('');
+      setTimeout(() => setSent(false), 3000);
+    } catch {
+      // fail silently in UI, not critical
+    } finally {
+      setSending(false);
+    }
+  };
   const handleDelete = async () => {
     if (confirmText !== 'DELETE') return;
     setDeleting(true);
@@ -46,7 +65,25 @@ export default function SettingsModal({ open, onClose }) {
         </div>
 
         <ThemeSettings />
-
+<div className="rounded-2xl bg-ink/5 dark:bg-white/5 p-4">
+          <p className="text-sm font-medium text-ink dark:text-white flex items-center gap-1.5 mb-2">
+            <MessageSquare size={14} /> Send feedback
+          </p>
+          <textarea
+            className="input-field text-sm"
+            rows={3}
+            placeholder="Tell me what's working, what's not, or what you'd like added..."
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+          />
+          <button
+            onClick={sendFeedback}
+            disabled={!feedback.trim() || sending}
+            className="btn-primary w-full justify-center mt-2 text-sm py-2"
+          >
+            {sending ? 'Sending…' : sent ? 'Sent ✓' : 'Send feedback'}
+          </button>
+        </div>
         <button
           onClick={logout}
           className="flex items-center justify-center gap-2 rounded-2xl border border-coral-500/20 bg-coral-500/5 py-2.5 text-sm font-semibold text-coral-500 hover:bg-coral-500/10 transition"
