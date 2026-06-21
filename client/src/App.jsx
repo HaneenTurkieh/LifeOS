@@ -18,6 +18,7 @@ import Internships from './pages/Internships.jsx';
 import CVBuilder from './pages/CVBuilder.jsx';
 import Projects from './pages/Projects.jsx';
 import AITools from './pages/AITools.jsx';
+import History from './pages/History.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 export default function App() {
@@ -65,6 +66,7 @@ function AppShell() {
             <Route path="/cv" element={<CVBuilder />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/ai" element={<AITools />} />
+            <Route path="/history" element={<History />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </motion.div>

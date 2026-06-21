@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, ListChecks, Target, Dumbbell, Sparkles, MoreHorizontal,
+ Clock, LayoutDashboard, ListChecks, Target, Dumbbell, Sparkles, MoreHorizontal,
   BarChart3, BookOpen, Briefcase, FolderKanban, FileText, X,
 } from 'lucide-react';
 
@@ -19,6 +19,7 @@ const NAV = [
 // portrait/mobile screens with no indication they existed at all.
 const MORE_ITEMS = [
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+{ to: '/history', icon: Clock, label: 'History' },
   { to: '/learning', icon: BookOpen, label: 'Learning' },
   { to: '/internships', icon: Briefcase, label: 'Internships' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
