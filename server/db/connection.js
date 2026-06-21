@@ -32,6 +32,11 @@ function hasColumn(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
 }
 
+// Migrate existing `tasks` rows that predate the deadline_time column.
+if (!hasColumn('tasks', 'deadline_time')) {
+  db.exec(`ALTER TABLE tasks ADD COLUMN deadline_time TEXT`);
+}
+
 // 2. Migrate tables that already existed before the auth system was
 //    added — they're missing a user_id column.
 const USER_SCOPED_TABLES = [

@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority    TEXT NOT NULL DEFAULT 'medium',   -- low | medium | high
   category    TEXT NOT NULL DEFAULT 'general',
   deadline    TEXT,                              -- ISO date, nullable
-  status      TEXT NOT NULL DEFAULT 'todo',       -- todo | doing | done
+deadline_time TEXT,                             -- "HH:MM" 24h format, nullable 
+ status      TEXT NOT NULL DEFAULT 'todo',       -- todo | doing | done
   progress    INTEGER NOT NULL DEFAULT 0,
   position    INTEGER NOT NULL DEFAULT 0,         -- order within a column
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
