@@ -16,7 +16,7 @@ const COLUMNS = [
   { key: 'done', title: 'Done', accent: 'bg-sage-500' },
 ];
 
-const emptyForm = { title: '', description: '', priority: 'medium', category: 'General', deadline: '' };
+const emptyForm = { title: '', description: '', priority: 'medium', category: 'General', deadline: '', deadline_time: '' };
 
 export default function Tasks() {
   const [tasks, setTasks] = useState([]);
@@ -71,7 +71,7 @@ export default function Tasks() {
     setModalOpen(true);
   };
 
-  const openEditModal = (task) => {
+const openEditModal = (task) => {
     setEditingTask(task);
     setForm({
       title: task.title,
@@ -79,6 +79,7 @@ export default function Tasks() {
       priority: task.priority,
       category: task.category,
       deadline: task.deadline || '',
+      deadline_time: task.deadline_time || '',
     });
     setModalOpen(true);
   };
@@ -191,7 +192,10 @@ export default function Tasks() {
             </select>
             <input className="input-field" placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           </div>
-          <input type="date" className="input-field" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+<div className="grid grid-cols-2 gap-3">
+            <input type="date" className="input-field" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            <input type="time" className="input-field" value={form.deadline_time} onChange={(e) => setForm({ ...form, deadline_time: e.target.value })} placeholder="Optional time" />
+          </div>
           <button type="submit" className="btn-primary justify-center mt-1">{editingTask ? 'Save changes' : 'Add task'}</button>
         </form>
       </Modal>

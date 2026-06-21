@@ -11,13 +11,13 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { title, description = '', priority = 'medium', category = 'general', deadline = null } = req.body;
+const { title, description = '', priority = 'medium', category = 'general', deadline = null, deadline_time = null } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
   const maxPos = db.prepare(`SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`).get(req.user.id).m;
-  const info = db.prepare(`
-    INSERT INTO tasks (user_id, title, description, priority, category, deadline, status, progress, position)
-    VALUES (?, ?, ?, ?, ?, ?, 'todo', 0, ?)
-  `).run(req.user.id, title.trim(), description, priority, category, deadline, maxPos + 1);
+const info = db.prepare(`
+    INSERT INTO tasks (user_id, title, description, priority, category, deadline, deadline_time, status, progress, position)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)
+  `).run(req.user.id, title.trim(), description, priority, category, deadline, deadline_time, maxPos + 1);
   const task = db.prepare(`SELECT * FROM tasks WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, req.user.id);
   res.status(201).json(task);
 });
@@ -33,12 +33,11 @@ router.put('/:id', (req, res) => {
   if (isNowDone && updates.progress < 100) updates.progress = 100;
   updates.completed_at = isNowDone ? (existing.completed_at || new Date().toISOString()) : null;
 
-  db.prepare(`
-    UPDATE tasks SET title=?, description=?, priority=?, category=?, deadline=?, status=?, progress=?, position=?, completed_at=?
+db.prepare(`
+    UPDATE tasks SET title=?, description=?, priority=?, category=?, deadline=?, deadline_time=?, status=?, progress=?, position=?, completed_at=?
     WHERE id = ? AND user_id = ?
-  `).run(updates.title, updates.description, updates.priority, updates.category, updates.deadline,
+  `).run(updates.title, updates.description, updates.priority, updates.category, updates.deadline, updates.deadline_time,
          updates.status, updates.progress, updates.position, updates.completed_at, req.params.id, req.user.id);
-
   let xpAwarded = 0;
   if (!wasDone && isNowDone) {
     addXp(req.user.id, 20, `Completed task: ${updates.title}`);
