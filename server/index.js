@@ -54,6 +54,7 @@ app.use('/api/ai', authenticate, require('./routes/ai'));
 app.use('/api/dashboard', authenticate, require('./routes/dashboard'));
 app.use('/api/gamification', authenticate, require('./routes/gamification'));
 app.use('/api/analytics', authenticate, require('./routes/analytics'));
+app.use('/api/feedback', authenticate, require('./routes/feedback'));
 app.use('/api/history', authenticate, require('./routes/history'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Personal Life Dashboard API' }));
