@@ -38,7 +38,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2.5 pointer-events-none">
+      <div className="fixed top-5 right-5 z-[100] flex flex-col gap-2.5 pointer-events-none">
         <AnimatePresence>
           {toasts.map((t) => {
             const Icon = ICONS[t.type] || Sparkles;
