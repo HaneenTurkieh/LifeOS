@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ListChecks, Target, BookOpen, Dumbbell, BarChart3,
-  Briefcase, FileUser, FolderKanban, Sparkles, TreePine, Settings,
+  Briefcase, FileText, FolderKanban, Sparkles, TreePine, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
@@ -16,7 +16,7 @@ const NAV = [
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/internships', icon: Briefcase, label: 'Internships' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
-  { to: '/cv', icon: FileUser, label: 'CV Builder' },
+  { to: '/cv', icon: FileText, label: 'CV Builder' },
 ];
 
 export default function Sidebar() {
