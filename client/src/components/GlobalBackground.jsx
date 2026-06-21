@@ -9,7 +9,7 @@ const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 const { lowPower } = usePerformance();
   return (
-    <div className="w-screen h-screen fixed top-0 left-0 -z-10 pointer-events-none transform scale-[1.35] md:scale-150 origin-center">
+    <div className="w-screen h-screen fixed top-0 left-0 -z-10 pointer-events-none transform scale-100 origin-center">
 {lowPower ? (
         <div className="w-full h-full bg-gradient-to-br from-[#2a1f4d] via-[#1a1530] to-[#0c0a1a]" />
       ) : (
