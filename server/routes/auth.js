@@ -199,4 +199,13 @@ router.post('/reset-password', async (req, res) => {
   res.json({ message: 'Your password has been reset. You can now log in with your new password.' });
 });
 
+
+// DELETE /api/auth/me — permanently delete the logged-in user's account
+// and everything tied to it (tasks, habits, goals, etc. all cascade via
+// the ON DELETE CASCADE foreign keys defined in schema.sql).
+router.delete('/me', authenticate, (req, res) => {
+  const info = db.prepare(`DELETE FROM users WHERE id = ?`).run(req.user.id);
+  if (info.changes === 0) return res.status(404).json({ error: 'User not found' });
+  res.status(204).end();
+});
 module.exports = router;
