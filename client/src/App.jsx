@@ -1,3 +1,4 @@
+import useTaskReminders from './hooks/useTaskReminders.js';
 import React from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -44,7 +45,7 @@ export default function App() {
 
 function AppShell() {
   const location = useLocation();
-
+useTaskReminders();
   return (
     <div className="min-h-screen flex relative z-10">
       <Sidebar />
