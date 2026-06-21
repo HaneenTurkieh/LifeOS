@@ -154,26 +154,31 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-col gap-5">
-          <GlassCard delay={0.1} className="p-6 relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-lavender-200/40 dark:bg-lavender-500/10 blur-2xl animate-floaty" />
-            <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5"><Smile size={14}/> Mood of the day</p>
-            <div className="flex justify-between">
-              {MOODS.map((m) => (
-                <motion.button
-                  key={m.value}
-                  whileTap={{ scale: 0.85 }}
-                  whileHover={{ scale: 1.08 }}
-                  onClick={() => setMood(m.value)}
-                  className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 transition ${
-                    data.mood?.mood === m.value ? 'bg-lavender-100 dark:bg-lavender-500/20 scale-110' : 'hover:bg-white/60 dark:hover:bg-white/10'
-                  }`}
-                >
-                  <span className="text-2xl">{m.emoji}</span>
-                  <span className="text-[10px] text-ink/45 dark:text-white/35">{m.label}</span>
-                </motion.button>
-              ))}
-            </div>
-          </GlassCard>
+          {/* replace the existing Mood-of-the-day GlassCard block with: */}
+<GlassCard delay={0.1} className="p-6 relative overflow-hidden">
+  <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-aurora-violet/15 blur-2xl animate-floaty" />
+  <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5">
+    <Smile size={14}/> Mood of the day
+  </p>
+  <div className="flex justify-between gap-1.5">
+    {MOODS.map((m) => (
+      <motion.button
+        key={m.value}
+        whileHover={{ y: -3, scale: 1.06 }}
+        whileTap={{ scale: 0.92, y: 0 }}
+        onClick={() => setMood(m.value)}
+        className={`flex flex-col items-center gap-1 rounded-2xl px-2.5 py-2.5 transition-all duration-200 ${
+          data.mood?.mood === m.value
+            ? 'clay shadow-glow-ring bg-white/90 dark:bg-white/10'
+            : 'hover:bg-white/50 dark:hover:bg-white/5'
+        }`}
+      >
+        <span className="text-2xl">{m.emoji}</span>
+        <span className="text-[10px] text-ink/45 dark:text-white/35">{m.label}</span>
+      </motion.button>
+    ))}
+  </div>
+</GlassCard>
 
           <GlassCard delay={0.15} className="p-6">
             <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5"><Quote size={14}/> Daily quote</p>

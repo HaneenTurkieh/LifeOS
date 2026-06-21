@@ -138,3 +138,12 @@ body {
 .dark .bg-sage-50  { background-color: rgba(76,195,138,0.1); }
 .dark .bg-sage-100 { background-color: rgba(76,195,138,0.16); }
 .dark .text-sage-700 { color: #7FD8A6; }
+.bg-mesh-app { @apply bg-mesh-light dark:bg-mesh-dark; }
+
+/* Claymorphic surface — soft, tactile, used for KPI tiles & mood capsules */
+.clay {
+  @apply bg-white/70 dark:bg-white/[0.05] border border-white/80 dark:border-white/10 shadow-clay dark:shadow-clay-dark rounded-2xl transition-all duration-300 ease-premium;
+}
+.clay-interactive {
+  @apply clay hover:-translate-y-0.5 hover:shadow-glow-ring cursor-pointer active:translate-y-0 active:shadow-clay;
+}

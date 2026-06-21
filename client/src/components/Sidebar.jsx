@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   LayoutDashboard, ListChecks, Target, BookOpen, Dumbbell, BarChart3,
   Briefcase, FileText, FolderKanban, Sparkles, TreePine, Settings,
@@ -24,41 +25,56 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6">
-      <div className="glass-panel flex flex-col items-center gap-1 rounded-[2rem] px-2.5 py-4 sticky top-6">
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-lavender-500 to-lavender-700 text-white shadow-glow">
+      <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 bg-white/55 dark:bg-white/[0.04] backdrop-blur-2xl shadow-glass-lg px-2.5 py-4 sticky top-6">
+        <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
+
+        <motion.div
+          animate={{ y: [0, -3, 0] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-aurora-violet to-aurora-indigo text-white shadow-[0_8px_20px_rgba(124,92,255,0.4)]"
+        >
           <TreePine size={20} />
-        </div>
+        </motion.div>
+
         <nav className="flex flex-col gap-1.5">
           {NAV.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              title={label}
-              className={({ isActive }) =>
-                `group relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-200 ${
-                  isActive
-                    ? 'bg-gradient-to-br from-lavender-500 to-lavender-700 text-white shadow-glow scale-105'
-                    : 'text-ink/40 dark:text-white/40 hover:bg-white/70 dark:hover:bg-white/10 hover:text-lavender-600 dark:hover:text-lavender-300'
-                }`
-              }
-            >
-              <Icon size={19} strokeWidth={2.1} />
-              <span className="pointer-events-none absolute left-[3.25rem] z-50 whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
-                {label}
-              </span>
+            <NavLink key={to} to={to} end={to === '/'} title={label} className="group relative flex h-11 w-11 items-center justify-center">
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.span
+                      layoutId="sidebar-active"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      className="absolute inset-0 rounded-2xl bg-gradient-to-br from-aurora-violet to-aurora-indigo shadow-[0_6px_18px_rgba(124,92,255,0.45)]"
+                    />
+                  )}
+                  <motion.span
+                    whileHover={{ y: -2, scale: 1.06 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-2xl transition-colors ${
+                      isActive ? 'text-white' : 'text-ink/40 dark:text-white/40 hover:text-aurora-violet dark:hover:text-aurora-sky hover:bg-white/70 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <Icon size={19} strokeWidth={2.1} />
+                  </motion.span>
+                  <span className="pointer-events-none absolute left-[3.25rem] z-50 whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                    {label}
+                  </span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
         <div className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
-          <button
+          <motion.button
+            whileHover={{ y: -2, scale: 1.06 }}
             onClick={() => setSettingsOpen(true)}
             title="Settings"
-            className="flex h-11 w-11 items-center justify-center rounded-2xl text-ink/40 dark:text-white/40 hover:bg-white/70 dark:hover:bg-white/10 hover:text-lavender-600 dark:hover:text-lavender-300 transition-all duration-200"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl text-ink/40 dark:text-white/40 hover:text-aurora-violet dark:hover:text-aurora-sky hover:bg-white/70 dark:hover:bg-white/10 transition-colors"
           >
             <Settings size={19} strokeWidth={2.1} />
-          </button>
+          </motion.button>
         </div>
       </div>
 
