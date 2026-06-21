@@ -1,4 +1,3 @@
-import { usePerformance } from '../context/PerformanceContext.jsx';
 import React, { useState } from 'react';
 import { LogOut, Mail, Trash2, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +7,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 
 export default function SettingsModal({ open, onClose }) {
   const { user, logout, deleteAccount } = useAuth();
-const { lowPower, toggleLowPower } = usePerformance();
   const [confirming, setConfirming] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -48,18 +46,6 @@ const { lowPower, toggleLowPower } = usePerformance();
         </div>
 
         <ThemeSettings />
-<div className="flex items-center justify-between rounded-2xl bg-ink/5 dark:bg-white/5 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-ink dark:text-white">Low power mode</p>
-            <p className="text-xs text-ink/45 dark:text-white/40">Disables the 3D background if the app feels laggy</p>
-          </div>
-          <button
-            onClick={toggleLowPower}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${lowPower ? 'bg-lavender-600' : 'bg-ink/20 dark:bg-white/20'}`}
-          >
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${lowPower ? 'translate-x-5' : 'translate-x-0.5'}`} />
-          </button>
-        </div>
 
         <button
           onClick={logout}
