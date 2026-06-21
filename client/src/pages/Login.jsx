@@ -62,7 +62,7 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#0c0a1a] flex items-center justify-center px-4 py-10">
+    <div className="relative min-h-screen w-full overflow-hidden flex items-center justify-center px-4 py-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-24 h-[26rem] w-[26rem] rounded-full bg-lavender-600/40 blur-[100px] animate-floaty" />
         <div className="absolute top-1/3 -right-32 h-[30rem] w-[30rem] rounded-full bg-lavender-400/30 blur-[110px] animate-floaty" style={{ animationDelay: '1.2s' }} />
@@ -77,7 +77,7 @@ export default function Login() {
         initial={{ opacity: 0, y: 24, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-sm rounded-[2rem] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-glass-lg px-7 py-9 sm:px-9 sm:py-10"
+        className="relative w-full max-w-sm rounded-[2rem] glass-spline rounded-[2rem] px-7 py-9 sm:px-9 sm:py-10"
       >
         <div className="flex flex-col items-center mb-7">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-lavender-400 to-lavender-700 shadow-glow">
@@ -181,7 +181,7 @@ export default function Login() {
 
           <motion.button
             type="submit" disabled={submitting} whileTap={{ scale: 0.98 }}
-            className="mt-2 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-lavender-400 via-lavender-500 to-lavender-600 py-3 text-sm font-bold text-white shadow-glow transition hover:brightness-110 disabled:opacity-60 disabled:pointer-events-none"
+            className="mt-2 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-violet-600 hover:shadow-[0_0_30px_rgba(217,70,239,0.5)] py-3 text-sm font-bold text-white shadow-glow transition hover:brightness-110 disabled:opacity-60 disabled:pointer-events-none"
           >
             {submitting ? <Loader2 size={16} className="animate-spin" /> : isLogin ? 'Login' : 'Create account'}
           </motion.button>

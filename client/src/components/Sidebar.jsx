@@ -25,7 +25,7 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6">
-      <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 bg-white/55 dark:bg-white/[0.04] backdrop-blur-2xl shadow-glass-lg px-2.5 py-4 sticky top-6">
+      <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6">
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
         <motion.div
