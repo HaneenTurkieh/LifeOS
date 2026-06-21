@@ -8,8 +8,10 @@
 // request. A 401 response (expired/invalid token) clears the stored
 // token and fires a window event so AuthContext can log the user out.
 
-const BASE = 'https://lifeos-0l81.onrender.com/api';
-const TOKEN_KEY = 'aurora_auth_token';
+const BASE = window.location.hostname === 'localhost' 
+  ? 'http://localhost:4000/api' 
+  : 'https://lifeos-0l81.onrender.com/api';
+  const TOKEN_KEY = 'aurora_auth_token';
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);

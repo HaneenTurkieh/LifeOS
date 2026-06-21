@@ -5,10 +5,8 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // true while we check for an existing session
+  const [loading, setLoading] = useState(true);
 
-  // On first load, if a token is already stored, verify it's still valid
-  // and hydrate the user — this is what keeps you logged in after a refresh.
   const restoreSession = useCallback(async () => {
     const token = getToken();
     if (!token) {
@@ -29,26 +27,23 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     restoreSession();
-
-    // If any API call comes back 401 (expired/invalid token), the api
-    // client clears the token and fires this event — react to it by
-    // logging the user out everywhere in the app at once.
     const handleUnauthorized = () => setUser(null);
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, [restoreSession]);
 
   const login = async (email, password) => {
-    const { token, user: loggedInUser } = await api.post('/auth/login', { email, password });    setToken(token);
+    const { token, user: loggedInUser } = await api.post('/auth/login', { email, password });
+    setToken(token);
     setUser(loggedInUser);
     return loggedInUser;
   };
 
   const register = async (name, email, password) => {
-    const { token, user: newUser } = await api.post('/auth/register', { name, email, password });
+    const { token, user: registeredUser } = await api.post('/auth/register', { name, email, password });
     setToken(token);
-    setUser(newUser);
-    return newUser;
+    setUser(registeredUser);
+    return registeredUser;
   };
 
   const logout = () => {
