@@ -142,11 +142,10 @@ const openEditModal = (task) => {
                       {grouped[col.key].map((task, index) => (
                         <Draggable key={task.id} draggableId={String(task.id)} index={index}>
                           {(dragProvided, dragSnapshot) => (
-                            <motion.div
-                              ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}
-                              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                              className={`group rounded-2xl border border-white/70 bg-white/70 p-3.5 shadow-sm transition ${dragSnapshot.isDragging ? 'shadow-glass-lg scale-[1.03]' : 'hover:bg-white/90'}`}
-                            >
+                            <div
+                            ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}
+                            className={`group rounded-2xl border border-white/70 bg-white/70 p-3.5 shadow-sm transition ${dragSnapshot.isDragging ? 'shadow-glass-lg scale-[1.03]' : 'hover:bg-white/90'}`}
+                          >
                               <div className="flex items-start justify-between gap-2">
                                 <p className={`text-sm font-medium text-ink leading-snug ${task.status === 'done' ? 'line-through text-ink/40' : ''}`}>{task.title}</p>
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
@@ -168,12 +167,11 @@ const openEditModal = (task) => {
                               <div className="mt-2 h-1.5 rounded-full bg-ink/5 overflow-hidden">
                                 <div className="h-full rounded-full bg-gradient-to-r from-lavender-400 to-lavender-600" style={{ width: `${task.progress}%` }} />
                               </div>
-                            </motion.div>
+                            </div>
                           )}
                         </Draggable>
                       ))}
-                      {provided.placeholder}
-                    </div>
+<div className="hidden">{provided.placeholder}</div>                    </div>
                   )}
                 </Droppable>
               </div>
