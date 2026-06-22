@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
- Clock, LayoutDashboard, ListChecks, Target, Dumbbell, Sparkles, MoreHorizontal,
-  BarChart3, BookOpen, Briefcase, FolderKanban, FileText, X,
+  Clock, LayoutDashboard, ListChecks, Target, Dumbbell, Sparkles, MoreHorizontal,
+  BarChart3, BookOpen, Briefcase, FolderKanban, FileText, X, Settings,
 } from 'lucide-react';
+import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
@@ -14,12 +15,9 @@ const NAV = [
   { to: '/ai', icon: Sparkles, label: 'AI' },
 ];
 
-// Everything that doesn't fit in the bottom bar lives behind "More" —
-// this is the fix: previously these pages were simply unreachable on
-// portrait/mobile screens with no indication they existed at all.
 const MORE_ITEMS = [
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-{ to: '/history', icon: Clock, label: 'History' },
+  { to: '/history', icon: Clock, label: 'History' },
   { to: '/learning', icon: BookOpen, label: 'Learning' },
   { to: '/internships', icon: Briefcase, label: 'Internships' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
@@ -28,6 +26,7 @@ const MORE_ITEMS = [
 
 export default function MobileNav() {
   const [moreOpen, setMoreOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
@@ -97,11 +96,22 @@ export default function MobileNav() {
                     {label}
                   </NavLink>
                 ))}
+
+                {/* Settings opens the modal, not a route */}
+                <button
+                  onClick={() => { setMoreOpen(false); setSettingsOpen(true); }}
+                  className="flex flex-col items-center gap-2 rounded-2xl bg-ink/5 dark:bg-white/5 py-4 text-xs font-medium text-ink/70 dark:text-white/60"
+                >
+                  <Settings size={20} />
+                  Settings
+                </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }
