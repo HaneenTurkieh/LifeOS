@@ -1,94 +1,69 @@
-// routes/analytics.js — mounted behind `authenticate`.
 const express = require('express');
 const router = express.Router();
-const db = require('../db/connection');
+const { db } = require('../db/connection');
 
 function lastNDates(n) {
   const out = [];
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+    const d = new Date(); d.setDate(d.getDate() - i);
     out.push(d.toISOString().slice(0, 10));
   }
   return out;
 }
-
 function weekLabel(daysAgoStart) {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgoStart);
+  const d = new Date(); d.setDate(d.getDate() - daysAgoStart);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-router.get('/', (req, res) => {
-  const userId = req.user.id;
+router.get('/', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const weeks = Array.from({ length: 8 }, (_, i) => 7 - i); // [7..0]
 
-  // Tasks completed per week (last 8 weeks)
-  const tasksPerWeek = [];
-  for (let w = 7; w >= 0; w--) {
-    const start = w * 7 + 6;
-    const end = w * 7;
-    const count = db.prepare(`
-      SELECT COUNT(*) c FROM tasks
-      WHERE user_id = ? AND status='done' AND date(completed_at) BETWEEN date('now', '-${start} days') AND date('now', '-${end} days')
-    `).get(userId).c;
-    tasksPerWeek.push({ week: weekLabel(end), tasks: count });
-  }
+    const [tasksPerWeek, habitsPerWeek, studyHoursPerWeek] = await Promise.all([
+      Promise.all(weeks.map(async (w) => {
+        const s = w * 7 + 6, e = w * 7;
+        const r = await db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND date(completed_at) BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] });
+        return { week: weekLabel(e), tasks: Number(r.rows[0].c) };
+      })),
+      Promise.all(weeks.map(async (w) => {
+        const s = w * 7 + 6, e = w * 7;
+        const r = await db.execute({ sql: `SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id WHERE h.user_id = ? AND hl.date BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] });
+        return { week: weekLabel(e), habits: Number(r.rows[0].c) };
+      })),
+      Promise.all(weeks.map(async (w) => {
+        const s = w * 7 + 6, e = w * 7;
+        const [rL, rS] = await Promise.all([
+          db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND category='Learning' AND date(completed_at) BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] }),
+          db.execute({ sql: `SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id WHERE h.user_id = ? AND h.name IN ('Reading', 'Coding Practice') AND hl.date BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] }),
+        ]);
+        return { week: weekLabel(e), hours: Math.round((Number(rL.rows[0].c) * 1.5 + Number(rS.rows[0].c) * 0.5) * 10) / 10 };
+      })),
+    ]);
 
-  // Habits completed per week (last 8 weeks)
-  const habitsPerWeek = [];
-  for (let w = 7; w >= 0; w--) {
-    const start = w * 7 + 6;
-    const end = w * 7;
-    const count = db.prepare(`
-      SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id
-      WHERE h.user_id = ? AND hl.date BETWEEN date('now', '-${start} days') AND date('now', '-${end} days')
-    `).get(userId).c;
-    habitsPerWeek.push({ week: weekLabel(end), habits: count });
-  }
+    const dates = lastNDates(14);
+    const totalHabitsResult = await db.execute({ sql: `SELECT COUNT(*) c FROM habits WHERE user_id = ?`, args: [userId] });
+    const totalHabits = Number(totalHabitsResult.rows[0].c) || 1;
 
-  // Study hours proxy: 1.5h per completed "Learning" task + 0.5h per habit log on Reading/Coding habits
-  const studyHoursPerWeek = [];
-  for (let w = 7; w >= 0; w--) {
-    const start = w * 7 + 6;
-    const end = w * 7;
-    const learningTasks = db.prepare(`
-      SELECT COUNT(*) c FROM tasks
-      WHERE user_id = ? AND status='done' AND category='Learning' AND date(completed_at) BETWEEN date('now', '-${start} days') AND date('now', '-${end} days')
-    `).get(userId).c;
-    const studyHabitLogs = db.prepare(`
-      SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id
-      WHERE h.user_id = ? AND h.name IN ('Reading', 'Coding Practice') AND hl.date BETWEEN date('now', '-${start} days') AND date('now', '-${end} days')
-    `).get(userId).c;
-    studyHoursPerWeek.push({ week: weekLabel(end), hours: Math.round((learningTasks * 1.5 + studyHabitLogs * 0.5) * 10) / 10 });
-  }
+    const [moodTrend, productivityTrend, tasksByCategory, tasksByPriority] = await Promise.all([
+      Promise.all(dates.map(async (date) => {
+        const r = await db.execute({ sql: `SELECT mood FROM moods WHERE user_id = ? AND date = ?`, args: [userId, date] });
+        return { date: date.slice(5), mood: r.rows[0]?.mood ?? null };
+      })),
+      Promise.all(dates.map(async (date) => {
+        const [rT, rH] = await Promise.all([
+          db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND date(completed_at) = ?`, args: [userId, date] }),
+          db.execute({ sql: `SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id WHERE h.user_id = ? AND hl.date = ?`, args: [userId, date] }),
+        ]);
+        const score = Math.round(Math.min(100, Number(rT.rows[0].c) * 15 + (Number(rH.rows[0].c) / totalHabits) * 50));
+        return { date: date.slice(5), score };
+      })),
+      db.execute({ sql: `SELECT category, COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' GROUP BY category`, args: [userId] }),
+      db.execute({ sql: `SELECT priority, COUNT(*) c FROM tasks WHERE user_id = ? GROUP BY priority`, args: [userId] }),
+    ]);
 
-  // Mood trend, last 14 days
-  const dates = lastNDates(14);
-  const moodTrend = dates.map((date) => {
-    const row = db.prepare(`SELECT mood FROM moods WHERE user_id = ? AND date = ?`).get(userId, date);
-    return { date: date.slice(5), mood: row ? row.mood : null };
-  });
-
-  // Productivity trend (composite), last 14 days
-  const totalHabits = db.prepare(`SELECT COUNT(*) c FROM habits WHERE user_id = ?`).get(userId).c || 1;
-  const productivityTrend = dates.map((date) => {
-    const tasksDone = db.prepare(`SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND date(completed_at) = ?`).get(userId, date).c;
-    const habitsDone = db.prepare(`
-      SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id WHERE h.user_id = ? AND hl.date = ?
-    `).get(userId, date).c;
-    const score = Math.round(Math.min(100, (tasksDone * 15) + (habitsDone / totalHabits) * 50));
-    return { date: date.slice(5), score };
-  });
-
-  const tasksByCategory = db.prepare(`
-    SELECT category, COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' GROUP BY category
-  `).all(userId);
-
-  const tasksByPriority = db.prepare(`
-    SELECT priority, COUNT(*) c FROM tasks WHERE user_id = ? GROUP BY priority
-  `).all(userId);
-
-  res.json({ tasksPerWeek, habitsPerWeek, studyHoursPerWeek, moodTrend, productivityTrend, tasksByCategory, tasksByPriority });
+    res.json({ tasksPerWeek, habitsPerWeek, studyHoursPerWeek, moodTrend, productivityTrend, tasksByCategory: tasksByCategory.rows, tasksByPriority: tasksByPriority.rows });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
 module.exports = router;

@@ -1,58 +1,67 @@
-// routes/habits.js — mounted behind `authenticate`. habit_logs doesn't
-// carry its own user_id (it's scoped through the parent habit's
-// ownership), so every lookup first confirms the habit belongs to req.user.
 const express = require('express');
 const router = express.Router();
-const db = require('../db/connection');
+const { db } = require('../db/connection');
 const { addXp, getHabitStreak, evaluateAchievements, todayIso } = require('../lib/gamification');
 
-function withMeta(habit) {
-  const streak = getHabitStreak(habit.id);
-  const last30 = db.prepare(`
-    SELECT date FROM habit_logs WHERE habit_id = ? AND date >= date('now', '-29 days')
-  `).all(habit.id).map((r) => r.date);
-  const completionRate = Math.round((last30.length / 30) * 100);
-  const doneToday = db.prepare(`SELECT 1 FROM habit_logs WHERE habit_id = ? AND date = ?`).get(habit.id, todayIso());
-  return { ...habit, streak, completionRate, last30, doneToday: !!doneToday };
+async function withMeta(habit) {
+  const [logsResult, doneTodayResult] = await Promise.all([
+    db.execute({ sql: `SELECT date FROM habit_logs WHERE habit_id = ? AND date >= date('now', '-29 days')`, args: [habit.id] }),
+    db.execute({ sql: `SELECT 1 FROM habit_logs WHERE habit_id = ? AND date = ?`, args: [habit.id, todayIso()] }),
+  ]);
+  const last30 = logsResult.rows.map((r) => r.date);
+  return {
+    ...habit,
+    streak:         await getHabitStreak(habit.id), // needs gamification.js migrated
+    completionRate: Math.round((last30.length / 30) * 100),
+    last30,
+    doneToday: !!doneTodayResult.rows[0],
+  };
 }
 
-router.get('/', (req, res) => {
-  const habits = db.prepare(`SELECT * FROM habits WHERE user_id = ? ORDER BY id ASC`).all(req.user.id);
-  res.json(habits.map(withMeta));
+router.get('/', async (req, res) => {
+  try {
+    const result = await db.execute({ sql: `SELECT * FROM habits WHERE user_id = ? ORDER BY id ASC`, args: [req.user.id] });
+    res.json(await Promise.all(result.rows.map(withMeta)));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-router.post('/', (req, res) => {
-  const { name, icon = 'Sparkles', color = '#6366F1', target_per_week = 7 } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
-  const info = db.prepare(`INSERT INTO habits (user_id, name, icon, color, target_per_week) VALUES (?, ?, ?, ?, ?)`)
-    .run(req.user.id, name.trim(), icon, color, target_per_week);
-  const habit = db.prepare(`SELECT * FROM habits WHERE id = ? AND user_id = ?`).get(info.lastInsertRowid, req.user.id);
-  res.status(201).json(withMeta(habit));
+router.post('/', async (req, res) => {
+  try {
+    const { name, icon = 'Sparkles', color = '#6366F1', target_per_week = 7 } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+    const insertResult = await db.execute({ sql: `INSERT INTO habits (user_id, name, icon, color, target_per_week) VALUES (?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), icon, color, target_per_week] });
+    const habitResult = await db.execute({ sql: `SELECT * FROM habits WHERE id = ? AND user_id = ?`, args: [Number(insertResult.lastInsertRowid), req.user.id] });
+    res.status(201).json(await withMeta(habitResult.rows[0]));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-router.delete('/:id', (req, res) => {
-  const info = db.prepare(`DELETE FROM habits WHERE id = ? AND user_id = ?`).run(req.params.id, req.user.id);
-  if (info.changes === 0) return res.status(404).json({ error: 'Habit not found' });
-  res.status(204).end();
+router.delete('/:id', async (req, res) => {
+  try {
+    const result = await db.execute({ sql: `DELETE FROM habits WHERE id = ? AND user_id = ?`, args: [req.params.id, req.user.id] });
+    if (result.rowsAffected === 0) return res.status(404).json({ error: 'Habit not found' });
+    res.status(204).end();
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// Toggle today's completion for a habit.
-router.post('/:id/toggle', (req, res) => {
-  const habit = db.prepare(`SELECT * FROM habits WHERE id = ? AND user_id = ?`).get(req.params.id, req.user.id);
-  if (!habit) return res.status(404).json({ error: 'Habit not found' });
-  const date = req.body.date || todayIso();
-  const existing = db.prepare(`SELECT * FROM habit_logs WHERE habit_id = ? AND date = ?`).get(habit.id, date);
-
-  let xpAwarded = 0;
-  if (existing) {
-    db.prepare(`DELETE FROM habit_logs WHERE id = ?`).run(existing.id);
-  } else {
-    db.prepare(`INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)`).run(habit.id, date);
-    addXp(req.user.id, 5, `Completed habit: ${habit.name}`);
-    xpAwarded = 5;
-  }
-  const unlocked = evaluateAchievements(req.user.id);
-  res.json({ habit: withMeta(habit), xpAwarded, unlocked });
+router.post('/:id/toggle', async (req, res) => {
+  try {
+    const habitResult = await db.execute({ sql: `SELECT * FROM habits WHERE id = ? AND user_id = ?`, args: [req.params.id, req.user.id] });
+    const habit = habitResult.rows[0];
+    if (!habit) return res.status(404).json({ error: 'Habit not found' });
+    const date = req.body.date || todayIso();
+    const existingResult = await db.execute({ sql: `SELECT * FROM habit_logs WHERE habit_id = ? AND date = ?`, args: [habit.id, date] });
+    const existing = existingResult.rows[0];
+    let xpAwarded = 0;
+    if (existing) {
+      await db.execute({ sql: `DELETE FROM habit_logs WHERE id = ?`, args: [existing.id] });
+    } else {
+      await db.execute({ sql: `INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)`, args: [habit.id, date] });
+      await addXp(req.user.id, 5, `Completed habit: ${habit.name}`); // needs gamification.js migrated
+      xpAwarded = 5;
+    }
+    const unlocked = await evaluateAchievements(req.user.id);
+    res.json({ habit: await withMeta(habit), xpAwarded, unlocked });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
 module.exports = router;
