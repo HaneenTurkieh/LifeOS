@@ -29,7 +29,10 @@ export default function Tasks() {
   const toast = useToast();
 
   const load = useCallback(async () => {
-    try { setTasks(await api.get('/tasks')); } catch (e) { toast.error(e.message); } finally { setLoading(false); }
+    try {
+      const data = await api.get('/tasks');
+      setTasks(data.map((t) => ({ ...t, priority: (t.priority || 'medium').toLowerCase() })));
+    } catch (e) { toast.error(e.message); } finally { setLoading(false); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
@@ -76,7 +79,7 @@ const openEditModal = (task) => {
     setForm({
       title: task.title,
       description: task.description || '',
-      priority: task.priority,
+      priority: (task.priority || 'medium').toLowerCase(),
       category: task.category,
       deadline: task.deadline || '',
       deadline_time: task.deadline_time || '',
@@ -185,11 +188,11 @@ const openEditModal = (task) => {
           <input className="input-field" placeholder="Task title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
           <textarea className="input-field" placeholder="Description (optional)" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
-            <select className="input-field" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-              <option value="low">Low priority</option>
-              <option value="medium">Medium priority</option>
-              <option value="high">High priority</option>
-            </select>
+          <select className="input-field" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+  <option value="medium">Medium priority</option>
+  <option value="low">Low priority</option>
+  <option value="high">High priority</option>
+</select>
             <input className="input-field" placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           </div>
 <div className="grid grid-cols-2 gap-3">
