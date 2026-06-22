@@ -65,7 +65,6 @@ export default function Tasks() {
       if (xpAwarded) toast.xp(xpAwarded, moved.title);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
     }
-    load();
   };
 
   const openCreateModal = () => {
