@@ -2,23 +2,22 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  LayoutDashboard, Clock, ListChecks, Target, BookOpen, Dumbbell, BarChart3,
+  LayoutDashboard, Clock, ListChecks, Target, BookOpen, BarChart3,
   Briefcase, FileText, FolderKanban, Sparkles, TreePine, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-{ to: '/history', icon: Clock, label: 'History' },
-  { to: '/tasks', icon: ListChecks, label: 'Tasks' },
-  { to: '/goals', icon: Target, label: 'Goals' },
-  { to: '/habits', icon: Dumbbell, label: 'Habits' },
-  { to: '/learning', icon: BookOpen, label: 'Learning' },
-  { to: '/ai', icon: Sparkles, label: 'AI Tools' },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/internships', icon: Briefcase, label: 'Internships' },
-  { to: '/projects', icon: FolderKanban, label: 'Projects' },
-  { to: '/cv', icon: FileText, label: 'CV Builder' },
+  { to: '/',             icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/history',      icon: Clock,           label: 'History' },
+  { to: '/tasks',        icon: ListChecks,      label: 'Tasks' },
+  { to: '/goals',        icon: Target,          label: 'Goals' },
+  { to: '/learning',     icon: BookOpen,        label: 'Learning' },
+  { to: '/ai',           icon: Sparkles,        label: 'AI Tools' },
+  { to: '/analytics',    icon: BarChart3,       label: 'Analytics' },
+  { to: '/internships',  icon: Briefcase,       label: 'Internships' },
+  { to: '/projects',     icon: FolderKanban,    label: 'Projects' },
+  { to: '/cv',           icon: FileText,        label: 'CV Builder' },
 ];
 
 export default function Sidebar() {
@@ -53,7 +52,9 @@ export default function Sidebar() {
                     whileHover={{ y: -2, scale: 1.06 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                     className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-2xl transition-colors ${
-                      isActive ? 'text-white' : 'text-ink/40 dark:text-white/40 hover:text-aurora-violet dark:hover:text-aurora-sky hover:bg-white/70 dark:hover:bg-white/10'
+                      isActive
+                        ? 'text-white'
+                        : 'text-ink/40 dark:text-white/40 hover:text-aurora-violet dark:hover:text-aurora-sky hover:bg-white/70 dark:hover:bg-white/10'
                     }`}
                   >
                     <Icon size={19} strokeWidth={2.1} />
