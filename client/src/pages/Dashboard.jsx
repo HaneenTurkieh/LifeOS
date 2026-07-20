@@ -131,8 +131,7 @@ export default function Dashboard() {
           <GlassCard tier={2} delay={0.15} className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display font-bold text-ink dark:text-white">Today's habits</h2>
-              <a href="/habits" className="text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">View all</a>
-            </div>
+              <a href="/goals" className="text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">View all</a>            </div>
             {data.todaysHabits.length === 0 ? (
               <EmptyState icon={Smile} title="No habits yet" message="Add a habit to start building your streak." />
             ) : (
