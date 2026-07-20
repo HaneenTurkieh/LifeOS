@@ -114,7 +114,35 @@ async function initDb() {
   await db.execute(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase ON users(email COLLATE NOCASE)'
   );
+  // Focus feature tables
+await db.execute(`CREATE TABLE IF NOT EXISTS focus_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  task_name TEXT DEFAULT 'Focus Session',
+  duration_minutes INTEGER NOT NULL,
+  completed_at TEXT DEFAULT (datetime('now')),
+  week_start TEXT NOT NULL
+)`);
 
+await db.execute(`CREATE TABLE IF NOT EXISTS focus_rooms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  host_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT DEFAULT (datetime('now'))
+)`);
+
+await db.execute(`CREATE TABLE IF NOT EXISTS focus_room_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id INTEGER REFERENCES focus_rooms(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  display_name TEXT,
+  focus_minutes INTEGER DEFAULT 0,
+  last_seen TEXT DEFAULT (datetime('now')),
+  is_focusing INTEGER DEFAULT 0,
+  UNIQUE(room_id, user_id)
+)`);
   console.log('✅ Database connected and migrations applied.');
 }
 

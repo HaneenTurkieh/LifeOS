@@ -12,7 +12,7 @@ import ResetPassword     from './pages/ResetPassword.jsx';
 import Dashboard         from './pages/Dashboard.jsx';
 import Tasks             from './pages/Tasks.jsx';
 import Goals             from './pages/Goals.jsx';
-import Learning          from './pages/Learning.jsx';
+import Focus from './pages/Focus.jsx';
 import Analytics         from './pages/Analytics.jsx';
 import Launchpad         from './pages/Launchpad.jsx';
 import AITools           from './pages/AITools.jsx';
@@ -54,7 +54,7 @@ function AppShell() {
             <Route path="/"           element={<Dashboard />} />
             <Route path="/tasks"      element={<Tasks />} />
             <Route path="/goals"      element={<Goals />} />
-            <Route path="/learning"   element={<Learning />} />
+            <Route path="/learning" element={<Focus />} />
             <Route path="/analytics"  element={<Analytics />} />
             <Route path="/launchpad"  element={<Launchpad />} />
             <Route path="/ai"         element={<AITools />} />
