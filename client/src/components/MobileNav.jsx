@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
-  MoreHorizontal, BarChart3, BookOpen, Rocket, X, Settings,
+  MoreHorizontal, BarChart3, Timer, Rocket, X, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
@@ -17,7 +17,7 @@ const NAV = [
 
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,    label: 'History' },
-  { to: '/learning',  icon: BookOpen, label: 'Learning' },
+  { to: '/learning', icon: Timer, label: 'Focus' },
   { to: '/launchpad', icon: Rocket,   label: 'Launchpad' },
 ];
 

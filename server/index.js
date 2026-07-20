@@ -45,6 +45,7 @@ app.use('/api/projects',     authenticate, require('./routes/projects'));
 app.use('/api/ai',           authenticate, require('./routes/ai'));
 app.use('/api/dashboard',    authenticate, require('./routes/dashboard'));
 app.use('/api/gamification', authenticate, require('./routes/gamification'));
+app.use('/api/focus', authenticate, require('./routes/focus'));
 app.use('/api/analytics',    authenticate, require('./routes/analytics'));
 app.use('/api/feedback',     authenticate, require('./routes/feedback'));
 app.use('/api/history',      authenticate, require('./routes/history'));
