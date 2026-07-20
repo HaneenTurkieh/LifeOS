@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Clock, LayoutDashboard, ListChecks, Target, Sparkles, MoreHorizontal,
-  BarChart3, BookOpen, Briefcase, FolderKanban, FileText, X, Settings,
+  Clock, LayoutDashboard, ListChecks, Target, Sparkles,
+  MoreHorizontal, BarChart3, BookOpen, Rocket, X, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
@@ -16,15 +16,13 @@ const NAV = [
 ];
 
 const MORE_ITEMS = [
-  { to: '/history',     icon: Clock,         label: 'History' },
-  { to: '/learning',    icon: BookOpen,      label: 'Learning' },
-  { to: '/internships', icon: Briefcase,     label: 'Internships' },
-  { to: '/projects',    icon: FolderKanban,  label: 'Projects' },
-  { to: '/cv',          icon: FileText,      label: 'CV Builder' },
+  { to: '/history',   icon: Clock,    label: 'History' },
+  { to: '/learning',  icon: BookOpen, label: 'Learning' },
+  { to: '/launchpad', icon: Rocket,   label: 'Launchpad' },
 ];
 
 export default function MobileNav() {
-  const [moreOpen, setMoreOpen]       = useState(false);
+  const [moreOpen, setMoreOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -34,34 +32,52 @@ export default function MobileNav() {
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to} to={to} end={to === '/'}
-              className={({ isActive }) =>
-                `flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-lavender-600 dark:text-lavender-300' : 'text-ink/40 dark:text-white/40'
-                }`
-              }
+              className="flex flex-1 flex-col items-center"
             >
               {({ isActive }) => (
-                <>
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${isActive ? 'bg-lavender-100 dark:bg-lavender-500/15' : ''}`}>
-                    <Icon size={17}/>
-                  </div>
-                  {label}
-                </>
+                <motion.div
+                  className="flex flex-col items-center gap-0.5 py-1.5 w-full rounded-2xl"
+                  animate={isActive ? { y: -3 } : { y: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+                >
+                  <motion.div
+                    whileTap={{ scale: 0.90 }}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-xl"
+                    style={isActive ? {
+                      background: 'rgba(255,255,255,0.95)',
+                      boxShadow: '0 8px 20px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.22), inset 0 1px 0 rgba(255,255,255,1)',
+                    } : {}}
+                  >
+                    <Icon
+                      size={17}
+                      className={isActive ? 'text-aurora-violet' : 'text-ink/40 dark:text-white/40'}
+                    />
+                  </motion.div>
+                  <span className={`text-[10px] font-medium ${
+                    isActive ? 'text-aurora-violet dark:text-lavender-300' : 'text-ink/40 dark:text-white/40'
+                  }`}>
+                    {label}
+                  </span>
+                </motion.div>
               )}
             </NavLink>
           ))}
-          <button
+
+          {/* More button */}
+          <motion.button
+            whileTap={{ scale: 0.90 }}
             onClick={() => setMoreOpen(true)}
-            className="flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 text-[10px] font-medium text-ink/40 dark:text-white/40"
+            className="flex flex-1 flex-col items-center gap-0.5 py-1.5 rounded-2xl"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl">
-              <MoreHorizontal size={17}/>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl">
+              <MoreHorizontal size={17} className="text-ink/40 dark:text-white/40" />
             </div>
-            More
-          </button>
+            <span className="text-[10px] font-medium text-ink/40 dark:text-white/40">More</span>
+          </motion.button>
         </div>
       </nav>
 
+      {/* More sheet */}
       <AnimatePresence>
         {moreOpen && (
           <motion.div
@@ -77,7 +93,8 @@ export default function MobileNav() {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-bold text-ink dark:text-white">More</h3>
-                <button onClick={() => setMoreOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 dark:text-white/40 hover:bg-ink/5 dark:hover:bg-white/10">
+                <button onClick={() => setMoreOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 dark:text-white/40 hover:bg-ink/5 dark:hover:bg-white/10">
                   <X size={18}/>
                 </button>
               </div>
