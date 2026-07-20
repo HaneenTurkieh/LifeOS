@@ -1,37 +1,36 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Plus, Trash2, User, FolderGit2, Lightbulb, Award } from 'lucide-react';
+import { Trash2, FolderGit2, Lightbulb, Award } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
-import PageHeader from '../components/PageHeader.jsx';
 import GlassCard from '../components/GlassCard.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 
 const TABS = [
-  { key: 'projects', label: 'Projects', icon: FolderGit2 },
-  { key: 'skills', label: 'Skills', icon: Lightbulb },
+  { key: 'projects',       label: 'Projects',       icon: FolderGit2 },
+  { key: 'skills',         label: 'Skills',         icon: Lightbulb },
   { key: 'certifications', label: 'Certifications', icon: Award },
 ];
 
 const LEVEL_STYLES = {
-  beginner: 'bg-ink/5 text-ink/50',
+  beginner:     'bg-ink/5 text-ink/50',
   intermediate: 'bg-sun-500/15 text-sun-600',
-  advanced: 'bg-sage-500/15 text-sage-600',
+  advanced:     'bg-sage-500/15 text-sage-600',
 };
 
 const FORMS = {
-  projects: { title: '', description: '', tech: '', link: '' },
-  skills: { name: '', level: 'intermediate', category: 'technical' },
+  projects:       { title: '', description: '', tech: '', link: '' },
+  skills:         { name: '', level: 'intermediate', category: 'technical' },
   certifications: { title: '', issuer: '', date: '', link: '' },
 };
 
-export default function CVBuilder() {
-  const [tab, setTab] = useState('projects');
-  const [data, setData] = useState({ projects: [], skills: [], certifications: [] });
-  const [loading, setLoading] = useState(true);
+export default function CVBuilder({ openTrigger = 0 }) {
+  const [tab, setTab]             = useState('projects');
+  const [data, setData]           = useState({ projects: [], skills: [], certifications: [] });
+  const [loading, setLoading]     = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(FORMS.projects);
+  const [form, setForm]           = useState(FORMS.projects);
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -45,15 +44,19 @@ export default function CVBuilder() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openModal = (which) => { setTab(which); setForm(FORMS[which]); setModalOpen(true); };
+  // Launchpad "Add" button — opens modal for current internal tab
+  useEffect(() => {
+    if (openTrigger > 0) openModal(tab);
+  }, [openTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openModal  = (which) => { setTab(which); setForm(FORMS[which]); setModalOpen(true); };
 
   const createItem = async (e) => {
     e.preventDefault();
     try {
       await api.post(`/cv/${tab}`, form);
       toast.success('Added to your CV');
-      setModalOpen(false);
-      load();
+      setModalOpen(false); load();
     } catch (err) { toast.error(err.message); }
   };
 
@@ -63,25 +66,16 @@ export default function CVBuilder() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="CV Builder"
-        title="Your story, organized"
-        subtitle="Collect projects, skills and certifications so your CV writes itself."
-      />
-
+      {/* Internal tab bar + Add button */}
       <div className="flex gap-2 mb-6">
         {TABS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
+          <button key={key} onClick={() => setTab(key)}
             className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
               tab === key ? 'bg-lavender-600 text-white shadow-glow' : 'bg-white/60 text-ink/50 hover:bg-white'
-            }`}
-          >
+            }`}>
             <Icon size={15} /> {label}
           </button>
         ))}
-        <button onClick={() => openModal(tab)} className="btn-primary ml-auto"><Plus size={16}/> Add</button>
       </div>
 
       {tab === 'projects' && (
@@ -96,8 +90,8 @@ export default function CVBuilder() {
                   <button onClick={() => removeItem('projects', p.id)} className="text-ink/25 hover:text-coral-500 transition shrink-0"><Trash2 size={14} /></button>
                 </div>
                 {p.description && <p className="text-sm text-ink/50 mt-1.5">{p.description}</p>}
-                {p.tech && <p className="text-xs text-lavender-600 font-medium mt-2">{p.tech}</p>}
-                {p.link && <a href={p.link} target="_blank" rel="noreferrer" className="text-xs text-ink/40 hover:underline mt-1 block">{p.link}</a>}
+                {p.tech        && <p className="text-xs text-lavender-600 font-medium mt-2">{p.tech}</p>}
+                {p.link        && <a href={p.link} target="_blank" rel="noreferrer" className="text-xs text-ink/40 hover:underline mt-1 block">{p.link}</a>}
               </GlassCard>
             ))}
           </div>
@@ -145,15 +139,20 @@ export default function CVBuilder() {
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
           {tab === 'projects' && (
             <>
-              <input className="input-field" placeholder="Project title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
-              <textarea className="input-field" placeholder="Description" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              <input className="input-field" placeholder="Tech stack (e.g. React, Node)" value={form.tech} onChange={(e) => setForm({ ...form, tech: e.target.value })} />
-              <input className="input-field" placeholder="Link (optional)" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
+              <input className="input-field" placeholder="Project title" value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+              <textarea className="input-field" placeholder="Description" rows={2} value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <input className="input-field" placeholder="Tech stack (e.g. React, Node)" value={form.tech}
+                onChange={(e) => setForm({ ...form, tech: e.target.value })} />
+              <input className="input-field" placeholder="Link (optional)" value={form.link}
+                onChange={(e) => setForm({ ...form, link: e.target.value })} />
             </>
           )}
           {tab === 'skills' && (
             <>
-              <input className="input-field" placeholder="Skill name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus required />
+              <input className="input-field" placeholder="Skill name" value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus required />
               <select className="input-field" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
                 <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate</option>
@@ -167,10 +166,14 @@ export default function CVBuilder() {
           )}
           {tab === 'certifications' && (
             <>
-              <input className="input-field" placeholder="Certification title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
-              <input className="input-field" placeholder="Issuer" value={form.issuer} onChange={(e) => setForm({ ...form, issuer: e.target.value })} />
-              <input type="date" className="input-field" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-              <input className="input-field" placeholder="Link (optional)" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
+              <input className="input-field" placeholder="Certification title" value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+              <input className="input-field" placeholder="Issuer" value={form.issuer}
+                onChange={(e) => setForm({ ...form, issuer: e.target.value })} />
+              <input type="date" className="input-field" value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <input className="input-field" placeholder="Link (optional)" value={form.link}
+                onChange={(e) => setForm({ ...form, link: e.target.value })} />
             </>
           )}
           <button type="submit" className="btn-primary justify-center mt-1">Add</button>
