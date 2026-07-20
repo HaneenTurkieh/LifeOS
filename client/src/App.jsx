@@ -12,7 +12,6 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Tasks from './pages/Tasks.jsx';
 import Goals from './pages/Goals.jsx';
-import Habits from './pages/Habits.jsx';
 import Learning from './pages/Learning.jsx';
 import Analytics from './pages/Analytics.jsx';
 import Internships from './pages/Internships.jsx';
@@ -60,7 +59,6 @@ useTaskReminders();
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/goals" element={<Goals />} />
-            <Route path="/habits" element={<Habits />} />
             <Route path="/learning" element={<Learning />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/internships" element={<Internships />} />
