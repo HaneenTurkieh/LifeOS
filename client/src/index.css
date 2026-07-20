@@ -2,38 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  -webkit-font-smoothing: antialiased;
-}
+* { -webkit-font-smoothing: antialiased; }
 
-html, body, #root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 
 body {
   @apply text-ink font-body;
-  
   transition: background-color 0.4s ease, color 0.4s ease;
 }
+.dark body { @apply text-white/90; }
 
-.dark body {
-  @apply text-white/90;
-  
-}
-
-/* Smooth, scoped theme transitions — only on the properties that change
-   between light/dark, not on layout/transform, so toggling never jitters
-   or tanks performance. */
+/* Theme transitions — scoped to properties that change */
 .glass-card, .glass-panel, .input-field, .pill, .btn-secondary, .btn-ghost {
-  transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
+  transition: background-color 0.35s ease, border-color 0.35s ease,
+              color 0.35s ease, box-shadow 0.35s ease;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* Scrollbar — blue toned */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(124, 106, 240, 0.25); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(124, 106, 240, 0.45); }
-.dark ::-webkit-scrollbar-thumb { background: rgba(154, 139, 251, 0.25); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(154, 139, 251, 0.4); }
+::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.2); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.4); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(96,165,250,0.2); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.38); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -44,122 +35,192 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid #7C6AF0;
+  outline: 2px solid #2563EB;
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 @layer components {
-  /* Base glass surface (tier 1) — used directly via className in places
-     that don't go through the <GlassCard> component (modals, toasts,
-     kanban columns, empty states). Dark-mode aware. */
+
+  /* ── Glass surfaces ─────────────────────────────────── */
   .glass-panel {
-    @apply bg-white/55 dark:bg-white/[0.04] backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-glass dark:shadow-none;
+    @apply bg-white/50 dark:bg-white/[0.04]
+           backdrop-blur-2xl
+           border border-white/55 dark:border-white/[0.08]
+           shadow-glass dark:shadow-none;
   }
   .glass-card {
-    @apply bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl border border-white/70 dark:border-white/10 shadow-glass dark:shadow-none rounded-3xl;
+    @apply bg-white/55 dark:bg-white/[0.045]
+           backdrop-blur-2xl
+           border border-white/60 dark:border-white/[0.09]
+           shadow-glass dark:shadow-none
+           rounded-3xl;
   }
   .glass-card-interactive {
-    @apply glass-card transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:shadow-glass-lg dark:hover:border-white/20 cursor-pointer;
+    @apply glass-card transition-all duration-300 ease-premium
+           hover:-translate-y-0.5 hover:shadow-glass-lg
+           dark:hover:border-white/[0.14]
+           cursor-pointer;
   }
+
+  /* Aurora glass — sidebar pill and premium containers */
+  .glass-spline {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+
+  /* ── Inputs ─────────────────────────────────────────── */
   .input-field {
-    @apply w-full rounded-2xl border border-lavender-200/70 dark:border-white/15 bg-white/70 dark:bg-white/[0.05] px-4 py-2.5 text-sm text-ink dark:text-white placeholder:text-ink/40 dark:placeholder:text-white/30 outline-none transition focus:border-lavender-400 focus:ring-2 focus:ring-lavender-200 dark:focus:ring-lavender-500/30;
+    @apply w-full rounded-2xl
+           border border-blue-200/60 dark:border-white/[0.12]
+           bg-white/65 dark:bg-white/[0.05]
+           px-4 py-2.5 text-sm
+           text-ink dark:text-white
+           placeholder:text-ink/38 dark:placeholder:text-white/28
+           outline-none transition
+           focus:border-blue-400 dark:focus:border-blue-500/60
+           focus:ring-2 focus:ring-blue-200/70 dark:focus:ring-blue-500/20;
   }
+
+  /* ── Buttons ─────────────────────────────────────────── */
+  /* Primary — Royal Blue gradient */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-lavender-500 to-lavender-700 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2
+           rounded-2xl
+           bg-gradient-to-br from-blue-500 to-blue-700
+           px-5 py-2.5 text-sm font-semibold text-white
+           shadow-glow-blue
+           transition
+           hover:brightness-110 hover:-translate-y-px
+           active:scale-[0.98] active:brightness-95
+           disabled:opacity-50 disabled:pointer-events-none;
   }
+  /* Secondary — glass */
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 dark:bg-white/[0.06] border border-white/80 dark:border-white/15 px-5 py-2.5 text-sm font-semibold text-ink/80 dark:text-white/80 shadow-sm transition hover:bg-white dark:hover:bg-white/10 active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2
+           rounded-2xl
+           bg-white/60 dark:bg-white/[0.06]
+           border border-white/75 dark:border-white/[0.12]
+           px-5 py-2.5 text-sm font-semibold
+           text-ink/80 dark:text-white/75
+           shadow-sm transition
+           hover:bg-white/80 dark:hover:bg-white/[0.1]
+           hover:-translate-y-px
+           active:scale-[0.98];
   }
+  /* Ghost */
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-ink/60 dark:text-white/50 transition hover:bg-white/60 dark:hover:bg-white/10 hover:text-ink dark:hover:text-white;
+    @apply inline-flex items-center justify-center gap-2
+           rounded-2xl px-4 py-2 text-sm font-medium
+           text-ink/55 dark:text-white/45
+           transition
+           hover:bg-white/55 dark:hover:bg-white/[0.08]
+           hover:text-ink dark:hover:text-white;
   }
+  /* Danger */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-2xl
+           bg-gradient-to-br from-coral-400 to-coral-500
+           px-5 py-2.5 text-sm font-semibold text-white
+           transition hover:brightness-110 active:scale-[0.98];
+  }
+
+  /* ── Pills ───────────────────────────────────────────── */
   .pill {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
   }
+
+  /* ── Clay / tactile surface ──────────────────────────── */
+  .clay {
+    @apply bg-white/65 dark:bg-white/[0.05]
+           border border-white/75 dark:border-white/[0.09]
+           shadow-clay dark:shadow-clay-dark
+           rounded-2xl transition-all duration-300 ease-premium;
+  }
+  .clay-interactive {
+    @apply clay hover:-translate-y-0.5 hover:shadow-glow-ring cursor-pointer active:translate-y-0 active:shadow-clay;
+  }
+
+  /* ── Ambient lighting helpers ────────────────────────── */
+  /* Blue glow — active cards, focused panels */
+  .glow-blue  { box-shadow: 0 0 32px rgba(37,99,235,0.18), 0 0 0 1px rgba(59,130,246,0.15); }
+  /* Cyan reflection — glass surfaces */
+  .glow-cyan  { box-shadow: 0 0 24px rgba(6,182,212,0.15), 0 0 0 1px rgba(6,182,212,0.12); }
+  /* Violet — AI / premium / achievements only */
+  .glow-violet { box-shadow: 0 0 28px rgba(124,58,237,0.2), 0 0 0 1px rgba(139,92,246,0.15); }
+
+  /* ── Chart semantic color dots / lines ───────────────── */
+  .chart-productivity { color: #2563EB; }
+  .chart-xp           { color: #7C3AED; }
+  .chart-mood         { color: #F59E0B; }
+  .chart-habits       { color: #10B981; }
+  .chart-tasks        { color: #06B6D4; }
 }
 
+/* ── Skeleton shimmer ────────────────────────────────────── */
 .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.7) 37%, rgba(255,255,255,0.4) 63%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.65) 37%, rgba(255,255,255,0.4) 63%);
   background-size: 200% 100%;
   animation: shimmer 1.6s linear infinite;
 }
 .dark .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.09) 37%, rgba(255,255,255,0.03) 63%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.03) 63%);
   background-size: 200% 100%;
 }
 
-/* ============================================================
-   Dark-mode compatibility layer
-   ============================================================
-   Tasks.jsx, Goals.jsx, Habits.jsx, Internships.jsx, Projects.jsx,
-   Learning.jsx, CVBuilder.jsx and Analytics.jsx were intentionally left
-   untouched this round (per "preserve existing pages, don't redesign
-   from scratch") — they still use light-theme utility classes directly
-   (e.g. bg-white/70, text-ink) rather than the dark:-aware shared
-   components. Rather than rewriting eight page files just to sprinkle
-   dark: variants through them, this single block overrides the small,
-   consistent set of utility classes those pages actually use whenever
-   .dark is active on <html>. This keeps dark mode centralized,
-   low-risk, and easy to delete once those pages get their own
-   incremental dark-mode pass. */
-.dark .bg-white\/40  { background-color: rgba(255,255,255,0.035); }
-.dark .bg-white\/50  { background-color: rgba(255,255,255,0.04); }
-.dark .bg-white\/60  { background-color: rgba(255,255,255,0.045); }
-.dark .bg-white\/70  { background-color: rgba(255,255,255,0.06); }
-.dark .bg-white\/90  { background-color: rgba(255,255,255,0.09); }
-.dark .hover\:bg-white:hover { background-color: rgba(255,255,255,0.08); }
-.dark .hover\:bg-white\/60:hover { background-color: rgba(255,255,255,0.07); }
-.dark .hover\:bg-white\/70:hover { background-color: rgba(255,255,255,0.08); }
-.dark .hover\:bg-white\/90:hover { background-color: rgba(255,255,255,0.1); }
+/* ── Dark mode compatibility layer ───────────────────────── */
+/* Covers pages that still use raw utility classes directly  */
+.dark .bg-white\/40  { background-color: rgba(255,255,255,0.03); }
+.dark .bg-white\/50  { background-color: rgba(255,255,255,0.035); }
+.dark .bg-white\/60  { background-color: rgba(255,255,255,0.04); }
+.dark .bg-white\/70  { background-color: rgba(255,255,255,0.05); }
+.dark .bg-white\/90  { background-color: rgba(255,255,255,0.08); }
+.dark .hover\:bg-white:hover        { background-color: rgba(255,255,255,0.07); }
+.dark .hover\:bg-white\/60:hover    { background-color: rgba(255,255,255,0.06); }
+.dark .hover\:bg-white\/70:hover    { background-color: rgba(255,255,255,0.07); }
+.dark .hover\:bg-white\/90:hover    { background-color: rgba(255,255,255,0.09); }
 
-.dark .border-white\/60 { border-color: rgba(255,255,255,0.08); }
-.dark .border-white\/70 { border-color: rgba(255,255,255,0.1); }
-.dark .border-white\/80 { border-color: rgba(255,255,255,0.12); }
+.dark .border-white\/60 { border-color: rgba(255,255,255,0.07); }
+.dark .border-white\/70 { border-color: rgba(255,255,255,0.09); }
+.dark .border-white\/80 { border-color: rgba(255,255,255,0.11); }
 
-.dark .text-ink      { color: rgba(255,255,255,0.92); }
-.dark .text-ink\/80   { color: rgba(255,255,255,0.75); }
-.dark .text-ink\/70   { color: rgba(255,255,255,0.65); }
-.dark .text-ink\/60   { color: rgba(255,255,255,0.55); }
-.dark .text-ink\/55   { color: rgba(255,255,255,0.5); }
-.dark .text-ink\/50   { color: rgba(255,255,255,0.45); }
-.dark .text-ink\/45   { color: rgba(255,255,255,0.4); }
-.dark .text-ink\/40   { color: rgba(255,255,255,0.35); }
-.dark .text-ink\/35   { color: rgba(255,255,255,0.3); }
-.dark .text-ink\/30   { color: rgba(255,255,255,0.25); }
-.dark .text-ink\/25   { color: rgba(255,255,255,0.22); }
+.dark .text-ink     { color: rgba(255,255,255,0.95) !important; }
+.dark .text-ink\/80  { color: rgba(255,255,255,0.78) !important; }
+.dark .text-ink\/70  { color: rgba(255,255,255,0.68) !important; }
+.dark .text-ink\/60  { color: rgba(255,255,255,0.58) !important; }
+.dark .text-ink\/55  { color: rgba(255,255,255,0.52) !important; }
+.dark .text-ink\/50  { color: rgba(255,255,255,0.46) !important; }
+.dark .text-ink\/45  { color: rgba(255,255,255,0.40) !important; }
+.dark .text-ink\/40  { color: rgba(255,255,255,0.35) !important; }
+.dark .text-ink\/35  { color: rgba(255,255,255,0.30) !important; }
+.dark .text-ink\/30  { color: rgba(255,255,255,0.26) !important; }
+.dark .text-ink\/25  { color: rgba(255,255,255,0.22) !important; }
 
-.dark .bg-ink\/5      { background-color: rgba(255,255,255,0.06); }
-.dark .divide-white\/50 > * + * { border-color: rgba(255,255,255,0.08); }
+.dark .bg-ink\/5    { background-color: rgba(255,255,255,0.05); }
+.dark .divide-white\/50 > * + * { border-color: rgba(255,255,255,0.07); }
 
-.dark .bg-lavender-50  { background-color: rgba(124,106,240,0.1); }
-.dark .bg-lavender-100 { background-color: rgba(124,106,240,0.16); }
-.dark .text-lavender-700 { color: #BBB0FF; }
-.dark .bg-sage-50  { background-color: rgba(76,195,138,0.1); }
-.dark .bg-sage-100 { background-color: rgba(76,195,138,0.16); }
-.dark .text-sage-700 { color: #7FD8A6; }
+/* Blue replaces lavender in dark compatibility */
+.dark .bg-lavender-50   { background-color: rgba(37,99,235,0.08); }
+.dark .bg-lavender-100  { background-color: rgba(37,99,235,0.14); }
+.dark .text-lavender-700 { color: #93C5FD; }
+.dark .bg-sage-50  { background-color: rgba(16,185,129,0.08); }
+.dark .bg-sage-100 { background-color: rgba(16,185,129,0.14); }
+.dark .text-sage-700 { color: #6EE7B7; }
+
 .bg-mesh-app { @apply bg-mesh-light dark:bg-mesh-dark; }
 
-/* Claymorphic surface — soft, tactile, used for KPI tiles & mood capsules */
-.clay {
-  @apply bg-white/70 dark:bg-white/[0.05] border border-white/80 dark:border-white/10 shadow-clay dark:shadow-clay-dark rounded-2xl transition-all duration-300 ease-premium;
+/* ── Aurora background treatment ─────────────────────────── */
+/* The Spline scene is environmental lighting, not decoration.
+   Reduced opacity + heavier overlay = atmosphere, not noise.  */
+.aurora-bg-overlay {
+  background: rgba(6, 11, 24, 0.45);
+  backdrop-filter: blur(0px);
 }
-.clay-interactive {
-  @apply clay hover:-translate-y-0.5 hover:shadow-glow-ring cursor-pointer active:translate-y-0 active:shadow-clay;
+.dark .aurora-bg-overlay {
+  background: rgba(6, 11, 24, 0.65);
 }
-.glass-spline {
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.18);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-}
-
-/* With the Spline ribbons as a permanent background, dashboard text needs
-   to stay high-contrast regardless of the light/dark toggle — glass cards
-   sit on a colorful moving scene either way, not a flat light page. */
-.dark .text-ink { color: rgba(255,255,255,0.95) !important; }
-.dark .text-ink\/80, .dark .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
-.dark .text-ink\/60, .dark .text-ink\/55, .dark .text-ink\/50 { color: rgba(255,255,255,0.55) !important; }
-.dark .text-ink\/45, .dark .text-ink\/40, .dark .text-ink\/35 { color: rgba(255,255,255,0.4) !important; }
-.dark .text-ink\/30, .dark .text-ink\/25 { color: rgba(255,255,255,0.3) !important; }
