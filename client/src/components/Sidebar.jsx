@@ -12,7 +12,7 @@ const NAV = [
   { to: '/history',    icon: Clock,           label: 'History' },
   { to: '/tasks',      icon: ListChecks,      label: 'Tasks' },
   { to: '/goals',      icon: Target,          label: 'Goals' },
-  { to: '/learning', icon: Timer, label: 'Focus' },
+  { to: '/learning', icon: Timer, label: 'Flow' },
   { to: '/ai',         icon: Sparkles,        label: 'AI Tools' },
   { to: '/analytics',  icon: BarChart3,       label: 'Analytics' },
   { to: '/launchpad',  icon: Rocket,          label: 'Launchpad' },

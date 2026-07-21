@@ -1,229 +1,65 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Play, Pause, RotateCcw, Coffee, Brain,
-  Users, Trophy, Plus, LogOut, Timer,
-} from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, LogOut } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFocus, MODES } from '../context/FocusContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
-import GlassCard  from '../components/GlassCard.jsx';
 import Modal      from '../components/Modal.jsx';
 
-// ── Quotes ────────────────────────────────────────────────────
-const QUOTES = [
-  { text: 'The secret of getting ahead is getting started.', author: 'Mark Twain' },
-  { text: 'Focus is the art of knowing what to ignore.', author: 'Unknown' },
-  { text: 'Deep work is the ability to focus without distraction on a cognitively demanding task.', author: 'Cal Newport' },
-  { text: 'Where focus goes, energy flows.', author: 'Tony Robbins' },
-  { text: 'The successful warrior is the average person with laser-like focus.', author: 'Bruce Lee' },
-  { text: "It's not that I'm so smart, it's just that I stay with problems longer.", author: 'Einstein' },
-  { text: 'Productivity is never an accident. It is always the result of a commitment to excellence.', author: 'Paul J. Meyer' },
-  { text: "Done is better than perfect.", author: 'Sheryl Sandberg' },
-  { text: 'Small progress is still progress.', author: 'Unknown' },
-  { text: 'Every moment of focused work is an investment in your future.', author: 'Unknown' },
-  { text: 'Concentration is the root of all the higher abilities in man.', author: 'Bruce Lee' },
-  { text: 'You don\'t need more time. You need more focus.', author: 'Unknown' },
-  { text: 'The quality of your work is determined by the quality of your attention.', author: 'Unknown' },
-  { text: 'One hour of focused work beats eight hours of distracted effort.', author: 'Unknown' },
-  { text: 'Your future is created by what you do today, not tomorrow.', author: 'Robert Kiyosaki' },
-];
-
-// ── Timer config ──────────────────────────────────────────────
-const MODES = {
-  focus: { label: 'Focus',       color: '#7C6AF0', defaultMin: 25 },
-  short: { label: 'Short Break', color: '#4CC38A', defaultMin: 5  },
-  long:  { label: 'Long Break',  color: '#60A5FA', defaultMin: 15 },
-};
+// UI-only constants (not in context)
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
+const CX = 140, CY = 140, R = 108;
+const CIRC = 2 * Math.PI * R;
 
-// ── Audio ─────────────────────────────────────────────────────
-function playDone() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [523, 659, 784, 1047].forEach((freq, i) => {
-      const osc = ctx.createOscillator(), g = ctx.createGain();
-      osc.connect(g); g.connect(ctx.destination);
-      osc.frequency.value = freq; osc.type = 'sine';
-      const t = ctx.currentTime + i * 0.13;
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.28, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
-      osc.start(t); osc.stop(t + 0.4);
-    });
-  } catch (_) {}
+function lg({ color, active } = {}) {
+  if (active && color) {
+    return {
+      background:           `linear-gradient(145deg, ${color}28 0%, ${color}0C 100%)`,
+      backdropFilter:       'blur(24px)',
+      WebkitBackdropFilter: 'blur(24px)',
+      border:               `1px solid ${color}44`,
+      boxShadow:            `0 6px 24px ${color}22, inset 0 1.5px 0 rgba(255,255,255,0.60), inset 0 -1px 0 rgba(0,0,0,0.04)`,
+    };
+  }
+  return {
+    background:           'linear-gradient(145deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%)',
+    backdropFilter:       'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border:               '1px solid rgba(255,255,255,0.42)',
+    boxShadow:            'inset 0 1.5px 0 rgba(255,255,255,0.65), inset 0 -1px 0 rgba(0,0,0,0.03), 0 2px 12px rgba(0,0,0,0.06)',
+  };
 }
 
-function playBreakEnd() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator(), g = ctx.createGain();
-    osc.connect(g); g.connect(ctx.destination);
-    osc.frequency.value = 440; osc.type = 'sine';
-    g.gain.setValueAtTime(0.22, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
-  } catch (_) {}
-}
+const cardGlass = {
+  background:           'linear-gradient(160deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.07) 100%)',
+  backdropFilter:       'blur(40px)',
+  WebkitBackdropFilter: 'blur(40px)',
+  border:               '1px solid rgba(255,255,255,0.44)',
+  boxShadow:            '0 20px 60px rgba(0,0,0,0.08), inset 0 2px 0 rgba(255,255,255,0.75), inset 0 -1px 0 rgba(0,0,0,0.03)',
+  borderRadius:         '2rem',
+};
 
-const randQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
+const fmtTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-// ── Component ─────────────────────────────────────────────────
-export default function Focus() {
-  const toast      = useToast();
-  const { user }   = useAuth();
+export default function Flow() {
+  const toast    = useToast();
+  const { user } = useAuth();
 
-  // Timer
-  const [mode,       setMode]       = useState('focus');
-  const [customMin,  setCustomMin]  = useState({ focus: 25, short: 5, long: 15 });
-  const [timeLeft,   setTimeLeft]   = useState(25 * 60);
-  const [totalTime,  setTotalTime]  = useState(25 * 60);
-  const [isRunning,  setIsRunning]  = useState(false);
-  const [taskName,   setTaskName]   = useState('');
-  const [dots,       setDots]       = useState(0); // completed focus sessions
+  // ── All timer state from context — survives navigation ────
+  const {
+    mode, customMin, timeLeft, totalTime, isRunning,
+    taskName, dots, startedAt, congrats, stats, board, room,
+    setTaskName, setRoom, setCongrats,
+    toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
+    loadData,
+  } = useFocus();
 
-  // Congrats overlay
-  const [congrats,   setCongrats]   = useState(null);
-
-  // Data
-  const [stats,      setStats]      = useState(null);
-  const [board,      setBoard]      = useState([]);
-
-  // Room
-  const [room,       setRoom]       = useState(null);
-  const [roomModal,  setRoomModal]  = useState(false);
-  const [roomForm,   setRoomForm]   = useState({ tab: 'join', name: '', code: '', password: '' });
-
-  // Tab
-  const [tab, setTab] = useState('timer');
-
-  // Refs to avoid stale closures in timer
-  const intervalRef  = useRef(null);
-  const modeRef      = useRef(mode);
-  const customMinRef = useRef(customMin);
-  const taskNameRef  = useRef(taskName);
-  const roomRef      = useRef(room);
-  useEffect(() => { modeRef.current      = mode;      }, [mode]);
-  useEffect(() => { customMinRef.current = customMin; }, [customMin]);
-  useEffect(() => { taskNameRef.current  = taskName;  }, [taskName]);
-  useEffect(() => { roomRef.current      = room;      }, [room]);
-
-  // ── Load stats + leaderboard ──────────────────────────────
-  const loadData = useCallback(async () => {
-    try {
-      const [s, l] = await Promise.all([api.get('/focus/stats'), api.get('/focus/leaderboard')]);
-      setStats(s);
-      setBoard(l.leaderboard || []);
-    } catch (_) {}
-  }, []);
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // ── Room polling every 5s ─────────────────────────────────
-  useEffect(() => {
-    if (!room) return;
-    const poll = async () => {
-      try {
-        const data = await api.get(`/focus/rooms/${room.code}`);
-        setRoom((r) => r ? { ...r, members: data.members } : null);
-      } catch (_) {}
-    };
-    poll();
-    const id = setInterval(poll, 5000);
-    return () => clearInterval(id);
-  }, [room?.code]); // eslint-disable-line
-
-  // ── Room pulse every 30s ──────────────────────────────────
-  useEffect(() => {
-    if (!room) return;
-    const pulse = () => {
-      api.post(`/focus/rooms/${room.code}/pulse`, { is_focusing: isRunning }).catch(() => {});
-    };
-    pulse();
-    const id = setInterval(pulse, 30000);
-    return () => clearInterval(id);
-  }, [room?.code, isRunning]); // eslint-disable-line
-
-  // ── Completion handler (uses refs) ────────────────────────
-  const handleComplete = useCallback(async () => {
-    const currentMode    = modeRef.current;
-    const currentMin     = customMinRef.current;
-    const currentTask    = taskNameRef.current;
-    const currentRoom    = roomRef.current;
-
-    if (currentMode === 'focus') {
-      const minutes = currentMin.focus;
-      playDone();
-      const quote = randQuote();
-      try {
-        const res = await api.post('/focus/sessions', {
-          task_name:        currentTask.trim() || 'Focus Session',
-          duration_minutes: minutes,
-        });
-        if (currentRoom) {
-          api.post(`/focus/rooms/${currentRoom.code}/pulse`, { is_focusing: false, add_minutes: minutes }).catch(() => {});
-        }
-        setCongrats({ quote, xpAwarded: res.xpAwarded || 0, minutes });
-        setDots((d) => d + 1);
-        loadData();
-      } catch (_) {
-        setCongrats({ quote, xpAwarded: 0, minutes });
-      }
-    } else {
-      playBreakEnd();
-      // Auto-switch back to focus
-      const mins = customMinRef.current.focus;
-      setMode('focus');
-      setTimeLeft(mins * 60);
-      setTotalTime(mins * 60);
-    }
-  }, [loadData]);
-
-  // ── Timer tick ────────────────────────────────────────────
-  useEffect(() => {
-    if (!isRunning) { clearInterval(intervalRef.current); return; }
-    intervalRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          setIsRunning(false);
-          setTimeout(handleComplete, 50); // after state settles
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(intervalRef.current);
-  }, [isRunning, handleComplete]);
-
-  // ── Timer controls ────────────────────────────────────────
-  const switchMode = (newMode) => {
-    clearInterval(intervalRef.current);
-    setIsRunning(false);
-    setMode(newMode);
-    const mins = customMin[newMode];
-    setTimeLeft(mins * 60);
-    setTotalTime(mins * 60);
-  };
-
-  const handleModeClick = (newMode) => {
-    if (isRunning && !window.confirm('Switch mode? Current session will be lost.')) return;
-    switchMode(newMode);
-  };
-
-  const setDuration = (mins) => {
-    setCustomMin((c) => ({ ...c, [mode]: mins }));
-    if (!isRunning) { setTimeLeft(mins * 60); setTotalTime(mins * 60); }
-  };
-
-  const toggleTimer = () => { if (timeLeft > 0) setIsRunning((r) => !r); };
-
-  const resetTimer = () => {
-    clearInterval(intervalRef.current);
-    setIsRunning(false);
-    const mins = customMin[mode];
-    setTimeLeft(mins * 60); setTotalTime(mins * 60);
-  };
+  // ── Local UI state only ───────────────────────────────────
+  const [tab,       setTab]       = useState('timer');
+  const [roomModal, setRoomModal] = useState(false);
+  const [roomForm,  setRoomForm]  = useState({ tab: 'join', name: '', code: '', password: '' });
 
   // ── Room handlers ─────────────────────────────────────────
   const handleRoomSubmit = async (e) => {
@@ -252,39 +88,46 @@ export default function Focus() {
   };
 
   // ── Derived display ───────────────────────────────────────
-  const mm           = String(Math.floor(timeLeft / 60)).padStart(2, '0');
-  const ss           = String(timeLeft % 60).padStart(2, '0');
-  const progress     = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
-  const R            = 110;
-  const circumference = 2 * Math.PI * R;
-  const dashOffset   = circumference * (1 - progress);
-  const modeColor    = MODES[mode].color;
+  const mm         = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+  const ss         = String(timeLeft % 60).padStart(2, '0');
+  const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
+  const dashOffset = CIRC * (1 - progress);
+  const modeColor  = MODES[mode].color;
+
+  const now      = new Date();
+  const endsAt   = new Date(now.getTime() + timeLeft * 1000);
+  const timeRange = startedAt
+    ? `${fmtTime(startedAt)} → ${fmtTime(endsAt)}`
+    : isRunning ? `now → ${fmtTime(endsAt)}` : null;
 
   const TABS_NAV = [
-    { key: 'timer',       label: 'Timer',                              icon: Timer  },
-    { key: 'room',        label: room ? `Room · ${room.code}` : 'Room', icon: Users  },
-    { key: 'leaderboard', label: 'Leaderboard',                        icon: Trophy },
+    { key: 'timer',       label: 'Timer',                               icon: '⏱' },
+    { key: 'room',        label: room ? `Room · ${room.code}` : 'Room', icon: '👥' },
+    { key: 'leaderboard', label: 'Rankings',                            icon: '🏆' },
   ];
 
   return (
     <div>
       <PageHeader
-        eyebrow="Focus"
-        title="Deep work, done right"
-        subtitle="Pomodoro timer · Study rooms · Weekly leaderboard."
+        eyebrow="Flow"
+        title="Enter your flow state"
+        subtitle="Deep work timer · Study rooms · Weekly rankings."
       />
 
-      {/* Top tab bar */}
-      <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 w-fit">
-        {TABS_NAV.map(({ key, label, icon: Icon }) => (
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl" style={lg()}>
+        {TABS_NAV.map(({ key, label, icon }) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-              tab === key
-                ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-sm'
-                : 'text-ink/50 dark:text-white/40 hover:text-ink/80 dark:hover:text-white/60'
-            }`}>
-            <Icon size={14} /> {label}
-            {key === 'room' && room && <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            style={tab === key ? {
+              background: 'rgba(255,255,255,0.85)',
+              boxShadow:  '0 2px 12px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,1)',
+              color:      '#1E2233',
+            } : { color: 'rgba(30,34,51,0.50)' }}>
+            <span>{icon}</span>{label}
+            {key === 'room' && room && (
+              <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
+            )}
           </button>
         ))}
       </div>
@@ -293,42 +136,77 @@ export default function Focus() {
       {tab === 'timer' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* Main timer card */}
-          <GlassCard className="lg:col-span-2 p-8 flex flex-col items-center">
+          {/* Main card */}
+          <div className="lg:col-span-2 flex flex-col items-center py-10 px-8" style={cardGlass}>
 
             {/* Mode pills */}
             <div className="flex gap-2 mb-8 flex-wrap justify-center">
               {Object.entries(MODES).map(([key, m]) => (
-                <button key={key} onClick={() => handleModeClick(key)}
-                  className={`px-5 py-2 rounded-2xl text-sm font-semibold transition-all ${
-                    mode === key ? 'text-white' : 'bg-white/60 dark:bg-white/[0.06] text-ink/50 dark:text-white/40 hover:bg-white/80 dark:hover:bg-white/10'
-                  }`}
-                  style={mode === key ? { backgroundColor: modeColor, boxShadow: `0 4px 16px ${modeColor}55` } : {}}>
-                  {m.label}
-                </button>
+                <motion.button key={key}
+                  whileHover={{ y: -1, scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => handleModeClick(key)}
+                  className="px-5 py-2 rounded-2xl text-sm font-semibold transition-all"
+                  style={lg({ color: m.color, active: mode === key })}>
+                  {m.emoji} {m.label}
+                </motion.button>
               ))}
             </div>
 
-            {/* SVG ring timer */}
-            <div className="relative flex items-center justify-center mb-8">
-              <svg width="264" height="264">
-                <circle cx="132" cy="132" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="7" />
-                <circle cx="132" cy="132" r={R} fill="none"
-                  stroke={modeColor} strokeWidth="7" strokeLinecap="round"
-                  strokeDasharray={circumference} strokeDashoffset={dashOffset}
-                  transform="rotate(-90 132 132)"
-                  style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+            {/* Time range */}
+            <div className="h-5 mb-2">
+              <AnimatePresence>
+                {timeRange && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                    className="text-sm font-mono font-medium"
+                    style={{ color: modeColor }}>
+                    {timeRange}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Ring */}
+            <div className="relative my-2">
+              <svg width="280" height="280">
+                {Array.from({ length: 60 }, (_, i) => {
+                  const angle   = (i / 60) * 2 * Math.PI - Math.PI / 2;
+                  const isMajor = i % 5 === 0;
+                  const outerR  = 130;
+                  const innerR  = isMajor ? 120 : 125;
+                  const isPast  = (i / 60) <= progress && progress > 0;
+                  return (
+                    <line key={i}
+                      x1={CX + innerR * Math.cos(angle)} y1={CY + innerR * Math.sin(angle)}
+                      x2={CX + outerR * Math.cos(angle)} y2={CY + outerR * Math.sin(angle)}
+                      stroke={isPast ? modeColor : 'rgba(124,106,240,0.10)'}
+                      strokeWidth={isMajor ? 2.5 : 1.2} strokeLinecap="round"
+                      style={{ transition: 'stroke 0.4s ease' }}
+                    />
+                  );
+                })}
+                <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="5" />
+                <circle cx={CX} cy={CY} r={R} fill="none"
+                  stroke={modeColor} strokeWidth="5" strokeLinecap="round"
+                  strokeDasharray={CIRC} strokeDashoffset={dashOffset}
+                  transform={`rotate(-90 ${CX} ${CY})`}
+                  style={{ transition: 'stroke-dashoffset 0.8s ease, stroke 0.5s ease', filter: `drop-shadow(0 0 6px ${modeColor}88)` }}
                 />
               </svg>
-              <div className="absolute flex flex-col items-center select-none">
-                <span className="font-display text-6xl font-bold text-ink dark:text-white tabular-nums">
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
+                <span className="font-display tabular-nums leading-none text-ink dark:text-white"
+                  style={{ fontSize: 58, fontWeight: 700 }}>
                   {mm}:{ss}
                 </span>
-                <span className="text-sm text-ink/45 dark:text-white/40 mt-1">{MODES[mode].label}</span>
+                <span className="text-sm font-medium mt-2" style={{ color: modeColor }}>
+                  {MODES[mode].emoji} {MODES[mode].label}
+                </span>
                 {dots > 0 && (
-                  <div className="flex gap-1.5 mt-3 flex-wrap justify-center max-w-[120px]">
+                  <div className="flex gap-1.5 mt-3">
                     {Array.from({ length: Math.min(dots, 8) }).map((_, i) => (
-                      <div key={i} className="h-2 w-2 rounded-full" style={{ backgroundColor: modeColor }} />
+                      <div key={i} className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: modeColor, boxShadow: `0 0 4px ${modeColor}` }} />
                     ))}
                   </div>
                 )}
@@ -337,121 +215,136 @@ export default function Focus() {
 
             {/* Task name */}
             <input
-              className="input-field text-center mb-6 max-w-sm"
+              className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2"
+              style={{ borderBottom: '1px solid rgba(124,106,240,0.20)', color: taskName ? '#1E2233' : undefined }}
               placeholder="What are you working on?"
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
             />
 
             {/* Controls */}
-            <div className="flex items-center gap-3">
-              <button onClick={resetTimer}
-                className="btn-secondary !w-11 !h-11 !p-0 flex items-center justify-center rounded-2xl">
-                <RotateCcw size={16} />
-              </button>
-              <button onClick={toggleTimer}
-                className="flex items-center gap-2 rounded-2xl px-10 py-3.5 text-base font-bold text-white transition-all hover:brightness-110 active:scale-[0.97]"
-                style={{ backgroundColor: modeColor, boxShadow: `0 8px 24px ${modeColor}44` }}>
-                {isRunning ? <Pause size={21} /> : <Play size={21} />}
-                {isRunning ? 'Pause' : 'Start'}
-              </button>
+            <div className="flex items-center gap-5">
+              <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
+                onClick={resetTimer}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl"
+                style={lg()}>
+                <RotateCcw size={16} className="text-ink/50 dark:text-white/40" />
+              </motion.button>
+
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                onClick={toggleTimer}
+                className="flex h-[76px] w-[76px] items-center justify-center rounded-full"
+                style={{
+                  background:           `linear-gradient(145deg, ${modeColor}DD 0%, ${modeColor}99 100%)`,
+                  backdropFilter:       'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border:               '1.5px solid rgba(255,255,255,0.55)',
+                  boxShadow:            `0 10px 36px ${modeColor}55, 0 4px 16px rgba(0,0,0,0.14), inset 0 2px 0 rgba(255,255,255,0.55), inset 0 -2px 0 rgba(0,0,0,0.10)`,
+                }}>
+                {isRunning
+                  ? <Pause size={26} className="text-white" />
+                  : <Play  size={26} className="text-white ml-1" />}
+              </motion.button>
+
+              <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
+                onClick={addMinute}
+                className="flex items-center gap-1 h-11 px-3.5 rounded-2xl text-xs font-bold"
+                style={{ ...lg(), color: 'rgba(30,34,51,0.55)' }}>
+                <Plus size={12} /> 1m
+              </motion.button>
             </div>
 
             {/* Duration picker */}
-            <div className="mt-8 w-full border-t border-white/30 dark:border-white/10 pt-5">
-              <p className="text-xs font-semibold text-ink/40 dark:text-white/30 uppercase tracking-widest mb-3">
-                Duration
-              </p>
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-8 pt-6 w-full" style={{ borderTop: '1px solid rgba(255,255,255,0.30)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-center mb-3"
+                style={{ color: 'rgba(30,34,51,0.30)' }}>Duration</p>
+              <div className="flex flex-wrap gap-2 justify-center">
                 {OPTIONS[mode].map((min) => (
-                  <button key={min} onClick={() => setDuration(min)} disabled={isRunning}
-                    className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition disabled:opacity-40 ${
-                      customMin[mode] === min
-                        ? 'text-white'
-                        : 'bg-white/60 dark:bg-white/[0.05] text-ink/50 dark:text-white/40 hover:bg-white dark:hover:bg-white/10'
-                    }`}
-                    style={customMin[mode] === min ? { backgroundColor: modeColor } : {}}>
-                    {min} min
-                  </button>
+                  <motion.button key={min}
+                    whileHover={{ y: -1 }} whileTap={{ scale: 0.95 }}
+                    onClick={() => setDuration(min)} disabled={isRunning}
+                    className="px-4 py-1.5 rounded-xl text-xs font-semibold transition disabled:opacity-40"
+                    style={lg({ color: modeColor, active: customMin[mode] === min })}>
+                    {min}m
+                  </motion.button>
                 ))}
               </div>
             </div>
-          </GlassCard>
+          </div>
 
           {/* Side panel */}
           <div className="flex flex-col gap-4">
 
-            {/* Weekly stats */}
             {stats && (
-              <GlassCard className="p-5">
-                <p className="text-xs font-semibold text-ink/45 dark:text-white/35 uppercase tracking-wider mb-3">This Week</p>
+              <div className="rounded-3xl p-5" style={lg()}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-4"
+                  style={{ color: 'rgba(30,34,51,0.38)' }}>This Week</p>
                 <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { val: stats.total_minutes, label: 'minutes' },
-                    { val: stats.sessions,      label: 'sessions' },
-                  ].map(({ val, label }) => (
-                    <div key={label} className="rounded-2xl bg-white/50 dark:bg-white/[0.04] p-3 text-center">
+                  {[{ val: stats.total_minutes, label: 'minutes' }, { val: stats.sessions, label: 'sessions' }].map(({ val, label }) => (
+                    <div key={label} className="rounded-2xl p-3 text-center" style={lg()}>
                       <p className="font-display text-2xl font-bold text-ink dark:text-white">{val}</p>
-                      <p className="text-xs text-ink/45 dark:text-white/35">{label}</p>
+                      <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">{label}</p>
                     </div>
                   ))}
                 </div>
-              </GlassCard>
+              </div>
             )}
 
-            {/* Room quick card */}
             {room ? (
-              <GlassCard className="p-5">
+              <div className="rounded-3xl p-5" style={lg({ color: MODES.focus.color, active: true })}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-semibold text-ink dark:text-white text-sm">{room.name}</p>
-                    <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">
-                      Code: <span className="font-mono font-bold tracking-widest text-lavender-600 dark:text-lavender-300">{room.code}</span>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
+                      Code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{room.code}</span>
                     </p>
                   </div>
-                  <button onClick={leaveRoom} className="text-ink/30 hover:text-coral-500 transition"><LogOut size={15} /></button>
+                  <button onClick={leaveRoom} className="text-ink/30 hover:text-coral-500 transition">
+                    <LogOut size={15} />
+                  </button>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {room.members?.slice(0, 4).map((m) => (
                     <div key={m.user_id} className="flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15 dark:bg-white/15'}`} />
-                      <span className="text-xs text-ink/70 dark:text-white/60 flex-1 truncate">{m.display_name}</span>
-                      <span className="text-xs text-ink/40 dark:text-white/30 shrink-0">{m.focus_minutes}m</span>
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15'}`} />
+                      <span className="text-xs text-ink/65 dark:text-white/55 flex-1 truncate">{m.display_name}</span>
+                      <span className="text-xs text-ink/35 shrink-0">{m.focus_minutes}m</span>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setTab('room')} className="mt-3 text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">
+                <button onClick={() => setTab('room')} className="mt-3 text-xs font-semibold hover:underline"
+                  style={{ color: modeColor }}>
                   View room →
                 </button>
-              </GlassCard>
+              </div>
             ) : (
-              <button onClick={() => setRoomModal(true)}
-                className="glass-card p-5 text-left hover:bg-white/70 dark:hover:bg-white/[0.07] transition cursor-pointer rounded-3xl w-full">
+              <motion.button whileHover={{ y: -1 }} onClick={() => setRoomModal(true)}
+                className="rounded-3xl p-5 text-left w-full" style={lg()}>
                 <div className="flex items-center gap-2.5 mb-1.5">
-                  <Users size={17} className="text-lavender-500" />
+                  <span className="text-lg">👥</span>
                   <p className="font-semibold text-ink dark:text-white text-sm">Study Room</p>
                 </div>
                 <p className="text-xs text-ink/45 dark:text-white/35">Focus with friends. Shared leaderboard inside.</p>
-              </button>
+              </motion.button>
             )}
 
-            {/* Top 3 */}
             {board.length > 0 && (
-              <GlassCard className="p-5">
-                <p className="text-xs font-semibold text-ink/45 dark:text-white/35 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Trophy size={12} /> Top this week
-                </p>
+              <div className="rounded-3xl p-5" style={lg()}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-3"
+                  style={{ color: 'rgba(30,34,51,0.38)' }}>🏆 Top This Week</p>
                 {board.slice(0, 3).map((e) => (
                   <div key={e.id} className="flex items-center gap-2 py-1.5">
                     <span className="text-sm w-5 text-center">{['🥇','🥈','🥉'][e.rank - 1]}</span>
                     <span className="flex-1 text-sm text-ink dark:text-white truncate">{e.name}</span>
-                    <span className="text-xs text-ink/45 dark:text-white/35 shrink-0">{e.total_minutes}m</span>
+                    <span className="text-xs text-ink/40 shrink-0">{e.total_minutes}m</span>
                   </div>
                 ))}
-                <button onClick={() => setTab('leaderboard')} className="mt-2 text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">
-                  Full leaderboard →
+                <button onClick={() => setTab('leaderboard')}
+                  className="mt-2 text-xs font-semibold hover:underline"
+                  style={{ color: modeColor }}>
+                  Full rankings →
                 </button>
-              </GlassCard>
+              </div>
             )}
           </div>
         </div>
@@ -461,52 +354,54 @@ export default function Focus() {
       {tab === 'room' && (
         <div className="max-w-2xl">
           {room ? (
-            <GlassCard className="p-6">
+            <div className="rounded-3xl p-7" style={cardGlass}>
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <h2 className="font-display font-bold text-ink dark:text-white text-xl">{room.name}</h2>
-                  <p className="text-sm text-ink/50 dark:text-white/40 mt-0.5">
-                    Share code:{' '}
-                    <span className="font-mono font-bold tracking-widest text-lavender-600 dark:text-lavender-300">{room.code}</span>
+                  <p className="text-sm mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
+                    Share code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{room.code}</span>
                   </p>
                 </div>
-                <button onClick={leaveRoom} className="btn-secondary flex items-center gap-2 text-sm">
+                <button onClick={leaveRoom}
+                  className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2"
+                  style={lg()}>
                   <LogOut size={14} /> Leave
                 </button>
               </div>
               {room.members?.length === 0 ? (
-                <p className="text-sm text-ink/40 dark:text-white/30 text-center py-6">Waiting for others to join…</p>
+                <p className="text-sm text-ink/40 text-center py-8">Waiting for others to join…</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {room.members.map((m) => (
-                    <div key={m.user_id} className="flex items-center gap-3 rounded-2xl bg-white/50 dark:bg-white/[0.04] px-4 py-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-lavender-400 to-lavender-600 text-white text-xs font-bold shrink-0">
+                    <div key={m.user_id} className="flex items-center gap-3 rounded-2xl px-4 py-3" style={lg()}>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-xs font-bold shrink-0"
+                        style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}88 100%)` }}>
                         {m.display_name?.[0]?.toUpperCase() || '?'}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-ink dark:text-white truncate">{m.display_name}</p>
-                        <p className="text-xs text-ink/40 dark:text-white/30">{m.focus_minutes} min focused</p>
+                        <p className="text-xs text-ink/40">{m.focus_minutes} min focused</p>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15 dark:bg-white/15'}`} />
-                        <span className={`text-xs font-medium ${m.is_focusing ? 'text-sage-600 dark:text-sage-400' : 'text-ink/40 dark:text-white/30'}`}>
-                          {m.is_focusing ? 'Focusing' : 'On break'}
+                      <div className="flex items-center gap-1.5">
+                        <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15'}`} />
+                        <span className={`text-xs font-medium ${m.is_focusing ? 'text-sage-600' : 'text-ink/35'}`}>
+                          {m.is_focusing ? 'Focusing' : 'Break'}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </GlassCard>
+            </div>
           ) : (
-            <GlassCard className="p-10 text-center">
-              <Users size={30} className="text-lavender-400 mx-auto mb-3" />
+            <div className="rounded-3xl p-12 text-center" style={cardGlass}>
+              <span className="text-5xl mb-4 block">👥</span>
               <h3 className="font-display font-bold text-ink dark:text-white mb-1">No active room</h3>
-              <p className="text-sm text-ink/50 dark:text-white/40 mb-5">Create a private room or join one with a code and password.</p>
+              <p className="text-sm text-ink/50 mb-6">Create a private room or join one with a code and password.</p>
               <button onClick={() => setRoomModal(true)} className="btn-primary mx-auto">
                 <Plus size={16} /> Create or Join Room
               </button>
-            </GlassCard>
+            </div>
           )}
         </div>
       )}
@@ -514,71 +409,62 @@ export default function Focus() {
       {/* ── LEADERBOARD TAB ───────────────────────────────── */}
       {tab === 'leaderboard' && (
         <div className="max-w-2xl">
-          <GlassCard className="p-6">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="font-display font-bold text-ink dark:text-white">Weekly Leaderboard</h2>
-              <span className="text-xs text-ink/40 dark:text-white/30">Resets every Sunday at midnight</span>
+          <div className="rounded-3xl p-7" style={cardGlass}>
+            <div className="flex items-start justify-between mb-1">
+              <h2 className="font-display font-bold text-ink dark:text-white">Weekly Rankings</h2>
+              <span className="text-xs text-ink/35">Resets every Sunday midnight</span>
             </div>
-            <p className="text-xs text-ink/40 dark:text-white/30 mb-5">Total focus minutes logged this week</p>
-
+            <p className="text-xs text-ink/40 mb-6">Total flow minutes logged this week</p>
             {board.length === 0 ? (
               <div className="text-center py-10">
-                <Trophy size={28} className="text-ink/20 dark:text-white/20 mx-auto mb-2" />
-                <p className="text-sm text-ink/40 dark:text-white/30">No sessions yet this week.</p>
-                <p className="text-xs text-ink/30 dark:text-white/20 mt-1">Complete a session to appear here.</p>
+                <span className="text-4xl block mb-3">🏆</span>
+                <p className="text-sm text-ink/40">No sessions yet this week.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
                 {board.map((e) => {
-                  const isMe    = e.id == user?.id;
-                  const medals  = ['🥇','🥈','🥉'];
-                  const hrs     = Math.floor(e.total_minutes / 60);
-                  const mins    = e.total_minutes % 60;
+                  const isMe   = e.id == user?.id;
+                  const medals = ['🥇','🥈','🥉'];
+                  const hrs    = Math.floor(e.total_minutes / 60);
+                  const mins   = e.total_minutes % 60;
                   return (
-                    <div key={e.id}
-                      className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${
-                        isMe
-                          ? 'bg-lavender-50 dark:bg-lavender-500/10 border border-lavender-200/50 dark:border-lavender-500/20'
-                          : 'bg-white/40 dark:bg-white/[0.03]'
-                      }`}>
+                    <div key={e.id} className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                      style={isMe ? lg({ color: modeColor, active: true }) : lg()}>
                       <span className="text-xl w-8 text-center shrink-0">
                         {e.rank <= 3
                           ? medals[e.rank - 1]
-                          : <span className="text-sm font-bold text-ink/30 dark:text-white/25">{e.rank}</span>}
+                          : <span className="text-sm font-bold text-ink/30">{e.rank}</span>}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-semibold truncate ${isMe ? 'text-lavender-700 dark:text-lavender-300' : 'text-ink dark:text-white'}`}>
                           {e.name}{isMe ? ' (you)' : ''}
                         </p>
-                        <p className="text-xs text-ink/40 dark:text-white/30">{e.session_count} sessions</p>
+                        <p className="text-xs text-ink/35">{e.session_count} sessions</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${isMe ? 'text-lavender-600 dark:text-lavender-300' : 'text-ink dark:text-white'}`}>
+                        <p className={`text-sm font-bold ${isMe ? 'text-lavender-600' : 'text-ink dark:text-white'}`}>
                           {e.total_minutes}m
                         </p>
-                        <p className="text-xs text-ink/35 dark:text-white/25">
-                          {hrs > 0 ? `${hrs}h ` : ''}{mins}m
-                        </p>
+                        <p className="text-xs text-ink/30">{hrs > 0 ? `${hrs}h ` : ''}{mins}m</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-          </GlassCard>
+          </div>
         </div>
       )}
 
       {/* ── Room modal ─────────────────────────────────────── */}
       <Modal open={roomModal} onClose={() => setRoomModal(false)} title="Study Room">
-        <div className="flex gap-1 mb-5 bg-white/40 dark:bg-white/[0.04] rounded-xl p-1">
+        <div className="flex gap-1 mb-5 p-1 rounded-xl" style={lg()}>
           {[{ key: 'join', label: 'Join Room' }, { key: 'create', label: 'Create Room' }].map(({ key, label }) => (
             <button key={key} onClick={() => setRoomForm({ ...roomForm, tab: key })}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-                roomForm.tab === key
-                  ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-sm'
-                  : 'text-ink/50 dark:text-white/40'
-              }`}>
+              className="flex-1 py-2 rounded-lg text-sm font-semibold transition"
+              style={roomForm.tab === key
+                ? { background: 'rgba(255,255,255,0.85)', boxShadow: '0 2px 10px rgba(0,0,0,0.09)', color: '#1E2233' }
+                : { color: 'rgba(30,34,51,0.45)' }}>
               {label}
             </button>
           ))}
@@ -586,15 +472,21 @@ export default function Focus() {
         <form onSubmit={handleRoomSubmit} className="flex flex-col gap-3.5">
           {roomForm.tab === 'create' && (
             <input className="input-field" placeholder="Room name, e.g. Study Squad"
-              value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} autoFocus required />
+              value={roomForm.name}
+              onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
+              autoFocus required />
           )}
           {roomForm.tab === 'join' && (
             <input className="input-field font-mono tracking-[0.3em] text-center uppercase"
               placeholder="ROOM CODE" maxLength={6}
-              value={roomForm.code} onChange={(e) => setRoomForm({ ...roomForm, code: e.target.value.toUpperCase() })} autoFocus required />
+              value={roomForm.code}
+              onChange={(e) => setRoomForm({ ...roomForm, code: e.target.value.toUpperCase() })}
+              autoFocus required />
           )}
           <input type="password" className="input-field" placeholder="Password"
-            value={roomForm.password} onChange={(e) => setRoomForm({ ...roomForm, password: e.target.value })} required />
+            value={roomForm.password}
+            onChange={(e) => setRoomForm({ ...roomForm, password: e.target.value })}
+            required />
           <button type="submit" className="btn-primary justify-center">
             {roomForm.tab === 'join' ? 'Join Room' : 'Create Room'}
           </button>
@@ -606,32 +498,40 @@ export default function Focus() {
         {congrats && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/30 dark:bg-black/60 backdrop-blur-sm px-4"
-            onClick={() => setCongrats(null)}
-          >
+            className="fixed inset-0 z-[90] flex items-center justify-center px-4"
+            style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', background: 'rgba(30,34,51,0.25)' }}
+            onClick={() => setCongrats(null)}>
             <motion.div
-              initial={{ scale: 0.85, y: 28 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 16 }}
-              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              className="glass-card w-full max-w-md p-8 text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-5xl mb-4 animate-bounce">🎉</div>
+              initial={{ scale: 0.82, y: 32 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.88, y: 20 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+              className="w-full max-w-md p-8 text-center rounded-3xl"
+              style={cardGlass}
+              onClick={(e) => e.stopPropagation()}>
+              <motion.div
+                animate={{ y: [0, -8, 0], rotate: [0, -5, 5, -3, 0] }}
+                transition={{ duration: 0.7, ease: 'easeOut' }}
+                className="text-6xl mb-4">
+                🎉
+              </motion.div>
               <h2 className="font-display text-2xl font-bold text-ink dark:text-white mb-1">Session Complete!</h2>
-              <p className="text-ink/50 dark:text-white/40 mb-2">{congrats.minutes} min of focused work — well done.</p>
+              <p className="text-ink/50 mb-3">{congrats.minutes} min of focused work.</p>
               {congrats.xpAwarded > 0 && (
-                <p className="inline-block rounded-full bg-aurora-violet/10 text-aurora-violet px-3 py-1 text-sm font-bold mb-4">
-                  +{congrats.xpAwarded} XP
-                </p>
+                <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
+                  style={lg({ color: '#7C6AF0', active: true })}>
+                  ✨ +{congrats.xpAwarded} XP
+                </span>
               )}
-              <div className="rounded-2xl bg-white/50 dark:bg-white/[0.05] px-5 py-4 mb-6 text-left">
+              <div className="rounded-2xl px-5 py-4 mb-6 text-left" style={lg()}>
                 <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">
                   "{congrats.quote.text}"
                 </p>
-                <p className="text-xs text-ink/45 dark:text-white/35 mt-2">— {congrats.quote.author}</p>
+                <p className="text-xs text-ink/40 mt-2">— {congrats.quote.author}</p>
               </div>
-              <button onClick={() => setCongrats(null)} className="btn-primary w-full justify-center text-base">
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                onClick={() => setCongrats(null)}
+                className="btn-primary w-full justify-center text-base">
                 Keep going 🚀
-              </button>
+              </motion.button>
             </motion.div>
           </motion.div>
         )}
