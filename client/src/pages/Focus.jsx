@@ -24,20 +24,20 @@ function lg({ color, active } = {}) {
     };
   }
   return {
-    background:           'linear-gradient(145deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%)',
-    backdropFilter:       'blur(24px)',
-    WebkitBackdropFilter: 'blur(24px)',
-    border:               '1px solid rgba(255,255,255,0.42)',
-    boxShadow:            'inset 0 1.5px 0 rgba(255,255,255,0.65), inset 0 -1px 0 rgba(0,0,0,0.03), 0 2px 12px rgba(0,0,0,0.06)',
+    background:           'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
+    backdropFilter:       'blur(28px)',
+    WebkitBackdropFilter: 'blur(28px)',
+    border:               '1px solid rgba(255,255,255,0.22)',
+    boxShadow:            'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.12)',
   };
 }
 
 const cardGlass = {
-  background:           'linear-gradient(160deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.07) 100%)',
-  backdropFilter:       'blur(40px)',
-  WebkitBackdropFilter: 'blur(40px)',
-  border:               '1px solid rgba(255,255,255,0.44)',
-  boxShadow:            '0 20px 60px rgba(0,0,0,0.08), inset 0 2px 0 rgba(255,255,255,0.75), inset 0 -1px 0 rgba(0,0,0,0.03)',
+  background:           'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)',
+  backdropFilter:       'blur(48px)',
+  WebkitBackdropFilter: 'blur(48px)',
+  border:               '1px solid rgba(255,255,255,0.18)',
+  boxShadow:            '0 24px 64px rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(0,0,0,0.08)',
   borderRadius:         '2rem',
 };
 
@@ -115,22 +115,40 @@ export default function Flow() {
       />
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl" style={lg()}>
-        {TABS_NAV.map(({ key, label, icon }) => (
-          <button key={key} onClick={() => setTab(key)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={tab === key ? {
-              background: 'rgba(255,255,255,0.85)',
-              boxShadow:  '0 2px 12px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,1)',
-              color:      '#1E2233',
-            } : { color: 'rgba(30,34,51,0.50)' }}>
-            <span>{icon}</span>{label}
-            {key === 'room' && room && (
-              <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
-            )}
-          </button>
-        ))}
-      </div>
+<div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl" style={lg()}>
+  {TABS_NAV.map(({ key, label, icon }) => (
+    <motion.button
+      key={key}
+      onClick={() => setTab(key)}
+      whileHover={tab !== key ? {
+        y: -3,
+        scale: 1.06,
+        transition: { type: 'spring', stiffness: 500, damping: 22 },
+      } : {}}
+      whileTap={{ scale: 0.95 }}
+      className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+      style={tab === key ? {
+        background: 'rgba(255,255,255,0.88)',
+        boxShadow:  '0 8px 24px rgba(0,0,0,0.13), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+        color:      '#1E2233',
+      } : { color: 'rgba(255,255,255,0.45)' }}>
+      {/* Hover card — same pattern as sidebar */}
+      {tab !== key && (
+        <span className="absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+          style={{
+            background: 'rgba(255,255,255,0.10)',
+            boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.25)',
+          }}
+        />
+      )}
+      <span className="relative z-10">{icon}</span>
+      <span className="relative z-10">{label}</span>
+      {key === 'room' && room && (
+        <span className="relative z-10 h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
+      )}
+    </motion.button>
+  ))}
+</div>
 
       {/* ── TIMER TAB ─────────────────────────────────────── */}
       {tab === 'timer' && (
