@@ -20,10 +20,46 @@ const QUOTES = [
   { text: 'One hour of focused work beats eight hours of distracted effort.',         author: 'Unknown' },
   { text: 'Your future is created by what you do today, not tomorrow.',               author: 'Robert Kiyosaki' },
   { text: 'Concentration is the root of all the higher abilities in man.',            author: 'Bruce Lee' },
+  { text: "It's not that I'm so smart, it's just that I stay with problems longer.", author: 'Einstein' },
+  { text: 'Productivity is never an accident.',                                        author: 'Paul J. Meyer' },
 ];
 
 export const randQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
 
+const SESSION_KEY = 'aurora_focus_state';
+
+// ── Persist to sessionStorage ─────────────────────────────────
+function saveState(state) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      ...state,
+      startedAt: state.startedAt?.toISOString?.() || state.startedAt || null,
+      savedAt:   new Date().toISOString(),
+    }));
+  } catch (_) {}
+}
+
+// ── Restore from sessionStorage (adjusting for elapsed time) ──
+function loadState() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+
+    // If timer was running, subtract elapsed seconds since last save
+    if (s.isRunning && s.savedAt) {
+      const elapsed = Math.floor((Date.now() - new Date(s.savedAt).getTime()) / 1000);
+      s.timeLeft = Math.max(0, (s.timeLeft || 0) - elapsed);
+      // If it would have finished while away, mark as not running
+      if (s.timeLeft === 0) { s.isRunning = false; s.startedAt = null; }
+    }
+
+    if (s.startedAt) s.startedAt = new Date(s.startedAt);
+    return s;
+  } catch (_) { return null; }
+}
+
+// ── Audio ─────────────────────────────────────────────────────
 function playDone() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -52,39 +88,48 @@ function playBreakEnd() {
 }
 
 export function FocusProvider({ children }) {
-  const [mode,      setMode]      = useState('focus');
-  const [customMin, setCustomMin] = useState({ focus: 25, short: 5, long: 15 });
-  const [timeLeft,  setTimeLeft]  = useState(25 * 60);
-  const [totalTime, setTotalTime] = useState(25 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [taskName,  setTaskName]  = useState('');
-  const [dots,      setDots]      = useState(0);
-  const [startedAt, setStartedAt] = useState(null);
+  // ── Restore saved state on first render ───────────────────
+  const saved = loadState();
+
+  const [mode,      setMode]      = useState(saved?.mode      || 'focus');
+  const [customMin, setCustomMin] = useState(saved?.customMin || { focus: 25, short: 5, long: 15 });
+  const [timeLeft,  setTimeLeft]  = useState(saved?.timeLeft  ?? 25 * 60);
+  const [totalTime, setTotalTime] = useState(saved?.totalTime ?? 25 * 60);
+  const [isRunning, setIsRunning] = useState(saved?.isRunning || false);
+  const [taskName,  setTaskName]  = useState(saved?.taskName  || '');
+  const [dots,      setDots]      = useState(saved?.dots      || 0);
+  const [startedAt, setStartedAt] = useState(saved?.startedAt || null);
   const [congrats,  setCongrats]  = useState(null);
   const [stats,     setStats]     = useState(null);
   const [board,     setBoard]     = useState([]);
   const [room,      setRoom]      = useState(null);
 
+  // ── Persist on every meaningful state change ──────────────
+  useEffect(() => {
+    saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
+  }, [mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt]);
+
+  // ── Refs ──────────────────────────────────────────────────
   const intervalRef  = useRef(null);
   const modeRef      = useRef(mode);
   const customMinRef = useRef(customMin);
   const taskRef      = useRef(taskName);
   const roomRef      = useRef(room);
-  useEffect(() => { modeRef.current = mode; },      [mode]);
+  useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
-  useEffect(() => { taskRef.current = taskName; },   [taskName]);
-  useEffect(() => { roomRef.current = room; },       [room]);
+  useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
+  useEffect(() => { roomRef.current      = room;      }, [room]);
 
+  // ── Data ──────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
       const [s, l] = await Promise.all([api.get('/focus/stats'), api.get('/focus/leaderboard')]);
       setStats(s); setBoard(l.leaderboard || []);
     } catch (_) {}
   }, []);
-
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Room polling
+  // ── Room polling ──────────────────────────────────────────
   useEffect(() => {
     if (!room) return;
     const poll = async () => {
@@ -98,7 +143,7 @@ export function FocusProvider({ children }) {
     return () => clearInterval(id);
   }, [room?.code]); // eslint-disable-line
 
-  // Room pulse
+  // ── Room pulse ────────────────────────────────────────────
   useEffect(() => {
     if (!room) return;
     const pulse = () => api.post(`/focus/rooms/${room.code}/pulse`, { is_focusing: isRunning }).catch(() => {});
@@ -107,11 +152,13 @@ export function FocusProvider({ children }) {
     return () => clearInterval(id);
   }, [room?.code, isRunning]); // eslint-disable-line
 
+  // ── Session complete ──────────────────────────────────────
   const handleComplete = useCallback(async () => {
     const m   = modeRef.current;
     const min = customMinRef.current;
     const t   = taskRef.current;
     const r   = roomRef.current;
+
     if (m === 'focus') {
       playDone();
       const quote = randQuote();
@@ -128,12 +175,15 @@ export function FocusProvider({ children }) {
       }
     } else {
       playBreakEnd();
+      // Auto switch back to focus — instant, no confirm needed
       const mins = customMinRef.current.focus;
-      setMode('focus'); setTimeLeft(mins * 60); setTotalTime(mins * 60);
+      setMode('focus');
+      setTimeLeft(mins * 60);
+      setTotalTime(mins * 60);
     }
   }, [loadData]);
 
-  // The one timer — lives here forever
+  // ── Timer tick ────────────────────────────────────────────
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
     intervalRef.current = setInterval(() => {
@@ -151,7 +201,7 @@ export function FocusProvider({ children }) {
     return () => clearInterval(intervalRef.current);
   }, [isRunning, handleComplete]);
 
-  // Update document title when running
+  // ── Document title ────────────────────────────────────────
   useEffect(() => {
     if (isRunning) {
       const mm = String(Math.floor(timeLeft / 60)).padStart(2, '0');
@@ -162,9 +212,22 @@ export function FocusProvider({ children }) {
     }
   }, [isRunning, timeLeft, mode]);
 
+  // ── Controls ──────────────────────────────────────────────
+  // No window.confirm — instant switch, no lag
   const switchMode = (m) => {
-    clearInterval(intervalRef.current); setIsRunning(false); setStartedAt(null);
-    setMode(m); const mins = customMin[m]; setTimeLeft(mins * 60); setTotalTime(mins * 60);
+    clearInterval(intervalRef.current);
+    setIsRunning(false);
+    setStartedAt(null);
+    setMode(m);
+    const mins = customMin[m];
+    setTimeLeft(mins * 60);
+    setTotalTime(mins * 60);
+  };
+
+  // If running, just switch — no blocking dialog
+  const handleModeClick = (m) => {
+    if (m === mode) return; // already on this mode, no-op
+    switchMode(m);
   };
 
   const toggleTimer = () => {
@@ -174,8 +237,12 @@ export function FocusProvider({ children }) {
   };
 
   const resetTimer = () => {
-    clearInterval(intervalRef.current); setIsRunning(false); setStartedAt(null);
-    const mins = customMin[mode]; setTimeLeft(mins * 60); setTotalTime(mins * 60);
+    clearInterval(intervalRef.current);
+    setIsRunning(false);
+    setStartedAt(null);
+    const mins = customMin[mode];
+    setTimeLeft(mins * 60);
+    setTotalTime(mins * 60);
   };
 
   const addMinute = () => {
@@ -189,15 +256,10 @@ export function FocusProvider({ children }) {
     if (!isRunning) { setTimeLeft(mins * 60); setTotalTime(mins * 60); }
   };
 
-  const handleModeClick = (m) => {
-    if (isRunning && !window.confirm('Switch mode? Current session will be lost.')) return;
-    switchMode(m);
-  };
-
   return (
     <FocusContext.Provider value={{
-      mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt,
-      congrats, stats, board, room,
+      mode, customMin, timeLeft, totalTime, isRunning, taskName, dots,
+      startedAt, congrats, stats, board, room,
       setTaskName, setRoom, setCongrats,
       toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,
       loadData,
