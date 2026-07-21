@@ -4,7 +4,7 @@ const { db }  = require('../db/connection');
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
-// ── Tool definitions ──────────────────────────────────────────
+// ── Tools ─────────────────────────────────────────────────────
 const TOOLS = [
   {
     name: 'create_task',
@@ -12,11 +12,11 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        title:       { type: 'string',  description: 'Task title' },
-        description: { type: 'string',  description: 'Optional description' },
-        priority:    { type: 'string',  enum: ['low','medium','high'] },
-        deadline:    { type: 'string',  description: 'Due date YYYY-MM-DD' },
-        category:    { type: 'string',  description: 'Category label' },
+        title:       { type: 'string' },
+        description: { type: 'string' },
+        priority:    { type: 'string', enum: ['low','medium','high'] },
+        deadline:    { type: 'string', description: 'YYYY-MM-DD' },
+        category:    { type: 'string' },
       },
       required: ['title'],
     },
@@ -34,7 +34,7 @@ const TOOLS = [
   },
   {
     name: 'complete_task',
-    description: 'Mark a task as done by its ID or a title fragment.',
+    description: 'Mark a task as done by ID or title fragment.',
     input_schema: {
       type: 'object',
       properties: {
@@ -52,7 +52,7 @@ const TOOLS = [
         title:       { type: 'string' },
         description: { type: 'string' },
         category:    { type: 'string' },
-        target_date: { type: 'string', description: 'YYYY-MM-DD' },
+        target_date: { type: 'string' },
         milestones:  { type: 'array', items: { type: 'string' } },
       },
       required: ['title'],
@@ -70,7 +70,7 @@ const TOOLS = [
   },
   {
     name: 'get_productivity_summary',
-    description: 'Get a productivity summary for a time period.',
+    description: 'Get productivity summary for a time period.',
     input_schema: {
       type: 'object',
       properties: {
@@ -80,12 +80,12 @@ const TOOLS = [
   },
   {
     name: 'get_focus_stats',
-    description: 'Get focus/flow session stats for the user.',
+    description: 'Get focus session stats.',
     input_schema: { type: 'object', properties: {} },
   },
   {
     name: 'generate_daily_plan',
-    description: 'Generate a prioritized daily plan based on tasks and available hours.',
+    description: 'Generate a prioritized daily plan.',
     input_schema: {
       type: 'object',
       properties: {
@@ -94,9 +94,32 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'save_memory',
+    description: 'Save an important fact about the user for future conversations. Use this when the user shares preferences, personal info, or anything worth remembering long-term.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        key:   { type: 'string', description: 'Short identifier e.g. "study_field", "work_style", "wake_time"' },
+        value: { type: 'string', description: 'The fact to remember' },
+      },
+      required: ['key','value'],
+    },
+  },
+  {
+    name: 'forget_memory',
+    description: 'Delete a previously saved memory by key.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string' },
+      },
+      required: ['key'],
+    },
+  },
 ];
 
-// ── Tool execution ────────────────────────────────────────────
+// ── Tool execution ─────────────────────────────────────────────
 async function executeTool(name, input, userId) {
   switch (name) {
 
@@ -109,17 +132,16 @@ async function executeTool(name, input, userId) {
         sql:  `INSERT INTO tasks (user_id,title,description,priority,category,deadline,status,progress,position) VALUES (?,?,?,?,?,?,'todo',0,?)`,
         args: [userId, input.title, input.description||'', input.priority||'medium', input.category||'General', input.deadline||null, Number(maxPos.rows[0].m)+1],
       });
-      return { success: true, task_id: Number(res.lastInsertRowid), title: input.title, priority: input.priority||'medium', deadline: input.deadline||null };
+      return { success: true, task_id: Number(res.lastInsertRowid), title: input.title, priority: input.priority||'medium' };
     }
 
     case 'list_tasks': {
       const status = input.status || 'all';
       const limit  = input.limit  || 15;
-      let sql  = `SELECT id,title,priority,status,deadline,category FROM tasks WHERE user_id=?`;
+      let sql = `SELECT id,title,priority,status,deadline,category FROM tasks WHERE user_id=?`;
       const args = [userId];
       if (status !== 'all') { sql += ` AND status=?`; args.push(status); }
-      sql += ` ORDER BY position ASC, created_at DESC LIMIT ?`;
-      args.push(limit);
+      sql += ` ORDER BY position ASC, created_at DESC LIMIT ?`; args.push(limit);
       const res = await db.execute({ sql, args });
       return { tasks: res.rows };
     }
@@ -128,10 +150,10 @@ async function executeTool(name, input, userId) {
       let id = input.task_id;
       if (!id && input.task_title) {
         const found = await db.execute({
-          sql:  `SELECT id,title FROM tasks WHERE user_id=? AND title LIKE ? AND status!='done' LIMIT 1`,
+          sql:  `SELECT id FROM tasks WHERE user_id=? AND title LIKE ? AND status!='done' LIMIT 1`,
           args: [userId, `%${input.task_title}%`],
         });
-        if (found.rows[0]) { id = found.rows[0].id; }
+        if (found.rows[0]) id = found.rows[0].id;
       }
       if (!id) return { success: false, message: 'Task not found' };
       const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
@@ -139,7 +161,7 @@ async function executeTool(name, input, userId) {
         sql:  `UPDATE tasks SET status='done',progress=100,completed_at=datetime('now') WHERE id=? AND user_id=?`,
         args: [id, userId],
       });
-      await db.execute({ sql: `INSERT INTO xp_log (user_id,amount,reason) VALUES (?,20,?)`, args: [userId, `Task completed via Lumi`] });
+      await db.execute({ sql: `INSERT INTO xp_log (user_id,amount,reason) VALUES (?,20,'Task completed via Lumi')`, args: [userId] });
       return { success: true, title: task.rows[0]?.title || 'Task', message: 'Marked as complete ✓' };
     }
 
@@ -159,7 +181,7 @@ async function executeTool(name, input, userId) {
 
     case 'list_goals': {
       const status = input.status || 'all';
-      let sql  = `SELECT id,title,description,category,status,target_date FROM goals WHERE user_id=?`;
+      let sql = `SELECT id,title,category,status,target_date FROM goals WHERE user_id=?`;
       const args = [userId];
       if (status === 'active')    { sql += ` AND status='active'`; }
       if (status === 'completed') { sql += ` AND status='completed'`; }
@@ -194,14 +216,26 @@ async function executeTool(name, input, userId) {
       });
       const hours  = input.available_hours || 4;
       const energy = input.energy || 'medium';
-      const sorted = tasks.rows.sort((a, b) => {
-        const p = { high: 0, medium: 1, low: 2 };
-        return (p[a.priority]||1) - (p[b.priority]||1);
-      });
-      const plan = sorted.slice(0, Math.min(Math.floor(hours * 1.5), sorted.length)).map((t, i) => ({
-        slot: i + 1, title: t.title, priority: t.priority, estimated: t.priority === 'high' ? '60-90 min' : '30-45 min',
+      const sorted = tasks.rows.sort((a, b) => ({ high:0, medium:1, low:2 }[a.priority]||1) - ({ high:0, medium:1, low:2 }[b.priority]||1));
+      const plan   = sorted.slice(0, Math.min(Math.floor(hours * 1.5), sorted.length)).map((t, i) => ({
+        slot: i+1, title: t.title, priority: t.priority, estimated: t.priority === 'high' ? '60-90 min' : '30-45 min',
       }));
       return { available_hours: hours, energy, plan };
+    }
+
+    case 'save_memory': {
+      await db.execute({
+        sql:  `INSERT INTO lumi_memory (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')`,
+        args: [userId, input.key, input.value],
+      });
+      return { success: true, key: input.key, value: input.value };
+    }
+
+    case 'forget_memory': {
+      await db.execute({ sql: `DELETE FROM lumi_memory WHERE user_id=? AND key=?`, args: [userId, input.key] });
+      return { success: true, deleted: input.key };
     }
 
     default:
@@ -209,26 +243,39 @@ async function executeTool(name, input, userId) {
   }
 }
 
-// ── System prompt with live user context ─────────────────────
+// ── Auto-title a conversation ─────────────────────────────────
+async function generateTitle(firstUserMessage) {
+  const words = firstUserMessage.split(' ').slice(0, 6).join(' ');
+  return words.length > 40 ? words.slice(0, 40) + '…' : words;
+}
+
+// ── System prompt ─────────────────────────────────────────────
 async function buildSystemPrompt(userId) {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const [tasks, goals, habits, mood, focus, xp] = await Promise.all([
+    const [tasks, goals, habits, mood, focus, xp, memories] = await Promise.all([
       db.execute({ sql: `SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, args: [userId] }),
       db.execute({ sql: `SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, args: [userId] }),
       db.execute({ sql: `SELECT name,streak FROM habits WHERE user_id=? LIMIT 6`, args: [userId] }),
       db.execute({ sql: `SELECT mood FROM moods WHERE user_id=? AND date=?`, args: [userId, today] }),
       db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, args: [userId] }),
       db.execute({ sql: `SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, args: [userId] }),
+      db.execute({ sql: `SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, args: [userId] }),
     ]);
 
-    const taskList  = tasks.rows.map(t => `• ${t.title} [${t.priority}${t.deadline ? ` · due ${t.deadline}` : ''}]`).join('\n') || 'None';
-    const goalList  = goals.rows.map(g => `• ${g.title} [${g.status}]`).join('\n') || 'None';
-    const habitList = habits.rows.map(h => `• ${h.name} (${h.streak}d streak)`).join('\n') || 'None';
+    const taskList   = tasks.rows.map(t => `• ${t.title} [${t.priority}${t.deadline ? ` · due ${t.deadline}` : ''}]`).join('\n') || 'None';
+    const goalList   = goals.rows.map(g => `• ${g.title} [${g.status}]`).join('\n') || 'None';
+    const habitList  = habits.rows.map(h => `• ${h.name} (${h.streak}d streak)`).join('\n') || 'None';
+    const memoryList = memories.rows.length
+      ? memories.rows.map(m => `• ${m.key}: ${m.value}`).join('\n')
+      : 'None yet';
 
-    return `You are Lumi, the intelligent productivity assistant built into Aurora — a personal life OS.
+    return `You are Lumi ✦, the intelligent productivity assistant built into Aurora — a personal life OS.
 
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
+
+WHAT YOU REMEMBER ABOUT THIS USER:
+${memoryList}
 
 USER WORKSPACE SNAPSHOT:
 Active tasks:
@@ -237,40 +284,109 @@ ${taskList}
 Goals:
 ${goalList}
 
-Recurring tasks:
+Recurring tasks / habits:
 ${habitList}
 
 Today's mood: ${mood.rows[0] ? `${mood.rows[0].mood}/5` : 'Not logged yet'}
 Focus time this week: ${Number(focus.rows[0]?.w||0)} minutes
-Total XP: ${Number(xp.rows[0]?.t||0)}
+Total XP earned: ${Number(xp.rows[0]?.t||0)}
 
 INSTRUCTIONS:
 - You are concise, warm, and action-oriented. Never verbose.
-- When a user asks you to create a task, goal, or take any action — use the tool immediately, don't just describe it.
-- Reference the user's actual data when relevant. Never fabricate numbers.
-- After taking an action, briefly confirm what you did in 1-2 sentences.
-- For productivity questions, use get_productivity_summary before answering.
-- Suggest a focus session when the user has many high-priority tasks.
-- Keep responses short unless the user asks for detail.`;
+- When asked to create a task, goal, or take any action — use the tool immediately.
+- Use save_memory when the user shares anything worth remembering: their field of study, job, preferences, goals, schedule, or anything personal they mention.
+- Reference memory naturally in conversation — don't announce that you remember, just use it.
+- After taking an action, confirm briefly in 1-2 sentences.
+- Keep responses short unless the user asks for detail.
+- Never fabricate numbers — always fetch data with tools.`;
   } catch (_) {
-    return `You are Lumi, Aurora's productivity assistant. Be concise, warm, and action-oriented. Today is ${new Date().toLocaleDateString()}.`;
+    return `You are Lumi, Aurora's productivity assistant. Be concise, warm, and helpful. Today is ${new Date().toLocaleDateString()}.`;
   }
 }
 
-// ── Main chat endpoint ────────────────────────────────────────
+// ── GET conversations list ────────────────────────────────────
+router.get('/conversations', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql:  `SELECT id, title, updated_at FROM lumi_conversations WHERE user_id=? ORDER BY updated_at DESC LIMIT 30`,
+      args: [req.user.id],
+    });
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── GET messages for a conversation ──────────────────────────
+router.get('/conversations/:id', async (req, res) => {
+  try {
+    const conv = await db.execute({
+      sql:  `SELECT * FROM lumi_conversations WHERE id=? AND user_id=?`,
+      args: [req.params.id, req.user.id],
+    });
+    if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
+
+    const msgs = await db.execute({
+      sql:  `SELECT role, content, actions_json, created_at FROM lumi_messages WHERE conversation_id=? ORDER BY created_at ASC`,
+      args: [req.params.id],
+    });
+    res.json({
+      conversation: conv.rows[0],
+      messages: msgs.rows.map((m) => ({
+        role:    m.role,
+        content: m.content,
+        actions: JSON.parse(m.actions_json || '[]'),
+      })),
+    });
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── DELETE a conversation ─────────────────────────────────────
+router.delete('/conversations/:id', async (req, res) => {
+  try {
+    await db.execute({
+      sql:  `DELETE FROM lumi_conversations WHERE id=? AND user_id=?`,
+      args: [req.params.id, req.user.id],
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── GET memory ────────────────────────────────────────────────
+router.get('/memory', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql:  `SELECT key, value, updated_at FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`,
+      args: [req.user.id],
+    });
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── DELETE a memory entry ─────────────────────────────────────
+router.delete('/memory/:key', async (req, res) => {
+  try {
+    await db.execute({
+      sql:  `DELETE FROM lumi_memory WHERE user_id=? AND key=?`,
+      args: [req.user.id, req.params.key],
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── POST — send message ───────────────────────────────────────
 router.post('/', async (req, res) => {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set on server.' });
+  if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
 
-  const { messages } = req.body;
+  const { messages, conversation_id } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
 
   try {
     const system = await buildSystemPrompt(req.user.id);
     let currentMessages = [...messages];
     let finalText = '';
-    const actions = []; // tool calls to surface to frontend
+    const actions = [];
 
+    // Agentic loop
     for (let i = 0; i < 6; i++) {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method:  'POST',
@@ -281,7 +397,6 @@ router.post('/', async (req, res) => {
       if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
 
       const toolUses = data.content.filter(c => c.type === 'tool_use');
-
       if (!toolUses.length) {
         finalText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
         break;
@@ -294,14 +409,53 @@ router.post('/', async (req, res) => {
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
       }
 
-      currentMessages = [
-        ...currentMessages,
-        { role: 'assistant', content: data.content },
-        { role: 'user',      content: toolResults },
-      ];
+      currentMessages = [...currentMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResults }];
     }
 
-    res.json({ text: finalText || "Done! Let me know if you need anything else.", actions });
+    const responseText = finalText || "Done! Let me know if you need anything else.";
+
+    // ── Persist to DB ─────────────────────────────────────────
+    let convId = conversation_id;
+    if (!convId) {
+      // New conversation — auto-title from first user message
+      const firstMsg  = messages.find(m => m.role === 'user')?.content || 'New conversation';
+      const title     = await generateTitle(firstMsg);
+      const convResult = await db.execute({
+        sql:  `INSERT INTO lumi_conversations (user_id, title) VALUES (?, ?)`,
+        args: [req.user.id, title],
+      });
+      convId = Number(convResult.lastInsertRowid);
+
+      // Save the user messages that started this conversation
+      for (const msg of messages) {
+        await db.execute({
+          sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
+          args: [convId, msg.role, msg.content],
+        });
+      }
+    } else {
+      // Existing conversation — only save the latest user message
+      const lastUser = [...messages].reverse().find(m => m.role === 'user');
+      if (lastUser) {
+        await db.execute({
+          sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
+          args: [convId, 'user', lastUser.content],
+        });
+      }
+      // Update timestamp
+      await db.execute({
+        sql:  `UPDATE lumi_conversations SET updated_at=datetime('now') WHERE id=?`,
+        args: [convId],
+      });
+    }
+
+    // Save Lumi's response
+    await db.execute({
+      sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, 'assistant', ?, ?)`,
+      args: [convId, responseText, JSON.stringify(actions)],
+    });
+
+    res.json({ text: responseText, actions, conversation_id: convId });
   } catch (err) {
     console.error('Lumi error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
