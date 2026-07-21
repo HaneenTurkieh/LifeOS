@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Plus, Trash2, ChevronLeft, Brain } from 'lucide-react';
+import { Send, Plus, Trash2, Brain } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -10,7 +10,7 @@ const SUGGESTIONS = [
   { icon: '📊', text: 'How productive have I been this week?' },
   { icon: '⚡', text: 'Plan my day — I have 4 hours and high energy' },
   { icon: '✅', text: 'Add a task: Review project proposal, high priority' },
-  { icon: '🧠', text: 'I\'m procrastinating. Help me get started.' },
+  { icon: '🧠', text: "I'm procrastinating. Help me get started." },
 ];
 
 const TOOL_META = {
@@ -26,8 +26,16 @@ const TOOL_META = {
   forget_memory:           { icon: '🗑', label: 'Memory cleared',    color: '#EF4444' },
 };
 
-// Glass style
-const glass = {
+// ── Glass styles ──────────────────────────────────────────────
+const glassDark = {
+  background:           'rgba(255,255,255,0.04)',
+  border:               '1px solid rgba(255,255,255,0.08)',
+  backdropFilter:       'blur(24px)',
+  WebkitBackdropFilter: 'blur(24px)',
+  boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.06)',
+};
+
+const glassLight = {
   background:           'rgba(255,255,255,0.55)',
   border:               '1px solid rgba(255,255,255,0.60)',
   backdropFilter:       'blur(24px)',
@@ -35,18 +43,21 @@ const glass = {
   boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.75)',
 };
 
+// ── Sub-components ────────────────────────────────────────────
 function ActionCard({ action }) {
   const meta = TOOL_META[action.tool] || { icon: '⚡', label: action.tool, color: '#7C6AF0' };
   const r    = action.result;
   return (
-    <div className="flex items-center gap-2 mt-1.5 rounded-xl px-3 py-1.5 text-xs font-medium w-fit"
-      style={{ background: `${meta.color}14`, border: `1px solid ${meta.color}28`, color: meta.color }}>
+    <div
+      className="flex items-center gap-2 mt-1.5 rounded-xl px-3 py-1.5 text-xs font-medium w-fit"
+      style={{ background: `${meta.color}14`, border: `1px solid ${meta.color}28`, color: meta.color }}
+    >
       <span>{meta.icon}</span>
       <span>{meta.label}</span>
-      {r?.title       && <span className="opacity-60">· {r.title}</span>}
-      {r?.tasks?.length !== undefined && r.tasks && <span className="opacity-60">· {r.tasks.length} tasks</span>}
-      {r?.goals?.length !== undefined && r.goals && <span className="opacity-60">· {r.goals.length} goals</span>}
-      {r?.key         && <span className="opacity-60">· {r.key}</span>}
+      {r?.title  && <span className="opacity-60">· {r.title}</span>}
+      {r?.tasks  && <span className="opacity-60">· {r.tasks.length} tasks</span>}
+      {r?.goals  && <span className="opacity-60">· {r.goals.length} goals</span>}
+      {r?.key    && <span className="opacity-60">· {r.key}</span>}
     </div>
   );
 }
@@ -60,17 +71,22 @@ function Message({ msg }) {
       className={`flex gap-3 ${isLumi ? '' : 'flex-row-reverse'}`}
     >
       {isLumi && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm mt-0.5 shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}>
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm mt-0.5"
+          style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
+        >
           ✦
         </div>
       )}
       <div className={`flex flex-col gap-1 max-w-[82%] ${isLumi ? '' : 'items-end'}`}>
-        <div className={`rounded-3xl px-4 py-3 text-sm leading-relaxed ${
-          isLumi
-            ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
-            : 'rounded-tr-md text-white'
-        }`} style={!isLumi ? { background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 16px rgba(124,106,240,0.28)' } : {}}>
+        <div
+          className={`rounded-3xl px-4 py-3 text-sm leading-relaxed ${
+            isLumi
+              ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
+              : 'rounded-tr-md text-white'
+          }`}
+          style={!isLumi ? { background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 16px rgba(124,106,240,0.28)' } : {}}
+        >
           {msg.content}
         </div>
         {isLumi && msg.actions?.map((a, i) => <ActionCard key={i} action={a} />)}
@@ -82,12 +98,18 @@ function Message({ msg }) {
 function TypingIndicator() {
   return (
     <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm"
-        style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)' }}>✦</div>
+      <div
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm"
+        style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)' }}
+      >✦</div>
       <div className="rounded-3xl rounded-tl-md px-4 py-3 bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 flex items-center gap-1.5">
-        {[0,1,2].map((i) => (
-          <motion.div key={i} className="h-1.5 w-1.5 rounded-full bg-lavender-400"
-            animate={{ y: [0,-4,0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i*0.15 }} />
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            className="h-1.5 w-1.5 rounded-full bg-lavender-400"
+            animate={{ y: [0, -4, 0] }}
+            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+          />
         ))}
       </div>
     </div>
@@ -97,30 +119,35 @@ function TypingIndicator() {
 function ConversationList({ convos, activeId, onSelect, onNew, onDelete }) {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/30">History</span>
-        <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs font-bold uppercase tracking-widest text-white/30">History</span>
+        <motion.button
+          whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
           onClick={onNew}
-          className="flex h-7 w-7 items-center justify-center rounded-xl text-ink/50 dark:text-white/40"
-          style={glass}>
+          className="flex h-7 w-7 items-center justify-center rounded-xl text-white/40 hover:text-white/70 transition"
+        >
           <Plus size={14} />
         </motion.button>
       </div>
       <div className="flex flex-col gap-1 overflow-y-auto flex-1">
         {convos.length === 0 && (
-          <p className="text-xs text-ink/30 dark:text-white/25 text-center mt-4">No chats yet</p>
+          <p className="text-xs text-white/25 text-center mt-6">No chats yet</p>
         )}
         {convos.map((c) => (
-          <div key={c.id}
+          <div
+            key={c.id}
             className={`group flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-all ${
-              activeId === c.id ? 'bg-lavender-100 dark:bg-lavender-500/15' : 'hover:bg-white/60 dark:hover:bg-white/[0.05]'
+              activeId === c.id
+                ? 'bg-lavender-500/20 text-lavender-300'
+                : 'text-white/50 hover:bg-white/[0.06] hover:text-white/75'
             }`}
-            onClick={() => onSelect(c.id)}>
-            <span className={`flex-1 text-xs font-medium truncate ${activeId === c.id ? 'text-lavender-700 dark:text-lavender-300' : 'text-ink/65 dark:text-white/55'}`}>
-              {c.title}
-            </span>
-            <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
-              className="opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 shrink-0">
+            onClick={() => onSelect(c.id)}
+          >
+            <span className="flex-1 text-xs font-medium truncate">{c.title}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
+              className="opacity-0 group-hover:opacity-100 transition text-white/25 hover:text-coral-400 shrink-0"
+            >
               <Trash2 size={12} />
             </button>
           </div>
@@ -130,20 +157,31 @@ function ConversationList({ convos, activeId, onSelect, onNew, onDelete }) {
   );
 }
 
+// ── Panel toggle icon ─────────────────────────────────────────
+function PanelIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.4" />
+      <line x1="5.5" y1="1.5" x2="5.5" y2="14.5" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────
 export default function AITools() {
   const { user } = useAuth();
 
-  const [convos,      setConvos]      = useState([]);
-  const [activeConvId, setActiveConvId] = useState(null);
-  const [messages,    setMessages]    = useState([]);
-  const [input,       setInput]       = useState('');
-  const [loading,     setLoading]     = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [convos,         setConvos]         = useState([]);
+  const [activeConvId,   setActiveConvId]   = useState(null);
+  const [messages,       setMessages]       = useState([]);
+  const [input,          setInput]          = useState('');
+  const [loading,        setLoading]        = useState(false);
+  const [sidebarOpen,    setSidebarOpen]    = useState(false);   // mobile overlay
+  const [sidebarVisible, setSidebarVisible] = useState(true);    // desktop toggle
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
 
-  // Load conversation list
   const loadConvos = useCallback(async () => {
     try {
       const data = await api.get('/chat/conversations');
@@ -157,7 +195,6 @@ export default function AITools() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Load a specific conversation
   const loadConversation = async (id) => {
     try {
       const data = await api.get(`/chat/conversations/${id}`);
@@ -197,9 +234,9 @@ export default function AITools() {
       setMessages((prev) => [...prev, { role: 'assistant', content: res.text, actions: res.actions || [] }]);
       if (!activeConvId) {
         setActiveConvId(res.conversation_id);
-        loadConvos(); // refresh sidebar
+        loadConvos();
       }
-    } catch (err) {
+    } catch (_) {
       setMessages((prev) => [...prev, { role: 'assistant', content: "Sorry, I couldn't connect. Please try again.", actions: [] }]);
     } finally {
       setLoading(false);
@@ -212,25 +249,31 @@ export default function AITools() {
   };
 
   const isFirstMessage = messages.length === 0;
-  const firstName = user?.name?.split(' ')[0] || 'there';
+  const firstName      = user?.name?.split(' ')[0] || 'there';
 
   return (
-    <div className="flex h-[calc(100vh-88px)] lg:h-[calc(100vh-64px)] gap-4">
+    <div className="flex h-[calc(100vh-88px)] lg:h-[calc(100vh-64px)] gap-3">
 
-      {/* ── Sidebar ───────────────────────────────────────── */}
-      <AnimatePresence>
-        {(sidebarOpen || true) && ( // always show on desktop, toggle on mobile
+      {/* ── Desktop sidebar ───────────────────────────────── */}
+      <AnimatePresence initial={false}>
+        {sidebarVisible && (
           <motion.div
-            initial={false}
-            className="hidden lg:flex flex-col w-56 shrink-0 rounded-3xl p-4"
-            style={glass}>
-            <ConversationList
-              convos={convos}
-              activeId={activeConvId}
-              onSelect={loadConversation}
-              onNew={startNew}
-              onDelete={deleteConvo}
-            />
+            key="sidebar"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 216, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            className="hidden lg:flex flex-col shrink-0 overflow-hidden"
+          >
+            <div className="flex flex-col h-full rounded-3xl p-4" style={glassDark}>
+              <ConversationList
+                convos={convos}
+                activeId={activeConvId}
+                onSelect={loadConversation}
+                onNew={startNew}
+                onDelete={deleteConvo}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -238,48 +281,59 @@ export default function AITools() {
       {/* ── Chat area ─────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0">
 
-        {/* Mobile history button */}
-        <div className="flex items-center gap-2 mb-3 lg:hidden">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold text-ink/60 dark:text-white/50"
-            style={glass}>
-            <Brain size={14} /> History
-          </button>
-          <button onClick={startNew} className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-semibold btn-primary">
-            <Plus size={13} /> New chat
-          </button>
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-3 h-8">
+          {/* Mobile — history + new */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-ink/55 dark:text-white/45"
+              style={glassDark}
+            >
+              <Brain size={13} /> History
+            </button>
+            <button onClick={startNew} className="btn-primary !py-1.5 !px-3 !text-xs !rounded-xl">
+              <Plus size={13} /> New
+            </button>
+          </div>
+
+          {/* Desktop — new chat + panel toggle */}
+          <div className="hidden lg:flex items-center gap-2 ml-auto">
+            {!isFirstMessage && (
+              <button
+                onClick={startNew}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white/40 hover:text-white/70 transition"
+                style={glassDark}
+              >
+                <Plus size={13} /> New chat
+              </button>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
+              onClick={() => setSidebarVisible((v) => !v)}
+              title={sidebarVisible ? 'Hide history' : 'Show history'}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-white/40 hover:text-white/75 transition"
+              style={glassDark}
+            >
+              <PanelIcon />
+            </motion.button>
+          </div>
         </div>
 
-        {/* Mobile sidebar overlay */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="lg:hidden fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm"
-              onClick={() => setSidebarOpen(false)}>
-              <motion.div
-                initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
-                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-                className="absolute top-0 left-0 bottom-0 w-64 p-5"
-                style={{ ...glass, borderRadius: '0 2rem 2rem 0' }}
-                onClick={(e) => e.stopPropagation()}>
-                <ConversationList convos={convos} activeId={activeConvId} onSelect={loadConversation} onNew={startNew} onDelete={deleteConvo} />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Welcome / empty state */}
+        {/* Welcome state */}
         <AnimatePresence>
           {isFirstMessage && (
             <motion.div
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="flex flex-col items-center justify-center flex-1 gap-6 px-4 pb-4">
+              className="flex flex-col items-center justify-center flex-1 gap-6 px-4 pb-4"
+            >
               <div className="flex flex-col items-center gap-3">
                 <motion.div
-                  animate={{ y: [0,-6,0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                   className="flex h-16 w-16 items-center justify-center rounded-3xl text-white text-3xl"
-                  style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 50%,#4634B8 100%)', boxShadow: '0 12px 32px rgba(124,106,240,0.4)' }}>
+                  style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 50%,#4634B8 100%)', boxShadow: '0 12px 32px rgba(124,106,240,0.4)' }}
+                >
                   ✦
                 </motion.div>
                 <div className="text-center">
@@ -293,11 +347,13 @@ export default function AITools() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
                 {SUGGESTIONS.map(({ icon, text }) => (
-                  <motion.button key={text}
+                  <motion.button
+                    key={text}
                     whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}
                     onClick={() => sendMessage(text)}
                     className="flex items-center gap-2.5 rounded-2xl px-4 py-3 text-left text-sm font-medium text-ink/70 dark:text-white/60"
-                    style={glass}>
+                    style={glassLight}
+                  >
                     <span className="text-base shrink-0">{icon}</span>{text}
                   </motion.button>
                 ))}
@@ -315,9 +371,9 @@ export default function AITools() {
           </div>
         )}
 
-        {/* Input */}
+        {/* Input bar */}
         <div className="pt-3 pb-1">
-          <div className="flex items-end gap-2 rounded-3xl p-2 pl-4" style={glass}>
+          <div className="flex items-end gap-2 rounded-3xl p-2 pl-4" style={glassLight}>
             <textarea
               ref={inputRef}
               rows={1}
@@ -336,7 +392,8 @@ export default function AITools() {
               onClick={() => sendMessage()}
               disabled={!input.trim() || loading}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
-              style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}>
+              style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
+            >
               <Send size={15} />
             </motion.button>
           </div>
@@ -345,6 +402,33 @@ export default function AITools() {
           </p>
         </div>
       </div>
+
+      {/* Mobile sidebar overlay */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="lg:hidden fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <motion.div
+              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              className="absolute top-0 left-0 bottom-0 w-64 p-5"
+              style={{ ...glassDark, borderRadius: '0 2rem 2rem 0' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ConversationList
+                convos={convos}
+                activeId={activeConvId}
+                onSelect={loadConversation}
+                onNew={startNew}
+                onDelete={deleteConvo}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
