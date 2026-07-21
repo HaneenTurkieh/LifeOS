@@ -5,14 +5,16 @@ import { motion } from 'framer-motion';
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
+import FocusBar          from './components/FocusBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
+import { FocusProvider } from './context/FocusContext.jsx';
 import Login             from './pages/Login.jsx';
 import ForgotPassword    from './pages/ForgotPassword.jsx';
 import ResetPassword     from './pages/ResetPassword.jsx';
 import Dashboard         from './pages/Dashboard.jsx';
 import Tasks             from './pages/Tasks.jsx';
 import Goals             from './pages/Goals.jsx';
-import Focus from './pages/Focus.jsx';
+import Focus             from './pages/Focus.jsx';
 import Analytics         from './pages/Analytics.jsx';
 import Launchpad         from './pages/Launchpad.jsx';
 import AITools           from './pages/AITools.jsx';
@@ -21,10 +23,10 @@ import NotFound          from './pages/NotFound.jsx';
 
 export default function App() {
   return (
-    <>
+    <FocusProvider>
       <GlobalBackground />
       <Routes>
-        <Route path="/login"          element={<Login />} />
+        <Route path="/login"           element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/*" element={
@@ -33,7 +35,7 @@ export default function App() {
           </ProtectedRoute>
         } />
       </Routes>
-    </>
+    </FocusProvider>
   );
 }
 
@@ -54,12 +56,11 @@ function AppShell() {
             <Route path="/"           element={<Dashboard />} />
             <Route path="/tasks"      element={<Tasks />} />
             <Route path="/goals"      element={<Goals />} />
-            <Route path="/learning" element={<Focus />} />
+            <Route path="/learning"   element={<Focus />} />
             <Route path="/analytics"  element={<Analytics />} />
             <Route path="/launchpad"  element={<Launchpad />} />
             <Route path="/ai"         element={<AITools />} />
             <Route path="/history"    element={<History />} />
-            {/* Legacy redirects — old bookmarks still work */}
             <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
             <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
             <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
@@ -68,6 +69,8 @@ function AppShell() {
         </motion.div>
       </main>
       <MobileNav />
+      {/* Persistent focus mini-bar — floats above everything */}
+      <FocusBar />
     </div>
   );
 }

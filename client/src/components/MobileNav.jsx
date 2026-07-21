@@ -17,7 +17,7 @@ const NAV = [
 
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,    label: 'History' },
-  { to: '/learning', icon: Timer, label: 'Focus' },
+  { to: '/learning', icon: Timer, label: 'Flow' },
   { to: '/launchpad', icon: Rocket,   label: 'Launchpad' },
 ];
 
