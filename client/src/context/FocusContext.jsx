@@ -198,20 +198,26 @@ export function FocusProvider({ children }) {
   // ── Timer tick ────────────────────────────────────────────
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
+  
+    const wallStart   = Date.now();
+    const timeAtStart = timeLeft; // snapshot exact timeLeft when timer starts
+  
     intervalRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          setIsRunning(false);
-          setStartedAt(null);
-          setTimeout(handleComplete, 50);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const elapsed   = Math.floor((Date.now() - wallStart) / 1000);
+      const remaining = Math.max(0, timeAtStart - elapsed);
+  
+      setTimeLeft(remaining);
+  
+      if (remaining <= 0) {
+        clearInterval(intervalRef.current);
+        setIsRunning(false);
+        setStartedAt(null);
+        setTimeout(handleComplete, 50);
+      }
+    }, 500); // check every 500ms so we never miss the 0 crossing
+  
     return () => clearInterval(intervalRef.current);
-  }, [isRunning, handleComplete]);
+  }, [isRunning, handleComplete]); // eslint-disable-line
 
   // ── Document title ────────────────────────────────────────
   useEffect(() => {
