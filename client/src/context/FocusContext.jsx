@@ -105,9 +105,21 @@ export function FocusProvider({ children }) {
   const [room,      setRoom]      = useState(null);
 
   // ── Persist on every meaningful state change ──────────────
+  const saveTimeoutRef = useRef(null);
+
   useEffect(() => {
+    // Save immediately on mode/task/running state changes
     saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
-  }, [mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt]);
+  }, [mode, customMin, isRunning, taskName, dots]); // eslint-disable-line
+  
+  useEffect(() => {
+    // Debounce timeLeft saves — only write every 5 seconds while running
+    clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
+    }, isRunning ? 5000 : 0);
+    return () => clearTimeout(saveTimeoutRef.current);
+  }, [timeLeft]); // eslint-disable-line
 
   // ── Refs ──────────────────────────────────────────────────
   const intervalRef  = useRef(null);

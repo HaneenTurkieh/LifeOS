@@ -187,22 +187,21 @@ export default function Flow() {
             {/* Ring */}
             <div className="relative my-2">
               <svg width="280" height="280">
-                {Array.from({ length: 60 }, (_, i) => {
-                  const angle   = (i / 60) * 2 * Math.PI - Math.PI / 2;
-                  const isMajor = i % 5 === 0;
-                  const outerR  = 130;
-                  const innerR  = isMajor ? 120 : 125;
-                  const isPast  = (i / 60) <= progress && progress > 0;
-                  return (
-                    <line key={i}
-                      x1={CX + innerR * Math.cos(angle)} y1={CY + innerR * Math.sin(angle)}
-                      x2={CX + outerR * Math.cos(angle)} y2={CY + outerR * Math.sin(angle)}
-                      stroke={isPast ? modeColor : 'rgba(124,106,240,0.10)'}
-                      strokeWidth={isMajor ? 2.5 : 1.2} strokeLinecap="round"
-                      style={{ transition: 'stroke 0.4s ease' }}
-                    />
-                  );
-                })}
+              {Array.from({ length: 60 }, (_, i) => {
+  const angle   = (i / 60) * 2 * Math.PI - Math.PI / 2;
+  const isMajor = i % 5 === 0;
+  const outerR  = 130;
+  const innerR  = isMajor ? 120 : 125;
+  const isPast  = (i / 60) <= progress && progress > 0;
+  return (
+    <line key={i}
+  x1={CX + innerR * Math.cos(angle)} y1={CY + innerR * Math.sin(angle)}
+  x2={CX + outerR * Math.cos(angle)} y2={CY + outerR * Math.sin(angle)}
+  stroke={isPast ? modeColor : 'rgba(124,106,240,0.10)'}
+  strokeWidth={isMajor ? 2.5 : 1.2} strokeLinecap="round"
+/>
+  );
+})}
                 <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="5" />
                 <circle cx={CX} cy={CY} r={R} fill="none"
                   stroke={modeColor} strokeWidth="5" strokeLinecap="round"

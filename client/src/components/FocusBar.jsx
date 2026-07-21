@@ -66,8 +66,8 @@ export default function FocusBar() {
             {mm}:{ss}
           </span>
           <span className="text-[10px] text-ink/45 dark:text-white/35 truncate max-w-[100px]">
-            {taskName.trim() || MODES[mode].label}
-          </span>
+  {taskName.trim() ? taskName.trim() : `${MODES[mode].emoji} ${MODES[mode].label}`}
+</span>
         </div>
 
         {/* Play/Pause */}
