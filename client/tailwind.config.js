@@ -6,7 +6,8 @@ export default {
     extend: {
       fontFamily: {
         display: ['"Outfit"', 'sans-serif'],
-        body: ['"Inter"', 'sans-serif'],
+        body:    ['"Inter"', 'sans-serif'],
+        mono:    ['"JetBrains Mono"', 'monospace'],  // ← add this
       },
       colors: {
         ink: '#1E2233',
@@ -16,7 +17,11 @@ export default {
           400: '#9A8BFB', 500: '#7C6AF0', 600: '#5B47E0', 700: '#4634B8',
         },
         sun: { 400: '#FFC773', 500: '#FFB84D', 600: '#F59E0B' },
-        sage: { 400: '#7FD8A6', 500: '#4CC38A', 600: '#2DA76E' },
+        sage: { 
+          400: '#6EE7B7', 
+          500: '#3DBE7A',  // warmer than current #4CC38A
+          600: '#2DA76E' 
+        },
         coral: { 400: '#FF9C8A', 500: '#FF7A63' },
         midnight: { 950: '#08070F', 900: '#0C0A1A', 800: '#161329', 700: '#1F1A3D' },
         aurora: {
