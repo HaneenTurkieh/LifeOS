@@ -136,22 +136,23 @@ export default function NotificationBell() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1    }}
-            exit={{    opacity: 0, y: 6, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="absolute right-0 top-13 w-80 overflow-hidden rounded-3xl"
-            style={{
-              top:                  '3.25rem',
-              maxWidth:             'calc(100vw - 1.5rem)',
-              background:           'rgba(255,255,255,0.94)',
-              backdropFilter:       'blur(40px)',
-              WebkitBackdropFilter: 'blur(40px)',
-              border:               '1px solid rgba(255,255,255,0.75)',
-              boxShadow:            '0 20px 60px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.95)',
-              zIndex:               200,
-            }}
-          >
+          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1    }}
+          exit={{    opacity: 0, y: 6, scale: 0.97 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+          className="absolute w-80 overflow-hidden rounded-3xl"
+          style={{
+            bottom:               0,           // aligns with bell bottom
+            left:                 '3.5rem',    // opens right of sidebar
+            maxWidth:             'calc(100vw - 6rem)',
+            background:           'rgba(255,255,255,0.94)',
+            backdropFilter:       'blur(40px)',
+            WebkitBackdropFilter: 'blur(40px)',
+            border:               '1px solid rgba(255,255,255,0.75)',
+            boxShadow:            '0 20px 60px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.95)',
+            zIndex:               200,
+          }}
+        >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4"
               style={{ borderBottom: '1px solid rgba(30,34,51,0.06)' }}>

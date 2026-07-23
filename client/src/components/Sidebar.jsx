@@ -122,8 +122,8 @@ export default function Sidebar() {
               className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-aurora-violet transition-colors duration-150"
             />
             <span className="pointer-events-none absolute left-[3.25rem] z-50 whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
-              Search <kbd className="ml-1 opacity-60">⌘K</kbd>
-            </span>
+            Search <kbd className="ml-1 opacity-60">⌘/Ctrl+K</kbd>
+                        </span>
           </motion.button>
 
           {/* Notification bell */}
