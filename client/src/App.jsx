@@ -41,24 +41,19 @@ export default function App() {
 }
 
 function AppShell() {
-  const location   = useLocation();
-  const { user }   = useAuth();
+  const location  = useLocation();
+  const { user }  = useAuth();
   const [onboarded, setOnboarded] = useState(() => isOnboarded(user?.id));
 
   useTaskReminders();
 
-  // Show onboarding overlay until completed
-  if (!onboarded) {
-    return (
-      <>
-        <GlobalBackground />
-        <Onboarding onComplete={() => setOnboarded(true)} />
-      </>
-    );
-  }
-
   return (
     <div className="min-h-screen flex relative z-10">
+      {/* Onboarding overlay — sits on top, doesn't replace the app */}
+      {!onboarded && (
+  <Onboarding user={user} onComplete={() => setOnboarded(true)} />
+)}
+
       <Sidebar />
       <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-10 pt-6 max-w-[1600px] mx-auto w-full">
         <motion.div
