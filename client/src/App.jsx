@@ -135,8 +135,9 @@ function AppShell() {
           className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-white/60"
         >
           <Search size={14} className="text-ink/50 dark:text-white/45" />
-          <kbd className="hidden lg:block text-[10px] font-bold text-ink/30 dark:text-white/25">⌘K</kbd>
-        </motion.button>
+          <kbd className="hidden lg:block text-[10px] font-bold text-ink/30 dark:text-white/25">
+  {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
+</kbd>        </motion.button>
 
         {/* Divider */}
         <div className="w-px h-5 bg-ink/10 dark:bg-white/10" />
