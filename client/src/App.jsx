@@ -273,31 +273,34 @@ function AppShell() {
       <MobileNav />
       <FocusBar />
 
-      {/* ── Floating pill — search + bell ────────────────────── */}
-      <div
-        className="fixed top-5 right-5 z-50 flex items-center gap-1.5 rounded-2xl px-2 py-1.5"
-        style={pillStyle}
-      >
-        <motion.button
-          whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
-          onClick={() => setSearchOpen(true)}
-          title="Search"
-          className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 transition-colors"
-        >
-          <Search size={14} className={isDark ? 'text-white/40' : 'text-ink/45'} />
-          <kbd
-            className="hidden lg:block text-[10px] font-bold"
-            style={{ color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(30,34,51,0.30)' }}
-          >
-            {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
-          </kbd>
-        </motion.button>
+      {/* ── Floating pill — same on mobile and desktop ─────────── */}
+<div
+  className="fixed top-5 right-5 z-50 flex items-center gap-1.5 rounded-2xl px-2 py-1.5"
+  style={pillStyle}
+>
+  <motion.button
+    whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
+    onClick={() => setSearchOpen(true)}
+    title="Search"
+    className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 transition-colors"
+  >
+    <Search size={14} className={isDark ? 'text-white/40' : 'text-ink/45'} />
+    {/* ⌘K hint — desktop only */}
+    <kbd
+      className="hidden lg:block text-[10px] font-bold"
+      style={{ color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(30,34,51,0.30)' }}
+    >
+      {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
+    </kbd>
+  </motion.button>
 
-        <div className="w-px h-5"
-          style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)' }} />
+  <div className="w-px h-5"
+    style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)' }} />
 
-        <NotificationBell />
-      </div>
+  <NotificationBell />
+</div>
+
+{/* DELETE the separate mobile search button entirely */}
 
       {/* Mobile search button */}
       <motion.button
