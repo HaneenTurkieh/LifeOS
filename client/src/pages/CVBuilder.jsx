@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X } from 'lucide-react';
+import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import GlassCard  from '../components/GlassCard.jsx';
 import Modal      from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
+import CVExportModal from '../components/CVExportModal.jsx';
 
 const TABS = [
   { key: 'projects',       label: 'Projects',       icon: FolderGit2 },
@@ -27,14 +29,17 @@ const FORMS = {
 };
 
 export default function CVBuilder({ openTrigger = 0 }) {
-  const [tab,        setTab]        = useState('projects');
-  const [data,       setData]       = useState({ projects: [], skills: [], certifications: [] });
-  const [loading,    setLoading]    = useState(true);
-  const [modalOpen,  setModalOpen]  = useState(false);
-  const [form,       setForm]       = useState(FORMS.projects);
-  const [reviewing,  setReviewing]  = useState(false);
-  const [review,     setReview]     = useState(null);
-  const toast = useToast();
+  const { user } = useAuth();
+  const toast    = useToast();
+
+  const [tab,         setTab]         = useState('projects');
+  const [data,        setData]        = useState({ projects: [], skills: [], certifications: [] });
+  const [loading,     setLoading]     = useState(true);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [form,        setForm]        = useState(FORMS.projects);
+  const [reviewing,   setReviewing]   = useState(false);
+  const [review,      setReview]      = useState(null);
+  const [showExport,  setShowExport]  = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -54,27 +59,32 @@ export default function CVBuilder({ openTrigger = 0 }) {
     if (openTrigger > 0) openModal(tab);
   }, [openTrigger]); // eslint-disable-line
 
-  const openModal  = (which) => { setTab(which); setForm(FORMS[which]); setModalOpen(true); };
+  const openModal = (which) => {
+    setTab(which);
+    setForm(FORMS[which]);
+    setModalOpen(true);
+  };
 
   const createItem = async (e) => {
     e.preventDefault();
     try {
       await api.post(`/cv/${tab}`, form);
       toast.success('Added to your CV');
-      setModalOpen(false); load();
+      setModalOpen(false);
+      load();
     } catch (err) { toast.error(err.message); }
   };
 
   const removeItem = async (which, id) => {
     await api.del(`/cv/${which}/${id}`);
-    toast.success('Removed'); load();
+    toast.success('Removed');
+    load();
   };
 
-  // ── AI: Review CV as recruiter ────────────────────────────────
   const reviewCV = async () => {
-    const totalItems = data.projects.length + data.skills.length + data.certifications.length;
-    if (totalItems < 3) {
-      toast.error('Add at least a few projects, skills, or certifications before reviewing.');
+    const total = data.projects.length + data.skills.length + data.certifications.length;
+    if (total < 3) {
+      toast.error('Add at least a few projects, skills, or certifications first.');
       return;
     }
     setReviewing(true);
@@ -87,8 +97,7 @@ SKILLS (${data.skills.length}):
 ${data.skills.map((s) => `• ${s.name} (${s.level})`).join('\n') || 'None'}
 
 CERTIFICATIONS (${data.certifications.length}):
-${data.certifications.map((c) => `• ${c.title} — ${c.issuer}`).join('\n') || 'None'}
-      `.trim();
+${data.certifications.map((c) => `• ${c.title} — ${c.issuer}`).join('\n') || 'None'}`.trim();
 
       const res = await api.post('/chat', {
         messages: [{
@@ -96,7 +105,7 @@ ${data.certifications.map((c) => `• ${c.title} — ${c.issuer}`).join('\n') ||
           content: `You are a senior technical recruiter at a top tech company. Review this CV content and give honest, specific feedback in 3 sections:
 
 1. STRENGTHS (2-3 bullet points — what stands out)
-2. GAPS & IMPROVEMENTS (2-3 specific things missing or weak)  
+2. GAPS & IMPROVEMENTS (2-3 specific things missing or weak)
 3. QUICK WINS (2-3 concrete actions to make this CV stronger this week)
 
 Be direct and specific. No fluff. Here's the CV:
@@ -105,7 +114,7 @@ ${cvSummary}`,
         }],
       });
       setReview(res.text);
-    } catch (err) { toast.error('Could not generate review. Try again.'); }
+    } catch (_) { toast.error('Could not generate review. Try again.'); }
     finally { setReviewing(false); }
   };
 
@@ -115,48 +124,64 @@ ${cvSummary}`,
 
   return (
     <div>
-      {/* Internal tab bar + AI review button */}
+      {/* ── Top bar: tabs + action buttons ──────────────────── */}
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <div className="flex gap-2">
           {TABS.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => setTab(key)}
+            <button
+              key={key}
+              onClick={() => setTab(key)}
               className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
                 tab === key
                   ? 'bg-lavender-600 text-white shadow-glow'
                   : 'bg-white/60 dark:bg-white/[0.06] text-ink/50 dark:text-white/40 hover:bg-white dark:hover:bg-white/10'
-              }`}>
+              }`}
+            >
               <Icon size={15} /> {label}
             </button>
           ))}
         </div>
 
-        {/* Lumi review button — only if content exists */}
         {hasContent && (
-          <button
-            onClick={reviewCV}
-            disabled={reviewing}
-            className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
-            style={{
-              background: 'linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08))',
-              border:     '1px solid rgba(168,85,247,0.30)',
-              color:      '#A855F7',
-            }}
-          >
-            {reviewing ? (
-              <>
-                <div className="h-4 w-4 rounded-full border-2 border-violet-400 border-t-violet-600 animate-spin" />
-                Reviewing…
-              </>
-            ) : (
-              <>
-                <Sparkles size={14} /> Lumi reviews my CV
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Export CV */}
+            <button
+              onClick={() => setShowExport(true)}
+              className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition"
+              style={{
+                background: 'linear-gradient(135deg, rgba(76,195,138,0.15), rgba(45,167,110,0.08))',
+                border:     '1px solid rgba(76,195,138,0.30)',
+                color:      '#2DA76E',
+              }}
+            >
+              <Download size={14} /> Export CV
+            </button>
+
+            {/* Lumi review */}
+            <button
+              onClick={reviewCV}
+              disabled={reviewing}
+              className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
+              style={{
+                background: 'linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08))',
+                border:     '1px solid rgba(168,85,247,0.30)',
+                color:      '#A855F7',
+              }}
+            >
+              {reviewing ? (
+                <>
+                  <div className="h-4 w-4 rounded-full border-2 border-violet-400 border-t-violet-600 animate-spin" />
+                  Reviewing…
+                </>
+              ) : (
+                <><Sparkles size={14} /> Lumi reviews my CV</>
+              )}
+            </button>
+          </div>
         )}
       </div>
 
-      {/* ── AI Review panel ─────────────────────────────────── */}
+      {/* ── Lumi review panel ────────────────────────────────── */}
       <AnimatePresence>
         {review && (
           <motion.div
@@ -165,24 +190,23 @@ ${cvSummary}`,
             exit={{ opacity: 0, y: -8 }}
             className="mb-6 rounded-3xl p-6 relative"
             style={{
-              background:   'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(124,58,237,0.04))',
-              border:       '1px solid rgba(168,85,247,0.20)',
-              backdropFilter: 'blur(20px)',
+              background:           'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(124,58,237,0.04))',
+              border:               '1px solid rgba(168,85,247,0.20)',
+              backdropFilter:       'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
             }}
           >
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-lg">✦</span>
-                <span className="font-display font-bold text-ink dark:text-white text-sm">
-                  Lumi's CV Review
-                </span>
+                <span className="font-display font-bold text-ink dark:text-white text-sm">Lumi's CV Review</span>
                 <span className="text-xs text-violet-500 font-medium px-2 py-0.5 rounded-full"
                   style={{ background: 'rgba(168,85,247,0.10)' }}>
                   Senior Recruiter Perspective
                 </span>
               </div>
               <button onClick={() => setReview(null)}
-                className="text-ink/30 dark:text-white/30 hover:text-coral-500 transition">
+                className="text-ink/30 dark:text-white/30 hover:text-coral-500 transition shrink-0">
                 <X size={16} />
               </button>
             </div>
@@ -193,11 +217,11 @@ ${cvSummary}`,
         )}
       </AnimatePresence>
 
-      {/* ── Projects tab ────────────────────────────────────── */}
+      {/* ── Projects ─────────────────────────────────────────── */}
       {tab === 'projects' && (
         data.projects.length === 0 ? (
           <EmptyState icon={FolderGit2} title="No projects yet"
-            message="Add a project you've built to showcase on your CV." />
+            description="Add a project you've built to showcase on your CV." />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.projects.map((p, i) => (
@@ -209,7 +233,7 @@ ${cvSummary}`,
                     <Trash2 size={14} />
                   </button>
                 </div>
-                {p.description && <p className="text-sm text-ink/50 mt-1.5">{p.description}</p>}
+                {p.description && <p className="text-sm text-ink/50 dark:text-white/40 mt-1.5">{p.description}</p>}
                 {p.tech        && <p className="text-xs text-lavender-600 font-medium mt-2">{p.tech}</p>}
                 {p.link        && (
                   <a href={p.link} target="_blank" rel="noreferrer"
@@ -221,11 +245,11 @@ ${cvSummary}`,
         )
       )}
 
-      {/* ── Skills tab ───────────────────────────────────────── */}
+      {/* ── Skills ───────────────────────────────────────────── */}
       {tab === 'skills' && (
         data.skills.length === 0 ? (
           <EmptyState icon={Lightbulb} title="No skills yet"
-            message="Add the skills you want recruiters to see." />
+            description="Add the skills you want recruiters to see." />
         ) : (
           <div className="flex flex-wrap gap-2.5">
             {data.skills.map((s) => (
@@ -242,11 +266,11 @@ ${cvSummary}`,
         )
       )}
 
-      {/* ── Certifications tab ───────────────────────────────── */}
+      {/* ── Certifications ───────────────────────────────────── */}
       {tab === 'certifications' && (
         data.certifications.length === 0 ? (
           <EmptyState icon={Award} title="No certifications yet"
-            message="Add certifications you've earned." />
+            description="Add certifications you've earned." />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.certifications.map((c, i) => (
@@ -273,22 +297,25 @@ ${cvSummary}`,
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
           {tab === 'projects' && (
             <>
-              <input className="input-field" placeholder="Project title" value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+              <input className="input-field" placeholder="Project title"
+                value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                autoFocus required />
               <textarea className="input-field" placeholder="Description" rows={2}
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })} />
               <input className="input-field" placeholder="Tech stack (e.g. React, Node)"
                 value={form.tech}
                 onChange={(e) => setForm({ ...form, tech: e.target.value })} />
-              <input className="input-field" placeholder="Link (optional)" value={form.link}
+              <input className="input-field" placeholder="Link (optional)"
+                value={form.link}
                 onChange={(e) => setForm({ ...form, link: e.target.value })} />
             </>
           )}
           {tab === 'skills' && (
             <>
-              <input className="input-field" placeholder="Skill name" value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus required />
+              <input className="input-field" placeholder="Skill name"
+                value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                autoFocus required />
               <select className="input-field" value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value })}>
                 <option value="beginner">Beginner</option>
@@ -304,19 +331,34 @@ ${cvSummary}`,
           )}
           {tab === 'certifications' && (
             <>
-              <input className="input-field" placeholder="Certification title" value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
-              <input className="input-field" placeholder="Issuer" value={form.issuer}
+              <input className="input-field" placeholder="Certification title"
+                value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                autoFocus required />
+              <input className="input-field" placeholder="Issuer"
+                value={form.issuer}
                 onChange={(e) => setForm({ ...form, issuer: e.target.value })} />
-              <input type="date" className="input-field" value={form.date}
+              <input type="date" className="input-field"
+                value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })} />
-              <input className="input-field" placeholder="Link (optional)" value={form.link}
+              <input className="input-field" placeholder="Link (optional)"
+                value={form.link}
                 onChange={(e) => setForm({ ...form, link: e.target.value })} />
             </>
           )}
           <button type="submit" className="btn-primary justify-center mt-1">Add</button>
         </form>
       </Modal>
+
+      {/* ── Export modal ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {showExport && (
+          <CVExportModal
+            data={data}
+            userName={user?.name || ''}
+            onClose={() => setShowExport(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
