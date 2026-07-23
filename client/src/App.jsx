@@ -1,4 +1,5 @@
 import useTaskReminders from './hooks/useTaskReminders.js';
+import TreeShop from './pages/TreeShop.jsx';
 import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -67,6 +68,7 @@ function AppShell() {
             <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
             <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
             <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
+            <Route path="/trees" element={<TreeShop />} />
             <Route path="*"            element={<NotFound />} />
           </Routes>
         </motion.div>

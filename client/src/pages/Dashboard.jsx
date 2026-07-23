@@ -1,223 +1,338 @@
-import { playCompletionSound } from '../utils/sounds.js';
-import CompletionBurst from '../components/CompletionBurst.jsx';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
-  CheckCircle2, Circle, Quote, CalendarClock, Smile,
+  CheckCircle2, Circle, Calendar, Clock,
+  Smile, TreePine, Zap, ListChecks,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import DashboardHero from '../components/DashboardHero.jsx';
-import GlassCard from '../components/GlassCard.jsx';
-import PriorityPill from '../components/PriorityPill.jsx';
-import EmptyState from '../components/EmptyState.jsx';
-import PageLoader from '../components/Loader.jsx';
-import ProductivityTree from '../components/ProductivityTree.jsx';
+import GlassCard          from '../components/GlassCard.jsx';
+import ProductivitySphere from '../components/ProductivitySphere.jsx';
+import PageLoader         from '../components/Loader.jsx';
 
-const MOODS = [
-  { value: 1, emoji: '😞', label: 'Rough' },
-  { value: 2, emoji: '😕', label: 'Meh' },
-  { value: 3, emoji: '🙂', label: 'Okay' },
-  { value: 4, emoji: '😄', label: 'Good' },
-  { value: 5, emoji: '🤩', label: 'Great' },
+const MOOD_OPTIONS = [
+  { value: 1, emoji: '😞', label: 'Rough'  },
+  { value: 2, emoji: '😐', label: 'Meh'    },
+  { value: 3, emoji: '🙂', label: 'Okay'   },
+  { value: 4, emoji: '😊', label: 'Good'   },
+  { value: 5, emoji: '🤩', label: 'Great'  },
 ];
 
+function greeting(name) {
+  const h = new Date().getHours();
+  const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  return `${g}, ${name} 👋`;
+}
+
+function todayLabel() {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function formatDeadline(d) {
+  if (!d) return null;
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
 export default function Dashboard() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [justCompletedId, setJustCompletedId] = useState(null);
-  const toast = useToast();
-  const { user } = useAuth();
-  const prevLevel = useRef(null);
+  const { user }   = useAuth();
+  const toast      = useToast();
+  const navigate   = useNavigate();
+  const [data,     setData]     = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [moodSaving, setMoodSaving] = useState(false);
+  const [equippedTree, setEquippedTree] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const dash = await api.get('/dashboard');
-      if (prevLevel.current !== null && dash.level.level > prevLevel.current) {
-        toast.levelUp(dash.level.level);
-      }
-      prevLevel.current = dash.level.level;
+      const [dash, treeData] = await Promise.all([
+        api.get('/dashboard'),
+        api.get('/trees'),
+      ]);
       setData(dash);
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      setEquippedTree(treeData.equipped || 'seedling');
+    } catch (e) { toast.error(e.message); }
+    finally { setLoading(false); }
+  }, []); // eslint-disable-line
 
   useEffect(() => { load(); }, [load]);
 
-  const toggleTask = async (task) => {
-    const status = task.status === 'done' ? 'todo' : 'done';
-    const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status });
-    if (xpAwarded) {
-      toast.xp(xpAwarded, task.title);
-      playCompletionSound();
-      setJustCompletedId(task.id);
-      setTimeout(() => setJustCompletedId(null), 700);
-    }
-    unlocked?.forEach((key) => toast.achievement(key.replace(/_/g, ' ')));
-    load();
+  const saveMood = async (value) => {
+    setMoodSaving(true);
+    try {
+      await api.post('/mood', { mood: value });
+      load();
+    } catch (e) { toast.error(e.message); }
+    finally { setMoodSaving(false); }
   };
 
-  const toggleHabit = async (habit) => {
-    const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, {});
-    if (xpAwarded) {
-      toast.xp(xpAwarded, habit.name);
-      playCompletionSound();
-    }
-    unlocked?.forEach((key) => toast.achievement(key.replace(/_/g, ' ')));
-    load();
+  const completeTask = async (task) => {
+    try {
+      const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status: 'done', progress: 100 });
+      if (xpAwarded) toast.xp(xpAwarded, task.title);
+      unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
+      load();
+    } catch (e) { toast.error(e.message); }
   };
 
-  const setMood = async (value) => {
-    await api.post('/mood', { mood: value });
-    toast.success('Mood logged for today');
-    load();
-  };
+  if (loading || !data) return <PageLoader />;
 
-  if (loading || !data) {
-    return (
-      <div className="pt-2">
-        <div className="glass-card h-44 mb-6 skeleton" />
-        <PageLoader />
-      </div>
-    );
-  }
+  const firstName = user?.name?.split(' ')[0] || 'there';
+  const { todaysTasks, todaysHabits, upcomingDeadlines, mood, quote, productivityScore, streak, level, counts } = data;
 
   return (
-    <div className="pb-4">
-      <DashboardHero data={data} userName={user?.name} />
+    <div className="flex flex-col gap-5">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 flex flex-col gap-5">
-          <GlassCard tier={2} delay={0.1} className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-bold text-ink dark:text-white">Today's tasks</h2>
-              <a href="/tasks" className="text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">View all</a>
+      {/* ── Hero card ─────────────────────────────────────── */}
+      <GlassCard className="p-7">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+
+          {/* Left — greeting + stats */}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold uppercase tracking-widest text-lavender-600 dark:text-lavender-300 mb-1">
+              {todayLabel()}
+            </p>
+            <h1 className="font-display text-3xl font-bold text-ink dark:text-white mb-1">
+              {greeting(firstName)}
+            </h1>
+            {todaysTasks.length === 0 && todaysHabits.length === 0 ? (
+              <p className="text-sm text-ink/45 dark:text-white/40 mb-5">
+                A clear day on the calendar — a good moment to set a goal or plan tomorrow.
+              </p>
+            ) : (
+              <p className="text-sm text-ink/45 dark:text-white/40 mb-5">
+                You have {todaysTasks.length} task{todaysTasks.length !== 1 ? 's' : ''} and{' '}
+                {todaysHabits.filter(h => !h.doneToday).length} habit{todaysHabits.filter(h => !h.doneToday).length !== 1 ? 's' : ''} left today.
+              </p>
+            )}
+
+            {/* Stat cards */}
+            <div className="flex flex-wrap gap-3">
+              {[
+                {
+                  icon:  '🔥',
+                  color: 'from-sun-400 to-sun-500',
+                  value: `${streak}d`,
+                  label: 'Streak',
+                },
+                {
+                  icon:  '⚡',
+                  color: 'from-aurora-violet to-aurora-indigo',
+                  value: `${level?.xp || 0} XP`,
+                  label: `Lvl ${level?.level || 1}`,
+                  onClick: () => navigate('/trees'),
+                },
+                {
+                  icon:  '📋',
+                  color: 'from-aurora-sky to-aurora-indigo',
+                  value: counts.totalTasksToday > 0
+                    ? `${counts.tasksDoneToday}/${counts.totalTasksToday}`
+                    : String(todaysTasks.length),
+                  label: 'Left today',
+                },
+              ].map(({ icon, color, value, label, onClick }) => (
+                <motion.div
+                  key={label}
+                  whileHover={onClick ? { y: -2 } : {}}
+                  onClick={onClick}
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
+                  style={{
+                    background:   'rgba(255,255,255,0.65)',
+                    border:       '1px solid rgba(255,255,255,0.75)',
+                    backdropFilter: 'blur(16px)',
+                    boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.90)',
+                  }}
+                >
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
+                    {icon}
+                  </div>
+                  <div>
+                    <p className="font-display text-lg font-bold text-ink dark:text-white leading-none">{value}</p>
+                    <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">{label}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-            {data.todaysTasks.length === 0 ? (
-              <EmptyState icon={CheckCircle2} title="Nothing due today" message="Enjoy the breathing room, or pull in tomorrow's tasks early." />
+
+            {/* Quote */}
+            {quote && (
+              <p className="text-xs text-ink/35 dark:text-white/25 italic mt-5 leading-relaxed max-w-sm">
+                "{quote.text}" — {quote.author}
+              </p>
+            )}
+          </div>
+
+          {/* Right — productivity sphere with tree */}
+          <div className="flex flex-col items-center gap-2 shrink-0">
+            <ProductivitySphere score={productivityScore} equippedTree={equippedTree} />
+            <button
+              onClick={() => navigate('/trees')}
+              className="flex items-center gap-1 text-xs text-ink/35 dark:text-white/30 hover:text-lavender-500 transition"
+            >
+              <TreePine size={11} /> Change tree
+            </button>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* ── Main grid ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Today's tasks */}
+        <div className="lg:col-span-2">
+          <GlassCard className="p-6 h-full">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ListChecks size={16} className="text-lavender-500" />
+                <h2 className="font-display font-semibold text-ink dark:text-white">Today's tasks</h2>
+              </div>
+              <button onClick={() => navigate('/tasks')}
+                className="text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">
+                View all
+              </button>
+            </div>
+
+            {todaysTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <span className="text-4xl mb-3">🎉</span>
+                <p className="font-semibold text-ink dark:text-white text-sm mb-1">Nothing due today</p>
+                <p className="text-xs text-ink/40 dark:text-white/35">
+                  Enjoy the breathing room, or pull in tomorrow's tasks early.
+                </p>
+              </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {data.todaysTasks.map((t, i) => (
-                  <motion.button
-                    key={t.id}
-                    onClick={() => toggleTask(t)}
-                    whileTap={{ scale: 0.98 }}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    className="relative flex items-center gap-3 rounded-2xl border border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] px-4 py-3 text-left transition-all duration-200 hover:bg-white/70 dark:hover:bg-white/[0.07] hover:-translate-y-0.5"
+                {todaysTasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    layout
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
+                    style={{
+                      background:   'rgba(255,255,255,0.55)',
+                      border:       '1px solid rgba(255,255,255,0.65)',
+                      backdropFilter: 'blur(12px)',
+                    }}
                   >
-                    <CompletionBurst show={justCompletedId === t.id} />
-                    {t.status === 'done'
-                      ? <CheckCircle2 className="text-sage-500 shrink-0" size={20} />
-                      : <Circle className="text-ink/25 dark:text-white/25 shrink-0" size={20} />}
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-medium truncate ${t.status === 'done' ? 'line-through text-ink/40 dark:text-white/30' : 'text-ink dark:text-white'}`}>
-                        {t.title}
-                      </p>
-                      <p className="text-xs text-ink/40 dark:text-white/35">{t.category}</p>
+                    <button onClick={() => completeTask(task)}
+                      className="shrink-0 text-ink/25 hover:text-sage-500 transition">
+                      <Circle size={18} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink dark:text-white truncate">{task.title}</p>
+                      {task.deadline && (
+                        <p className="text-[11px] text-ink/35 flex items-center gap-1 mt-0.5">
+                          <Calendar size={10} /> {formatDeadline(task.deadline)}
+                        </p>
+                      )}
                     </div>
-                    <PriorityPill priority={t.priority} />
-                  </motion.button>
-                ))}
-              </div>
-            )}
-          </GlassCard>
-
-          <GlassCard tier={2} delay={0.15} className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-bold text-ink dark:text-white">Today's habits</h2>
-              <a href="/goals" className="text-xs font-semibold text-lavender-600 dark:text-lavender-300 hover:underline">View all</a>            </div>
-            {data.todaysHabits.length === 0 ? (
-              <EmptyState icon={Smile} title="No habits yet" message="Add a habit to start building your streak." />
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {data.todaysHabits.map((h, i) => (
-                  <motion.button
-                    key={h.id}
-                    onClick={() => toggleHabit(h)}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, scale: 0.92 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.04 }}
-                    className={`flex flex-col items-center gap-2 rounded-2xl border px-3 py-4 transition-all duration-200 hover:-translate-y-0.5 ${
-                      h.doneToday
-                        ? 'border-sage-300 dark:border-sage-500/30 bg-sage-50 dark:bg-sage-500/10'
-                        : 'border-white/60 dark:border-white/10 bg-white/40 dark:bg-white/[0.03] hover:bg-white/70 dark:hover:bg-white/[0.07]'
-                    }`}
-                  >
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm"
-                      style={{ backgroundColor: h.color }}
-                    >
-                      {h.doneToday ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-                    </div>
-                    <p className="text-xs font-semibold text-ink dark:text-white text-center leading-tight">{h.name}</p>
-                  </motion.button>
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold capitalize ${
+                      task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
+                      task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
+                                                   'bg-lavender-100 text-lavender-600'
+                    }`}>
+                      {task.priority}
+                    </span>
+                  </motion.div>
                 ))}
               </div>
             )}
           </GlassCard>
         </div>
 
-        <div className="flex flex-col gap-5">
-          <GlassCard delay={0.1} className="p-6 relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-aurora-violet/15 blur-2xl animate-floaty" />
-            <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5">
-              <Smile size={14}/> Mood of the day
-            </p>
-            <div className="flex justify-between gap-1.5">
-              {MOODS.map((m) => (
-                <motion.button
+        {/* Right column */}
+        <div className="flex flex-col gap-4">
+
+          {/* Mood */}
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Smile size={15} className="text-lavender-500" />
+              <h3 className="font-display font-semibold text-sm text-ink dark:text-white">Mood of the day</h3>
+            </div>
+            <div className="flex justify-between">
+              {MOOD_OPTIONS.map((m) => (
+                <button
                   key={m.value}
-                  whileHover={{ y: -3, scale: 1.06 }}
-                  whileTap={{ scale: 0.92, y: 0 }}
-                  onClick={() => setMood(m.value)}
-                  className={`flex flex-col items-center gap-1 rounded-2xl px-2.5 py-2.5 transition-all duration-200 ${
-                    data.mood?.mood === m.value
-                      ? 'clay shadow-glow-ring bg-white/90 dark:bg-white/10'
-                      : 'hover:bg-white/50 dark:hover:bg-white/5'
-                  }`}
+                  onClick={() => saveMood(m.value)}
+                  disabled={moodSaving}
+                  className="flex flex-col items-center gap-1 group"
                 >
-                  <span className="text-2xl">{m.emoji}</span>
-                  <span className="text-[10px] text-ink/45 dark:text-white/35">{m.label}</span>
-                </motion.button>
+                  <motion.span
+                    whileHover={{ scale: 1.2, y: -2 }}
+                    whileTap={{ scale: 0.9 }}
+                    className={`text-2xl transition-all ${
+                      mood?.mood === m.value ? 'scale-125 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100'
+                    }`}
+                  >
+                    {m.emoji}
+                  </motion.span>
+                  <span className="text-[10px] text-ink/40 dark:text-white/30">{m.label}</span>
+                </button>
               ))}
             </div>
           </GlassCard>
 
-          <GlassCard delay={0.15} className="p-6">
-            <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-3 flex items-center gap-1.5"><Quote size={14}/> Daily quote</p>
-            <p className="font-display text-sm font-semibold text-ink dark:text-white leading-relaxed">"{data.quote.text}"</p>
-            <p className="text-xs text-ink/45 dark:text-white/35 mt-2">— {data.quote.author}</p>
-          </GlassCard>
-
-          <GlassCard delay={0.2} className="p-6">
-            <p className="text-xs font-semibold text-ink/50 dark:text-white/40 mb-2 flex items-center gap-1.5"><CalendarClock size={14}/> Upcoming deadlines</p>
-            {data.upcomingDeadlines.length === 0 ? (
-              <p className="text-sm text-ink/40 dark:text-white/30 py-3">Nothing on the horizon — nice and clear.</p>
-            ) : (
-              <div className="flex flex-col divide-y divide-white/50 dark:divide-white/10">
-                {data.upcomingDeadlines.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-ink dark:text-white truncate">{t.title}</p>
-                      <p className="text-xs text-ink/40 dark:text-white/30">{t.category}</p>
-                    </div>
-                    <span className="text-xs font-semibold text-lavender-600 dark:text-lavender-300 shrink-0 ml-2">{t.deadline}</span>
+          {/* Habits */}
+          {todaysHabits.length > 0 && (
+            <GlassCard className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">Today's habits</h3>
+                <button onClick={() => navigate('/goals')}
+                  className="text-xs text-lavender-600 dark:text-lavender-300 font-semibold hover:underline">
+                  View all
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {todaysHabits.slice(0, 4).map((h) => (
+                  <div key={h.id} className="flex items-center gap-3">
+                    <div className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: h.doneToday ? h.color : 'rgba(30,34,51,0.15)' }} />
+                    <span className={`text-xs flex-1 truncate ${
+                      h.doneToday ? 'text-ink/40 dark:text-white/30 line-through' : 'text-ink/70 dark:text-white/60'
+                    }`}>
+                      {h.name}
+                    </span>
+                    {h.doneToday && <CheckCircle2 size={13} className="text-sage-500 shrink-0" />}
                   </div>
                 ))}
               </div>
-            )}
-          </GlassCard>
+            </GlassCard>
+          )}
 
-          <GlassCard delay={0.25} className="p-6 flex items-center justify-center">
-            <ProductivityTree stage={data.treeStage} streak={data.streak} />
-          </GlassCard>
+          {/* Upcoming deadlines */}
+          {upcomingDeadlines?.length > 0 && (
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock size={14} className="text-lavender-500" />
+                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">Coming up</h3>
+              </div>
+              <div className="flex flex-col gap-2">
+                {upcomingDeadlines.slice(0, 3).map((t) => (
+                  <div key={t.id} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-ink/65 dark:text-white/55 truncate">{t.title}</span>
+                    <span className="text-[10px] text-ink/35 shrink-0 flex items-center gap-1">
+                      <Calendar size={9} /> {formatDeadline(t.deadline)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Daily quote */}
+          {quote && (
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">💬</span>
+                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">Daily quote</h3>
+              </div>
+              <p className="text-xs text-ink/65 dark:text-white/55 italic leading-relaxed">
+                "{quote.text}"
+              </p>
+              <p className="text-[10px] text-ink/35 mt-2">— {quote.author}</p>
+            </GlassCard>
+          )}
         </div>
       </div>
     </div>
