@@ -384,11 +384,22 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
 
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <PriorityPill priority={task.priority} />
-          {date && (
-            <span className="flex items-center gap-1 text-[11px] text-ink/40">
-              <Calendar size={10} /> {date}
-            </span>
-          )}
+          {task.deadline && (() => {
+  const daysLeft = Math.ceil((new Date(task.deadline) - new Date()) / (1000*60*60*24));
+  const urgent   = daysLeft <= 1;
+  const soon     = daysLeft <= 3;
+  return (
+    <span className={`flex items-center gap-1 text-[11px] font-medium ${
+      urgent ? 'text-coral-500' : soon ? 'text-sun-600' : 'text-ink/40'
+    }`}>
+      <Calendar size={10} />
+      {urgent && daysLeft <= 0 ? '🚨 Overdue'
+      : urgent ? `🚨 Due tomorrow`
+      : soon   ? `⚠️ Due in ${daysLeft} days`
+      : date}
+    </span>
+  );
+})()}
           {time && (
             <span className="flex items-center gap-1 text-[11px] text-ink/40">
               <Clock size={10} /> {time}
