@@ -5,7 +5,8 @@ import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
   BarChart3, Rocket, Sparkles, TreePine, Settings,
 } from 'lucide-react';
-import SettingsModal from './SettingsModal.jsx';
+import SettingsModal     from './SettingsModal.jsx';
+import NotificationBell  from './NotificationBell.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -27,6 +28,11 @@ export default function Sidebar() {
       <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6">
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
+        {/* Notification bell — top of sidebar */}
+        <div className="mb-2">
+          <NotificationBell />
+        </div>
+
         {/* Logo */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
@@ -47,7 +53,6 @@ export default function Sidebar() {
             >
               {({ isActive }) => (
                 <>
-                  {/* Active background */}
                   {isActive && (
                     <motion.span
                       layoutId="sidebar-active"
@@ -57,7 +62,6 @@ export default function Sidebar() {
                     />
                   )}
 
-                  {/* Icon with pop on hover */}
                   <motion.span
                     whileHover={!isActive ? {
                       y: -4, scale: 1.18,
@@ -68,7 +72,6 @@ export default function Sidebar() {
                       isActive ? 'text-white' : 'text-ink/40 dark:text-white/40'
                     }`}
                   >
-                    {/* Hover card */}
                     {!isActive && (
                       <span
                         className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -89,7 +92,6 @@ export default function Sidebar() {
                     />
                   </motion.span>
 
-                  {/* Tooltip */}
                   <span className="pointer-events-none absolute left-[3.25rem] z-50 whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
                     {label}
                   </span>
@@ -102,10 +104,7 @@ export default function Sidebar() {
         {/* Settings */}
         <div className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
           <motion.button
-            whileHover={{
-              y: -4, scale: 1.18,
-              transition: { type: 'spring', stiffness: 500, damping: 22 },
-            }}
+            whileHover={{ y: -4, scale: 1.18, transition: { type: 'spring', stiffness: 500, damping: 22 } }}
             whileTap={{ scale: 0.94 }}
             onClick={() => setSettingsOpen(true)}
             title="Settings"

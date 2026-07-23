@@ -5,7 +5,8 @@ import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
   MoreHorizontal, BarChart3, Timer, Rocket, TreePine, X, Settings,
 } from 'lucide-react';
-import SettingsModal from './SettingsModal.jsx';
+import SettingsModal    from './SettingsModal.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Home'  },
@@ -16,10 +17,10 @@ const NAV = [
 ];
 
 const MORE_ITEMS = [
-  { to: '/history',   icon: Clock,      label: 'History'   },
-  { to: '/learning',  icon: Timer,      label: 'Flow'      },
-  { to: '/launchpad', icon: Rocket,     label: 'Launchpad' },
-  { to: '/trees',     icon: TreePine,   label: 'Tree Shop' },
+  { to: '/history',   icon: Clock,     label: 'History'   },
+  { to: '/learning',  icon: Timer,     label: 'Flow'      },
+  { to: '/launchpad', icon: Rocket,    label: 'Launchpad' },
+  { to: '/trees',     icon: TreePine,  label: 'Tree Shop' },
 ];
 
 export default function MobileNav() {
@@ -28,6 +29,12 @@ export default function MobileNav() {
 
   return (
     <>
+      {/* Notification bell — fixed top right on mobile */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
+
+      {/* Bottom nav */}
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-50 glass-panel rounded-3xl px-2 py-2">
         <div className="flex items-center justify-between">
           {NAV.map(({ to, icon: Icon, label }) => (
