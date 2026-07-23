@@ -1,3 +1,4 @@
+import Onboarding, { isOnboarded } from './pages/Onboarding.jsx';
 import useTaskReminders from './hooks/useTaskReminders.js';
 import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
@@ -40,8 +41,22 @@ export default function App() {
 }
 
 function AppShell() {
-  const location = useLocation();
+  const location   = useLocation();
+  const { user }   = useAuth();
+  const [onboarded, setOnboarded] = useState(() => isOnboarded(user?.id));
+
   useTaskReminders();
+
+  // Show onboarding overlay until completed
+  if (!onboarded) {
+    return (
+      <>
+        <GlobalBackground />
+        <Onboarding onComplete={() => setOnboarded(true)} />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen flex relative z-10">
       <Sidebar />
@@ -53,23 +68,22 @@ function AppShell() {
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         >
           <Routes location={location}>
-            <Route path="/"           element={<Dashboard />} />
-            <Route path="/tasks"      element={<Tasks />} />
-            <Route path="/goals"      element={<Goals />} />
-            <Route path="/learning"   element={<Focus />} />
-            <Route path="/analytics"  element={<Analytics />} />
-            <Route path="/launchpad"  element={<Launchpad />} />
-            <Route path="/ai"         element={<AITools />} />
-            <Route path="/history"    element={<History />} />
+            <Route path="/"            element={<Dashboard />} />
+            <Route path="/tasks"       element={<Tasks />} />
+            <Route path="/goals"       element={<Goals />} />
+            <Route path="/learning"    element={<Focus />} />
+            <Route path="/analytics"   element={<Analytics />} />
+            <Route path="/launchpad"   element={<Launchpad />} />
+            <Route path="/ai"          element={<AITools />} />
+            <Route path="/history"     element={<History />} />
             <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
             <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
             <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
-            <Route path="*"           element={<NotFound />} />
+            <Route path="*"            element={<NotFound />} />
           </Routes>
         </motion.div>
       </main>
       <MobileNav />
-      {/* Persistent focus mini-bar — floats above everything */}
       <FocusBar />
     </div>
   );
