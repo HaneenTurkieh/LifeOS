@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, CheckCheck, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 const TYPE_COLORS = {
-  overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.08)'  },
-  streak:   { dot: '#FFB84D', bg: 'rgba(255,184,77,0.08)'  },
-  deadline: { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.08)' },
-  mood:     { dot: '#4CC38A', bg: 'rgba(76,195,138,0.08)'  },
-  default:  { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.08)' },
+  overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)'  },
+  streak:   { dot: '#FFB84D', bg: 'rgba(255,184,77,0.10)'  },
+  deadline: { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.10)' },
+  mood:     { dot: '#4CC38A', bg: 'rgba(76,195,138,0.10)'  },
+  default:  { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.10)' },
 };
 
 function timeAgo(dateStr) {
@@ -23,12 +24,29 @@ function timeAgo(dateStr) {
 }
 
 export default function NotificationBell() {
-  const navigate  = useNavigate();
-  const panelRef  = useRef(null);
+  const navigate               = useNavigate();
+  const panelRef               = useRef(null);
+  const { resolvedTheme }      = useTheme();
+  const isDark                 = resolvedTheme === 'dark';
 
   const [open,          setOpen]          = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unread,        setUnread]        = useState(0);
+
+  // ── Theme-aware styles ────────────────────────────────────────
+  const panelBg     = isDark ? 'rgba(18,14,35,0.95)'        : 'rgba(255,255,255,0.96)';
+  const panelBorder = isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.80)';
+  const dividerClr  = isDark ? 'rgba(255,255,255,0.06)'     : 'rgba(30,34,51,0.06)';
+  const titleClr    = isDark ? 'text-white'                 : 'text-ink';
+  const bodyClr     = isDark ? 'text-white/50'              : 'text-ink/50';
+  const timeClr     = isDark ? 'text-white/30'              : 'text-ink/30';
+  const clearClr    = isDark ? 'text-white/30 hover:text-coral-400' : 'text-ink/35 hover:text-coral-500';
+  const bellBg      = open
+    ? 'rgba(124,106,240,0.20)'
+    : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.60)';
+  const bellBorder  = open
+    ? '1px solid rgba(124,106,240,0.40)'
+    : isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.70)';
 
   const load = useCallback(async () => {
     try {
@@ -38,20 +56,16 @@ export default function NotificationBell() {
     } catch (_) {}
   }, []);
 
-  // Load on mount + poll every 2 minutes
   useEffect(() => {
     load();
     const id = setInterval(load, 120000);
     return () => clearInterval(id);
   }, [load]);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
-        setOpen(false);
-      }
+      if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -83,6 +97,14 @@ export default function NotificationBell() {
     } catch (_) {}
   };
 
+  const clearAll = async () => {
+    try {
+      await Promise.all(notifications.map((n) => api.del(`/notifications/${n.id}`)));
+      setNotifications([]);
+      setUnread(0);
+    } catch (_) {}
+  };
+
   const handleClick = async (n) => {
     if (!n.read) await markRead(n.id);
     if (n.link) { navigate(n.link); setOpen(false); }
@@ -98,22 +120,23 @@ export default function NotificationBell() {
         onClick={() => { setOpen((o) => !o); if (!open) load(); }}
         className="relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all"
         style={{
-          background:           open
-            ? 'rgba(124,106,240,0.15)'
-            : 'rgba(255,255,255,0.55)',
-          border:               `1px solid ${open ? 'rgba(124,106,240,0.30)' : 'rgba(255,255,255,0.65)'}`,
+          background:           bellBg,
+          border:               bellBorder,
           backdropFilter:       'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.80), 0 2px 8px rgba(0,0,0,0.06)',
+          boxShadow:            isDark
+            ? 'inset 0 1px 0 rgba(255,255,255,0.08)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.80), 0 2px 8px rgba(0,0,0,0.06)',
         }}
       >
         <Bell
           size={17}
           strokeWidth={2}
-          className={open ? 'text-lavender-600' : 'text-ink/55 dark:text-white/50'}
+          className={open
+            ? 'text-lavender-400'
+            : isDark ? 'text-white/50' : 'text-ink/55'
+          }
         />
-
-        {/* Unread badge */}
         <AnimatePresence>
           {unread > 0 && (
             <motion.span
@@ -121,10 +144,7 @@ export default function NotificationBell() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{   scale: 0, opacity: 0 }}
               className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{
-                background: 'linear-gradient(135deg,#FF7A63,#FF4040)',
-                boxShadow:  '0 2px 8px rgba(255,100,64,0.50)',
-              }}
+              style={{ background: 'linear-gradient(135deg,#FF7A63,#FF4040)', boxShadow: '0 2px 8px rgba(255,100,64,0.50)' }}
             >
               {unread > 9 ? '9+' : unread}
             </motion.span>
@@ -136,29 +156,33 @@ export default function NotificationBell() {
       <AnimatePresence>
         {open && (
           <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1    }}
-          exit={{    opacity: 0, y: 6, scale: 0.97 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-          className="absolute w-80 overflow-hidden rounded-3xl"
-          style={{
-            top:               '3rem',           
-            right:                 0,    
-            maxWidth:             'calc(100vw - 6rem)',
-            background:           'rgba(255,255,255,0.94)',
-            backdropFilter:       'blur(40px)',
-            WebkitBackdropFilter: 'blur(40px)',
-            border:               '1px solid rgba(255,255,255,0.75)',
-            boxShadow:            '0 20px 60px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.95)',
-            zIndex:               200,
-          }}
-        >
+            initial={{ opacity: 0, y: 8,  scale: 0.96 }}
+            animate={{ opacity: 1, y: 0,  scale: 1    }}
+            exit={{    opacity: 0, y: 6,  scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            className="absolute w-80 overflow-hidden rounded-3xl"
+            style={{
+              top:                  '3rem',
+              right:                0,
+              maxWidth:             'calc(100vw - 1.5rem)',
+              background:           panelBg,
+              backdropFilter:       'blur(40px)',
+              WebkitBackdropFilter: 'blur(40px)',
+              border:               panelBorder,
+              boxShadow:            isDark
+                ? '0 20px 60px rgba(0,0,0,0.50)'
+                : '0 20px 60px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.95)',
+              zIndex: 200,
+            }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4"
-              style={{ borderBottom: '1px solid rgba(30,34,51,0.06)' }}>
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: `1px solid ${dividerClr}` }}
+            >
               <div className="flex items-center gap-2">
                 <Bell size={14} className="text-lavender-500" />
-                <span className="font-display font-bold text-ink text-sm">Notifications</span>
+                <span className={`font-display font-bold text-sm ${titleClr}`}>Notifications</span>
                 {unread > 0 && (
                   <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
                     style={{ background: 'linear-gradient(135deg,#FF7A63,#FF4040)' }}>
@@ -167,17 +191,15 @@ export default function NotificationBell() {
                 )}
               </div>
               {unread > 0 && (
-                <button
-                  onClick={markAllRead}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-lavender-600 hover:underline"
-                >
+                <button onClick={markAllRead}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-lavender-500 hover:underline">
                   <CheckCheck size={11} /> Mark all read
                 </button>
               )}
             </div>
 
-            {/* Notification list */}
-            <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+            {/* List */}
+            <div className="overflow-y-auto" style={{ maxHeight: 380 }}>
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <motion.div
@@ -187,8 +209,8 @@ export default function NotificationBell() {
                   >
                     🔔
                   </motion.div>
-                  <p className="font-semibold text-ink text-sm mb-1">All caught up!</p>
-                  <p className="text-xs text-ink/40">No notifications right now.</p>
+                  <p className={`font-semibold text-sm mb-1 ${titleClr}`}>All caught up!</p>
+                  <p className={`text-xs ${bodyClr}`}>No notifications right now.</p>
                 </div>
               ) : (
                 notifications.map((n, idx) => {
@@ -199,38 +221,34 @@ export default function NotificationBell() {
                       key={n.id}
                       layout
                       onClick={() => handleClick(n)}
-                      className="group relative flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-colors"
+                      className="group relative flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-colors hover:bg-white/5"
                       style={{
                         background:   !n.read ? colors.bg : 'transparent',
-                        borderBottom: isLast ? 'none' : '1px solid rgba(30,34,51,0.05)',
+                        borderBottom: isLast ? 'none' : `1px solid ${dividerClr}`,
                       }}
                     >
-                      {/* Color dot */}
-                      <div
-                        className="mt-1.5 h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: colors.dot }}
-                      />
+                      <div className="mt-1.5 h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: colors.dot }} />
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <p className={`text-xs font-semibold leading-snug ${
-                            n.read ? 'text-ink/55' : 'text-ink'
+                            n.read ? (isDark ? 'text-white/45' : 'text-ink/55') : titleClr
                           }`}>
                             {n.title}
                           </p>
                           <button
                             onClick={(e) => dismiss(n.id, e)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-ink/25 hover:text-coral-500 mt-0.5"
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 ${
+                              isDark ? 'text-white/25 hover:text-coral-400' : 'text-ink/25 hover:text-coral-500'
+                            }`}
                           >
                             <X size={12} />
                           </button>
                         </div>
-                        <p className="text-[11px] text-ink/50 mt-0.5 leading-relaxed">
-                          {n.body}
-                        </p>
+                        <p className={`text-[11px] mt-0.5 leading-relaxed ${bodyClr}`}>{n.body}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-ink/30">{timeAgo(n.created_at)}</span>
+                          <span className={`text-[10px] ${timeClr}`}>{timeAgo(n.created_at)}</span>
                           {n.link && (
                             <span className="flex items-center gap-0.5 text-[10px] text-lavender-500 font-medium">
                               <ExternalLink size={9} /> Open
@@ -239,7 +257,6 @@ export default function NotificationBell() {
                         </div>
                       </div>
 
-                      {/* Unread indicator */}
                       {!n.read && (
                         <div className="mt-2 h-1.5 w-1.5 rounded-full bg-lavender-500 shrink-0" />
                       )}
@@ -248,23 +265,18 @@ export default function NotificationBell() {
                 })
               )}
             </div>
-            {/* Clear all button — only show if there are notifications */}
-{notifications.length > 0 && (
-  <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(30,34,51,0.06)' }}>
-    <button
-      onClick={async () => {
-        try {
-          await Promise.all(notifications.map(n => api.del(`/notifications/${n.id}`)));
-          setNotifications([]);
-          setUnread(0);
-        } catch (_) {}
-      }}
-      className="w-full text-xs font-semibold text-ink/35 hover:text-coral-500 transition-colors text-center py-1"
-    >
-      Clear all
-    </button>
-  </div>
-)}
+
+            {/* Clear all */}
+            {notifications.length > 0 && (
+              <div className="px-5 py-3" style={{ borderTop: `1px solid ${dividerClr}` }}>
+                <button
+                  onClick={clearAll}
+                  className={`w-full text-xs font-semibold transition-colors text-center py-1 ${clearClr}`}
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
