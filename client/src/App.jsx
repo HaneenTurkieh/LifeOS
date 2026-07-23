@@ -1,6 +1,5 @@
-import Onboarding, { isOnboarded } from './pages/Onboarding.jsx';
 import useTaskReminders from './hooks/useTaskReminders.js';
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import GlobalBackground  from './components/GlobalBackground.jsx';
@@ -9,6 +8,8 @@ import MobileNav         from './components/MobileNav.jsx';
 import FocusBar          from './components/FocusBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
+import { useAuth }       from './context/AuthContext.jsx';
+import Onboarding, { isOnboarded } from './pages/Onboarding.jsx';
 import Login             from './pages/Login.jsx';
 import ForgotPassword    from './pages/ForgotPassword.jsx';
 import ResetPassword     from './pages/ResetPassword.jsx';
@@ -41,19 +42,17 @@ export default function App() {
 }
 
 function AppShell() {
-  const location  = useLocation();
-  const { user }  = useAuth();
+  const location            = useLocation();
+  const { user }            = useAuth();
   const [onboarded, setOnboarded] = useState(() => isOnboarded(user?.id));
 
   useTaskReminders();
 
   return (
     <div className="min-h-screen flex relative z-10">
-      {/* Onboarding overlay — sits on top, doesn't replace the app */}
       {!onboarded && (
-  <Onboarding user={user} onComplete={() => setOnboarded(true)} />
-)}
-
+        <Onboarding user={user} onComplete={() => setOnboarded(true)} />
+      )}
       <Sidebar />
       <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-10 pt-6 max-w-[1600px] mx-auto w-full">
         <motion.div
