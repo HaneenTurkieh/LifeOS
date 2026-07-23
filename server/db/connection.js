@@ -166,6 +166,17 @@ await db.execute(`CREATE TABLE IF NOT EXISTS user_equipped_tree (
   user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   tree_key TEXT NOT NULL DEFAULT 'seedling'
 )`);
+// ── Notifications ──────────────────────────────────────────────
+await db.execute(`CREATE TABLE IF NOT EXISTS notifications (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  link       TEXT DEFAULT NULL,
+  read       INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+)`);
 
   console.log('✅ Database connected and migrations applied.');
 }
