@@ -3,7 +3,8 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
-  BarChart3, Rocket, Sparkles, TreePine, Settings, GraduationCap,
+  BarChart3, Rocket, Sparkles, TreePine, Settings,
+  GraduationCap, CalendarDays,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
@@ -11,6 +12,7 @@ const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/history',   icon: Clock,           label: 'History'   },
   { to: '/tasks',     icon: ListChecks,      label: 'Tasks'     },
+  { to: '/calendar',  icon: CalendarDays,    label: 'Calendar'  },
   { to: '/goals',     icon: Target,          label: 'Goals'     },
   { to: '/learning',  icon: Timer,           label: 'Flow'      },
   { to: '/ai',        icon: Sparkles,        label: 'Lumi AI'   },
@@ -48,10 +50,9 @@ export default function Sidebar() {
         className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6"
         style={{ overflow: 'visible' }}
       >
-        {/* Top shimmer line */}
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
-        {/* Aurora logo — always TreePine, always the brand */}
+        {/* Logo */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
@@ -64,7 +65,7 @@ export default function Sidebar() {
           <TreePine size={20} />
         </motion.div>
 
-        {/* Nav items */}
+        {/* Nav */}
         <nav className="flex flex-col gap-1" style={{ overflow: 'visible' }}>
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink

@@ -4,22 +4,23 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
   MoreHorizontal, BarChart3, Timer, Rocket, TreePine,
-  GraduationCap, X, Settings,
+  GraduationCap, CalendarDays, X, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
-  { to: '/',          icon: LayoutDashboard, label: 'Home'  },
-  { to: '/tasks',     icon: ListChecks,      label: 'Tasks' },
-  { to: '/goals',     icon: Target,          label: 'Goals' },
-  { to: '/analytics', icon: BarChart3,       label: 'Stats' },
-  { to: '/ai',        icon: Sparkles,        label: 'Lumi'  },
+  { to: '/',          icon: LayoutDashboard, label: 'Home'     },
+  { to: '/tasks',     icon: ListChecks,      label: 'Tasks'    },
+  { to: '/calendar',  icon: CalendarDays,    label: 'Calendar' },
+  { to: '/goals',     icon: Target,          label: 'Goals'    },
+  { to: '/ai',        icon: Sparkles,        label: 'Lumi'     },
 ];
 
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,          label: 'History'   },
   { to: '/learning',  icon: Timer,          label: 'Flow'      },
   { to: '/exam',      icon: GraduationCap,  label: 'Exam AI'   },
+  { to: '/analytics', icon: BarChart3,      label: 'Stats'     },
   { to: '/launchpad', icon: Rocket,         label: 'Launchpad' },
   { to: '/trees',     icon: TreePine,       label: 'Tree Shop' },
 ];
@@ -69,7 +70,7 @@ export default function MobileNav() {
             </NavLink>
           ))}
 
-          {/* More button */}
+          {/* More */}
           <motion.button
             whileTap={{ scale: 0.90 }}
             onClick={() => setMoreOpen(true)}
@@ -106,6 +107,7 @@ export default function MobileNav() {
                   <X size={18} />
                 </button>
               </div>
+
               <div className="grid grid-cols-3 gap-3">
                 {MORE_ITEMS.map(({ to, icon: Icon, label }) => (
                   <NavLink
@@ -114,7 +116,8 @@ export default function MobileNav() {
                     onClick={() => setMoreOpen(false)}
                     className="flex flex-col items-center gap-2 rounded-2xl bg-ink/5 dark:bg-white/5 py-4 text-xs font-medium text-ink/70 dark:text-white/60"
                   >
-                    <Icon size={20} />{label}
+                    <Icon size={20} />
+                    {label}
                   </NavLink>
                 ))}
                 <button
