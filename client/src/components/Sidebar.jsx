@@ -1,3 +1,4 @@
+// Sidebar.jsx
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -52,17 +53,21 @@ export default function Sidebar() {
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
-        {/* Logo */}
+        {/* ✦ Logo mark — replaces TreePine */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-white"
+          className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-white shrink-0"
           style={{
             background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
-            boxShadow:  '0 8px 20px rgba(124,92,255,0.40)',
+            boxShadow:  '0 8px 20px rgba(124,92,255,0.45)',
+            fontSize:   20,
+            fontFamily: 'serif',
+            fontWeight: 700,
+            lineHeight: 1,
           }}
         >
-          <TreePine size={20} />
+          ✦
         </motion.div>
 
         {/* Nav */}
