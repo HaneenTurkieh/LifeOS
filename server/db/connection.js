@@ -48,6 +48,10 @@ async function initDb() {
       await db.execute(`ALTER TABLE ${table} ADD COLUMN user_id INTEGER`);
     }
   }
+  // ── Recurring tasks column ─────────────────────────────────────
+if (!(await hasColumn('tasks', 'recurrence'))) {
+  await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL`);
+}
 
   // ── Profile columns ────────────────────────────────────────────
 const PROFILE_COLS = ['avatar', 'gender', 'birthday', 'bio'];
