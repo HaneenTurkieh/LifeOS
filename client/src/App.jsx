@@ -88,8 +88,7 @@ function AppShell() {
       <Sidebar />
 
       {/* Content — pr-24 on desktop ensures nothing goes under the pill */}
-      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 lg:pr-24 pb-24 lg:pb-10 pt-6 max-w-[1600px] mx-auto w-full">
-        <motion.div
+      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 lg:pr-24 pb-24 lg:pb-10 pt-16 max-w-[1600px] mx-auto w-full">        <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
