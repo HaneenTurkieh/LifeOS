@@ -49,6 +49,14 @@ async function initDb() {
     }
   }
 
+  // ── Profile columns ────────────────────────────────────────────
+const PROFILE_COLS = ['avatar', 'gender', 'birthday', 'bio'];
+for (const col of PROFILE_COLS) {
+  if (!(await hasColumn('users', col))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT NULL`);
+  }
+}
+
   // ── Moods table rebuild ────────────────────────────────────────────────────
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([
