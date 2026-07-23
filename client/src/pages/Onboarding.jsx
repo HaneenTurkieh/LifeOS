@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks } from 'lucide-react';
 import { api } from '../api/client.js';
-import { useAuth } from '../context/AuthContext.jsx';
+
 
 // ── Mark onboarding done ──────────────────────────────────────
 export function markOnboarded(userId) {
@@ -345,7 +345,6 @@ function DoneStep({ name, onFinish }) {
 
 // ── Main Onboarding component ─────────────────────────────────
 export default function Onboarding({ onComplete }) {
-  const { user } = useAuth();
   const [step, setStep] = useState(0);
 
   const next = () => setStep((s) => s + 1);
