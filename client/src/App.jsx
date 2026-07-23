@@ -1,4 +1,5 @@
 import useTaskReminders from './hooks/useTaskReminders.js';
+import NotificationBell from './components/NotificationBell.jsx';
 import TreeShop from './pages/TreeShop.jsx';
 import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
@@ -75,6 +76,10 @@ function AppShell() {
       </main>
       <MobileNav />
       <FocusBar />
+      {/* Notification bell — fixed top right, always visible */}
+<div className="fixed top-5 right-5 z-50">
+  <NotificationBell />
+</div>
     </div>
   );
 }

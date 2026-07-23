@@ -6,7 +6,6 @@ import {
   BarChart3, Rocket, Sparkles, TreePine, Settings,
 } from 'lucide-react';
 import SettingsModal     from './SettingsModal.jsx';
-import NotificationBell  from './NotificationBell.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -27,11 +26,6 @@ export default function Sidebar() {
     <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6">
       <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6">
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
-
-        {/* Notification bell — top of sidebar */}
-        <div className="mb-2">
-          <NotificationBell />
-        </div>
 
         {/* Logo */}
         <motion.div
