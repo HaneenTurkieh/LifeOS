@@ -38,16 +38,16 @@ function ShortcutsModal({ onClose }) {
   const isMac  = navigator.platform?.includes('Mac');
 
   const SHORTCUTS = [
-    { key: 'D',                      desc: 'Go to Dashboard'  },
-    { key: 'T',                      desc: 'Go to Tasks'       },
-    { key: 'G',                      desc: 'Go to Goals'       },
-    { key: 'F',                      desc: 'Go to Flow timer'  },
-    { key: 'L',                      desc: 'Go to Lumi AI'     },
-    { key: 'A',                      desc: 'Go to Analytics'   },
-    { key: 'N',                      desc: 'New task'           },
-    { key: isMac ? '⌘K' : 'Ctrl+K', desc: 'Search anywhere'   },
-    { key: '?',                      desc: 'Show this panel'   },
-    { key: 'ESC',                    desc: 'Close / go back'   },
+    { key: 'D',                      desc: 'Dashboard'    },
+    { key: 'T',                      desc: 'Tasks'        },
+    { key: 'G',                      desc: 'Goals'        },
+    { key: 'F',                      desc: 'Flow timer'   },
+    { key: 'L',                      desc: 'Lumi AI'      },
+    { key: 'A',                      desc: 'Analytics'    },
+    { key: 'N',                      desc: 'New task'     },
+    { key: isMac ? '⌘K' : 'Ctrl+K', desc: 'Search'       },
+    { key: '?',                      desc: 'This panel'   },
+    { key: 'ESC',                    desc: 'Close'        },
   ];
 
   const panelBg     = isDark ? 'rgba(18,14,35,0.97)'              : 'rgba(255,255,255,0.97)';
@@ -60,9 +60,6 @@ function ShortcutsModal({ onClose }) {
   const kbdBorder   = isDark ? 'rgba(255,255,255,0.12)'           : 'rgba(30,34,51,0.10)';
   const kbdClr      = isDark ? 'text-white/45'                    : 'text-ink/50';
   const noteClr     = isDark ? 'text-white/25'                    : 'text-ink/30';
-  const closeClr    = isDark
-    ? 'text-white/40 hover:text-white/70'
-    : 'text-ink/40 hover:text-ink/70';
 
   return (
     <motion.div
@@ -72,9 +69,8 @@ function ShortcutsModal({ onClose }) {
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.94, y: 16 }}
-        animate={{ scale: 1,    y: 0  }}
-        exit={{    scale: 0.96, y: 8  }}
+        initial={{ scale: 0.94, y: 16 }} animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.96, y: 8 }}
         transition={{ type: 'spring', stiffness: 400, damping: 28 }}
         className="w-full max-w-sm rounded-3xl overflow-hidden"
         style={{
@@ -82,43 +78,33 @@ function ShortcutsModal({ onClose }) {
           backdropFilter:       'blur(40px)',
           WebkitBackdropFilter: 'blur(40px)',
           border:               panelBorder,
-          boxShadow:            isDark
-            ? '0 24px 64px rgba(0,0,0,0.55)'
-            : '0 24px 64px rgba(0,0,0,0.18)',
+          boxShadow:            isDark ? '0 24px 64px rgba(0,0,0,0.55)' : '0 24px 64px rgba(0,0,0,0.18)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: `1px solid ${divider}` }}>
-          <span className={`font-display font-bold text-sm ${titleClr}`}>
-            Keyboard shortcuts
-          </span>
+          <span className={`font-display font-bold text-sm ${titleClr}`}>Keyboard shortcuts</span>
           <button onClick={onClose}
-            className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${closeClr}`}>
+            className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${isDark ? 'text-white/40 hover:text-white/70' : 'text-ink/40 hover:text-ink/70'}`}>
             <X size={15} />
           </button>
         </div>
-
-        {/* Shortcuts list */}
         <div className="p-4 flex flex-col gap-0.5">
           {SHORTCUTS.map(({ key, desc }) => (
             <div key={key}
               className={`flex items-center justify-between px-3 py-2 rounded-xl transition ${rowHover}`}>
               <span className={`text-sm ${descClr}`}>{desc}</span>
-              <kbd
-                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold font-mono ${kbdClr}`}
-                style={{ background: kbdBg, border: `1px solid ${kbdBorder}` }}
-              >
+              <kbd className={`rounded-lg px-2.5 py-1 text-[11px] font-bold font-mono ${kbdClr}`}
+                style={{ background: kbdBg, border: `1px solid ${kbdBorder}` }}>
                 {key}
               </kbd>
             </div>
           ))}
         </div>
-
         <div className="px-6 pb-4">
           <p className={`text-[11px] text-center ${noteClr}`}>
-            Shortcuts are disabled when typing in a text field
+            Disabled when typing in a text field
           </p>
         </div>
       </motion.div>
@@ -163,50 +149,29 @@ function AppShell() {
   useEffect(() => {
     const isTyping = () => {
       const el = document.activeElement;
-      return el && (
-        el.tagName === 'INPUT'    ||
-        el.tagName === 'TEXTAREA' ||
-        el.tagName === 'SELECT'   ||
-        el.isContentEditable
-      );
+      return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
     };
 
     const handler = (e) => {
-      // ⌘K / Ctrl+K — always intercept
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen((o) => !o);
-        return;
-      }
-      // Skip all other shortcuts when typing
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen((o) => !o); return; }
       if (isTyping()) return;
-
       switch (e.key.toLowerCase()) {
-        case 'd':      navigate('/');          break;
-        case 't':      navigate('/tasks');     break;
-        case 'g':      navigate('/goals');     break;
-        case 'f':      navigate('/learning'); break;
-        case 'l':      navigate('/ai');        break;
-        case 'a':      navigate('/analytics'); break;
+        case 'd': navigate('/');          break;
+        case 't': navigate('/tasks');     break;
+        case 'g': navigate('/goals');     break;
+        case 'f': navigate('/learning');  break;
+        case 'l': navigate('/ai');        break;
+        case 'a': navigate('/analytics'); break;
         case 'n':
           window.dispatchEvent(new CustomEvent('aurora:new-task'));
           if (location.pathname !== '/tasks') navigate('/tasks');
           break;
-        case '/':
-          e.preventDefault();
-          setSearchOpen(true);
-          break;
-        case '?':
-          setShortcutsOpen((o) => !o);
-          break;
-        case 'escape':
-          setSearchOpen(false);
-          setShortcutsOpen(false);
-          break;
+        case '/':   e.preventDefault(); setSearchOpen(true); break;
+        case '?':   setShortcutsOpen((o) => !o); break;
+        case 'escape': setSearchOpen(false); setShortcutsOpen(false); break;
         default: break;
       }
     };
-
     const customSearch = () => setSearchOpen(true);
     window.addEventListener('keydown', handler);
     window.addEventListener('aurora:search', customSearch);
@@ -216,7 +181,7 @@ function AppShell() {
     };
   }, [navigate, location.pathname]);
 
-  // One-time search tip
+  // One-time tip
   useEffect(() => {
     if (!user?.id) return;
     const key = `aurora_search_hint_${user.id}`;
@@ -229,16 +194,20 @@ function AppShell() {
     }
   }, [user?.id]); // eslint-disable-line
 
-  // ── Pill styles ───────────────────────────────────────────────
+  // ── Pill style — theme aware ──────────────────────────────────
   const pillStyle = {
-    background:           isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.72)',
-    border:               isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(255,255,255,0.80)',
+    background:           isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.75)',
+    border:               isDark ? '1px solid rgba(255,255,255,0.11)' : '1px solid rgba(255,255,255,0.85)',
     backdropFilter:       'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
     boxShadow:            isDark
-      ? 'inset 0 1px 0 rgba(255,255,255,0.08)'
-      : '0 4px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.90)',
+      ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 12px rgba(0,0,0,0.25)'
+      : 'inset 0 1px 0 rgba(255,255,255,0.95), 0 2px 12px rgba(0,0,0,0.06)',
   };
+
+  const iconClr = isDark ? 'text-white/45' : 'text-ink/50';
+  const kbdClr  = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(30,34,51,0.28)';
+  const divClr  = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)';
 
   return (
     <div className="min-h-screen flex relative z-10">
@@ -273,57 +242,51 @@ function AppShell() {
       <MobileNav />
       <FocusBar />
 
-      {/* ── Floating pill — unified for all screen sizes ─────────── */}
-<div
-  className="fixed top-4 right-4 z-50 flex items-center rounded-2xl"
-  style={{ ...pillStyle, padding: '6px 8px', gap: 4 }}
->
-  <motion.button
-    whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
-    onClick={() => setSearchOpen(true)}
-    title="Search"
-    className="flex items-center justify-center gap-1.5 rounded-xl px-2 py-1.5"
-    style={{ minWidth: 32, minHeight: 32 }}
-  >
-    <Search size={15} className={isDark ? 'text-white/45' : 'text-ink/50'} />
-    <kbd
-      className="hidden lg:block text-[10px] font-bold whitespace-nowrap"
-      style={{ color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(30,34,51,0.30)' }}
-    >
-      {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
-    </kbd>
-  </motion.button>
-
-  <div style={{ width: 1, height: 20, flexShrink: 0, background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)' }} />
-
-  <NotificationBell />
-</div>
-
-{/* DELETE the separate mobile search button entirely */}
-
-      {/* Mobile search button */}
-      <motion.button
-        whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
-        onClick={() => setSearchOpen(true)}
-        className="fixed top-5 right-20 z-50 flex h-10 w-10 items-center justify-center rounded-2xl transition-all lg:hidden"
-        style={pillStyle}
+      {/* ── Unified pill — search + divider + bell ────────────── */}
+      {/* Single element, same on mobile and desktop              */}
+      <div
+        className="fixed top-4 right-4 z-50 flex items-center"
+        style={{
+          ...pillStyle,
+          borderRadius: 18,
+          padding:      '5px 6px',
+          gap:          4,
+        }}
       >
-        <Search size={16} className={isDark ? 'text-white/50' : 'text-ink/55'} />
-      </motion.button>
+        {/* Search button */}
+        <motion.button
+          whileTap={{ scale: 0.94 }}
+          onClick={() => setSearchOpen(true)}
+          title="Search"
+          className={`flex items-center gap-1.5 rounded-xl transition-colors ${iconClr}`}
+          style={{ padding: '5px 8px', minHeight: 34 }}
+        >
+          <Search size={15} strokeWidth={2} />
+          {/* Shortcut hint — desktop only */}
+          <span
+            className="hidden lg:block text-[10px] font-bold font-mono whitespace-nowrap"
+            style={{ color: kbdClr }}
+          >
+            {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
+          </span>
+        </motion.button>
 
-      {/* Shortcuts hint — bottom right desktop only */}
+        {/* Divider */}
+        <div style={{ width: 1, height: 18, background: divClr, flexShrink: 0 }} />
+
+        {/* Bell */}
+        <NotificationBell />
+      </div>
+
+      {/* Shortcuts hint — desktop only */}
       <button
         onClick={() => setShortcutsOpen(true)}
         className="hidden lg:flex fixed bottom-6 right-6 z-40 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-all"
-        style={{
-          ...pillStyle,
-          color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(30,34,51,0.30)',
-        }}
+        style={{ ...pillStyle, borderRadius: 12, color: kbdClr }}
       >
         <kbd>?</kbd> shortcuts
       </button>
 
-      {/* Modals */}
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <AnimatePresence>
         {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
