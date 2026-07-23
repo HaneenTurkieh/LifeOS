@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search } from 'lucide-react';
 
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
 import FocusBar          from './components/FocusBar.jsx';
+import TopBar            from './components/TopBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
@@ -28,7 +28,6 @@ import History        from './pages/History.jsx';
 import TreeShop       from './pages/TreeShop.jsx';
 import NotFound       from './pages/NotFound.jsx';
 
-// ── Root ──────────────────────────────────────────────────────
 export default function App() {
   return (
     <FocusProvider>
@@ -47,17 +46,15 @@ export default function App() {
   );
 }
 
-// ── AppShell ──────────────────────────────────────────────────
 function AppShell() {
   const location = useLocation();
   const { user } = useAuth();
   const toast    = useToast();
-
   const [searchOpen, setSearchOpen] = useState(false);
 
   useTaskReminders();
 
-  // Cmd+K / Ctrl+K
+  // ⌘K / Ctrl+K
   useEffect(() => {
     const keyHandler    = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -66,7 +63,6 @@ function AppShell() {
       }
     };
     const customHandler = () => setSearchOpen(true);
-
     window.addEventListener('keydown', keyHandler);
     window.addEventListener('aurora:search', customHandler);
     return () => {
@@ -75,7 +71,7 @@ function AppShell() {
     };
   }, []);
 
-  // One-time search tip
+  // One-time tip
   useEffect(() => {
     if (!user?.id) return;
     const key = `aurora_search_hint_${user.id}`;
@@ -90,9 +86,13 @@ function AppShell() {
 
   return (
     <div className="min-h-screen flex relative z-10">
+      {/* Top bar — fixed, full width */}
+      <TopBar onSearchOpen={() => setSearchOpen(true)} />
+
       <Sidebar />
 
-      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-10 pt-6 max-w-[1600px] mx-auto w-full">
+      {/* pt-14 pushes content below the top bar */}
+      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-10 pt-20 max-w-[1600px] mx-auto w-full">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}
@@ -119,25 +119,6 @@ function AppShell() {
 
       <MobileNav />
       <FocusBar />
-
-      {/* Mobile only — search button top-right */}
-      <motion.button
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.94 }}
-        onClick={() => setSearchOpen(true)}
-        title="Search"
-        className="fixed top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-2xl lg:hidden"
-        style={{
-          background:           'rgba(255,255,255,0.65)',
-          border:               '1px solid rgba(255,255,255,0.75)',
-          backdropFilter:       'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow:            '0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.90)',
-        }}
-      >
-        <Search size={16} className="text-ink/60" />
-      </motion.button>
-
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
