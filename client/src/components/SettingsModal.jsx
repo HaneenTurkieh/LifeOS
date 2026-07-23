@@ -19,8 +19,17 @@ function Avatar({ user, size = 56, onClick }) {
     return (
       <img
         src={user.avatar} alt={user.name} onClick={onClick}
-        className="rounded-2xl object-cover cursor-pointer shrink-0"
-        style={{ width: size, height: size }}
+        className="rounded-2xl cursor-pointer"
+        style={{
+          width:     size,
+          height:    size,
+          minWidth:  size,
+          minHeight: size,
+          objectFit: 'cover',
+          objectPosition: 'center',
+          flexShrink: 0,
+          display: 'block',
+        }}
       />
     );
   }
