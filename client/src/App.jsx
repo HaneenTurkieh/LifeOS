@@ -273,29 +273,28 @@ function AppShell() {
       <MobileNav />
       <FocusBar />
 
-      {/* ── Floating pill — same on mobile and desktop ─────────── */}
+      {/* ── Floating pill — unified for all screen sizes ─────────── */}
 <div
-  className="fixed top-5 right-5 z-50 flex items-center gap-1.5 rounded-2xl px-2 py-1.5"
-  style={pillStyle}
+  className="fixed top-4 right-4 z-50 flex items-center rounded-2xl"
+  style={{ ...pillStyle, padding: '6px 8px', gap: 4 }}
 >
   <motion.button
     whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
     onClick={() => setSearchOpen(true)}
     title="Search"
-    className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 transition-colors"
+    className="flex items-center justify-center gap-1.5 rounded-xl px-2 py-1.5"
+    style={{ minWidth: 32, minHeight: 32 }}
   >
-    <Search size={14} className={isDark ? 'text-white/40' : 'text-ink/45'} />
-    {/* ⌘K hint — desktop only */}
+    <Search size={15} className={isDark ? 'text-white/45' : 'text-ink/50'} />
     <kbd
-      className="hidden lg:block text-[10px] font-bold"
+      className="hidden lg:block text-[10px] font-bold whitespace-nowrap"
       style={{ color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(30,34,51,0.30)' }}
     >
       {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
     </kbd>
   </motion.button>
 
-  <div className="w-px h-5"
-    style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)' }} />
+  <div style={{ width: 1, height: 20, flexShrink: 0, background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)' }} />
 
   <NotificationBell />
 </div>

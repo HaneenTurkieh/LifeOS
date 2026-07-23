@@ -96,22 +96,22 @@ const TOOLS = [
   },
   {
     name: 'get_focus_history',
-    description: 'Analyze the user\'s focus session history to find patterns — best days, best times, longest streaks, and productivity insights.',
+    description: 'Analyze focus session history — best days, times, patterns, insights.',
     input_schema: {
       type: 'object',
       properties: {
-        period: { type: 'string', enum: ['week','month','all'], description: 'Time period to analyze' },
+        period: { type: 'string', enum: ['week','month','all'] },
       },
     },
   },
   {
     name: 'save_memory',
-    description: 'Save an important fact about the user for future conversations. Use when the user shares preferences, personal info, or anything worth remembering long-term.',
+    description: 'Save an important fact about the user for future conversations.',
     input_schema: {
       type: 'object',
       properties: {
-        key:   { type: 'string', description: 'Short identifier e.g. "study_field", "wake_time"' },
-        value: { type: 'string', description: 'The fact to remember' },
+        key:   { type: 'string' },
+        value: { type: 'string' },
       },
       required: ['key','value'],
     },
@@ -248,18 +248,86 @@ async function executeTool(name, input, userId) {
         ({ high:0, medium:1, low:2 }[a.priority]||1) - ({ high:0, medium:1, low:2 }[b.priority]||1)
       );
       const plan = sorted.slice(0, Math.min(Math.floor(hours * 1.5), sorted.length)).map((t, i) => ({
-        slot:      i + 1,
-        title:     t.title,
-        priority:  t.priority,
+        slot: i+1, title: t.title, priority: t.priority,
         estimated: t.priority === 'high' ? '60-90 min' : '30-45 min',
       }));
       return { available_hours: hours, energy, plan };
     }
 
+    case 'get_focus_history': {
+      const period = input.period || 'month';
+      const filter = period === 'week'
+        ? `date('now','-7 days')`
+        : period === 'month'
+        ? `date('now','-30 days')`
+        : `date('now','-365 days')`;
+
+      const [sessions, byDay, byHour, streak] = await Promise.all([
+        db.execute({
+          sql: `SELECT COUNT(*) total_sessions, COALESCE(SUM(duration_minutes),0) total_minutes,
+                       COALESCE(AVG(duration_minutes),0) avg_minutes, COALESCE(MAX(duration_minutes),0) longest_session
+                FROM focus_sessions WHERE user_id=? AND date(completed_at)>=${filter}`,
+          args: [userId],
+        }),
+        db.execute({
+          sql: `SELECT CASE strftime('%w', completed_at)
+                  WHEN '0' THEN 'Sunday' WHEN '1' THEN 'Monday' WHEN '2' THEN 'Tuesday'
+                  WHEN '3' THEN 'Wednesday' WHEN '4' THEN 'Thursday' WHEN '5' THEN 'Friday'
+                  WHEN '6' THEN 'Saturday' END as day,
+                COUNT(*) sessions, COALESCE(SUM(duration_minutes),0) minutes
+                FROM focus_sessions WHERE user_id=? AND date(completed_at)>=${filter}
+                GROUP BY strftime('%w', completed_at) ORDER BY minutes DESC`,
+          args: [userId],
+        }),
+        db.execute({
+          sql: `SELECT CAST(strftime('%H', completed_at) AS INTEGER) as hour,
+                COUNT(*) sessions, COALESCE(SUM(duration_minutes),0) minutes
+                FROM focus_sessions WHERE user_id=? AND date(completed_at)>=${filter}
+                GROUP BY strftime('%H', completed_at) ORDER BY minutes DESC LIMIT 5`,
+          args: [userId],
+        }),
+        db.execute({
+          sql: `SELECT COUNT(DISTINCT date(completed_at)) streak_days FROM focus_sessions
+                WHERE user_id=? AND date(completed_at) >= date('now','-30 days')`,
+          args: [userId],
+        }),
+      ]);
+
+      const s        = sessions.rows[0];
+      const bestDay  = byDay.rows[0];
+      const bestHour = byHour.rows[0];
+
+      const formatHour = (h) => {
+        if (h === null || h === undefined) return 'unknown';
+        const hr = Number(h);
+        if (hr === 0)  return '12 AM';
+        if (hr < 12)  return `${hr} AM`;
+        if (hr === 12) return '12 PM';
+        return `${hr - 12} PM`;
+      };
+
+      return {
+        period,
+        total_sessions:   Number(s.total_sessions),
+        total_minutes:    Number(s.total_minutes),
+        total_hours:      Math.round(Number(s.total_minutes) / 60 * 10) / 10,
+        avg_session_mins: Math.round(Number(s.avg_minutes)),
+        longest_session:  Number(s.longest_session),
+        best_day:         bestDay?.day || 'Not enough data',
+        best_day_minutes: Number(bestDay?.minutes || 0),
+        best_time_of_day: formatHour(bestHour?.hour),
+        days_with_focus:  Number(streak.rows[0]?.streak_days || 0),
+        by_day:           byDay.rows,
+        top_hours:        byHour.rows.map(r => ({ ...r, hour_label: formatHour(r.hour) })),
+        insight: Number(s.total_sessions) === 0
+          ? 'No focus sessions yet. Start your first session in the Flow tab!'
+          : `You focus best on ${bestDay?.day || 'weekdays'}, typically around ${formatHour(bestHour?.hour)}. You've logged ${Math.round(Number(s.total_minutes)/60*10)/10} hours of deep work this ${period}.`,
+      };
+    }
+
     case 'save_memory': {
       await db.execute({
-        sql:  `INSERT INTO lumi_memory (user_id, key, value, updated_at)
-               VALUES (?, ?, ?, datetime('now'))
+        sql:  `INSERT INTO lumi_memory (user_id, key, value, updated_at) VALUES (?, ?, ?, datetime('now'))
                ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')`,
         args: [userId, input.key, input.value],
       });
@@ -273,100 +341,6 @@ async function executeTool(name, input, userId) {
       });
       return { success: true, deleted: input.key };
     }
-    case 'get_focus_history': {
-      const period = input.period || 'month';
-      const filter = period === 'week'
-        ? `date('now','-7 days')`
-        : period === 'month'
-        ? `date('now','-30 days')`
-        : `date('now','-365 days')`;
-    
-      const [sessions, byDay, byHour, streak] = await Promise.all([
-        // Overall stats
-        db.execute({
-          sql: `SELECT
-                  COUNT(*) total_sessions,
-                  COALESCE(SUM(duration_minutes),0) total_minutes,
-                  COALESCE(AVG(duration_minutes),0) avg_minutes,
-                  COALESCE(MAX(duration_minutes),0) longest_session
-                FROM focus_sessions
-                WHERE user_id=? AND date(completed_at)>=${filter}`,
-          args: [userId],
-        }),
-        // By day of week
-        db.execute({
-          sql: `SELECT
-                  CASE strftime('%w', completed_at)
-                    WHEN '0' THEN 'Sunday'
-                    WHEN '1' THEN 'Monday'
-                    WHEN '2' THEN 'Tuesday'
-                    WHEN '3' THEN 'Wednesday'
-                    WHEN '4' THEN 'Thursday'
-                    WHEN '5' THEN 'Friday'
-                    WHEN '6' THEN 'Saturday'
-                  END as day,
-                  COUNT(*) sessions,
-                  COALESCE(SUM(duration_minutes),0) minutes
-                FROM focus_sessions
-                WHERE user_id=? AND date(completed_at)>=${filter}
-                GROUP BY strftime('%w', completed_at)
-                ORDER BY minutes DESC`,
-          args: [userId],
-        }),
-        // By hour of day
-        db.execute({
-          sql: `SELECT
-                  CAST(strftime('%H', completed_at) AS INTEGER) as hour,
-                  COUNT(*) sessions,
-                  COALESCE(SUM(duration_minutes),0) minutes
-                FROM focus_sessions
-                WHERE user_id=? AND date(completed_at)>=${filter}
-                GROUP BY strftime('%H', completed_at)
-                ORDER BY minutes DESC
-                LIMIT 5`,
-          args: [userId],
-        }),
-        // Current streak
-        db.execute({
-          sql: `SELECT COUNT(DISTINCT date(completed_at)) streak_days
-                FROM focus_sessions
-                WHERE user_id=?
-                AND date(completed_at) >= date('now','-30 days')`,
-          args: [userId],
-        }),
-      ]);
-    
-      const s      = sessions.rows[0];
-      const bestDay = byDay.rows[0];
-      const bestHour = byHour.rows[0];
-    
-      const formatHour = (h) => {
-        if (h === null || h === undefined) return 'unknown';
-        const hour = Number(h);
-        if (hour === 0)  return '12 AM';
-        if (hour < 12)  return `${hour} AM`;
-        if (hour === 12) return '12 PM';
-        return `${hour - 12} PM`;
-      };
-    
-      return {
-        period,
-        total_sessions:   Number(s.total_sessions),
-        total_minutes:    Number(s.total_minutes),
-        total_hours:      Math.round(Number(s.total_minutes) / 60 * 10) / 10,
-        avg_session_mins: Math.round(Number(s.avg_minutes)),
-        longest_session:  Number(s.longest_session),
-        best_day:         bestDay?.day || 'Not enough data',
-        best_day_minutes: Number(bestDay?.minutes || 0),
-        best_time_of_day: formatHour(bestDay ? byHour.rows[0]?.hour : null),
-        days_with_focus:  Number(streak.rows[0]?.streak_days || 0),
-        by_day:           byDay.rows,
-        top_hours:        byHour.rows.map(r => ({ ...r, hour_label: formatHour(r.hour) })),
-        insight: Number(s.total_sessions) === 0
-          ? 'No focus sessions yet. Start your first session in the Flow tab!'
-          : `You focus best on ${bestDay?.day || 'weekdays'}, typically around ${formatHour(byHour.rows[0]?.hour)}. You've logged ${Math.round(Number(s.total_minutes)/60 * 10)/10} hours of deep work this ${period}.`,
-      };
-    }
 
     default:
       return { error: `Unknown tool: ${name}` };
@@ -379,11 +353,12 @@ async function generateTitle(firstUserMessage) {
   return words.length > 40 ? words.slice(0, 40) + '…' : words;
 }
 
-// ── System prompt with mood personality ───────────────────────
+// ── System prompt ──────────────────────────────────────────────
 async function buildSystemPrompt(userId) {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const [tasks, goals, habits, mood, focus, xp, memories] = await Promise.all([
+
+    const [tasks, goals, habits, mood, focus, xp, memories, profile] = await Promise.all([
       db.execute({ sql: `SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, args: [userId] }),
       db.execute({ sql: `SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, args: [userId] }),
       db.execute({ sql: `SELECT name,streak FROM habits WHERE user_id=? LIMIT 6`, args: [userId] }),
@@ -391,6 +366,8 @@ async function buildSystemPrompt(userId) {
       db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, args: [userId] }),
       db.execute({ sql: `SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, args: [userId] }),
       db.execute({ sql: `SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, args: [userId] }),
+      // ── NEW: fetch profile ─────────────────────────────────────
+      db.execute({ sql: `SELECT name, gender, birthday, bio FROM users WHERE id=?`, args: [userId] }),
     ]);
 
     const taskList   = tasks.rows.map(t => `• ${t.title} [${t.priority}${t.deadline ? ` · due ${t.deadline}` : ''}]`).join('\n') || 'None';
@@ -400,35 +377,42 @@ async function buildSystemPrompt(userId) {
       ? memories.rows.map(m => `• ${m.key}: ${m.value}`).join('\n')
       : 'None yet';
 
-    // ── Mood-based personality ─────────────────────────────────
+    // ── Profile context ────────────────────────────────────────
+    const p          = profile.rows[0] || {};
+    const profileAge = p.birthday
+      ? new Date().getFullYear() - Number(p.birthday.split('-')[0])
+      : null;
+    const profileContext = [
+      p.gender   ? `Gender: ${p.gender}`          : null,
+      profileAge ? `Age: ${profileAge} years old`  : null,
+      p.bio      ? `Bio: "${p.bio}"`               : null,
+    ].filter(Boolean).join('\n') || 'Not provided';
+
+    // ── Mood personality ───────────────────────────────────────
     const moodValue = mood.rows[0] ? Number(mood.rows[0].mood) : null;
     const moodLabel = moodValue
       ? ['', 'Rough (1/5)', 'Meh (2/5)', 'Okay (3/5)', 'Good (4/5)', 'Great (5/5)'][moodValue]
       : 'Not logged yet';
 
-    const moodPersonality = moodValue === null
-      ? ''
+    const moodPersonality = moodValue === null ? ''
       : moodValue <= 2
       ? `MOOD ALERT: The user is having a rough day (${moodLabel}).
-— Open with genuine empathy before anything else. Acknowledge how they feel first.
+— Open with genuine empathy before anything else.
 — Suggest only 1-2 small, achievable tasks. Never overwhelm them.
 — Avoid ambitious goal-setting or performance reviews today.
-— Be warm, human, and supportive — not a productivity robot.
-— If they seem stressed, suggest a short Flow session or a break.`
+— Be warm and supportive — not a productivity robot.`
       : moodValue === 3
-      ? `MOOD CONTEXT: The user is feeling okay today (${moodLabel}).
-— Keep a balanced, steady tone.
-— Suggest consistent progress over big pushes.
-— Be encouraging but realistic.`
-      : `MOOD CONTEXT: The user is feeling great today (${moodLabel})!
+      ? `MOOD CONTEXT: Feeling okay today (${moodLabel}). Balanced, steady tone.`
+      : `MOOD CONTEXT: Feeling great today (${moodLabel})!
 — Match their positive energy. Be upbeat and enthusiastic.
-— This is a great day to suggest ambitious goals or tackle hard tasks.
-— Celebrate their wins, encourage them to keep the momentum going.
-— Suggest a focus session to make the most of this energy.`;
+— Suggest ambitious actions and celebrate wins.`;
 
     return `You are Lumi ✦, the intelligent productivity assistant built into Aurora — a personal life OS.
 
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
+
+USER PROFILE:
+${profileContext}
 
 WHAT YOU REMEMBER ABOUT THIS USER:
 ${memoryList}
@@ -451,8 +435,9 @@ ${moodPersonality}
 
 INSTRUCTIONS:
 - You are concise, warm, and action-oriented. Never verbose.
+- Use the user's profile (gender, age, bio) to personalise your tone and suggestions naturally.
 - When asked to create a task, goal, or take any action — use the tool immediately.
-- Use save_memory when the user shares anything personal worth remembering long-term.
+- Use save_memory when the user shares anything personal worth remembering.
 - Reference memory naturally — don't announce that you remember, just use it.
 - After taking an action, confirm briefly in 1-2 sentences.
 - Keep responses short unless the user asks for detail.
@@ -483,7 +468,6 @@ router.get('/conversations/:id', async (req, res) => {
       args: [req.params.id, req.user.id],
     });
     if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
-
     const msgs = await db.execute({
       sql:  `SELECT role, content, actions_json FROM lumi_messages WHERE conversation_id=? ORDER BY created_at ASC`,
       args: [req.params.id],
@@ -546,29 +530,16 @@ router.post('/', async (req, res) => {
     let finalText = '';
     const actions = [];
 
-    // ── Agentic loop (max 6 iterations) ───────────────────────
     for (let i = 0; i < 6; i++) {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method:  'POST',
-        headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         key,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model:      MODEL,
-          max_tokens: 1024,
-          system,
-          tools:      TOOLS,
-          messages:   currentMessages,
-        }),
+        headers: { 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01' },
+        body: JSON.stringify({ model: MODEL, max_tokens: 1024, system, tools: TOOLS, messages: currentMessages }),
       });
-
       const data = await r.json();
       if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
 
       const toolUses = data.content.filter(c => c.type === 'tool_use');
-
       if (!toolUses.length) {
         finalText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
         break;
@@ -580,7 +551,6 @@ router.post('/', async (req, res) => {
         actions.push({ tool: tu.name, input: tu.input, result });
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
       }
-
       currentMessages = [
         ...currentMessages,
         { role: 'assistant', content: data.content },
@@ -590,9 +560,8 @@ router.post('/', async (req, res) => {
 
     const responseText = finalText || "Done! Let me know if you need anything else.";
 
-    // ── Persist conversation ───────────────────────────────────
+    // ── Persist ────────────────────────────────────────────────
     let convId = conversation_id;
-
     if (!convId) {
       const firstMsg   = messages.find(m => m.role === 'user')?.content || 'New conversation';
       const title      = await generateTitle(firstMsg);
@@ -601,7 +570,6 @@ router.post('/', async (req, res) => {
         args: [req.user.id, title],
       });
       convId = Number(convResult.lastInsertRowid);
-
       for (const msg of messages) {
         await db.execute({
           sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
@@ -622,7 +590,6 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Save Lumi's response
     await db.execute({
       sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, 'assistant', ?, ?)`,
       args: [convId, responseText, JSON.stringify(actions)],

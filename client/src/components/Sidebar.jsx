@@ -6,6 +6,7 @@ import {
   BarChart3, Rocket, Sparkles, TreePine, Settings, GraduationCap,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
+import { useAuth }   from '../context/AuthContext.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -22,6 +23,7 @@ const NAV = [
 
 export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { user } = useAuth();
 
   return (
     <aside
@@ -34,13 +36,42 @@ export default function Sidebar() {
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
-        {/* Logo */}
+        {/* Logo / Avatar */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-aurora-violet to-aurora-indigo text-white shadow-[0_8px_20px_rgba(124,92,255,0.4)]"
+          className="mb-3 shrink-0"
+          style={{ width: 40, height: 40 }}
         >
-          <TreePine size={20} />
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              style={{
+                width:          40,
+                height:         40,
+                minWidth:       40,
+                minHeight:      40,
+                borderRadius:   14,
+                objectFit:      'cover',
+                objectPosition: 'center',
+                display:        'block',
+                boxShadow:      '0 8px 20px rgba(124,92,255,0.40)',
+              }}
+            />
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-2xl text-white font-bold text-sm"
+              style={{
+                width:      40,
+                height:     40,
+                background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
+                boxShadow:  '0 8px 20px rgba(124,92,255,0.40)',
+              }}
+            >
+              {user?.name?.[0]?.toUpperCase() || '✦'}
+            </div>
+          )}
         </motion.div>
 
         {/* Nav */}
@@ -97,12 +128,7 @@ export default function Sidebar() {
                   {/* Tooltip */}
                   <span
                     className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
-                    style={{
-                      left:      '3.25rem',
-                      top:       '50%',
-                      transform: 'translateY(-50%)',
-                      zIndex:    9999,
-                    }}
+                    style={{ left: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
                   >
                     {label}
                   </span>
@@ -138,12 +164,7 @@ export default function Sidebar() {
             />
             <span
               className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
-              style={{
-                left:      '3.25rem',
-                top:       '50%',
-                transform: 'translateY(-50%)',
-                zIndex:    9999,
-              }}
+              style={{ left: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
             >
               Settings
             </span>
