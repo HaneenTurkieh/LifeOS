@@ -23,7 +23,7 @@ export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6 pt-20">
+    <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6">
       <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6">
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
@@ -94,7 +94,7 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        {/* Settings — only utility in sidebar */}
+        {/* Settings only */}
         <div className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
           <motion.button
             whileHover={{ y: -4, scale: 1.18, transition: { type: 'spring', stiffness: 500, damping: 22 } }}
