@@ -95,6 +95,16 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_focus_history',
+    description: 'Analyze the user\'s focus session history to find patterns — best days, best times, longest streaks, and productivity insights.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['week','month','all'], description: 'Time period to analyze' },
+      },
+    },
+  },
+  {
     name: 'save_memory',
     description: 'Save an important fact about the user for future conversations. Use when the user shares preferences, personal info, or anything worth remembering long-term.',
     input_schema: {
@@ -262,6 +272,100 @@ async function executeTool(name, input, userId) {
         args: [userId, input.key],
       });
       return { success: true, deleted: input.key };
+    }
+    case 'get_focus_history': {
+      const period = input.period || 'month';
+      const filter = period === 'week'
+        ? `date('now','-7 days')`
+        : period === 'month'
+        ? `date('now','-30 days')`
+        : `date('now','-365 days')`;
+    
+      const [sessions, byDay, byHour, streak] = await Promise.all([
+        // Overall stats
+        db.execute({
+          sql: `SELECT
+                  COUNT(*) total_sessions,
+                  COALESCE(SUM(duration_minutes),0) total_minutes,
+                  COALESCE(AVG(duration_minutes),0) avg_minutes,
+                  COALESCE(MAX(duration_minutes),0) longest_session
+                FROM focus_sessions
+                WHERE user_id=? AND date(completed_at)>=${filter}`,
+          args: [userId],
+        }),
+        // By day of week
+        db.execute({
+          sql: `SELECT
+                  CASE strftime('%w', completed_at)
+                    WHEN '0' THEN 'Sunday'
+                    WHEN '1' THEN 'Monday'
+                    WHEN '2' THEN 'Tuesday'
+                    WHEN '3' THEN 'Wednesday'
+                    WHEN '4' THEN 'Thursday'
+                    WHEN '5' THEN 'Friday'
+                    WHEN '6' THEN 'Saturday'
+                  END as day,
+                  COUNT(*) sessions,
+                  COALESCE(SUM(duration_minutes),0) minutes
+                FROM focus_sessions
+                WHERE user_id=? AND date(completed_at)>=${filter}
+                GROUP BY strftime('%w', completed_at)
+                ORDER BY minutes DESC`,
+          args: [userId],
+        }),
+        // By hour of day
+        db.execute({
+          sql: `SELECT
+                  CAST(strftime('%H', completed_at) AS INTEGER) as hour,
+                  COUNT(*) sessions,
+                  COALESCE(SUM(duration_minutes),0) minutes
+                FROM focus_sessions
+                WHERE user_id=? AND date(completed_at)>=${filter}
+                GROUP BY strftime('%H', completed_at)
+                ORDER BY minutes DESC
+                LIMIT 5`,
+          args: [userId],
+        }),
+        // Current streak
+        db.execute({
+          sql: `SELECT COUNT(DISTINCT date(completed_at)) streak_days
+                FROM focus_sessions
+                WHERE user_id=?
+                AND date(completed_at) >= date('now','-30 days')`,
+          args: [userId],
+        }),
+      ]);
+    
+      const s      = sessions.rows[0];
+      const bestDay = byDay.rows[0];
+      const bestHour = byHour.rows[0];
+    
+      const formatHour = (h) => {
+        if (h === null || h === undefined) return 'unknown';
+        const hour = Number(h);
+        if (hour === 0)  return '12 AM';
+        if (hour < 12)  return `${hour} AM`;
+        if (hour === 12) return '12 PM';
+        return `${hour - 12} PM`;
+      };
+    
+      return {
+        period,
+        total_sessions:   Number(s.total_sessions),
+        total_minutes:    Number(s.total_minutes),
+        total_hours:      Math.round(Number(s.total_minutes) / 60 * 10) / 10,
+        avg_session_mins: Math.round(Number(s.avg_minutes)),
+        longest_session:  Number(s.longest_session),
+        best_day:         bestDay?.day || 'Not enough data',
+        best_day_minutes: Number(bestDay?.minutes || 0),
+        best_time_of_day: formatHour(bestDay ? byHour.rows[0]?.hour : null),
+        days_with_focus:  Number(streak.rows[0]?.streak_days || 0),
+        by_day:           byDay.rows,
+        top_hours:        byHour.rows.map(r => ({ ...r, hour_label: formatHour(r.hour) })),
+        insight: Number(s.total_sessions) === 0
+          ? 'No focus sessions yet. Start your first session in the Flow tab!'
+          : `You focus best on ${bestDay?.day || 'weekdays'}, typically around ${formatHour(byHour.rows[0]?.hour)}. You've logged ${Math.round(Number(s.total_minutes)/60 * 10)/10} hours of deep work this ${period}.`,
+      };
     }
 
     default:
