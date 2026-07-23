@@ -19,17 +19,18 @@ router.get('/today', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { mood, note = '', date = todayIso() } = req.body;
-    if (!mood || mood < 1 || mood > 5) return res.status(400).json({ error: 'mood must be 1-5' });
-    const existingResult = await db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [req.user.id, date] });
-    if (existingResult.rows[0]) {
-      await db.execute({ sql: `UPDATE moods SET mood = ?, note = ? WHERE user_id = ? AND date = ?`, args: [mood, note, req.user.id, date] });
-    } else {
-      await db.execute({ sql: `INSERT INTO moods (user_id, date, mood, note) VALUES (?, ?, ?, ?)`, args: [req.user.id, date, mood, note] });
-    }
-    const result = await db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [req.user.id, date] });
-    res.json(result.rows[0]);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+    const { mood, note = '', date } = req.body;
+    // Use client-sent date if provided, fall back to UTC
+    const today = date || new Date().toISOString().slice(0, 10);
+    await db.execute({
+      sql:  `INSERT INTO moods (user_id, date, mood, note)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(user_id, date)
+             DO UPDATE SET mood=excluded.mood, note=excluded.note`,
+      args: [req.user.id, today, mood, note],
+    });
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 module.exports = router;
