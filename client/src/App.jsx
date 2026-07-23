@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Search } from 'lucide-react';
 
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
 import FocusBar          from './components/FocusBar.jsx';
-import TopBar            from './components/TopBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
+import NotificationBell  from './components/NotificationBell.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
 import { useToast }      from './context/ToastContext.jsx';
@@ -54,7 +55,6 @@ function AppShell() {
 
   useTaskReminders();
 
-  // ⌘K / Ctrl+K
   useEffect(() => {
     const keyHandler    = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -71,7 +71,6 @@ function AppShell() {
     };
   }, []);
 
-  // One-time tip
   useEffect(() => {
     if (!user?.id) return;
     const key = `aurora_search_hint_${user.id}`;
@@ -86,13 +85,10 @@ function AppShell() {
 
   return (
     <div className="min-h-screen flex relative z-10">
-      {/* Top bar — fixed, full width */}
-      <TopBar onSearchOpen={() => setSearchOpen(true)} />
-
       <Sidebar />
 
-      {/* pt-14 pushes content below the top bar */}
-      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-10 pt-20 max-w-[1600px] mx-auto w-full">
+      {/* Content — pr-24 on desktop ensures nothing goes under the pill */}
+      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 lg:pr-24 pb-24 lg:pb-10 pt-6 max-w-[1600px] mx-auto w-full">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}
@@ -119,6 +115,37 @@ function AppShell() {
 
       <MobileNav />
       <FocusBar />
+
+      {/* Search + Bell — floating pill, top-right, never overlaps content */}
+      <div
+        className="fixed top-5 right-5 z-50 flex items-center gap-1.5 rounded-2xl px-2 py-1.5"
+        style={{
+          background:           'rgba(255,255,255,0.60)',
+          border:               '1px solid rgba(255,255,255,0.70)',
+          backdropFilter:       'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          boxShadow:            '0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.90)',
+        }}
+      >
+        {/* Search */}
+        <motion.button
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={() => setSearchOpen(true)}
+          title="Search (⌘K)"
+          className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-white/60"
+        >
+          <Search size={14} className="text-ink/50 dark:text-white/45" />
+          <kbd className="hidden lg:block text-[10px] font-bold text-ink/30 dark:text-white/25">⌘K</kbd>
+        </motion.button>
+
+        {/* Divider */}
+        <div className="w-px h-5 bg-ink/10 dark:bg-white/10" />
+
+        {/* Bell */}
+        <NotificationBell />
+      </div>
+
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );

@@ -142,8 +142,8 @@ export default function NotificationBell() {
           transition={{ type: 'spring', stiffness: 380, damping: 28 }}
           className="absolute w-80 overflow-hidden rounded-3xl"
           style={{
-            bottom:               0,           // aligns with bell bottom
-            left:                 '3.5rem',    // opens right of sidebar
+            top:               '3rem',           
+            right:                 0,    
             maxWidth:             'calc(100vw - 6rem)',
             background:           'rgba(255,255,255,0.94)',
             backdropFilter:       'blur(40px)',
