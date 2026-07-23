@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X } from 'lucide-react';
-import Calendar from './pages/Calendar.jsx';
+
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
@@ -29,6 +29,7 @@ import AITools        from './pages/AITools.jsx';
 import History        from './pages/History.jsx';
 import TreeShop       from './pages/TreeShop.jsx';
 import ExamAssistant  from './pages/ExamAssistant.jsx';
+import Calendar       from './pages/Calendar.jsx';
 import NotFound       from './pages/NotFound.jsx';
 
 // ── Shortcuts modal ───────────────────────────────────────────
@@ -38,16 +39,16 @@ function ShortcutsModal({ onClose }) {
   const isMac  = navigator.platform?.includes('Mac');
 
   const SHORTCUTS = [
-    { key: 'D',                      desc: 'Dashboard'    },
-    { key: 'T',                      desc: 'Tasks'        },
-    { key: 'G',                      desc: 'Goals'        },
-    { key: 'F',                      desc: 'Flow timer'   },
-    { key: 'L',                      desc: 'Lumi AI'      },
-    { key: 'A',                      desc: 'Analytics'    },
-    { key: 'N',                      desc: 'New task'     },
-    { key: isMac ? '⌘K' : 'Ctrl+K', desc: 'Search'       },
-    { key: '?',                      desc: 'This panel'   },
-    { key: 'ESC',                    desc: 'Close'        },
+    { key: 'D',                      desc: 'Dashboard'  },
+    { key: 'T',                      desc: 'Tasks'      },
+    { key: 'G',                      desc: 'Goals'      },
+    { key: 'F',                      desc: 'Flow timer' },
+    { key: 'L',                      desc: 'Lumi AI'    },
+    { key: 'A',                      desc: 'Analytics'  },
+    { key: 'N',                      desc: 'New task'   },
+    { key: isMac ? '⌘K' : 'Ctrl+K', desc: 'Search'     },
+    { key: '?',                      desc: 'This panel' },
+    { key: 'ESC',                    desc: 'Close'      },
   ];
 
   const panelBg     = isDark ? 'rgba(18,14,35,0.97)'              : 'rgba(255,255,255,0.97)';
@@ -86,7 +87,9 @@ function ShortcutsModal({ onClose }) {
           style={{ borderBottom: `1px solid ${divider}` }}>
           <span className={`font-display font-bold text-sm ${titleClr}`}>Keyboard shortcuts</span>
           <button onClick={onClose}
-            className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${isDark ? 'text-white/40 hover:text-white/70' : 'text-ink/40 hover:text-ink/70'}`}>
+            className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${
+              isDark ? 'text-white/40 hover:text-white/70' : 'text-ink/40 hover:text-ink/70'
+            }`}>
             <X size={15} />
           </button>
         </div>
@@ -121,7 +124,6 @@ export default function App() {
         <Route path="/login"           element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password"  element={<ResetPassword />} />
-        <Route path="/calendar" element={<Calendar />} />
         <Route path="/*" element={
           <ProtectedRoute>
             <AppShell />
@@ -150,11 +152,18 @@ function AppShell() {
   useEffect(() => {
     const isTyping = () => {
       const el = document.activeElement;
-      return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      return el && (
+        el.tagName === 'INPUT'    ||
+        el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT'   ||
+        el.isContentEditable
+      );
     };
 
     const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen((o) => !o); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault(); setSearchOpen((o) => !o); return;
+      }
       if (isTyping()) return;
       switch (e.key.toLowerCase()) {
         case 'd': navigate('/');          break;
@@ -167,12 +176,13 @@ function AppShell() {
           window.dispatchEvent(new CustomEvent('aurora:new-task'));
           if (location.pathname !== '/tasks') navigate('/tasks');
           break;
-        case '/':   e.preventDefault(); setSearchOpen(true); break;
-        case '?':   setShortcutsOpen((o) => !o); break;
-        case 'escape': setSearchOpen(false); setShortcutsOpen(false); break;
+        case '/':      e.preventDefault(); setSearchOpen(true);         break;
+        case '?':      setShortcutsOpen((o) => !o);                     break;
+        case 'escape': setSearchOpen(false); setShortcutsOpen(false);   break;
         default: break;
       }
     };
+
     const customSearch = () => setSearchOpen(true);
     window.addEventListener('keydown', handler);
     window.addEventListener('aurora:search', customSearch);
@@ -195,7 +205,7 @@ function AppShell() {
     }
   }, [user?.id]); // eslint-disable-line
 
-  // ── Pill style — theme aware ──────────────────────────────────
+  // ── Pill style ────────────────────────────────────────────────
   const pillStyle = {
     background:           isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.75)',
     border:               isDark ? '1px solid rgba(255,255,255,0.11)' : '1px solid rgba(255,255,255,0.85)',
@@ -232,6 +242,7 @@ function AppShell() {
             <Route path="/history"     element={<History />} />
             <Route path="/trees"       element={<TreeShop />} />
             <Route path="/exam"        element={<ExamAssistant />} />
+            <Route path="/calendar"    element={<Calendar />} />
             <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
             <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
             <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
@@ -243,18 +254,11 @@ function AppShell() {
       <MobileNav />
       <FocusBar />
 
-      {/* ── Unified pill — search + divider + bell ────────────── */}
-      {/* Single element, same on mobile and desktop              */}
+      {/* ── Floating pill — search + bell ─────────────────────── */}
       <div
         className="fixed top-4 right-4 z-50 flex items-center"
-        style={{
-          ...pillStyle,
-          borderRadius: 18,
-          padding:      '5px 6px',
-          gap:          4,
-        }}
+        style={{ ...pillStyle, borderRadius: 18, padding: '5px 6px', gap: 4 }}
       >
-        {/* Search button */}
         <motion.button
           whileTap={{ scale: 0.94 }}
           onClick={() => setSearchOpen(true)}
@@ -263,7 +267,6 @@ function AppShell() {
           style={{ padding: '5px 8px', minHeight: 34 }}
         >
           <Search size={15} strokeWidth={2} />
-          {/* Shortcut hint — desktop only */}
           <span
             className="hidden lg:block text-[10px] font-bold font-mono whitespace-nowrap"
             style={{ color: kbdClr }}
@@ -272,14 +275,12 @@ function AppShell() {
           </span>
         </motion.button>
 
-        {/* Divider */}
         <div style={{ width: 1, height: 18, background: divClr, flexShrink: 0 }} />
 
-        {/* Bell */}
         <NotificationBell />
       </div>
 
-      {/* Shortcuts hint — desktop only */}
+      {/* Shortcuts hint */}
       <button
         onClick={() => setShortcutsOpen(true)}
         className="hidden lg:flex fixed bottom-6 right-6 z-40 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-all"
