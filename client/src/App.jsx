@@ -8,7 +8,6 @@ import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
 import FocusBar          from './components/FocusBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
-import NotificationBell  from './components/NotificationBell.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
@@ -50,34 +49,33 @@ export default function App() {
 
 // ── AppShell ──────────────────────────────────────────────────
 function AppShell() {
-  const location  = useLocation();
-  const { user }  = useAuth();
-  const toast     = useToast();
+  const location = useLocation();
+  const { user } = useAuth();
+  const toast    = useToast();
 
   const [searchOpen, setSearchOpen] = useState(false);
 
   useTaskReminders();
 
-  // Cmd+K / Ctrl+K keyboard shortcut
+  // Cmd+K / Ctrl+K
   useEffect(() => {
-    const handler = (e) => {
+    const keyHandler    = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setSearchOpen((o) => !o);
       }
     };
-    // Also handle custom event fired by sidebar button
     const customHandler = () => setSearchOpen(true);
 
-    window.addEventListener('keydown', handler);
+    window.addEventListener('keydown', keyHandler);
     window.addEventListener('aurora:search', customHandler);
     return () => {
-      window.removeEventListener('keydown', handler);
+      window.removeEventListener('keydown', keyHandler);
       window.removeEventListener('aurora:search', customHandler);
     };
   }, []);
 
-  // Show search tip once per user
+  // One-time search tip
   useEffect(() => {
     if (!user?.id) return;
     const key = `aurora_search_hint_${user.id}`;
@@ -122,30 +120,24 @@ function AppShell() {
       <MobileNav />
       <FocusBar />
 
-      {/* ── Fixed top-right utility bar ──────────────────────── */}
-      <div className="fixed top-5 right-5 z-50 flex items-center gap-2">
-        {/* Search button — mobile only (desktop uses ⌘K) */}
-        <motion.button
-          whileHover={{ scale: 1.08, y: -2 }}
-          whileTap={{ scale: 0.94 }}
-          onClick={() => setSearchOpen(true)}
-          title="Search"
-          className="flex h-10 w-10 items-center justify-center rounded-2xl transition-all lg:hidden"
-          style={{
-            background:           'rgba(255,255,255,0.55)',
-            border:               '1px solid rgba(255,255,255,0.65)',
-            backdropFilter:       'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.80)',
-          }}
-        >
-          <Search size={16} className="text-ink/55 dark:text-white/50" />
-        </motion.button>
+      {/* Mobile only — search button top-right */}
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
+        onClick={() => setSearchOpen(true)}
+        title="Search"
+        className="fixed top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-2xl lg:hidden"
+        style={{
+          background:           'rgba(255,255,255,0.65)',
+          border:               '1px solid rgba(255,255,255,0.75)',
+          backdropFilter:       'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow:            '0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.90)',
+        }}
+      >
+        <Search size={16} className="text-ink/60" />
+      </motion.button>
 
-        <NotificationBell />
-      </div>
-
-      {/* ── Global search overlay ─────────────────────────────── */}
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
