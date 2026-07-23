@@ -6,7 +6,7 @@ import {
   MoreHorizontal, BarChart3, Timer, Rocket, TreePine, X, Settings,
 } from 'lucide-react';
 import SettingsModal    from './SettingsModal.jsx';
-import NotificationBell from './NotificationBell.jsx';
+
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Home'  },
@@ -29,10 +29,7 @@ export default function MobileNav() {
 
   return (
     <>
-      {/* Notification bell — fixed top right on mobile */}
-      <div className="lg:hidden fixed top-4 right-4 z-50">
-        <NotificationBell />
-      </div>
+
 
       {/* Bottom nav */}
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-50 glass-panel rounded-3xl px-2 py-2">
