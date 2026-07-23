@@ -12,6 +12,42 @@ import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
 
+const TREE_EMOJIS = {
+  seedling:       '🌱', sprout: '🌿',  oak:  '🌳',
+  cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
+  pine:           '🌲', crystal: '✨',
+};
+
+const TREE_NAMES = {
+  seedling:       'Seedling',       sprout: 'Sprout',
+  oak:            'Oak',            cherry_blossom: 'Cherry Blossom',
+  bamboo:         'Bamboo',         palm:   'Palm',
+  pine:           'Pine',           crystal: 'Crystal Tree',
+};
+
+const TREE_DESC = {
+  seedling:       'Every journey starts here.',
+  sprout:         'Your first real growth.',
+  oak:            'Strong and steady.',
+  cherry_blossom: 'Beautiful under pressure.',
+  bamboo:         'Flexible, fast, unstoppable.',
+  palm:           'Thriving in the heat.',
+  pine:           'Evergreen. Always growing.',
+  crystal:        'Legendary. For the dedicated.',
+};
+
+// Maps current tree → next tree to unlock
+const NEXT_TREE = {
+  seedling:       { key: 'sprout',         name: 'Sprout',       cost: 100  },
+  sprout:         { key: 'oak',            name: 'Oak',          cost: 300  },
+  oak:            { key: 'cherry_blossom', name: 'Cherry Blossom',cost: 600 },
+  cherry_blossom: { key: 'bamboo',         name: 'Bamboo',       cost: 1000 },
+  bamboo:         { key: 'palm',           name: 'Palm',         cost: 1500 },
+  palm:           { key: 'pine',           name: 'Pine',         cost: 2500 },
+  pine:           { key: 'crystal',        name: 'Crystal Tree', cost: 5000 },
+  crystal:        null, // fully collected
+};
+
 const MOOD_OPTIONS = [
   { value: 1, emoji: '😞', label: 'Rough'  },
   { value: 2, emoji: '😐', label: 'Meh'    },
@@ -272,6 +308,68 @@ export default function Dashboard() {
               ))}
             </div>
           </GlassCard>
+          {/* Equipped tree card */}
+{equippedTree && (
+  <GlassCard className="p-5">
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <TreePine size={15} className="text-lavender-500" />
+        <h3 className="font-display font-semibold text-sm text-ink dark:text-white">Your tree</h3>
+      </div>
+      <button onClick={() => navigate('/trees')}
+        className="text-xs text-lavender-600 dark:text-lavender-300 font-semibold hover:underline">
+        Shop
+      </button>
+    </div>
+
+    <div className="flex items-center gap-4">
+      {/* Animated tree */}
+      <motion.div
+        animate={{ y: [0, -5, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shrink-0"
+        style={{
+          background: 'linear-gradient(135deg, rgba(124,106,240,0.12) 0%, rgba(91,71,224,0.06) 100%)',
+          border:     '1px solid rgba(124,106,240,0.18)',
+          boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.60)',
+        }}
+      >
+        {TREE_EMOJIS[equippedTree] || '🌱'}
+      </motion.div>
+
+      <div className="flex-1 min-w-0">
+        <p className="font-display font-bold text-ink dark:text-white text-sm">
+          {TREE_NAMES[equippedTree] || 'Seedling'}
+        </p>
+        <p className="text-[11px] text-ink/40 dark:text-white/30 mt-0.5">
+          {TREE_DESC[equippedTree] || 'Every journey starts here.'}
+        </p>
+        {/* XP progress toward next tree */}
+        {NEXT_TREE[equippedTree] && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-ink/35 dark:text-white/25">
+                Next: {TREE_EMOJIS[NEXT_TREE[equippedTree].key]} {NEXT_TREE[equippedTree].name}
+              </span>
+              <span className="text-[10px] font-bold text-lavender-500">
+                {Math.min(data?.level?.xp || 0, NEXT_TREE[equippedTree].cost).toLocaleString()} / {NEXT_TREE[equippedTree].cost.toLocaleString()} XP
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-ink/5 dark:bg-white/5 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, ((data?.level?.xp || 0) / NEXT_TREE[equippedTree].cost) * 100)}%` }}
+                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                className="h-full rounded-full"
+                style={{ background: 'linear-gradient(90deg, #7C6AF0, #60A5FA)' }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </GlassCard>
+)}
 
           {/* Habits */}
           {todaysHabits.length > 0 && (
