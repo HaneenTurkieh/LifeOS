@@ -8,14 +8,15 @@ import {
 import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
-  { to: '/',           icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/history',    icon: Clock,           label: 'History' },
-  { to: '/tasks',      icon: ListChecks,      label: 'Tasks' },
-  { to: '/goals',      icon: Target,          label: 'Goals' },
-  { to: '/learning', icon: Timer, label: 'Flow' },
-  { to: '/ai',         icon: Sparkles,        label: 'AI Tools' },
-  { to: '/analytics',  icon: BarChart3,       label: 'Analytics' },
-  { to: '/launchpad',  icon: Rocket,          label: 'Launchpad' },
+  { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/history',   icon: Clock,           label: 'History'   },
+  { to: '/tasks',     icon: ListChecks,      label: 'Tasks'     },
+  { to: '/goals',     icon: Target,          label: 'Goals'     },
+  { to: '/learning',  icon: Timer,           label: 'Flow'      },
+  { to: '/ai',        icon: Sparkles,        label: 'Lumi AI'   },
+  { to: '/analytics', icon: BarChart3,       label: 'Analytics' },
+  { to: '/launchpad', icon: Rocket,          label: 'Launchpad' },
+  { to: '/trees',     icon: TreePine,        label: 'Tree Shop' },
 ];
 
 export default function Sidebar() {
@@ -38,7 +39,9 @@ export default function Sidebar() {
         <nav className="flex flex-col gap-1">
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
-              key={to} to={to} end={to === '/'}
+              key={to}
+              to={to}
+              end={to === '/'}
               title={label}
               className="group relative flex h-11 w-11 items-center justify-center"
             >
@@ -54,27 +57,24 @@ export default function Sidebar() {
                     />
                   )}
 
-                  {/* Icon — pop on hover */}
+                  {/* Icon with pop on hover */}
                   <motion.span
                     whileHover={!isActive ? {
-                      y: -4,
-                      scale: 1.18,
+                      y: -4, scale: 1.18,
                       transition: { type: 'spring', stiffness: 500, damping: 22 },
                     } : {}}
                     whileTap={{ scale: 0.94 }}
                     className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-2xl transition-colors ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-ink/40 dark:text-white/40'
+                      isActive ? 'text-white' : 'text-ink/40 dark:text-white/40'
                     }`}
-                    style={!isActive ? undefined : undefined}
                   >
-                    {/* Hover card — appears behind icon on hover */}
+                    {/* Hover card */}
                     {!isActive && (
-                      <span className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      <span
+                        className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         style={{
                           background: 'rgba(255,255,255,0.90)',
-                          boxShadow: '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+                          boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
                         }}
                       />
                     )}
@@ -111,14 +111,16 @@ export default function Sidebar() {
             title="Settings"
             className="group relative flex h-11 w-11 items-center justify-center rounded-2xl"
           >
-            <span className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            <span
+              className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
               style={{
                 background: 'rgba(255,255,255,0.90)',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+                boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
               }}
             />
             <Settings
-              size={19} strokeWidth={2.1}
+              size={19}
+              strokeWidth={2.1}
               className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-aurora-violet transition-colors duration-150"
             />
           </motion.button>

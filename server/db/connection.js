@@ -153,6 +153,19 @@ async function initDb() {
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(user_id, key)
   )`);
+  // Tree shop
+await db.execute(`CREATE TABLE IF NOT EXISTS user_trees (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  tree_key    TEXT NOT NULL,
+  unlocked_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(user_id, tree_key)
+)`);
+
+await db.execute(`CREATE TABLE IF NOT EXISTS user_equipped_tree (
+  user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  tree_key TEXT NOT NULL DEFAULT 'seedling'
+)`);
 
   console.log('✅ Database connected and migrations applied.');
 }

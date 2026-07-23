@@ -3,26 +3,27 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
-  MoreHorizontal, BarChart3, Timer, Rocket, X, Settings,
+  MoreHorizontal, BarChart3, Timer, Rocket, TreePine, X, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
-  { to: '/',          icon: LayoutDashboard, label: 'Home' },
+  { to: '/',          icon: LayoutDashboard, label: 'Home'  },
   { to: '/tasks',     icon: ListChecks,      label: 'Tasks' },
   { to: '/goals',     icon: Target,          label: 'Goals' },
   { to: '/analytics', icon: BarChart3,       label: 'Stats' },
-  { to: '/ai',        icon: Sparkles,        label: 'AI' },
+  { to: '/ai',        icon: Sparkles,        label: 'Lumi'  },
 ];
 
 const MORE_ITEMS = [
-  { to: '/history',   icon: Clock,    label: 'History' },
-  { to: '/learning', icon: Timer, label: 'Flow' },
-  { to: '/launchpad', icon: Rocket,   label: 'Launchpad' },
+  { to: '/history',   icon: Clock,      label: 'History'   },
+  { to: '/learning',  icon: Timer,      label: 'Flow'      },
+  { to: '/launchpad', icon: Rocket,     label: 'Launchpad' },
+  { to: '/trees',     icon: TreePine,   label: 'Tree Shop' },
 ];
 
 export default function MobileNav() {
-  const [moreOpen, setMoreOpen]         = useState(false);
+  const [moreOpen,     setMoreOpen]     = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -31,7 +32,9 @@ export default function MobileNav() {
         <div className="flex items-center justify-between">
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
-              key={to} to={to} end={to === '/'}
+              key={to}
+              to={to}
+              end={to === '/'}
               className="flex flex-1 flex-col items-center"
             >
               {({ isActive }) => (
@@ -45,7 +48,7 @@ export default function MobileNav() {
                     className="relative flex h-9 w-9 items-center justify-center rounded-xl"
                     style={isActive ? {
                       background: 'rgba(255,255,255,0.95)',
-                      boxShadow: '0 8px 20px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.22), inset 0 1px 0 rgba(255,255,255,1)',
+                      boxShadow:  '0 8px 20px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.22), inset 0 1px 0 rgba(255,255,255,1)',
                     } : {}}
                   >
                     <Icon
@@ -63,7 +66,7 @@ export default function MobileNav() {
             </NavLink>
           ))}
 
-          {/* More button */}
+          {/* More */}
           <motion.button
             whileTap={{ scale: 0.90 }}
             onClick={() => setMoreOpen(true)}
@@ -93,25 +96,29 @@ export default function MobileNav() {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-bold text-ink dark:text-white">More</h3>
-                <button onClick={() => setMoreOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 dark:text-white/40 hover:bg-ink/5 dark:hover:bg-white/10">
-                  <X size={18}/>
+                <button
+                  onClick={() => setMoreOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 dark:text-white/40 hover:bg-ink/5 dark:hover:bg-white/10"
+                >
+                  <X size={18} />
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {MORE_ITEMS.map(({ to, icon: Icon, label }) => (
                   <NavLink
-                    key={to} to={to} onClick={() => setMoreOpen(false)}
+                    key={to}
+                    to={to}
+                    onClick={() => setMoreOpen(false)}
                     className="flex flex-col items-center gap-2 rounded-2xl bg-ink/5 dark:bg-white/5 py-4 text-xs font-medium text-ink/70 dark:text-white/60"
                   >
-                    <Icon size={20}/>{label}
+                    <Icon size={20} />{label}
                   </NavLink>
                 ))}
                 <button
                   onClick={() => { setMoreOpen(false); setSettingsOpen(true); }}
                   className="flex flex-col items-center gap-2 rounded-2xl bg-ink/5 dark:bg-white/5 py-4 text-xs font-medium text-ink/70 dark:text-white/60"
                 >
-                  <Settings size={20}/>Settings
+                  <Settings size={20} /> Settings
                 </button>
               </div>
             </motion.div>
@@ -119,7 +126,7 @@ export default function MobileNav() {
         )}
       </AnimatePresence>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)}/>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }
