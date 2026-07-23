@@ -3,9 +3,9 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
-  BarChart3, Rocket, Sparkles, TreePine, Settings,
+  BarChart3, Rocket, Sparkles, TreePine, Settings, Search,
 } from 'lucide-react';
-import SettingsModal     from './SettingsModal.jsx';
+import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -22,6 +22,9 @@ const NAV = [
 export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const openSearch = () =>
+    window.dispatchEvent(new CustomEvent('aurora:search'));
+
   return (
     <aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6">
       <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6">
@@ -36,6 +39,7 @@ export default function Sidebar() {
           <TreePine size={20} />
         </motion.div>
 
+        {/* Nav items */}
         <nav className="flex flex-col gap-1">
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
@@ -95,10 +99,28 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        {/* Settings */}
-        <div className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
+        {/* Search hint */}
+        <div className="mt-2 w-full">
           <motion.button
-            whileHover={{ y: -4, scale: 1.18, transition: { type: 'spring', stiffness: 500, damping: 22 } }}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={openSearch}
+            title="Search (⌘K)"
+            className="flex w-full items-center justify-center gap-1.5 rounded-2xl py-2 transition-all hover:bg-white/10"
+            style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <Search size={12} className="text-white/30 dark:text-white/25" />
+            <kbd className="text-[9px] font-bold text-white/25 dark:text-white/20 font-mono">⌘K</kbd>
+          </motion.button>
+        </div>
+
+        {/* Divider */}
+        <div className="mt-2 pt-2 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
+          <motion.button
+            whileHover={{
+              y: -4, scale: 1.18,
+              transition: { type: 'spring', stiffness: 500, damping: 22 },
+            }}
             whileTap={{ scale: 0.94 }}
             onClick={() => setSettingsOpen(true)}
             title="Settings"
