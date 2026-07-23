@@ -4,9 +4,10 @@ import { api, getToken, setToken } from '../api/client.js';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // ── Restore session on mount ──────────────────────────────────
   const restoreSession = useCallback(async () => {
     const token = getToken();
     if (!token) {
@@ -27,23 +28,24 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     restoreSession();
-    const handleUnauthorized = () => setUser(null);
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    const handler = () => { setToken(null); setUser(null); };
+    window.addEventListener('auth:unauthorized', handler);
+    return () => window.removeEventListener('auth:unauthorized', handler);
   }, [restoreSession]);
 
+  // ── Auth actions ──────────────────────────────────────────────
   const login = async (email, password) => {
-    const { token, user: loggedInUser } = await api.post('/auth/login', { email, password });
+    const { token, user: u } = await api.post('/auth/login', { email, password });
     setToken(token);
-    setUser(loggedInUser);
-    return loggedInUser;
+    setUser(u);
+    return u;
   };
 
   const register = async (name, email, password) => {
-    const { token, user: registeredUser } = await api.post('/auth/register', { name, email, password });
+    const { token, user: u } = await api.post('/auth/register', { name, email, password });
     setToken(token);
-    setUser(registeredUser);
-    return registeredUser;
+    setUser(u);
+    return u;
   };
 
   const logout = () => {
@@ -51,21 +53,41 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-const deleteAccount = async () => {
+  const deleteAccount = async () => {
     await api.del('/auth/me');
     setToken(null);
     setUser(null);
   };
 
+  // ── Profile actions ───────────────────────────────────────────
+  const updateUser = async (fields) => {
+    const { user: updated } = await api.patch('/auth/me', fields);
+    setUser(updated);
+    return updated;
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    return api.post('/auth/me/password', { currentPassword, newPassword });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, deleteAccount }}>
-  {children}
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      deleteAccount,
+      updateUser,
+      changePassword,
+    }}>
+      {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used inside an AuthProvider');
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
   return ctx;
 }
