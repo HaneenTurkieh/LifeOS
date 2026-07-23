@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Plus, Briefcase, FolderKanban, FileText } from 'lucide-react';
 import Internships from './Internships.jsx';
 import Projects    from './Projects.jsx';
@@ -13,32 +14,31 @@ const TABS = [
 
 const META = {
   internships: {
-    eyebrow: 'Launchpad · Internships',
-    title: 'Land the role',
+    eyebrow:  'Launchpad · Internships',
+    title:    'Land the role',
     subtitle: 'Track every application from first click to offer.',
-    action: 'Add application',
+    action:   'Add application',
   },
   projects: {
-    eyebrow: 'Launchpad · Projects',
-    title: 'From idea to deployed',
+    eyebrow:  'Launchpad · Projects',
+    title:    'From idea to deployed',
     subtitle: 'Track every side project through its full lifecycle.',
-    action: 'New project',
+    action:   'New project',
   },
   cv: {
-    eyebrow: 'Launchpad · CV Builder',
-    title: 'Your story, organized',
+    eyebrow:  'Launchpad · CV Builder',
+    title:    'Your story, organized',
     subtitle: 'Collect projects, skills and certifications so your CV writes itself.',
-    action: 'Add',
+    action:   'Add',
   },
 };
 
 export default function Launchpad() {
-  const [tab, setTab] = useState('internships');
-  // Incrementing triggers the active sub-page to open its modal
+  const [tab,      setTab]      = useState('internships');
   const [triggers, setTriggers] = useState({ internships: 0, projects: 0, cv: 0 });
 
   const fireAdd = () => setTriggers((t) => ({ ...t, [tab]: t[tab] + 1 }));
-  const meta = META[tab];
+  const meta    = META[tab];
 
   return (
     <div>
@@ -53,12 +53,17 @@ export default function Launchpad() {
         }
       />
 
-      {/* Tab switcher */}
+      {/* Tab switcher — with pop effect */}
       <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 w-fit">
         {TABS.map(({ key, label, icon: Icon }) => (
-          <button
+          <motion.button
             key={key}
             onClick={() => setTab(key)}
+            whileHover={tab !== key ? {
+              y: -2, scale: 1.04,
+              transition: { type: 'spring', stiffness: 500, damping: 22 },
+            } : {}}
+            whileTap={{ scale: 0.96 }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               tab === key
                 ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-sm'
@@ -66,7 +71,7 @@ export default function Launchpad() {
             }`}
           >
             <Icon size={14} /> {label}
-          </button>
+          </motion.button>
         ))}
       </div>
 

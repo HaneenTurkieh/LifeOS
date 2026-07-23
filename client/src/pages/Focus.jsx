@@ -5,10 +5,10 @@ import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFocus, MODES } from '../context/FocusContext.jsx';
-import PageHeader from '../components/PageHeader.jsx';
-import Modal      from '../components/Modal.jsx';
+import PageHeader  from '../components/PageHeader.jsx';
+import Modal       from '../components/Modal.jsx';
+import EmptyState  from '../components/EmptyState.jsx';
 
-// UI-only constants (not in context)
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
 const CX = 140, CY = 140, R = 108;
 const CIRC = 2 * Math.PI * R;
@@ -47,21 +47,17 @@ export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
 
-  // ── All timer state from context — survives navigation ────
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
     taskName, dots, startedAt, congrats, stats, board, room,
     setTaskName, setRoom, setCongrats,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
-    loadData,
   } = useFocus();
 
-  // ── Local UI state only ───────────────────────────────────
   const [tab,       setTab]       = useState('timer');
   const [roomModal, setRoomModal] = useState(false);
   const [roomForm,  setRoomForm]  = useState({ tab: 'join', name: '', code: '', password: '' });
 
-  // ── Room handlers ─────────────────────────────────────────
   const handleRoomSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -87,16 +83,14 @@ export default function Flow() {
     toast.success('Left the room');
   };
 
-  // ── Derived display ───────────────────────────────────────
   const mm         = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const ss         = String(timeLeft % 60).padStart(2, '0');
   const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const dashOffset = CIRC * (1 - progress);
   const modeColor  = MODES[mode].color;
-
-  const now      = new Date();
-  const endsAt   = new Date(now.getTime() + timeLeft * 1000);
-  const timeRange = startedAt
+  const now        = new Date();
+  const endsAt     = new Date(now.getTime() + timeLeft * 1000);
+  const timeRange  = startedAt
     ? `${fmtTime(startedAt)} → ${fmtTime(endsAt)}`
     : isRunning ? `now → ${fmtTime(endsAt)}` : null;
 
@@ -115,40 +109,32 @@ export default function Flow() {
       />
 
       {/* Tab bar */}
-<div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl" style={lg()}>
-  {TABS_NAV.map(({ key, label, icon }) => (
-    <motion.button
-      key={key}
-      onClick={() => setTab(key)}
-      whileHover={tab !== key ? {
-        y: -3,
-        scale: 1.06,
-        transition: { type: 'spring', stiffness: 500, damping: 22 },
-      } : {}}
-      whileTap={{ scale: 0.95 }}
-      className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-      style={tab === key ? {
-        background: 'rgba(255,255,255,0.88)',
-        boxShadow:  '0 8px 24px rgba(0,0,0,0.13), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
-        color:      '#1E2233',
-      } : { color: 'rgba(255,255,255,0.45)' }}>
-      {/* Hover card — same pattern as sidebar */}
-      {tab !== key && (
-        <span className="absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none"
-          style={{
-            background: 'rgba(255,255,255,0.10)',
-            boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.25)',
-          }}
-        />
-      )}
-      <span className="relative z-10">{icon}</span>
-      <span className="relative z-10">{label}</span>
-      {key === 'room' && room && (
-        <span className="relative z-10 h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
-      )}
-    </motion.button>
-  ))}
-</div>
+      <div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl" style={lg()}>
+        {TABS_NAV.map(({ key, label, icon }) => (
+          <motion.button
+            key={key}
+            onClick={() => setTab(key)}
+            whileHover={tab !== key ? { y: -3, scale: 1.06, transition: { type: 'spring', stiffness: 500, damping: 22 } } : {}}
+            whileTap={{ scale: 0.95 }}
+            className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+            style={tab === key ? {
+              background: 'rgba(255,255,255,0.88)',
+              boxShadow:  '0 8px 24px rgba(0,0,0,0.13), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+              color:      '#1E2233',
+            } : { color: 'rgba(255,255,255,0.45)' }}
+          >
+            {tab !== key && (
+              <span className="absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+                style={{ background: 'rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }} />
+            )}
+            <span className="relative z-10">{icon}</span>
+            <span className="relative z-10">{label}</span>
+            {key === 'room' && room && (
+              <span className="relative z-10 h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
+            )}
+          </motion.button>
+        ))}
+      </div>
 
       {/* ── TIMER TAB ─────────────────────────────────────── */}
       {tab === 'timer' && (
@@ -176,8 +162,7 @@ export default function Flow() {
                 {timeRange && (
                   <motion.p
                     initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                    className="text-sm font-mono font-medium"
-                    style={{ color: modeColor }}>
+                    className="text-sm font-mono font-medium" style={{ color: modeColor }}>
                     {timeRange}
                   </motion.p>
                 )}
@@ -187,21 +172,21 @@ export default function Flow() {
             {/* Ring */}
             <div className="relative my-2">
               <svg width="280" height="280">
-              {Array.from({ length: 60 }, (_, i) => {
-  const angle   = (i / 60) * 2 * Math.PI - Math.PI / 2;
-  const isMajor = i % 5 === 0;
-  const outerR  = 130;
-  const innerR  = isMajor ? 120 : 125;
-  const isPast  = (i / 60) <= progress && progress > 0;
-  return (
-    <line key={i}
-  x1={CX + innerR * Math.cos(angle)} y1={CY + innerR * Math.sin(angle)}
-  x2={CX + outerR * Math.cos(angle)} y2={CY + outerR * Math.sin(angle)}
-  stroke={isPast ? modeColor : 'rgba(124,106,240,0.10)'}
-  strokeWidth={isMajor ? 2.5 : 1.2} strokeLinecap="round"
-/>
-  );
-})}
+                {Array.from({ length: 60 }, (_, i) => {
+                  const angle   = (i / 60) * 2 * Math.PI - Math.PI / 2;
+                  const isMajor = i % 5 === 0;
+                  const outerR  = 130;
+                  const innerR  = isMajor ? 120 : 125;
+                  const isPast  = (i / 60) <= progress && progress > 0;
+                  return (
+                    <line key={i}
+                      x1={CX + innerR * Math.cos(angle)} y1={CY + innerR * Math.sin(angle)}
+                      x2={CX + outerR * Math.cos(angle)} y2={CY + outerR * Math.sin(angle)}
+                      stroke={isPast ? modeColor : 'rgba(124,106,240,0.10)'}
+                      strokeWidth={isMajor ? 2.5 : 1.2} strokeLinecap="round"
+                    />
+                  );
+                })}
                 <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="5" />
                 <circle cx={CX} cy={CY} r={R} fill="none"
                   stroke={modeColor} strokeWidth="5" strokeLinecap="round"
@@ -210,7 +195,6 @@ export default function Flow() {
                   style={{ transition: 'stroke-dashoffset 0.8s ease, stroke 0.5s ease', filter: `drop-shadow(0 0 6px ${modeColor}88)` }}
                 />
               </svg>
-
               <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
                 <span className="font-display tabular-nums leading-none text-ink dark:text-white"
                   style={{ fontSize: 58, fontWeight: 700 }}>
@@ -243,8 +227,7 @@ export default function Flow() {
             <div className="flex items-center gap-5">
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
                 onClick={resetTimer}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl"
-                style={lg()}>
+                className="flex h-11 w-11 items-center justify-center rounded-2xl" style={lg()}>
                 <RotateCcw size={16} className="text-ink/50 dark:text-white/40" />
               </motion.button>
 
@@ -258,9 +241,7 @@ export default function Flow() {
                   border:               '1.5px solid rgba(255,255,255,0.55)',
                   boxShadow:            `0 10px 36px ${modeColor}55, 0 4px 16px rgba(0,0,0,0.14), inset 0 2px 0 rgba(255,255,255,0.55), inset 0 -2px 0 rgba(0,0,0,0.10)`,
                 }}>
-                {isRunning
-                  ? <Pause size={26} className="text-white" />
-                  : <Play  size={26} className="text-white ml-1" />}
+                {isRunning ? <Pause size={26} className="text-white" /> : <Play size={26} className="text-white ml-1" />}
               </motion.button>
 
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
@@ -291,7 +272,6 @@ export default function Flow() {
 
           {/* Side panel */}
           <div className="flex flex-col gap-4">
-
             {stats && (
               <div className="rounded-3xl p-5" style={lg()}>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-4"
@@ -357,8 +337,7 @@ export default function Flow() {
                   </div>
                 ))}
                 <button onClick={() => setTab('leaderboard')}
-                  className="mt-2 text-xs font-semibold hover:underline"
-                  style={{ color: modeColor }}>
+                  className="mt-2 text-xs font-semibold hover:underline" style={{ color: modeColor }}>
                   Full rankings →
                 </button>
               </div>
@@ -380,8 +359,7 @@ export default function Flow() {
                   </p>
                 </div>
                 <button onClick={leaveRoom}
-                  className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2"
-                  style={lg()}>
+                  className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2" style={lg()}>
                   <LogOut size={14} /> Leave
                 </button>
               </div>
@@ -411,14 +389,24 @@ export default function Flow() {
               )}
             </div>
           ) : (
-            <div className="rounded-3xl p-12 text-center" style={cardGlass}>
-              <span className="text-5xl mb-4 block">👥</span>
-              <h3 className="font-display font-bold text-ink dark:text-white mb-1">No active room</h3>
-              <p className="text-sm text-ink/50 mb-6">Create a private room or join one with a code and password.</p>
-              <button onClick={() => setRoomModal(true)} className="btn-primary mx-auto">
-                <Plus size={16} /> Create or Join Room
-              </button>
-            </div>
+            // ── Apple-style empty state for Room tab ──────────
+            <EmptyState
+              illustration={<span className="text-6xl">👥</span>}
+              title="Study together, achieve more"
+              description="Create a private room with a password and share the code with friends. Everyone's focus time appears on a shared leaderboard inside the room."
+              features={[
+                { icon: '🔒', text: 'Private rooms — password protected, invite only' },
+                { icon: '📡', text: 'Live presence — see who\'s focusing right now' },
+                { icon: '🏆', text: 'Room leaderboard tracks minutes focused this week' },
+                { icon: '🎯', text: 'Accountability makes you stay focused longer' },
+              ]}
+              action={
+                <button className="btn-primary w-full justify-center" onClick={() => setRoomModal(true)}>
+                  <Plus size={16} /> Create or join a room
+                </button>
+              }
+              tip="Share your 6-character room code — friends just need the password to join"
+            />
           )}
         </div>
       )}
@@ -426,18 +414,32 @@ export default function Flow() {
       {/* ── LEADERBOARD TAB ───────────────────────────────── */}
       {tab === 'leaderboard' && (
         <div className="max-w-2xl">
-          <div className="rounded-3xl p-7" style={cardGlass}>
-            <div className="flex items-start justify-between mb-1">
-              <h2 className="font-display font-bold text-ink dark:text-white">Weekly Rankings</h2>
-              <span className="text-xs text-ink/35">Resets every Sunday midnight</span>
-            </div>
-            <p className="text-xs text-ink/40 mb-6">Total flow minutes logged this week</p>
-            {board.length === 0 ? (
-              <div className="text-center py-10">
-                <span className="text-4xl block mb-3">🏆</span>
-                <p className="text-sm text-ink/40">No sessions yet this week.</p>
+          {board.length === 0 ? (
+            // ── Apple-style empty state for Leaderboard ───────
+            <EmptyState
+              illustration={<span className="text-6xl">🏆</span>}
+              title="The rankings start with you"
+              description="Complete your first flow session this week to appear on the leaderboard. Rankings reset every Sunday at midnight."
+              features={[
+                { icon: '⏱', text: 'Every minute of focus counts toward your weekly rank' },
+                { icon: '🥇', text: 'Top 3 earn gold, silver, and bronze medals' },
+                { icon: '👥', text: 'Room members get their own private leaderboard too' },
+                { icon: '🔄', text: 'Resets weekly — everyone gets a fresh start Sunday' },
+              ]}
+              action={
+                <button className="btn-primary w-full justify-center" onClick={() => setTab('timer')}>
+                  Start a session →
+                </button>
+              }
+              tip="Even a 15-minute session puts you on the board"
+            />
+          ) : (
+            <div className="rounded-3xl p-7" style={cardGlass}>
+              <div className="flex items-start justify-between mb-1">
+                <h2 className="font-display font-bold text-ink dark:text-white">Weekly Rankings</h2>
+                <span className="text-xs text-ink/35">Resets every Sunday midnight</span>
               </div>
-            ) : (
+              <p className="text-xs text-ink/40 mb-6">Total flow minutes logged this week</p>
               <div className="flex flex-col gap-2">
                 {board.map((e) => {
                   const isMe   = e.id == user?.id;
@@ -448,9 +450,7 @@ export default function Flow() {
                     <div key={e.id} className="flex items-center gap-3 rounded-2xl px-4 py-3"
                       style={isMe ? lg({ color: modeColor, active: true }) : lg()}>
                       <span className="text-xl w-8 text-center shrink-0">
-                        {e.rank <= 3
-                          ? medals[e.rank - 1]
-                          : <span className="text-sm font-bold text-ink/30">{e.rank}</span>}
+                        {e.rank <= 3 ? medals[e.rank - 1] : <span className="text-sm font-bold text-ink/30">{e.rank}</span>}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-semibold truncate ${isMe ? 'text-lavender-700 dark:text-lavender-300' : 'text-ink dark:text-white'}`}>
@@ -459,17 +459,15 @@ export default function Flow() {
                         <p className="text-xs text-ink/35">{e.session_count} sessions</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${isMe ? 'text-lavender-600' : 'text-ink dark:text-white'}`}>
-                          {e.total_minutes}m
-                        </p>
+                        <p className={`text-sm font-bold ${isMe ? 'text-lavender-600' : 'text-ink dark:text-white'}`}>{e.total_minutes}m</p>
                         <p className="text-xs text-ink/30">{hrs > 0 ? `${hrs}h ` : ''}{mins}m</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -489,21 +487,15 @@ export default function Flow() {
         <form onSubmit={handleRoomSubmit} className="flex flex-col gap-3.5">
           {roomForm.tab === 'create' && (
             <input className="input-field" placeholder="Room name, e.g. Study Squad"
-              value={roomForm.name}
-              onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
-              autoFocus required />
+              value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} autoFocus required />
           )}
           {roomForm.tab === 'join' && (
             <input className="input-field font-mono tracking-[0.3em] text-center uppercase"
               placeholder="ROOM CODE" maxLength={6}
-              value={roomForm.code}
-              onChange={(e) => setRoomForm({ ...roomForm, code: e.target.value.toUpperCase() })}
-              autoFocus required />
+              value={roomForm.code} onChange={(e) => setRoomForm({ ...roomForm, code: e.target.value.toUpperCase() })} autoFocus required />
           )}
           <input type="password" className="input-field" placeholder="Password"
-            value={roomForm.password}
-            onChange={(e) => setRoomForm({ ...roomForm, password: e.target.value })}
-            required />
+            value={roomForm.password} onChange={(e) => setRoomForm({ ...roomForm, password: e.target.value })} required />
           <button type="submit" className="btn-primary justify-center">
             {roomForm.tab === 'join' ? 'Join Room' : 'Create Room'}
           </button>
@@ -521,15 +513,12 @@ export default function Flow() {
             <motion.div
               initial={{ scale: 0.82, y: 32 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.88, y: 20 }}
               transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-              className="w-full max-w-md p-8 text-center rounded-3xl"
-              style={cardGlass}
+              className="w-full max-w-md p-8 text-center rounded-3xl" style={cardGlass}
               onClick={(e) => e.stopPropagation()}>
               <motion.div
                 animate={{ y: [0, -8, 0], rotate: [0, -5, 5, -3, 0] }}
                 transition={{ duration: 0.7, ease: 'easeOut' }}
-                className="text-6xl mb-4">
-                🎉
-              </motion.div>
+                className="text-6xl mb-4">🎉</motion.div>
               <h2 className="font-display text-2xl font-bold text-ink dark:text-white mb-1">Session Complete!</h2>
               <p className="text-ink/50 mb-3">{congrats.minutes} min of focused work.</p>
               {congrats.xpAwarded > 0 && (
@@ -539,14 +528,11 @@ export default function Flow() {
                 </span>
               )}
               <div className="rounded-2xl px-5 py-4 mb-6 text-left" style={lg()}>
-                <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">
-                  "{congrats.quote.text}"
-                </p>
+                <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">"{congrats.quote.text}"</p>
                 <p className="text-xs text-ink/40 mt-2">— {congrats.quote.author}</p>
               </div>
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                onClick={() => setCongrats(null)}
-                className="btn-primary w-full justify-center text-base">
+                onClick={() => setCongrats(null)} className="btn-primary w-full justify-center text-base">
                 Keep going 🚀
               </motion.button>
             </motion.div>
