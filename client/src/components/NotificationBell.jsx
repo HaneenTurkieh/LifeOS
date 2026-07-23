@@ -248,6 +248,23 @@ export default function NotificationBell() {
                 })
               )}
             </div>
+            {/* Clear all button — only show if there are notifications */}
+{notifications.length > 0 && (
+  <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(30,34,51,0.06)' }}>
+    <button
+      onClick={async () => {
+        try {
+          await Promise.all(notifications.map(n => api.del(`/notifications/${n.id}`)));
+          setNotifications([]);
+          setUnread(0);
+        } catch (_) {}
+      }}
+      className="w-full text-xs font-semibold text-ink/35 hover:text-coral-500 transition-colors text-center py-1"
+    >
+      Clear all
+    </button>
+  </div>
+)}
           </motion.div>
         )}
       </AnimatePresence>
