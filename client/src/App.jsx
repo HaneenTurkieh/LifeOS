@@ -3,6 +3,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 
+
+import ExamAssistant from './pages/ExamAssistant.jsx';
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
@@ -108,6 +110,7 @@ function AppShell() {
             <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
             <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
             <Route path="*"            element={<NotFound />} />
+            <Route path="/exam" element={<ExamAssistant />} />
           </Routes>
         </motion.div>
       </main>

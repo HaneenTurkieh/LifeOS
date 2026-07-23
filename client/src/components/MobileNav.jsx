@@ -3,10 +3,10 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
-  MoreHorizontal, BarChart3, Timer, Rocket, TreePine, X, Settings,
+  MoreHorizontal, BarChart3, Timer, Rocket, TreePine,
+  GraduationCap, X, Settings,
 } from 'lucide-react';
-import SettingsModal    from './SettingsModal.jsx';
-
+import SettingsModal from './SettingsModal.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Home'  },
@@ -17,10 +17,11 @@ const NAV = [
 ];
 
 const MORE_ITEMS = [
-  { to: '/history',   icon: Clock,     label: 'History'   },
-  { to: '/learning',  icon: Timer,     label: 'Flow'      },
-  { to: '/launchpad', icon: Rocket,    label: 'Launchpad' },
-  { to: '/trees',     icon: TreePine,  label: 'Tree Shop' },
+  { to: '/history',   icon: Clock,          label: 'History'   },
+  { to: '/learning',  icon: Timer,          label: 'Flow'      },
+  { to: '/exam',      icon: GraduationCap,  label: 'Exam AI'   },
+  { to: '/launchpad', icon: Rocket,         label: 'Launchpad' },
+  { to: '/trees',     icon: TreePine,       label: 'Tree Shop' },
 ];
 
 export default function MobileNav() {
@@ -29,8 +30,6 @@ export default function MobileNav() {
 
   return (
     <>
-
-
       {/* Bottom nav */}
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-50 glass-panel rounded-3xl px-2 py-2">
         <div className="flex items-center justify-between">
@@ -70,7 +69,7 @@ export default function MobileNav() {
             </NavLink>
           ))}
 
-          {/* More */}
+          {/* More button */}
           <motion.button
             whileTap={{ scale: 0.90 }}
             onClick={() => setMoreOpen(true)}
