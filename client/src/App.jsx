@@ -12,6 +12,7 @@ import NotificationBell  from './components/NotificationBell.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
+import { useToast }      from './context/ToastContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
 
 import Login          from './pages/Login.jsx';
@@ -47,15 +48,17 @@ export default function App() {
   );
 }
 
-// ── App shell — rendered for every authenticated route ────────
+// ── AppShell ──────────────────────────────────────────────────
 function AppShell() {
-  const location               = useLocation();
-  const { user }               = useAuth();
+  const location  = useLocation();
+  const { user }  = useAuth();
+  const toast     = useToast();
+
   const [searchOpen, setSearchOpen] = useState(false);
 
   useTaskReminders();
 
-  // Cmd+K / Ctrl+K → open search
+  // Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -63,9 +66,29 @@ function AppShell() {
         setSearchOpen((o) => !o);
       }
     };
+    // Also handle custom event fired by sidebar button
+    const customHandler = () => setSearchOpen(true);
+
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('aurora:search', customHandler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('aurora:search', customHandler);
+    };
   }, []);
+
+  // Show search tip once per user
+  useEffect(() => {
+    if (!user?.id) return;
+    const key = `aurora_search_hint_${user.id}`;
+    if (!localStorage.getItem(key)) {
+      const id = setTimeout(() => {
+        toast.success('Tip: Press ⌘K (or Ctrl+K) to search anything in Aurora');
+        localStorage.setItem(key, '1');
+      }, 3000);
+      return () => clearTimeout(id);
+    }
+  }, [user?.id]); // eslint-disable-line
 
   return (
     <div className="min-h-screen flex relative z-10">
@@ -99,14 +122,14 @@ function AppShell() {
       <MobileNav />
       <FocusBar />
 
-      {/* ── Fixed top-right utility bar ─────────────────────── */}
+      {/* ── Fixed top-right utility bar ──────────────────────── */}
       <div className="fixed top-5 right-5 z-50 flex items-center gap-2">
-        {/* Search icon — visible on mobile (desktop uses Cmd+K) */}
+        {/* Search button — mobile only (desktop uses ⌘K) */}
         <motion.button
           whileHover={{ scale: 1.08, y: -2 }}
           whileTap={{ scale: 0.94 }}
           onClick={() => setSearchOpen(true)}
-          title="Search (Ctrl+K)"
+          title="Search"
           className="flex h-10 w-10 items-center justify-center rounded-2xl transition-all lg:hidden"
           style={{
             background:           'rgba(255,255,255,0.55)',
@@ -122,7 +145,7 @@ function AppShell() {
         <NotificationBell />
       </div>
 
-      {/* ── Global search overlay ────────────────────────────── */}
+      {/* ── Global search overlay ─────────────────────────────── */}
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
