@@ -6,7 +6,6 @@ import {
   BarChart3, Rocket, Sparkles, TreePine, Settings, GraduationCap,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
-import { useAuth }   from '../context/AuthContext.jsx';
 
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -21,9 +20,24 @@ const NAV = [
   { to: '/trees',     icon: TreePine,        label: 'Tree Shop' },
 ];
 
+function NavTooltip({ label }) {
+  return (
+    <span
+      className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+      style={{ left: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
+    >
+      {label}
+    </span>
+  );
+}
+
+const hoverCard = {
+  background: 'rgba(255,255,255,0.90)',
+  boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+};
+
 export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { user } = useAuth();
 
   return (
     <aside
@@ -34,47 +48,23 @@ export default function Sidebar() {
         className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6"
         style={{ overflow: 'visible' }}
       >
+        {/* Top shimmer line */}
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
-        {/* Logo / Avatar */}
+        {/* Aurora logo — always TreePine, always the brand */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="mb-3 shrink-0"
-          style={{ width: 40, height: 40 }}
+          className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-white"
+          style={{
+            background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
+            boxShadow:  '0 8px 20px rgba(124,92,255,0.40)',
+          }}
         >
-          {user?.avatar ? (
-            <img
-              src={user.avatar}
-              alt={user.name}
-              style={{
-                width:          40,
-                height:         40,
-                minWidth:       40,
-                minHeight:      40,
-                borderRadius:   14,
-                objectFit:      'cover',
-                objectPosition: 'center',
-                display:        'block',
-                boxShadow:      '0 8px 20px rgba(124,92,255,0.40)',
-              }}
-            />
-          ) : (
-            <div
-              className="flex items-center justify-center rounded-2xl text-white font-bold text-sm"
-              style={{
-                width:      40,
-                height:     40,
-                background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
-                boxShadow:  '0 8px 20px rgba(124,92,255,0.40)',
-              }}
-            >
-              {user?.name?.[0]?.toUpperCase() || '✦'}
-            </div>
-          )}
+          <TreePine size={20} />
         </motion.div>
 
-        {/* Nav */}
+        {/* Nav items */}
         <nav className="flex flex-col gap-1" style={{ overflow: 'visible' }}>
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
@@ -108,10 +98,7 @@ export default function Sidebar() {
                     {!isActive && (
                       <span
                         className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                        style={{
-                          background: 'rgba(255,255,255,0.90)',
-                          boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
-                        }}
+                        style={hoverCard}
                       />
                     )}
                     <Icon
@@ -125,13 +112,7 @@ export default function Sidebar() {
                     />
                   </motion.span>
 
-                  {/* Tooltip */}
-                  <span
-                    className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
-                    style={{ left: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
-                  >
-                    {label}
-                  </span>
+                  <NavTooltip label={label} />
                 </>
               )}
             </NavLink>
@@ -152,22 +133,14 @@ export default function Sidebar() {
           >
             <span
               className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              style={{
-                background: 'rgba(255,255,255,0.90)',
-                boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
-              }}
+              style={hoverCard}
             />
             <Settings
               size={19}
               strokeWidth={2.1}
               className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-aurora-violet transition-colors duration-150"
             />
-            <span
-              className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
-              style={{ left: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
-            >
-              Settings
-            </span>
+            <NavTooltip label="Settings" />
           </motion.button>
         </div>
       </div>
