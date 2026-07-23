@@ -191,8 +191,24 @@ export default function Goals() {
                 </div>
 
                 {g.description && <p className="text-sm text-ink/50 mt-3">{g.description}</p>}
-                {g.target_date  && <p className="text-xs text-ink/40 mt-1">Target: {g.target_date}</p>}
-
+                {g.target_date && (() => {
+  const daysLeft = Math.ceil((new Date(g.target_date) - new Date()) / (1000*60*60*24));
+  const urgent   = daysLeft <= 3;
+  const soon     = daysLeft <= 7;
+  return (
+    <p className={`text-xs mt-1 flex items-center gap-1 font-medium ${
+      urgent ? 'text-coral-500' : soon ? 'text-sun-600' : 'text-ink/40'
+    }`}>
+      {urgent && '🚨'}
+      {!urgent && soon && '⚠️'}
+      {urgent
+        ? daysLeft <= 0 ? 'Overdue!' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left!`
+        : soon
+        ? `${daysLeft} days left`
+        : `Target: ${g.target_date}`}
+    </p>
+  );
+})()}
                 {g.milestones.length > 0 && (
                   <div className="mt-4 flex flex-col gap-1.5">
                     {g.milestones.map((m) => (
