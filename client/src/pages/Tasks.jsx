@@ -6,33 +6,37 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
-import PageHeader    from '../components/PageHeader.jsx';
-import PriorityPill  from '../components/PriorityPill.jsx';
-import Modal         from '../components/Modal.jsx';
-import EmptyState    from '../components/EmptyState.jsx';
-import PageLoader    from '../components/Loader.jsx';
+import PageHeader   from '../components/PageHeader.jsx';
+import PriorityPill from '../components/PriorityPill.jsx';
+import Modal        from '../components/Modal.jsx';
+import EmptyState   from '../components/EmptyState.jsx';
+import PageLoader   from '../components/Loader.jsx';
 
 // ── Constants ─────────────────────────────────────────────────
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
-const RECURRENCE_OPTIONS = [
-  { value: '',         label: 'Does not repeat' },
-  { value: 'daily',   label: 'Daily'            },
-  { value: 'weekdays', label: 'Weekdays (Mon–Fri)' },
-  { value: 'weekly',  label: 'Weekly'            },
-  { value: 'monthly', label: 'Monthly'           },
-];
+const DAY_LABELS  = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_NAMES   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const RECURRENCE_LABELS = {
-  daily:    'Daily',
-  weekdays: 'Weekdays',
-  weekly:   'Weekly',
-  monthly:  'Monthly',
-};
+// Recurrence display label
+function recurrenceLabel(r) {
+  if (!r) return null;
+  if (r === 'daily')   return 'Daily';
+  if (r === 'weekly')  return 'Weekly';
+  if (r === 'monthly') return 'Monthly';
+  if (r?.startsWith('custom:')) {
+    const days = r.split(':')[1].split(',').map(Number);
+    if (days.length === 7) return 'Every day';
+    if (JSON.stringify(days.sort()) === JSON.stringify([1,2,3,4,5])) return 'Weekdays';
+    if (JSON.stringify(days.sort()) === JSON.stringify([0,6])) return 'Weekends';
+    return days.map((d) => DAY_NAMES[d]).join(', ');
+  }
+  return null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
-function getTodayStr()        { return new Date().toISOString().slice(0, 10); }
-function getOffsetDateStr(n)  {
+function getTodayStr()       { return new Date().toISOString().slice(0, 10); }
+function getOffsetDateStr(n) {
   const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + n);
   return d.toISOString().slice(0, 10);
 }
@@ -60,8 +64,65 @@ function sortByPriority(tasks) {
 
 const emptyForm = {
   title: '', description: '', priority: 'medium',
-  category: 'General', deadline: '', deadline_time: '', recurrence: '',
+  category: 'General', deadline: '', deadline_time: '',
+  recurrenceType: '',   // '', 'daily', 'weekly', 'monthly', 'custom'
+  customDays: [],       // array of day indices 0-6
 };
+
+function formToRecurrence(form) {
+  if (!form.recurrenceType) return null;
+  if (form.recurrenceType === 'custom') {
+    if (!form.customDays.length) return null;
+    return `custom:${form.customDays.sort((a,b)=>a-b).join(',')}`;
+  }
+  return form.recurrenceType;
+}
+
+function recurrenceToForm(recurrence) {
+  if (!recurrence) return { recurrenceType: '', customDays: [] };
+  if (recurrence === 'daily' || recurrence === 'weekly' || recurrence === 'monthly') {
+    return { recurrenceType: recurrence, customDays: [] };
+  }
+  if (recurrence.startsWith('custom:')) {
+    return { recurrenceType: 'custom', customDays: recurrence.split(':')[1].split(',').map(Number) };
+  }
+  return { recurrenceType: '', customDays: [] };
+}
+
+// ── Day picker component ───────────────────────────────────────
+function DayPicker({ selected, onChange }) {
+  const toggle = (day) => {
+    if (selected.includes(day)) onChange(selected.filter((d) => d !== day));
+    else onChange([...selected, day]);
+  };
+
+  return (
+    <div className="flex gap-2 mt-2">
+      {DAY_LABELS.map((label, i) => {
+        const isOn = selected.includes(i);
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => toggle(i)}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all"
+            style={isOn ? {
+              background: 'linear-gradient(135deg,#7C6AF0,#5B47E0)',
+              color:      'white',
+              boxShadow:  '0 4px 12px rgba(124,106,240,0.35)',
+            } : {
+              background: 'rgba(124,106,240,0.08)',
+              border:     '1px solid rgba(124,106,240,0.18)',
+              color:      'rgba(124,106,240,0.60)',
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── Main ──────────────────────────────────────────────────────
 export default function Tasks() {
@@ -83,7 +144,6 @@ export default function Tasks() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Listen for N shortcut from App.jsx
   useEffect(() => {
     const handler = () => { setEditingTask(null); setForm(emptyForm); setModalOpen(true); };
     window.addEventListener('aurora:new-task', handler);
@@ -104,37 +164,34 @@ export default function Tasks() {
     later:    sortByPriority(active.filter((t) => t.deadline && t.deadline > in7Days)),
   };
 
-  // ── Mark done — handles next recurrence ──────────────────────
   const markDone = async (task) => {
     setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status:'done', progress:100 } : t));
     try {
       const { xpAwarded, unlocked, nextTask } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
       if (xpAwarded) toast.xp(xpAwarded, task.title);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g,' ')));
-
-      // If recurring — add next occurrence to state and show toast
       if (nextTask) {
-        const normalized = { ...nextTask, priority: (nextTask.priority || 'medium').toLowerCase() };
+        const norm = { ...nextTask, priority: (nextTask.priority || 'medium').toLowerCase() };
         setTasks((prev) => [
           ...prev.filter((t) => t.id !== task.id),
           { ...prev.find(t => t.id === task.id), status:'done', progress:100 },
-          normalized,
+          norm,
         ]);
-        toast.success(`🔁 Next occurrence created for ${formatDate(nextTask.deadline)}`);
+        toast.success(`🔁 Next occurrence: ${formatDate(nextTask.deadline)}`);
       }
     } catch (err) { toast.error(err.message); load(); }
   };
 
   const markUndone = async (task) => {
     setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status:'todo', progress:0 } : t));
-    try {
-      await api.put(`/tasks/${task.id}`, { status:'todo', progress:0 });
-    } catch (err) { toast.error(err.message); load(); }
+    try { await api.put(`/tasks/${task.id}`, { status:'todo', progress:0 }); }
+    catch (err) { toast.error(err.message); load(); }
   };
 
   const openCreateModal = () => { setEditingTask(null); setForm(emptyForm); setModalOpen(true); };
   const openEditModal   = (task) => {
     setEditingTask(task);
+    const { recurrenceType, customDays } = recurrenceToForm(task.recurrence);
     setForm({
       title:         task.title,
       description:   task.description || '',
@@ -142,7 +199,8 @@ export default function Tasks() {
       category:      task.category,
       deadline:      task.deadline || '',
       deadline_time: task.deadline_time || '',
-      recurrence:    task.recurrence || '',
+      recurrenceType,
+      customDays,
     });
     setModalOpen(true);
   };
@@ -151,28 +209,29 @@ export default function Tasks() {
     e.preventDefault();
     if (!form.title.trim()) return;
     try {
-      const payload = { ...form, deadline: form.deadline || null, recurrence: form.recurrence || null };
-      if (editingTask) {
-        await api.put(`/tasks/${editingTask.id}`, payload);
-        toast.success('Task updated');
-      } else {
-        await api.post('/tasks', payload);
-        toast.success('Task added');
-      }
+      const recurrence = formToRecurrence(form);
+      const payload    = {
+        title:         form.title.trim(),
+        description:   form.description,
+        priority:      form.priority,
+        category:      form.category,
+        deadline:      form.deadline || null,
+        deadline_time: form.deadline_time || null,
+        recurrence,
+      };
+      if (editingTask) { await api.put(`/tasks/${editingTask.id}`, payload); toast.success('Task updated'); }
+      else             { await api.post('/tasks', payload);                   toast.success('Task added');   }
       setForm(emptyForm); setEditingTask(null); setModalOpen(false); load();
     } catch (err) { toast.error(err.message); }
   };
 
   const removeTask = async (id) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    try {
-      await api.del(`/tasks/${id}`);
-      toast.success('Task deleted');
-    } catch (err) { toast.error(err.message); load(); }
+    try { await api.del(`/tasks/${id}`); toast.success('Task deleted'); }
+    catch (err) { toast.error(err.message); load(); }
   };
 
   if (loading) return <PageLoader />;
-
   const isEmpty = active.length === 0 && completed.length === 0;
 
   return (
@@ -181,11 +240,7 @@ export default function Tasks() {
         eyebrow="Task Manager"
         title="Your tasks"
         subtitle="Sorted by priority — high first, then by time."
-        action={
-          <button className="btn-primary" onClick={openCreateModal}>
-            <Plus size={16} /> New task
-          </button>
-        }
+        action={<button className="btn-primary" onClick={openCreateModal}><Plus size={16}/> New task</button>}
       />
 
       {isEmpty ? (
@@ -194,40 +249,37 @@ export default function Tasks() {
           title="This is where your work lives"
           description="Tasks are organized by date and priority — high urgency tasks always float to the top."
           features={[
-            { icon: '🗓', text: 'Tasks auto-group into Today, Tomorrow, and Later'     },
-            { icon: '⬆️', text: 'High priority tasks appear first within each group'   },
-            { icon: '🔁', text: 'Recurring tasks automatically create the next occurrence' },
-            { icon: '🤖', text: 'Ask Lumi to create tasks for you in plain English'     },
+            { icon:'🗓', text:'Tasks auto-group into Today, Tomorrow, and Later' },
+            { icon:'⬆️', text:'High priority tasks appear first within each group' },
+            { icon:'🔁', text:'Recurring tasks automatically create the next occurrence' },
+            { icon:'🤖', text:'Ask Lumi to create tasks for you in plain English' },
           ]}
           action={
             <button className="btn-primary w-full justify-center" onClick={openCreateModal}>
-              <Plus size={16} /> Add your first task
+              <Plus size={16}/> Add your first task
             </button>
           }
-          tip="Try asking Lumi: 'Add a high priority task to submit my assignment by Friday'"
+          tip="Try: 'Add a high priority task to submit my assignment by Friday'"
         />
       ) : (
         <div className="flex flex-col gap-8">
-          <TaskGroup label="Today"        tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
-          <TaskGroup label="Tomorrow"     tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
-          <TaskGroup label="Next 7 Days"  tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
-          <TaskGroup label="Later"        tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
+          <TaskGroup label="Today"       tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
+          <TaskGroup label="Tomorrow"    tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
+          <TaskGroup label="Next 7 Days" tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
+          <TaskGroup label="Later"       tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
 
           {completed.length > 0 && (
             <div>
-              <button
-                onClick={() => setCompletedOpen((o) => !o)}
-                className="flex items-center gap-2 text-sm font-medium text-ink/50 dark:text-white/40 hover:text-ink/70 dark:hover:text-white/60 transition mb-3"
-              >
-                {completedOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              <button onClick={() => setCompletedOpen((o) => !o)}
+                className="flex items-center gap-2 text-sm font-medium text-ink/50 dark:text-white/40 hover:text-ink/70 dark:hover:text-white/60 transition mb-3">
+                {completedOpen ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}
                 Show completed ({completed.length})
               </button>
               <AnimatePresence>
                 {completedOpen && (
                   <motion.div
                     initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
-                    className="overflow-hidden"
-                  >
+                    className="overflow-hidden">
                     <div className="flex flex-col gap-2">
                       {sortByPriority(completed).map((task) => (
                         <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={removeTask} onMarkUndone={markUndone} done />
@@ -241,7 +293,7 @@ export default function Tasks() {
         </div>
       )}
 
-      {/* ── Modal ──────────────────────────────────────────────── */}
+      {/* ── New / Edit modal ───────────────────────────────────── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTask ? 'Edit task' : 'New task'}>
         <form onSubmit={submitForm} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder="Task title"
@@ -269,17 +321,49 @@ export default function Tasks() {
               onChange={(e) => setForm({ ...form, deadline_time: e.target.value })} />
           </div>
 
-          {/* Recurrence */}
+          {/* Repeat */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">
+            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">
               Repeat
             </label>
-            <select className="input-field" value={form.recurrence}
-              onChange={(e) => setForm({ ...form, recurrence: e.target.value })}>
-              {RECURRENCE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: '',        label: 'Never'   },
+                { value: 'daily',   label: 'Daily'   },
+                { value: 'custom',  label: 'Custom'  },
+                { value: 'weekly',  label: 'Weekly'  },
+                { value: 'monthly', label: 'Monthly' },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, recurrenceType: opt.value, customDays: opt.value === 'custom' ? [1,2,3,4,5] : [] })}
+                  className="rounded-2xl px-4 py-2 text-xs font-semibold transition-all"
+                  style={form.recurrenceType === opt.value ? {
+                    background: 'linear-gradient(135deg,#7C6AF0,#5B47E0)',
+                    color:      'white',
+                    boxShadow:  '0 4px 12px rgba(124,106,240,0.30)',
+                  } : {
+                    background: 'rgba(124,106,240,0.08)',
+                    border:     '1px solid rgba(124,106,240,0.15)',
+                    color:      'rgba(124,106,240,0.65)',
+                  }}
+                >
+                  {opt.label}
+                </button>
               ))}
-            </select>
+            </div>
+
+            {/* Day picker — only for custom */}
+            {form.recurrenceType === 'custom' && (
+              <motion.div initial={{ opacity:0, y:-4 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.15 }}>
+                <p className="text-[11px] text-ink/35 dark:text-white/25 mt-3 mb-1">Pick days</p>
+                <DayPicker
+                  selected={form.customDays}
+                  onChange={(days) => setForm({ ...form, customDays: days })}
+                />
+              </motion.div>
+            )}
           </div>
 
           <button type="submit" className="btn-primary justify-center mt-1">
@@ -316,28 +400,23 @@ function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone }) {
 
 // ── TaskCard ──────────────────────────────────────────────────
 function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false }) {
-  const time = formatTime(task.deadline_time);
-  const date = formatDate(task.deadline);
+  const time  = formatTime(task.deadline_time);
+  const date  = formatDate(task.deadline);
+  const label = recurrenceLabel(task.recurrence);
 
   return (
-    <motion.div
-      layout
+    <motion.div layout
       className={`group flex items-start gap-3 rounded-2xl border border-white/70 bg-white/70
                   dark:border-white/10 dark:bg-white/[0.04] p-3.5 shadow-sm transition
                   hover:bg-white/90 dark:hover:bg-white/[0.07] ${done ? 'opacity-50' : ''}`}
     >
-      {/* Checkbox */}
-      <button
-        onClick={() => done ? onMarkUndone(task) : onMarkDone(task)}
-        className="mt-0.5 shrink-0 transition"
-      >
+      <button onClick={() => done ? onMarkUndone(task) : onMarkDone(task)}
+        className="mt-0.5 shrink-0 transition">
         {done
           ? <CheckCircle2 size={18} className="text-sage-500" />
-          : <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />
-        }
+          : <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />}
       </button>
 
-      {/* Body */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className={`text-sm font-medium text-ink dark:text-white leading-snug ${done ? 'line-through text-ink/40 dark:text-white/30' : ''}`}>
@@ -346,11 +425,11 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
             {!done && (
               <button onClick={() => onEdit(task)} className="text-ink/30 dark:text-white/25 hover:text-lavender-600 transition">
-                <Pencil size={14} />
+                <Pencil size={14}/>
               </button>
             )}
             <button onClick={() => onDelete(task.id)} className="text-ink/30 dark:text-white/25 hover:text-coral-500 transition">
-              <Trash2 size={14} />
+              <Trash2 size={14}/>
             </button>
           </div>
         </div>
@@ -362,7 +441,6 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <PriorityPill priority={task.priority} />
 
-          {/* Deadline urgency */}
           {task.deadline && (() => {
             const daysLeft = Math.ceil((new Date(task.deadline) - new Date()) / (1000*60*60*24));
             const urgent   = daysLeft <= 1;
@@ -371,27 +449,27 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
               <span className={`flex items-center gap-1 text-[11px] font-medium ${
                 urgent ? 'text-coral-500' : soon ? 'text-sun-600' : 'text-ink/40 dark:text-white/30'
               }`}>
-                <Calendar size={10} />
-                {daysLeft <= 0  ? '🚨 Overdue'
-                : urgent        ? '🚨 Due tomorrow'
-                : soon          ? `⚠️ Due in ${daysLeft} days`
+                <Calendar size={10}/>
+                {daysLeft <= 0 ? '🚨 Overdue'
+                : urgent       ? '🚨 Due tomorrow'
+                : soon         ? `⚠️ Due in ${daysLeft} days`
                 : date}
               </span>
             );
           })()}
 
-          {/* Time */}
           {time && (
             <span className="flex items-center gap-1 text-[11px] text-ink/40 dark:text-white/30">
-              <Clock size={10} /> {time}
+              <Clock size={10}/> {time}
             </span>
           )}
 
-          {/* Recurrence badge */}
-          {task.recurrence && (
-            <span className="flex items-center gap-1 text-[11px] font-semibold text-lavender-500"
-              style={{ background:'rgba(124,106,240,0.10)', borderRadius:6, padding:'1px 6px' }}>
-              <RefreshCw size={9} /> {RECURRENCE_LABELS[task.recurrence]}
+          {label && (
+            <span
+              className="flex items-center gap-1 text-[11px] font-semibold text-lavender-500"
+              style={{ background:'rgba(124,106,240,0.10)', borderRadius:6, padding:'1px 7px' }}
+            >
+              <RefreshCw size={9}/> {label}
             </span>
           )}
         </div>
