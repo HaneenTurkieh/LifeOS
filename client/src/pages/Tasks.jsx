@@ -167,11 +167,22 @@ export default function Tasks() {
 
       {isEmpty ? (
         <EmptyState
-          icon={ListChecks}
-          title="No tasks yet"
-          message="Add your first task to get started."
-          action={<button className="btn-primary mt-2" onClick={openCreateModal}><Plus size={16} /> New task</button>}
-        />
+        icon={ListChecks}
+        title="This is where your work lives"
+        description="Tasks are organized by date and priority — high urgency tasks always float to the top."
+        features={[
+          { icon: '🗓', text: 'Tasks auto-group into Today, Tomorrow, and Later' },
+          { icon: '⬆️', text: 'High priority tasks always appear first within each group' },
+          { icon: '✅', text: 'Check off tasks to earn XP and unlock achievements' },
+          { icon: '🤖', text: 'Ask Lumi to create tasks for you in plain English' },
+        ]}
+        action={
+          <button className="btn-primary w-full justify-center" onClick={openCreateModal}>
+            <Plus size={16} /> Add your first task
+          </button>
+        }
+        tip="Try asking Lumi: 'Add a high priority task to submit my assignment by Friday'"
+      />
       ) : (
         <div className="flex flex-col gap-8">
 

@@ -153,10 +153,22 @@ export default function Goals() {
       {tab === 'goals' && (
         goals.length === 0 ? (
           <EmptyState
-            icon={Target} title="No goals yet"
-            message="Add a goal like 'Get driving license' or 'Build portfolio project'."
-            action={<button className="btn-primary mt-2" onClick={() => setGoalModal(true)}><Plus size={16}/> New goal</button>}
-          />
+  icon={Target}
+  title="Think big. Start here."
+  description="Goals are your big picture. Break them into milestones and Aurora tracks your progress automatically — no manual updates needed."
+  features={[
+    { icon: '🎯', text: 'Set a goal — career, personal, academic, anything' },
+    { icon: '🪜', text: 'Add milestones and Aurora calculates progress for you' },
+    { icon: '✨', text: 'Ask Lumi to break down any goal into a step-by-step plan' },
+    { icon: '🏆', text: 'Complete a goal to earn 100 XP and unlock achievements' },
+  ]}
+  action={
+    <button className="btn-primary w-full justify-center" onClick={() => setGoalModal(true)}>
+      <Plus size={16} /> Set your first goal
+    </button>
+  }
+  tip="Try: 'Graduate with a GPA above 3.8' — then let Lumi suggest the milestones"
+/>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {goals.map((g, i) => (
@@ -222,10 +234,22 @@ export default function Goals() {
       {tab === 'recurring' && (
         habits.length === 0 ? (
           <EmptyState
-            icon={RefreshCw} title="No recurring tasks yet"
-            message="Add daily commitments like Exercise, Read 20 pages, or Meditate."
-            action={<button className="btn-primary mt-2" onClick={() => setRecurModal(true)}><Plus size={16}/> New recurring task</button>}
-          />
+  icon={RefreshCw}
+  title="Consistency is the superpower"
+  description="Recurring tasks repeat on your schedule. Aurora tracks your streak, completion rate, and logs 30 days of history."
+  features={[
+    { icon: '🔁', text: 'Set any task to repeat daily, weekly, or on specific days' },
+    { icon: '🔥', text: 'Build streaks — Aurora celebrates your consistency' },
+    { icon: '📊', text: '30-day history heatmap shows your patterns at a glance' },
+    { icon: '⚡', text: 'Earn 5 XP every time you mark one done' },
+  ]}
+  action={
+    <button className="btn-primary w-full justify-center" onClick={() => setRecurModal(true)}>
+      <Plus size={16} /> Add a recurring task
+    </button>
+  }
+  tip="Start small — 'Read 10 pages' every day beats 'Read 100 pages' once a week"
+/>
         ) : (
           <>
             <div className="flex flex-col gap-4">
