@@ -43,6 +43,15 @@ const cardGlass = {
 
 const fmtTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+const TREE_EMOJIS = {
+  seedling:       '🌱', sprout: '🌿',  oak:  '🌳',
+  cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
+  pine:           '🌲', crystal: '✨',
+};
+
+
+
+
 export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
@@ -53,6 +62,13 @@ export default function Flow() {
     setTaskName, setRoom, setCongrats,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
   } = useFocus();
+  const [equippedTree, setEquippedTree] = useState('seedling');
+
+useEffect(() => {
+  api.get('/trees')
+    .then((d) => setEquippedTree(d.equipped || 'seedling'))
+    .catch(() => {});
+}, []);
 
   const [tab,       setTab]       = useState('timer');
   const [roomModal, setRoomModal] = useState(false);
@@ -196,22 +212,49 @@ export default function Flow() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
-                <span className="font-display tabular-nums leading-none text-ink dark:text-white"
-                  style={{ fontSize: 58, fontWeight: 700 }}>
-                  {mm}:{ss}
-                </span>
-                <span className="text-sm font-medium mt-2" style={{ color: modeColor }}>
-                  {MODES[mode].emoji} {MODES[mode].label}
-                </span>
-                {dots > 0 && (
-                  <div className="flex gap-1.5 mt-3">
-                    {Array.from({ length: Math.min(dots, 8) }).map((_, i) => (
-                      <div key={i} className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: modeColor, boxShadow: `0 0 4px ${modeColor}` }} />
-                    ))}
-                  </div>
-                )}
-              </div>
+  {/* Equipped tree — floats above the timer */}
+  <motion.div
+    key={equippedTree}
+    animate={isRunning
+      ? { y: [0, -5, 0], scale: [1, 1.05, 1] }
+      : { y: [0, -3, 0] }
+    }
+    transition={{ duration: isRunning ? 2 : 3.5, repeat: Infinity, ease: 'easeInOut' }}
+    className="text-4xl mb-1 select-none"
+    style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
+  >
+    {TREE_EMOJIS[equippedTree] || '🌱'}
+  </motion.div>
+
+  {/* Timer digits */}
+  <span
+    className="font-display tabular-nums leading-none text-ink dark:text-white"
+    style={{ fontSize: 52, fontWeight: 700 }}
+  >
+    {mm}:{ss}
+  </span>
+
+  {/* Mode label */}
+  <span className="text-xs font-medium mt-1.5" style={{ color: modeColor }}>
+    {MODES[mode].label}
+  </span>
+
+  {/* Session dots */}
+  {dots > 0 && (
+    <div className="flex gap-1.5 mt-3">
+      {Array.from({ length: Math.min(dots, 8) }).map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          className="h-2 w-2 rounded-full"
+          style={{ backgroundColor: modeColor, boxShadow: `0 0 4px ${modeColor}` }}
+        />
+      ))}
+    </div>
+  )}
+</div>
             </div>
 
             {/* Task name */}
@@ -519,8 +562,23 @@ export default function Flow() {
                 animate={{ y: [0, -8, 0], rotate: [0, -5, 5, -3, 0] }}
                 transition={{ duration: 0.7, ease: 'easeOut' }}
                 className="text-6xl mb-4">🎉</motion.div>
-              <h2 className="font-display text-2xl font-bold text-ink dark:text-white mb-1">Session Complete!</h2>
-              <p className="text-ink/50 mb-3">{congrats.minutes} min of focused work.</p>
+<div className="flex items-center justify-center gap-2 mb-1">
+  <motion.span
+    animate={{ rotate: [-10, 10, -10] }}
+    transition={{ duration: 0.5, repeat: 2 }}
+    className="text-3xl"
+  >
+    {TREE_EMOJIS[equippedTree] || '🌱'}
+  </motion.span>
+  <h2 className="font-display text-2xl font-bold text-ink dark:text-white">Session Complete!</h2>
+  <motion.span
+    animate={{ rotate: [10, -10, 10] }}
+    transition={{ duration: 0.5, repeat: 2 }}
+    className="text-3xl"
+  >
+    {TREE_EMOJIS[equippedTree] || '🌱'}
+  </motion.span>
+</div>              <p className="text-ink/50 mb-3">{congrats.minutes} min of focused work.</p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
                   style={lg({ color: '#7C6AF0', active: true })}>
