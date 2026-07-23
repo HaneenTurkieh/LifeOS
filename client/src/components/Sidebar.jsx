@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
-  BarChart3, Rocket, Sparkles, TreePine, Settings,
+  BarChart3, Rocket, Sparkles, TreePine, Settings, GraduationCap,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/goals',     icon: Target,          label: 'Goals'     },
   { to: '/learning',  icon: Timer,           label: 'Flow'      },
   { to: '/ai',        icon: Sparkles,        label: 'Lumi AI'   },
+  { to: '/exam',      icon: GraduationCap,   label: 'Exam AI'   },
   { to: '/analytics', icon: BarChart3,       label: 'Analytics' },
   { to: '/launchpad', icon: Rocket,          label: 'Launchpad' },
   { to: '/trees',     icon: TreePine,        label: 'Tree Shop' },
@@ -23,8 +24,13 @@ export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-<aside className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6 z-20 relative">      <div className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6"
-        style={{ zIndex: 10 }}
+    <aside
+      className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6"
+      style={{ position: 'relative', zIndex: 100, overflow: 'visible' }}
+    >
+      <div
+        className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6"
+        style={{ overflow: 'visible' }}
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
@@ -38,15 +44,14 @@ export default function Sidebar() {
         </motion.div>
 
         {/* Nav */}
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-col gap-1" style={{ overflow: 'visible' }}>
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/'}
-              title={label}
               className="group relative flex h-11 w-11 items-center justify-center"
-              style={{ zIndex: 10 }}
+              style={{ overflow: 'visible' }}
             >
               {({ isActive }) => (
                 <>
@@ -89,8 +94,16 @@ export default function Sidebar() {
                     />
                   </motion.span>
 
-                  {/* Tooltip — z-[200] ensures it always renders above cards */}
-                  <span className="pointer-events-none absolute left-[3.25rem] z-[200] whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                  {/* Tooltip */}
+                  <span
+                    className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+                    style={{
+                      left:      '3.25rem',
+                      top:       '50%',
+                      transform: 'translateY(-50%)',
+                      zIndex:    9999,
+                    }}
+                  >
                     {label}
                   </span>
                 </>
@@ -100,14 +113,16 @@ export default function Sidebar() {
         </nav>
 
         {/* Settings */}
-        <div className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center">
+        <div
+          className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center"
+          style={{ overflow: 'visible' }}
+        >
           <motion.button
             whileHover={{ y: -4, scale: 1.18, transition: { type: 'spring', stiffness: 500, damping: 22 } }}
             whileTap={{ scale: 0.94 }}
             onClick={() => setSettingsOpen(true)}
-            title="Settings"
             className="group relative flex h-11 w-11 items-center justify-center rounded-2xl"
-            style={{ zIndex: 10 }}
+            style={{ overflow: 'visible' }}
           >
             <span
               className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -121,8 +136,15 @@ export default function Sidebar() {
               strokeWidth={2.1}
               className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-aurora-violet transition-colors duration-150"
             />
-            {/* Settings tooltip */}
-            <span className="pointer-events-none absolute left-[3.25rem] z-[200] whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+            <span
+              className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+              style={{
+                left:      '3.25rem',
+                top:       '50%',
+                transform: 'translateY(-50%)',
+                zIndex:    9999,
+              }}
+            >
               Settings
             </span>
           </motion.button>
