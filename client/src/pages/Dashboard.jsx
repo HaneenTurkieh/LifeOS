@@ -80,8 +80,9 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
+      const localDate = new Date().toLocaleDateString('en-CA');
       const [dash, trees] = await Promise.all([
-        api.get('/dashboard'),
+        api.get(`/dashboard?date=${localDate}`),
         api.get('/trees'),
       ]);
       setData(dash);
@@ -95,8 +96,12 @@ export default function Dashboard() {
 
   const saveMood = async (value) => {
     setMoodSaving(true);
-    try { await api.post('/mood', { mood: value }); load(); }
-    catch (e) { toast.error(e.message); }
+    try {
+      // Send the user's LOCAL date, not the server's UTC date
+      const localDate = new Date().toLocaleDateString('en-CA'); // gives YYYY-MM-DD in local time
+      await api.post('/mood', { mood: value, date: localDate });
+      load();
+    } catch (e) { toast.error(e.message); }
     finally { setMoodSaving(false); }
   };
 

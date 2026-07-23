@@ -7,8 +7,8 @@ const { quoteOfTheDay } = require('../lib/ai');
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
-    const today = todayIso();
-
+// In the dashboard route, accept date from query
+const today = req.query.date || new Date().toISOString().slice(0, 10);
     const [todaysTasksResult, habitsResult, upcomingResult, moodResult, tasksDoneResult, totalTasksResult] = await Promise.all([
       db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND (deadline = ? OR deadline IS NULL) ORDER BY priority DESC LIMIT 6`, args: [userId, today] }),
       db.execute({ sql: `SELECT * FROM habits WHERE user_id = ?`, args: [userId] }),
