@@ -80,12 +80,22 @@ const TOOLS = [
   },
   {
     name: 'get_focus_stats',
-    description: 'Get focus session stats.',
+    description: 'Get total focus session stats.',
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'get_focus_history',
+    description: 'Analyse focus session history — best days, best times, patterns, insights.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['week','month','all'] },
+      },
+    },
+  },
+  {
     name: 'generate_daily_plan',
-    description: 'Generate a prioritized daily plan.',
+    description: 'Generate a prioritized daily plan based on tasks and available time.',
     input_schema: {
       type: 'object',
       properties: {
@@ -95,23 +105,43 @@ const TOOLS = [
     },
   },
   {
-    name: 'get_focus_history',
-    description: 'Analyze focus session history — best days, times, patterns, insights.',
+    name: 'get_habit_streaks',
+    description: 'Get the user\'s habits and their current streaks, consistency, and which are at risk.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_mood_insights',
+    description: 'Get mood trends and insights — average mood, best and worst days, patterns.',
     input_schema: {
       type: 'object',
       properties: {
-        period: { type: 'string', enum: ['week','month','all'] },
+        period: { type: 'string', enum: ['week','month'] },
       },
     },
   },
   {
-    name: 'save_memory',
-    description: 'Save an important fact about the user for future conversations.',
+    name: 'list_upcoming_deadlines',
+    description: 'Get tasks with upcoming deadlines sorted by urgency.',
     input_schema: {
       type: 'object',
       properties: {
-        key:   { type: 'string' },
-        value: { type: 'string' },
+        days: { type: 'number', description: 'How many days ahead to look (default 7)' },
+      },
+    },
+  },
+  {
+    name: 'get_xp_progress',
+    description: 'Get the user\'s XP, current level, and progress toward the next tree unlock.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'save_memory',
+    description: 'Save an important fact about the user for future conversations. Use when the user shares preferences, personal info, or anything worth remembering.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        key:   { type: 'string', description: 'Short identifier e.g. "study_field", "wake_time"' },
+        value: { type: 'string', description: 'The fact to remember' },
       },
       required: ['key','value'],
     },
@@ -237,23 +267,6 @@ async function executeTool(name, input, userId) {
       return { total_minutes: Number(res.rows[0].total), total_sessions: Number(res.rows[0].sessions) };
     }
 
-    case 'generate_daily_plan': {
-      const tasks = await db.execute({
-        sql:  `SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 10`,
-        args: [userId],
-      });
-      const hours  = input.available_hours || 4;
-      const energy = input.energy || 'medium';
-      const sorted = tasks.rows.sort((a, b) =>
-        ({ high:0, medium:1, low:2 }[a.priority]||1) - ({ high:0, medium:1, low:2 }[b.priority]||1)
-      );
-      const plan = sorted.slice(0, Math.min(Math.floor(hours * 1.5), sorted.length)).map((t, i) => ({
-        slot: i+1, title: t.title, priority: t.priority,
-        estimated: t.priority === 'high' ? '60-90 min' : '30-45 min',
-      }));
-      return { available_hours: hours, energy, plan };
-    }
-
     case 'get_focus_history': {
       const period = input.period || 'month';
       const filter = period === 'week'
@@ -321,7 +334,165 @@ async function executeTool(name, input, userId) {
         top_hours:        byHour.rows.map(r => ({ ...r, hour_label: formatHour(r.hour) })),
         insight: Number(s.total_sessions) === 0
           ? 'No focus sessions yet. Start your first session in the Flow tab!'
-          : `You focus best on ${bestDay?.day || 'weekdays'}, typically around ${formatHour(bestHour?.hour)}. You've logged ${Math.round(Number(s.total_minutes)/60*10)/10} hours of deep work this ${period}.`,
+          : `You focus best on ${bestDay?.day || 'weekdays'}, typically around ${formatHour(bestHour?.hour)}. You\'ve logged ${Math.round(Number(s.total_minutes)/60*10)/10} hours of deep work this ${period}.`,
+      };
+    }
+
+    case 'generate_daily_plan': {
+      const tasks = await db.execute({
+        sql:  `SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 10`,
+        args: [userId],
+      });
+      const hours  = input.available_hours || 4;
+      const energy = input.energy || 'medium';
+      const sorted = tasks.rows.sort((a, b) =>
+        ({ high:0, medium:1, low:2 }[a.priority]||1) - ({ high:0, medium:1, low:2 }[b.priority]||1)
+      );
+      const plan = sorted.slice(0, Math.min(Math.floor(hours * 1.5), sorted.length)).map((t, i) => ({
+        slot: i+1, title: t.title, priority: t.priority,
+        estimated: t.priority === 'high' ? '60-90 min' : '30-45 min',
+      }));
+      return { available_hours: hours, energy, plan };
+    }
+
+    case 'get_habit_streaks': {
+      const today = new Date().toISOString().slice(0, 10);
+      const habits = await db.execute({
+        sql: `SELECT h.id, h.name, h.streak, h.color,
+                     (SELECT COUNT(*) FROM habit_logs hl WHERE hl.habit_id=h.id AND hl.date=?) done_today,
+                     (SELECT COUNT(*) FROM habit_logs hl WHERE hl.habit_id=h.id AND hl.date>=date('now','-30 days')) logs_30d
+              FROM habits h WHERE h.user_id=? ORDER BY h.streak DESC`,
+        args: [today, userId],
+      });
+
+      const rows = habits.rows.map(h => ({
+        name:       h.name,
+        streak:     Number(h.streak || 0),
+        done_today: Boolean(h.done_today),
+        logs_30d:   Number(h.logs_30d || 0),
+        consistency_30d: Math.round((Number(h.logs_30d || 0) / 30) * 100),
+        at_risk: !h.done_today && Number(h.streak || 0) > 0,
+      }));
+
+      const atRisk = rows.filter(h => h.at_risk);
+      return {
+        habits: rows,
+        total_habits: rows.length,
+        done_today:   rows.filter(h => h.done_today).length,
+        at_risk_count: atRisk.length,
+        at_risk_names: atRisk.map(h => h.name),
+        best_streak:   rows.reduce((max, h) => Math.max(max, h.streak), 0),
+        insight: rows.length === 0
+          ? 'No habits set up yet. Add habits in the Goals tab.'
+          : atRisk.length > 0
+          ? `${atRisk.length} habit${atRisk.length > 1 ? 's' : ''} at risk today: ${atRisk.map(h => h.name).join(', ')}. Log them to keep your streak!`
+          : `Great — all habits logged today! Your best streak is ${rows[0]?.streak || 0} days.`,
+      };
+    }
+
+    case 'get_mood_insights': {
+      const period = input.period || 'week';
+      const filter = period === 'week' ? `date('now','-7 days')` : `date('now','-30 days')`;
+
+      const [avg, trend, best, worst] = await Promise.all([
+        db.execute({
+          sql:  `SELECT ROUND(AVG(mood),1) avg, COUNT(*) count FROM moods WHERE user_id=? AND date>=${filter}`,
+          args: [userId],
+        }),
+        db.execute({
+          sql:  `SELECT date, mood FROM moods WHERE user_id=? AND date>=${filter} ORDER BY date ASC`,
+          args: [userId],
+        }),
+        db.execute({
+          sql:  `SELECT date, mood FROM moods WHERE user_id=? AND date>=${filter} ORDER BY mood DESC LIMIT 1`,
+          args: [userId],
+        }),
+        db.execute({
+          sql:  `SELECT date, mood FROM moods WHERE user_id=? AND date>=${filter} ORDER BY mood ASC LIMIT 1`,
+          args: [userId],
+        }),
+      ]);
+
+      const moodLabels = ['', 'Rough', 'Meh', 'Okay', 'Good', 'Great'];
+      const avgVal     = Number(avg.rows[0]?.avg || 0);
+
+      return {
+        period,
+        average_mood:     avgVal,
+        average_label:    moodLabels[Math.round(avgVal)] || 'Unknown',
+        days_logged:      Number(avg.rows[0]?.count || 0),
+        best_day:         best.rows[0] || null,
+        worst_day:        worst.rows[0] || null,
+        trend:            trend.rows,
+        insight: avg.rows[0]?.count === 0
+          ? 'No mood logged yet this period.'
+          : `Your average mood this ${period} is ${avgVal}/5 (${moodLabels[Math.round(avgVal)] || ''}). You've logged ${avg.rows[0].count} days.`,
+      };
+    }
+
+    case 'list_upcoming_deadlines': {
+      const days   = input.days || 7;
+      const result = await db.execute({
+        sql: `SELECT title, priority, deadline, category, status
+              FROM tasks
+              WHERE user_id=? AND status!='done' AND deadline IS NOT NULL
+                AND deadline BETWEEN date('now') AND date('now', '+${Number(days)} days')
+              ORDER BY deadline ASC, priority ASC
+              LIMIT 15`,
+        args: [userId],
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      const tasks = result.rows.map(t => {
+        const daysLeft = Math.ceil((new Date(t.deadline) - new Date(today)) / (1000*60*60*24));
+        return { ...t, days_left: daysLeft, urgency: daysLeft <= 1 ? 'urgent' : daysLeft <= 3 ? 'soon' : 'upcoming' };
+      });
+
+      return {
+        tasks,
+        count:   tasks.length,
+        urgent:  tasks.filter(t => t.urgency === 'urgent').length,
+        insight: tasks.length === 0
+          ? `No tasks due in the next ${days} days. You\'re on top of things!`
+          : `You have ${tasks.length} task${tasks.length > 1 ? 's' : ''} due in the next ${days} days. ${tasks.filter(t => t.urgency === 'urgent').length} are urgent.`,
+      };
+    }
+
+    case 'get_xp_progress': {
+      const TREES = [
+        { key:'seedling',       name:'Seedling',       cost:0    },
+        { key:'sprout',         name:'Sprout',         cost:100  },
+        { key:'oak',            name:'Oak',            cost:300  },
+        { key:'cherry_blossom', name:'Cherry Blossom', cost:600  },
+        { key:'bamboo',         name:'Bamboo',         cost:1000 },
+        { key:'palm',           name:'Palm',           cost:1500 },
+        { key:'pine',           name:'Pine',           cost:2500 },
+        { key:'crystal',        name:'Crystal Tree',   cost:5000 },
+      ];
+
+      const [xp, equipped, unlocked] = await Promise.all([
+        db.execute({ sql: `SELECT COALESCE(SUM(amount),0) total FROM xp_log WHERE user_id=?`, args: [userId] }),
+        db.execute({ sql: `SELECT tree_key FROM user_equipped_tree WHERE user_id=?`, args: [userId] }),
+        db.execute({ sql: `SELECT tree_key FROM user_trees WHERE user_id=?`, args: [userId] }),
+      ]);
+
+      const totalXp       = Number(xp.rows[0]?.total || 0);
+      const equippedTree  = equipped.rows[0]?.tree_key || 'seedling';
+      const unlockedKeys  = new Set(unlocked.rows.map(r => r.tree_key));
+      const currentIdx    = TREES.findIndex(t => t.key === equippedTree);
+      const nextTree      = TREES[currentIdx + 1] || null;
+      const level         = Math.floor(totalXp / 100) + 1;
+
+      return {
+        total_xp:       totalXp,
+        level,
+        equipped_tree:  equippedTree,
+        unlocked_count: unlockedKeys.size,
+        total_trees:    TREES.length,
+        next_tree:      nextTree ? { name: nextTree.name, cost: nextTree.cost, xp_needed: Math.max(0, nextTree.cost - totalXp) } : null,
+        insight: nextTree
+          ? `You have ${totalXp} XP. ${nextTree.name} unlocks at ${nextTree.cost} XP — you need ${Math.max(0, nextTree.cost - totalXp)} more!`
+          : `You have ${totalXp} XP and have unlocked all trees! You\'re legendary. 🌟`,
       };
     }
 
@@ -366,7 +537,6 @@ async function buildSystemPrompt(userId) {
       db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, args: [userId] }),
       db.execute({ sql: `SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, args: [userId] }),
       db.execute({ sql: `SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, args: [userId] }),
-      // ── NEW: fetch profile ─────────────────────────────────────
       db.execute({ sql: `SELECT name, gender, birthday, bio FROM users WHERE id=?`, args: [userId] }),
     ]);
 
@@ -377,41 +547,42 @@ async function buildSystemPrompt(userId) {
       ? memories.rows.map(m => `• ${m.key}: ${m.value}`).join('\n')
       : 'None yet';
 
-    // ── Profile context ────────────────────────────────────────
+    // ── Profile ────────────────────────────────────────────────
     const p          = profile.rows[0] || {};
     const profileAge = p.birthday
       ? new Date().getFullYear() - Number(p.birthday.split('-')[0])
       : null;
     const profileContext = [
-      p.gender   ? `Gender: ${p.gender}`          : null,
-      profileAge ? `Age: ${profileAge} years old`  : null,
-      p.bio      ? `Bio: "${p.bio}"`               : null,
+      p.name     ? `Name: ${p.name}`                : null,
+      p.gender   ? `Gender: ${p.gender}`            : null,
+      profileAge ? `Age: ${profileAge} years old`   : null,
+      p.bio      ? `Bio: "${p.bio}"`                : null,
     ].filter(Boolean).join('\n') || 'Not provided';
 
     // ── Mood personality ───────────────────────────────────────
     const moodValue = mood.rows[0] ? Number(mood.rows[0].mood) : null;
     const moodLabel = moodValue
-      ? ['', 'Rough (1/5)', 'Meh (2/5)', 'Okay (3/5)', 'Good (4/5)', 'Great (5/5)'][moodValue]
+      ? ['','Rough (1/5)','Meh (2/5)','Okay (3/5)','Good (4/5)','Great (5/5)'][moodValue]
       : 'Not logged yet';
 
     const moodPersonality = moodValue === null ? ''
       : moodValue <= 2
-      ? `MOOD ALERT: The user is having a rough day (${moodLabel}).
-— Open with genuine empathy before anything else.
-— Suggest only 1-2 small, achievable tasks. Never overwhelm them.
-— Avoid ambitious goal-setting or performance reviews today.
-— Be warm and supportive — not a productivity robot.`
+      ? `MOOD ALERT: User is having a rough day (${moodLabel}).
+— Open with genuine empathy. Acknowledge feelings first.
+— Suggest only 1-2 small, achievable things. Never overwhelm.
+— Be warm and human — not a productivity robot.
+— If stressed, suggest a short break or Flow session.`
       : moodValue === 3
       ? `MOOD CONTEXT: Feeling okay today (${moodLabel}). Balanced, steady tone.`
       : `MOOD CONTEXT: Feeling great today (${moodLabel})!
-— Match their positive energy. Be upbeat and enthusiastic.
-— Suggest ambitious actions and celebrate wins.`;
+— Match their energy. Be upbeat and enthusiastic.
+— Suggest ambitious actions, celebrate wins.`;
 
     return `You are Lumi ✦, the intelligent productivity assistant built into Aurora — a personal life OS.
 
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 
-USER PROFILE:
+USER PROFILE (always use this to personalise your tone and suggestions):
 ${profileContext}
 
 WHAT YOU REMEMBER ABOUT THIS USER:
@@ -424,7 +595,7 @@ ${taskList}
 Goals:
 ${goalList}
 
-Recurring tasks / habits:
+Habits & streaks:
 ${habitList}
 
 Today's mood: ${moodLabel}
@@ -433,16 +604,31 @@ Total XP earned: ${Number(xp.rows[0]?.t||0)}
 
 ${moodPersonality}
 
+TOOLS AVAILABLE:
+You have access to powerful tools. Use them proactively:
+- create_task / list_tasks / complete_task — task management
+- create_goal / list_goals — goal tracking
+- get_productivity_summary — weekly/monthly overview
+- get_focus_stats / get_focus_history — deep work patterns
+- generate_daily_plan — build a schedule
+- get_habit_streaks — habit consistency and at-risk habits
+- get_mood_insights — mood trends and patterns
+- list_upcoming_deadlines — what's due soon
+- get_xp_progress — level, XP, next tree unlock
+- save_memory / forget_memory — remember important facts
+
 INSTRUCTIONS:
 - You are concise, warm, and action-oriented. Never verbose.
-- Use the user's profile (gender, age, bio) to personalise your tone and suggestions naturally.
-- When asked to create a task, goal, or take any action — use the tool immediately.
-- Use save_memory when the user shares anything personal worth remembering.
+- ALWAYS use the user's name (${p.name || 'there'}) naturally in conversation.
+- Use profile info (gender, age, bio) to personalise — adjust pronouns, references, tone.
+- When asked to take an action — use the tool immediately. Don't ask for confirmation first.
+- Use save_memory proactively whenever the user shares something worth remembering.
 - Reference memory naturally — don't announce that you remember, just use it.
-- After taking an action, confirm briefly in 1-2 sentences.
-- Keep responses short unless the user asks for detail.
+- After any tool action, confirm briefly in 1-2 sentences then ask what's next.
+- Keep responses short and punchy unless the user asks for detail.
 - Never fabricate numbers — always fetch data with tools.
-- If mood is 1-2, lead with empathy. If mood is 4-5, match their energy.`;
+- If mood is 1-2, lead with empathy before anything else.
+- If mood is 4-5, match their energy and be ambitious.`;
 
   } catch (_) {
     return `You are Lumi ✦, Aurora's productivity assistant. Be concise, warm, and helpful. Today is ${new Date().toLocaleDateString()}.`;
