@@ -2,48 +2,65 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 
 const ThemeContext = createContext(null);
 const STORAGE_KEY = 'aurora_theme';
-const MODES = ['light', 'dark', 'system'];
+const MODES       = ['light', 'dark', 'system'];
 
 function getSystemPrefersDark() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-function applyResolvedTheme(isDark) {
-  const root = document.documentElement;
-  root.classList.toggle('dark', isDark);
+function resolveIsDark(mode) {
+  if (mode === 'dark')   return true;
+  if (mode === 'light')  return false;
+  return getSystemPrefersDark(); // 'system'
+}
+
+function applyTheme(isDark) {
+  // Runs synchronously — no flash
+  document.documentElement.classList.toggle('dark', isDark);
   const meta = document.getElementById('theme-color-meta');
   if (meta) meta.setAttribute('content', isDark ? '#0c0a1a' : '#F4F6FB');
 }
 
-export function ThemeProvider({ children }) {
-  // `mode` is what the user picked: 'light' | 'dark' | 'system'.
-  const [mode, setModeState] = useState(() => {
+// ── Apply theme BEFORE first React render ─────────────────────
+// This runs immediately when the module is imported,
+// eliminating the white flash entirely.
+(function initTheme() {
+  try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return MODES.includes(stored) ? stored : 'system';
+    const mode   = MODES.includes(stored) ? stored : 'system';
+    applyTheme(resolveIsDark(mode));
+  } catch (_) {
+    // localStorage blocked (private mode etc.) — fall back to system
+    applyTheme(getSystemPrefersDark());
+  }
+})();
+
+export function ThemeProvider({ children }) {
+  const [mode, setModeState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return MODES.includes(stored) ? stored : 'system';
+    } catch (_) { return 'system'; }
   });
 
-  // `resolvedTheme` is what's actually applied right now ('light' | 'dark') —
-  // useful for components that want to render something theme-aware
-  // (e.g. an icon) without caring whether that came from an explicit
-  // choice or from following the OS.
   const [resolvedTheme, setResolvedTheme] = useState(() =>
-    mode === 'dark' || (mode === 'system' && getSystemPrefersDark()) ? 'dark' : 'light'
+    resolveIsDark(mode) ? 'dark' : 'light'
   );
 
-  // Apply whenever `mode` changes.
+  // Apply + persist whenever mode changes
   useEffect(() => {
-    const isDark = mode === 'dark' || (mode === 'system' && getSystemPrefersDark());
-    applyResolvedTheme(isDark);
+    const isDark = resolveIsDark(mode);
+    applyTheme(isDark);
     setResolvedTheme(isDark ? 'dark' : 'light');
-    localStorage.setItem(STORAGE_KEY, mode);
+    try { localStorage.setItem(STORAGE_KEY, mode); } catch (_) {}
   }, [mode]);
 
-  // Live-react to OS theme changes while mode === 'system', no refresh needed.
+  // Live-react to OS changes when mode === 'system'
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
       if (mode !== 'system') return;
-      applyResolvedTheme(e.matches);
+      applyTheme(e.matches);
       setResolvedTheme(e.matches ? 'dark' : 'light');
     };
     mql.addEventListener('change', handleChange);
@@ -63,6 +80,6 @@ export function ThemeProvider({ children }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used inside a ThemeProvider');
+  if (!ctx) throw new Error('useTheme must be used inside ThemeProvider');
   return ctx;
 }
