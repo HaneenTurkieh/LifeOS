@@ -2,9 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine } from 'lucide-react';
-import { api } from '../api/client.js';
-import { useToast } from '../context/ToastContext.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
+import { api }            from '../api/client.js';
+import { useToast }       from '../context/ToastContext.jsx';
+import { useAuth }        from '../context/AuthContext.jsx';
+import { useWeather, weatherEmoji } from '../hooks/useWeather.js';
 import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
@@ -68,9 +69,10 @@ function formatDeadline(d) {
 
 // ── Component ─────────────────────────────────────────────────
 export default function Dashboard() {
-  const { user }   = useAuth();
-  const toast      = useToast();
-  const navigate   = useNavigate();
+  const { user }          = useAuth();
+  const toast             = useToast();
+  const navigate          = useNavigate();
+  const { weather }       = useWeather();
 
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
@@ -97,8 +99,7 @@ export default function Dashboard() {
   const saveMood = async (value) => {
     setMoodSaving(true);
     try {
-      // Send the user's LOCAL date, not the server's UTC date
-      const localDate = new Date().toLocaleDateString('en-CA'); // gives YYYY-MM-DD in local time
+      const localDate = new Date().toLocaleDateString('en-CA');
       await api.post('/mood', { mood: value, date: localDate });
       load();
     } catch (e) { toast.error(e.message); }
@@ -136,8 +137,8 @@ export default function Dashboard() {
   const taskLabel    = isRoughDay ? 'Just these two 💙' : "Today's tasks";
 
   // Tree XP
-  const totalXp   = treeData?.totalXp || 0;
-  const nextTree  = NEXT_TREE[equippedTree];
+  const totalXp  = treeData?.totalXp || 0;
+  const nextTree = NEXT_TREE[equippedTree];
 
   return (
     <div className="flex flex-col gap-5">
@@ -161,7 +162,7 @@ export default function Dashboard() {
               {[
                 { icon:'🔥', color:'from-sun-400 to-sun-500',             value:`${streak}d`,           label:'Streak'    },
                 { icon:'⚡', color:'from-aurora-violet to-aurora-indigo', value:`${level?.xp || 0} XP`, label:`Lvl ${level?.level || 1}`, onClick:() => navigate('/trees') },
-                { icon:'📋', color:'from-aurora-sky to-aurora-indigo',    value:counts.totalTasksToday > 0 ? `${counts.tasksDoneToday}/${counts.totalTasksToday}` : String(todaysTasks.length), label:'Left today' },
+                { icon:'📋', color:'from-aurora-sky to-aurora-indigo',    value: counts.totalTasksToday > 0 ? `${counts.tasksDoneToday}/${counts.totalTasksToday}` : String(todaysTasks.length), label:'Left today' },
               ].map(({ icon, color, value, label, onClick }) => (
                 <motion.div
                   key={label}
@@ -181,12 +182,39 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* Quote */}
-            {quote && (
-              <p className="text-xs text-ink/35 dark:text-white/25 italic mt-5 leading-relaxed max-w-sm">
-                "{quote.text}" — {quote.author}
-              </p>
-            )}
+            {/* Weather + quote row */}
+            <div className="flex items-center gap-4 mt-5 flex-wrap">
+              {/* Weather widget */}
+              {weather && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2 shrink-0"
+                  style={{
+                    background:           'rgba(255,255,255,0.55)',
+                    border:               '1px solid rgba(255,255,255,0.70)',
+                    backdropFilter:       'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                  }}
+                >
+                  <span className="text-xl leading-none">{weatherEmoji(weather.condition)}</span>
+                  <div>
+                    <p className="text-sm font-bold text-ink dark:text-white leading-none">{weather.temp}°C</p>
+                    <p className="text-[10px] text-ink/40 dark:text-white/30 capitalize mt-0.5">
+                      {weather.desc} · {weather.city}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Daily quote */}
+              {quote && (
+                <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
+                  "{quote.text}" — {quote.author}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Right — sphere or rest message */}
@@ -238,7 +266,7 @@ export default function Dashboard() {
                 <span className="text-4xl mb-3">🎉</span>
                 <p className="font-semibold text-ink dark:text-white text-sm mb-1">Nothing due today</p>
                 <p className="text-xs text-ink/40 dark:text-white/35">
-                  {isRoughDay ? 'Take it easy today.' : 'Enjoy the breathing room, or pull in tomorrow\'s tasks early.'}
+                  {isRoughDay ? 'Take it easy today.' : "Enjoy the breathing room, or pull in tomorrow's tasks early."}
                 </p>
               </div>
             ) : (
@@ -422,7 +450,7 @@ export default function Dashboard() {
             </div>
           </GlassCard>
 
-          {/* Daily quote */}
+          {/* Daily quote card — only on non-rough days, since quote is now in hero */}
           {quote && !isRoughDay && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -438,7 +466,8 @@ export default function Dashboard() {
 
           {/* Rough day encouragement */}
           {isRoughDay && (
-            <GlassCard className="p-5" style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+            <GlassCard className="p-5"
+              style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
               <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
                 "You don't have to be productive every day. Rest is part of the process."
               </p>
