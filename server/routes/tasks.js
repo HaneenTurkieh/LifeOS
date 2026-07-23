@@ -10,16 +10,29 @@ function nextRecurrenceDate(recurrence, fromDate) {
 
   if (recurrence === 'daily') {
     base.setDate(base.getDate() + 1);
-  } else if (recurrence === 'weekdays') {
-    base.setDate(base.getDate() + 1);
-    // Skip Saturday (6) and Sunday (0)
-    while (base.getDay() === 0 || base.getDay() === 6) {
-      base.setDate(base.getDate() + 1);
-    }
+
   } else if (recurrence === 'weekly') {
     base.setDate(base.getDate() + 7);
+
   } else if (recurrence === 'monthly') {
     base.setMonth(base.getMonth() + 1);
+
+  } else if (recurrence?.startsWith('custom:')) {
+    const raw  = recurrence.split(':')[1] || '';
+    const days = raw.split(',').map(Number).filter((n) => !isNaN(n)).sort((a, b) => a - b);
+
+    if (!days.length) {
+      // Fallback — just go to tomorrow
+      base.setDate(base.getDate() + 1);
+    } else {
+      const today = base.getDay(); // 0 = Sun … 6 = Sat
+      // Find the next selected day strictly after today
+      let next = days.find((d) => d > today);
+      // Nothing found — wrap to next week
+      if (next === undefined) next = days[0];
+      const add = next > today ? next - today : 7 - today + next;
+      base.setDate(base.getDate() + add);
+    }
   }
 
   return base.toISOString().slice(0, 10);
@@ -51,9 +64,11 @@ router.post('/', async (req, res) => {
       sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
       args: [req.user.id],
     });
+
     const insert = await db.execute({
       sql:  `INSERT INTO tasks
-               (user_id, title, description, priority, category, deadline, deadline_time, recurrence, status, progress, position)
+               (user_id, title, description, priority, category,
+                deadline, deadline_time, recurrence, status, progress, position)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
       args: [
         req.user.id, title.trim(), description, priority, category,
@@ -61,6 +76,7 @@ router.post('/', async (req, res) => {
         Number(maxPos.rows[0].m) + 1,
       ],
     });
+
     const task = (await db.execute({
       sql:  `SELECT * FROM tasks WHERE id = ? AND user_id = ?`,
       args: [Number(insert.lastInsertRowid), req.user.id],
@@ -79,9 +95,9 @@ router.put('/:id', async (req, res) => {
     })).rows[0];
     if (!existing) return res.status(404).json({ error: 'Task not found' });
 
-    const updates    = { ...existing, ...req.body };
-    const wasDone    = existing.status === 'done';
-    const isNowDone  = updates.status  === 'done';
+    const updates   = { ...existing, ...req.body };
+    const wasDone   = existing.status === 'done';
+    const isNowDone = updates.status  === 'done';
 
     if (isNowDone && updates.progress < 100) updates.progress = 100;
     updates.completed_at = isNowDone
@@ -102,23 +118,26 @@ router.put('/:id', async (req, res) => {
       ],
     });
 
-    let xpAwarded   = 0;
-    let nextTask     = null;
+    let xpAwarded = 0;
+    let nextTask  = null;
 
     if (!wasDone && isNowDone) {
       await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
       xpAwarded = 20;
 
-      // ── Auto-create next occurrence if recurring ───────────────
+      // ── Auto-create next occurrence ────────────────────────────
       if (updates.recurrence) {
         const nextDeadline = nextRecurrenceDate(updates.recurrence, updates.deadline);
+
         const maxPos = await db.execute({
           sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
           args: [req.user.id],
         });
+
         const nextInsert = await db.execute({
           sql:  `INSERT INTO tasks
-                   (user_id, title, description, priority, category, deadline, deadline_time, recurrence, status, progress, position)
+                   (user_id, title, description, priority, category,
+                    deadline, deadline_time, recurrence, status, progress, position)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
           args: [
             req.user.id,
@@ -127,6 +146,7 @@ router.put('/:id', async (req, res) => {
             Number(maxPos.rows[0].m) + 1,
           ],
         });
+
         nextTask = (await db.execute({
           sql:  `SELECT * FROM tasks WHERE id = ?`,
           args: [Number(nextInsert.lastInsertRowid)],
