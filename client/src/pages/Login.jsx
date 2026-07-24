@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'lucide-react';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth }  from '../context/AuthContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 const DEMO_EMAIL    = 'demo@aurora.app';
 const DEMO_PASSWORD = 'password123';
@@ -17,15 +18,16 @@ export default function Login() {
   const [error,           setError]           = useState('');
   const [submitting,      setSubmitting]      = useState(false);
 
-  const { login, register } = useAuth();
-  const navigate            = useNavigate();
-  const location            = useLocation();
-  const redirectTo          = location.state?.from?.pathname || '/';
-  const isLogin             = mode === 'login';
+  const { login, register }   = useAuth();
+  const { resolvedTheme }     = useTheme();
+  const navigate              = useNavigate();
+  const location              = useLocation();
+  const redirectTo            = location.state?.from?.pathname || '/';
+  const isLogin               = mode === 'login';
+  const isDark                = resolvedTheme === 'dark';
 
   const switchMode = () => { setMode(isLogin ? 'signup' : 'login'); setError(''); };
-
-  const fillDemo = () => { setMode('login'); setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); setError(''); };
+  const fillDemo   = () => { setMode('login'); setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); setError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,188 +44,188 @@ export default function Login() {
     finally { setSubmitting(false); }
   };
 
+  // ── Theme-aware styles ────────────────────────────────────
+  const cardBg      = isDark ? 'rgba(255,255,255,0.08)'              : 'rgba(255,255,255,0.85)';
+  const cardBorder  = isDark ? '1px solid rgba(255,255,255,0.16)'    : '1px solid rgba(255,255,255,0.95)';
+  const cardShadow  = isDark ? '0 32px 80px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.20)'
+                             : '0 32px 80px rgba(124,106,240,0.15), inset 0 1px 0 rgba(255,255,255,1)';
+  const titleClr    = isDark ? 'white'                               : '#1a1430';
+  const subClr      = isDark ? 'rgba(255,255,255,0.42)'              : 'rgba(30,34,51,0.50)';
+  const labelClr    = isDark ? 'rgba(255,255,255,0.52)'              : 'rgba(30,34,51,0.58)';
+  const inputBg     = isDark ? 'rgba(255,255,255,0.06)'              : 'rgba(30,34,51,0.05)';
+  const inputBorder = isDark ? '1px solid rgba(255,255,255,0.14)'    : '1px solid rgba(30,34,51,0.14)';
+  const inputClr    = isDark ? 'white'                               : '#1a1430';
+  const iconClr     = isDark ? 'rgba(255,255,255,0.30)'              : 'rgba(30,34,51,0.35)';
+  const linkClr     = isDark ? 'rgba(255,255,255,0.40)'              : 'rgba(30,34,51,0.45)';
+  const switchClr   = isDark ? 'rgba(255,255,255,0.42)'              : 'rgba(30,34,51,0.50)';
+  const switchBold  = isDark ? 'rgba(255,255,255,0.85)'              : '#1a1430';
+  const demoBg      = isDark ? 'rgba(255,255,255,0.04)'              : 'rgba(30,34,51,0.04)';
+  const demoBorder  = isDark ? '1px solid rgba(255,255,255,0.09)'    : '1px solid rgba(30,34,51,0.10)';
+  const demoClr     = isDark ? 'rgba(255,255,255,0.35)'              : 'rgba(30,34,51,0.40)';
+  const shimmer     = isDark ? 'rgba(255,255,255,0.40)'              : 'rgba(124,106,240,0.30)';
+  const errorBg     = isDark ? 'rgba(255,122,99,0.12)'               : 'rgba(255,122,99,0.08)';
+  const errorBorder = isDark ? 'rgba(255,122,99,0.25)'               : 'rgba(255,122,99,0.30)';
+  const errorClr    = isDark ? '#FCA5A5'                             : '#ef4444';
+
+  const inputStyle = {
+    background: inputBg,
+    border:     inputBorder,
+    color:      inputClr,
+    width:      '100%',
+    borderRadius: '1rem',
+    padding:    '0.75rem 1rem 0.75rem 2.75rem',
+    fontSize:   '0.875rem',
+    outline:    'none',
+  };
+
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10">
-      {/* GlobalBackground already provides the orbs — just the card here */}
       <motion.div
-        initial={{ opacity: 0, y: 28, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0,  scale: 1    }}
-        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity:0, y:28, scale:0.96 }}
+        animate={{ opacity:1, y:0,   scale:1    }}
+        transition={{ duration:0.55, ease:[0.16,1,0.3,1] }}
         className="relative w-full max-w-sm"
-        style={{
-          background:           'rgba(255,255,255,0.08)',
-          backdropFilter:       'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
-          border:               '1px solid rgba(255,255,255,0.16)',
-          borderRadius:         '2rem',
-          boxShadow:            '0 32px 80px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.20)',
-          padding:              '2.5rem 2.25rem',
-        }}
+        style={{ background:cardBg, backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)', border:cardBorder, borderRadius:'2rem', boxShadow:cardShadow, padding:'2.5rem 2.25rem' }}
       >
-        {/* Inner shimmer line */}
+        {/* Top shimmer */}
         <span className="pointer-events-none absolute inset-x-8 top-0 h-px"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.40), transparent)' }} />
+          style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
 
-        {/* ── Logo ────────────────────────────────────────────── */}
+        {/* ✦ Logo */}
         <div className="flex flex-col items-center mb-8">
           <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+            animate={{ y:[0,-4,0] }}
+            transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
             className="flex h-16 w-16 items-center justify-center rounded-[1.25rem] text-white mb-3"
             style={{
-              background: 'linear-gradient(135deg, #9B8AFF 0%, #7C6AF0 50%, #5B47E0 100%)',
+              background: 'linear-gradient(135deg,#9B8AFF 0%,#7C6AF0 50%,#5B47E0 100%)',
               boxShadow:  '0 12px 32px rgba(124,106,240,0.55), inset 0 1px 0 rgba(255,255,255,0.30)',
-              fontSize:   28,
-              fontFamily: 'serif',
-              fontWeight: 700,
-              lineHeight: 1,
+              fontSize:   28, fontFamily:'serif', fontWeight:700, lineHeight:1,
             }}
           >
             ✦
           </motion.div>
-          <p className="font-display text-xs font-bold tracking-[0.4em] text-white/70">AURORA</p>
+          <p className="font-display text-xs font-bold tracking-[0.4em]"
+            style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(30,34,51,0.55)' }}>
+            AURORA
+          </p>
         </div>
 
-        {/* ── Heading ──────────────────────────────────────────── */}
+        {/* Heading */}
         <div className="text-center mb-7">
           <AnimatePresence mode="wait">
-            <motion.h1
-              key={mode}
-              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="font-display text-2xl font-bold text-white"
+            <motion.h1 key={mode}
+              initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
+              transition={{ duration:0.2 }}
+              style={{ fontFamily:'var(--font-display)', fontSize:'1.4rem', fontWeight:700, color:titleClr }}
             >
               {isLogin ? 'Welcome back' : 'Create account'}
             </motion.h1>
           </AnimatePresence>
-          <p className="text-sm text-white/40 mt-1.5">
+          <p className="text-sm mt-1.5" style={{ color:subClr }}>
             {isLogin ? 'Pick up where you left off.' : 'Start building your second brain.'}
           </p>
         </div>
 
-        {/* ── Error ────────────────────────────────────────────── */}
+        {/* Error */}
         <AnimatePresence>
           {error && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-              className="mb-4 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs text-coral-300 overflow-hidden"
-              style={{ background: 'rgba(255,122,99,0.12)', border: '1px solid rgba(255,122,99,0.25)' }}
-            >
+            <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
+              className="mb-4 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs overflow-hidden"
+              style={{ background:errorBg, border:`1px solid ${errorBorder}`, color:errorClr }}>
               <AlertCircle size={14} className="shrink-0" /> {error}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Form ─────────────────────────────────────────────── */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-
           <AnimatePresence mode="popLayout">
             {!isLogin && (
-              <motion.div key="name"
-                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                <label className="text-xs font-semibold text-white/50 mb-1.5 block">Full name</label>
+              <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Full name</label>
                 <div className="relative">
-                  <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+                  <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
                   <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                    placeholder="Haneen Turkieh"
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/25 outline-none transition"
-                    style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.14)' }}
-                  />
+                    placeholder="Your name" style={inputStyle} />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           <div>
-            <label className="text-xs font-semibold text-white/50 mb-1.5 block">Email address</label>
+            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Email</label>
             <div className="relative">
-              <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+              <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/25 outline-none transition"
-                style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.14)' }}
-              />
+                placeholder="you@example.com" style={inputStyle} />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-white/50 mb-1.5 block">Password</label>
+            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Password</label>
             <div className="relative">
-              <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+              <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
               <input type={showPassword ? 'text' : 'password'} required value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••" minLength={8}
-                className="w-full rounded-2xl pl-10 pr-10 py-3 text-sm text-white placeholder:text-white/25 outline-none transition"
-                style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.14)' }}
-              />
-              <button type="button" onClick={() => setShowPassword(s => !s)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/65 transition">
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={8}
+                style={{ ...inputStyle, paddingRight:'2.75rem' }} />
+              <button type="button" onClick={() => setShowPassword(s=>!s)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 transition"
+                style={{ color:iconClr }}>
+                {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
               </button>
             </div>
           </div>
 
           <AnimatePresence mode="popLayout">
             {!isLogin && (
-              <motion.div key="confirm"
-                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                <label className="text-xs font-semibold text-white/50 mb-1.5 block">Confirm password</label>
+              <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Confirm password</label>
                 <div className="relative">
-                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
                   <input type={showPassword ? 'text' : 'password'} required value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••" minLength={8}
-                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/25 outline-none transition"
-                    style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.14)' }}
-                  />
+                    onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" minLength={8}
+                    style={inputStyle} />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           {isLogin && (
-            <Link to="/forgot-password"
-              className="self-end text-xs text-white/40 hover:text-white/65 transition -mt-1">
+            <Link to="/forgot-password" className="self-end text-xs transition -mt-1"
+              style={{ color:linkClr }}>
               Forgot password?
             </Link>
           )}
 
-          {/* Submit */}
-          <motion.button
-            type="submit" disabled={submitting} whileTap={{ scale: 0.98 }}
-            className="mt-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white transition disabled:opacity-55 disabled:pointer-events-none"
+          <motion.button type="submit" disabled={submitting} whileTap={{ scale:0.98 }}
+            className="mt-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-55 disabled:pointer-events-none"
             style={{
-              background: 'linear-gradient(135deg, #9B8AFF 0%, #7C6AF0 50%, #5B47E0 100%)',
+              background: 'linear-gradient(135deg,#9B8AFF 0%,#7C6AF0 50%,#5B47E0 100%)',
               boxShadow:  '0 8px 28px rgba(124,106,240,0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
-            }}
-          >
-            {submitting
-              ? <Loader2 size={16} className="animate-spin" />
-              : isLogin ? 'Sign in' : 'Create account'
-            }
+            }}>
+            {submitting ? <Loader2 size={16} className="animate-spin"/> : isLogin ? 'Sign in' : 'Create account'}
           </motion.button>
         </form>
 
-        {/* Demo account */}
+        {/* Demo */}
         <button onClick={fillDemo} type="button"
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-2.5 text-[11px] font-medium text-white/35 hover:text-white/60 transition"
-          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)' }}
-        >
-          <Sparkles size={11} /> Try the demo account
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-2.5 text-[11px] font-medium transition"
+          style={{ background:demoBg, border:demoBorder, color:demoClr }}>
+          <Sparkles size={11}/> Try the demo account
         </button>
 
-        {/* Switch mode */}
-        <p className="text-center text-xs text-white/40 mt-5">
-          {isLogin ? 'New to Aurora?' : 'Already have an account?'}{' '}
-          <button type="button" onClick={switchMode}
-            className="font-bold text-white/80 hover:text-white transition">
+        {/* Switch */}
+        <p className="text-center text-xs mt-5" style={{ color:switchClr }}>
+          {isLogin ? 'New to Aurora? ' : 'Already have an account? '}
+          <button type="button" onClick={switchMode} className="font-bold transition" style={{ color:switchBold }}>
             {isLogin ? 'Sign up' : 'Log in'}
           </button>
         </p>
 
-        {/* Footer shimmer */}
+        {/* Bottom shimmer */}
         <span className="pointer-events-none absolute inset-x-8 bottom-0 h-px"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)' }} />
+          style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
       </motion.div>
     </div>
   );
