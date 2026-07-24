@@ -54,9 +54,9 @@ const MOOD_OPTIONS = [
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
-  const now          = new Date();
-  const local        = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target       = new Date(dy, dm - 1, dd);
+  const now    = new Date();
+  const local  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(dy, dm - 1, dd);
   return Math.ceil((target - local) / (1000 * 60 * 60 * 24));
 }
 
@@ -260,9 +260,10 @@ export default function Dashboard() {
             ) : (
               <div className="flex flex-col gap-2">
                 {visibleTasks.map((task) => {
-                  const dl     = daysUntil(task.deadline);
-                  const urgent = dl !== null && dl <= 1;
-                  const soon   = dl !== null && dl <= 3;
+                  const dl        = daysUntil(task.deadline);
+                  const isOverdue = dl !== null && dl < 0;    // ← strictly negative
+                  const isToday   = dl !== null && dl === 0;  // ← exactly today = NOT overdue
+                  const isSoon    = dl !== null && dl > 0 && dl <= 3;
                   return (
                     <motion.div key={task.id} layout
                       className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
@@ -275,16 +276,19 @@ export default function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-ink dark:text-white truncate">{task.title}</p>
                         {task.deadline && (
-                          <p className={`text-[11px] flex items-center gap-1 mt-0.5 font-medium ${
-                            urgent ? 'text-coral-500' : soon ? 'text-sun-600' : 'text-ink/35 dark:text-white/25'
-                          }`}>
-                            <Calendar size={10} />
-                            {dl !== null && dl <= 0 ? '🚨 Overdue'
-                            : urgent ? '🚨 Due tomorrow'
-                            : soon   ? `⚠️ Due in ${dl} days`
-                            : formatDeadline(task.deadline)}
-                          </p>
-                        )}
+  <p className={`text-[11px] flex items-center gap-1 mt-0.5 font-medium ${
+    isOverdue || isToday ? 'text-coral-500'
+    : isSoon ? 'text-sun-600'
+    : 'text-ink/35 dark:text-white/25'
+  }`}>
+    <Calendar size={10} />
+    {isOverdue ? '🚨 Overdue'
+    : isToday  ? '⚠️ Due today'
+    : dl === 1 ? '🔴 Due tomorrow'
+    : isSoon   ? `⚠️ Due in ${dl} days`
+    : formatDeadline(task.deadline)}
+  </p>
+)}
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold capitalize ${
                         task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
