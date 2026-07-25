@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '../api/client.js';
+import { useToast } from './ToastContext.jsx';
+import { useLanguage } from './LanguageContext.jsx';
 
 const FocusContext = createContext(null);
 
@@ -23,7 +25,6 @@ const QUOTES = [
   { text: "It's not that I'm so smart, it's just that I stay with problems longer.", author: 'Einstein' },
   { text: 'Productivity is never an accident.',                                        author: 'Paul J. Meyer' },
 ];
-
 export const randQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
 
 const SESSION_KEY = 'aurora_focus_state';
@@ -45,7 +46,6 @@ function loadState() {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-
     // If timer was running, subtract elapsed seconds since last save
     if (s.isRunning && s.savedAt) {
       const elapsed = Math.floor((Date.now() - new Date(s.savedAt).getTime()) / 1000);
@@ -53,7 +53,6 @@ function loadState() {
       // If it would have finished while away, mark as not running
       if (s.timeLeft === 0) { s.isRunning = false; s.startedAt = null; }
     }
-
     if (s.startedAt) s.startedAt = new Date(s.startedAt);
     return s;
   } catch (_) { return null; }
@@ -86,11 +85,28 @@ function playBreakEnd() {
     o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.6);
   } catch (_) {}
 }
+function playTreeDied() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [392, 349, 293].forEach((freq, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq; o.type = 'sine';
+      const t = ctx.currentTime + i * 0.16;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.2, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      o.start(t); o.stop(t + 0.4);
+    });
+  } catch (_) {}
+}
 
 export function FocusProvider({ children }) {
+  const toast      = useToast();
+  const { lang }   = useLanguage();
+
   // ── Restore saved state on first render ───────────────────
   const saved = loadState();
-
   const [mode,      setMode]      = useState(saved?.mode      || 'focus');
   const [customMin, setCustomMin] = useState(saved?.customMin || { focus: 25, short: 5, long: 15 });
   const [timeLeft,  setTimeLeft]  = useState(saved?.timeLeft  ?? 25 * 60);
@@ -103,15 +119,15 @@ export function FocusProvider({ children }) {
   const [stats,     setStats]     = useState(null);
   const [board,     setBoard]     = useState([]);
   const [room,      setRoom]      = useState(null);
+  const [roomTree,  setRoomTree]  = useState(null); // { tree_key, status, died_by_name }
 
   // ── Persist on every meaningful state change ──────────────
   const saveTimeoutRef = useRef(null);
-
   useEffect(() => {
     // Save immediately on mode/task/running state changes
     saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
   }, [mode, customMin, isRunning, taskName, dots]); // eslint-disable-line
-  
+
   useEffect(() => {
     // Debounce timeLeft saves — only write every 5 seconds while running
     clearTimeout(saveTimeoutRef.current);
@@ -122,11 +138,12 @@ export function FocusProvider({ children }) {
   }, [timeLeft]); // eslint-disable-line
 
   // ── Refs ──────────────────────────────────────────────────
-  const intervalRef  = useRef(null);
-  const modeRef      = useRef(mode);
-  const customMinRef = useRef(customMin);
-  const taskRef      = useRef(taskName);
-  const roomRef      = useRef(room);
+  const intervalRef      = useRef(null);
+  const modeRef           = useRef(mode);
+  const customMinRef      = useRef(customMin);
+  const taskRef            = useRef(taskName);
+  const roomRef            = useRef(room);
+  const prevTreeStatusRef  = useRef(null); // tracks alive→dead / alive→completed transitions
   useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
   useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
@@ -141,13 +158,37 @@ export function FocusProvider({ children }) {
   }, []);
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Room polling ──────────────────────────────────────────
+  // ── Room polling — now also tracks the shared room tree ───
   useEffect(() => {
-    if (!room) return;
+    if (!room) { setRoomTree(null); prevTreeStatusRef.current = null; return; }
     const poll = async () => {
       try {
         const d = await api.get(`/focus/rooms/${room.code}`);
-        setRoom((r) => r ? { ...r, members: d.members } : null);
+        setRoom((r) => r ? { ...r, members: d.members, host_id: d.host_id, timer: d.timer } : null);
+
+        if (d.tree) {
+          const prevStatus = prevTreeStatusRef.current;
+          if (prevStatus === 'alive' && d.tree.status === 'dead') {
+            playTreeDied();
+            const who = d.tree.died_by_name || (lang === 'ar' ? 'أحد الأعضاء' : 'someone');
+            toast.error(
+              lang === 'ar'
+                ? `ماتت شجرة الغرفة — ${who} استسلم 💔`
+                : `Your shared tree died — ${who} gave up 💔`
+            );
+          } else if (prevStatus === 'alive' && d.tree.status === 'completed') {
+            toast.success(
+              lang === 'ar'
+                ? 'نجت شجرة الغرفة من الجلسة! 🌳'
+                : "The room's tree survived the session! 🌳"
+            );
+          }
+          prevTreeStatusRef.current = d.tree.status;
+          setRoomTree(d.tree);
+        } else {
+          prevTreeStatusRef.current = null;
+          setRoomTree(null);
+        }
       } catch (_) {}
     };
     poll();
@@ -164,13 +205,22 @@ export function FocusProvider({ children }) {
     return () => clearInterval(id);
   }, [room?.code, isRunning]); // eslint-disable-line
 
+  // ── Leave the current room — server kills the shared tree if a
+  //    synced session is actively running ("giving up") ───────
+  const leaveRoom = useCallback(async () => {
+    if (!room) return;
+    try { await api.del(`/focus/rooms/${room.code}/leave`); } catch (_) {}
+    setRoom(null);
+    setRoomTree(null);
+    prevTreeStatusRef.current = null;
+  }, [room]);
+
   // ── Session complete ──────────────────────────────────────
   const handleComplete = useCallback(async () => {
     const m   = modeRef.current;
     const min = customMinRef.current;
     const t   = taskRef.current;
     const r   = roomRef.current;
-
     if (m === 'focus') {
       playDone();
       const quote = randQuote();
@@ -198,16 +248,16 @@ export function FocusProvider({ children }) {
   // ── Timer tick ────────────────────────────────────────────
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
-  
+
     const wallStart   = Date.now();
     const timeAtStart = timeLeft; // snapshot exact timeLeft when timer starts
-  
+
     intervalRef.current = setInterval(() => {
       const elapsed   = Math.floor((Date.now() - wallStart) / 1000);
       const remaining = Math.max(0, timeAtStart - elapsed);
-  
+
       setTimeLeft(remaining);
-  
+
       if (remaining <= 0) {
         clearInterval(intervalRef.current);
         setIsRunning(false);
@@ -215,7 +265,7 @@ export function FocusProvider({ children }) {
         setTimeout(handleComplete, 50);
       }
     }, 500); // check every 500ms so we never miss the 0 crossing
-  
+
     return () => clearInterval(intervalRef.current);
   }, [isRunning, handleComplete]); // eslint-disable-line
 
@@ -253,7 +303,6 @@ export function FocusProvider({ children }) {
     if (!isRunning) setStartedAt(new Date());
     setIsRunning((r) => !r);
   };
-
   const resetTimer = () => {
     clearInterval(intervalRef.current);
     setIsRunning(false);
@@ -262,13 +311,11 @@ export function FocusProvider({ children }) {
     setTimeLeft(mins * 60);
     setTotalTime(mins * 60);
   };
-
   const addMinute = () => {
     setTimeLeft((t) => t + 60);
     setTotalTime((t) => t + 60);
     setCustomMin((c) => ({ ...c, [mode]: c[mode] + 1 }));
   };
-
   const setDuration = (mins) => {
     setCustomMin((c) => ({ ...c, [mode]: mins }));
     if (!isRunning) { setTimeLeft(mins * 60); setTotalTime(mins * 60); }
@@ -277,8 +324,8 @@ export function FocusProvider({ children }) {
   return (
     <FocusContext.Provider value={{
       mode, customMin, timeLeft, totalTime, isRunning, taskName, dots,
-      startedAt, congrats, stats, board, room,
-      setTaskName, setRoom, setCongrats,
+      startedAt, congrats, stats, board, room, roomTree,
+      setTaskName, setRoom, setCongrats, leaveRoom,
       toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,
       loadData,
     }}>
