@@ -14,7 +14,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
 
-// ── Avatar ────────────────────────────────────────────────────
+// ── Avatar — gradient now accent-aware instead of hardcoded purple ──
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
     return (
@@ -26,7 +26,11 @@ function Avatar({ user, size = 56, onClick }) {
   return (
     <div onClick={onClick}
       className="flex items-center justify-center rounded-2xl text-white font-bold cursor-pointer select-none shrink-0"
-      style={{ width:size, height:size, fontSize:size*0.38, background:'linear-gradient(135deg,#7C6AF0,#5B47E0)', boxShadow:'0 4px 12px rgba(124,106,240,0.35)' }}>
+      style={{
+        width:size, height:size, fontSize:size*0.38,
+        background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))',
+        boxShadow: '0 4px 12px rgb(var(--accent-500) / 0.35)',
+      }}>
       {user?.name?.[0]?.toUpperCase() || '?'}
     </div>
   );
@@ -79,7 +83,7 @@ function ProfileTab() {
         {isBirthday && (
           <motion.div initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }}
             className="rounded-2xl px-4 py-3 text-sm font-semibold text-center"
-            style={{ background:'linear-gradient(135deg,rgba(124,106,240,0.15),rgba(168,85,247,0.10))', border:'1px solid rgba(124,106,240,0.25)' }}>
+            style={{ background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.15), rgba(168,85,247,0.10))', border:'1px solid rgb(var(--accent-500) / 0.25)' }}>
             🎂 {user?.name?.split(' ')[0]} 🎉
           </motion.div>
         )}
@@ -89,7 +93,7 @@ function ProfileTab() {
             <Avatar user={user} size={68} onClick={() => fileRef.current?.click()} />
             <button onClick={() => fileRef.current?.click()}
               className="absolute -bottom-1 -end-1 flex h-7 w-7 items-center justify-center rounded-xl text-white shadow-md"
-              style={{ background:'linear-gradient(135deg,#7C6AF0,#5B47E0)' }}>
+              style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))' }}>
               <Camera size={13}/>
             </button>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
@@ -245,7 +249,7 @@ function AppearanceTab() {
       {THEMES.map(th => (
         <button key={th.key} onClick={() => setMode(th.key)}
           className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition-all"
-          style={mode===th.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
+          style={mode===th.key?{background:'rgb(var(--accent-500) / 0.10)',border:'1px solid rgb(var(--accent-500) / 0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
           <span className="text-2xl">{th.icon}</span>
           <div className="flex-1">
             <p className={`text-sm font-semibold ${mode===th.key?'text-lavender-700 dark:text-lavender-300':'text-ink dark:text-white'}`}>{th.label}</p>
@@ -258,7 +262,7 @@ function AppearanceTab() {
       {LANGS.map(l => (
         <button key={l.key} onClick={() => setLang(l.key)}
           className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition-all"
-          style={lang===l.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
+          style={lang===l.key?{background:'rgb(var(--accent-500) / 0.10)',border:'1px solid rgb(var(--accent-500) / 0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
           <span className="text-2xl">{l.icon}</span>
           <div className="flex-1">
             <p className={`text-sm font-semibold ${lang===l.key?'text-lavender-700 dark:text-lavender-300':'text-ink dark:text-white'}`}>{l.label}</p>
@@ -284,8 +288,6 @@ function PremiumTab() {
     api.get('/focus/premium/status')
       .then((d) => {
         setStatus(d);
-        // Sync local accent to whatever the server has on record —
-        // makes the theme choice follow the account across devices.
         if (d.theme_preset) setAccent(d.theme_preset);
       })
       .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple' }));
@@ -312,9 +314,6 @@ function PremiumTab() {
     finally { setBusy(false); }
   };
 
-  // Kept as inline lang-conditional strings rather than touching
-  // translations.js again — same pattern already used for the
-  // room-tree death/survival messages.
   const THEME_PRESETS = [
     { key: 'purple', label: lang === 'ar' ? 'بنفسجي' : 'Purple', swatch: 'linear-gradient(135deg,#7C6AF0,#5B47E0)' },
     { key: 'orange', label: lang === 'ar' ? 'برتقالي' : 'Orange', swatch: 'linear-gradient(135deg,#FF8A42,#E85D04)' },
@@ -328,12 +327,12 @@ function PremiumTab() {
     if (!status?.is_premium || themeBusy || preset === accent) return;
     setThemeBusy(true);
     const prev = accent;
-    setAccent(preset); // optimistic — instant visual feedback across the whole app
+    setAccent(preset);
     try {
       await api.post('/focus/premium/theme', { theme_preset: preset });
       setStatus((s) => ({ ...s, theme_preset: preset }));
     } catch (err) {
-      setAccent(prev); // rollback on failure
+      setAccent(prev);
       toast.error(err.message);
     } finally { setThemeBusy(false); }
   };
@@ -350,8 +349,8 @@ function PremiumTab() {
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl p-5 text-center"
         style={status.is_premium
-          ? { background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgba(124,106,240,0.10))', border:'1px solid rgba(255,184,77,0.35)' }
-          : { background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+          ? { background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgb(var(--accent-500) / 0.10))', border:'1px solid rgba(255,184,77,0.35)' }
+          : { background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
         <Crown size={28} className={`mx-auto mb-2 ${status.is_premium ? 'text-sun-500' : 'text-ink/25 dark:text-white/20'}`}/>
         <p className="font-display font-bold text-ink dark:text-white">
           {status.is_premium ? t('settings.premiumName') : t('settings.freeName')}
@@ -363,14 +362,14 @@ function PremiumTab() {
           className={`mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40 ${status.is_premium ? '' : 'text-white'}`}
           style={status.is_premium
             ? { background:'rgba(30,34,51,0.05)', border:'1px solid rgba(30,34,51,0.10)', color:'rgba(30,34,51,0.55)' }
-            : { background:'linear-gradient(135deg,#FFB84D,#7C6AF0)', boxShadow:'0 4px 14px rgba(255,184,77,0.35)' }}>
+            : { background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 4px 14px rgba(255,184,77,0.35)' }}>
           {busy ? '…' : status.is_premium ? t('settings.backToFree') : t('settings.tryPremium')}
         </button>
       </div>
 
       {/* Accent color picker */}
       <div className="rounded-2xl p-4"
-        style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+        style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-ink dark:text-white">🎨 {themeSectionTitle}</p>
           {!status.is_premium && (
@@ -391,11 +390,11 @@ function PremiumTab() {
                 disabled={locked || themeBusy}
                 title={locked ? themeLockedNote : p.label}
                 className="flex flex-col items-center gap-1.5 rounded-2xl py-2.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                style={active ? { background:'rgba(124,106,240,0.10)', border:'1px solid rgba(124,106,240,0.30)' } : { border:'1px solid transparent' }}
+                style={active ? { background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.30)' } : { border:'1px solid transparent' }}
               >
                 <span
                   className="flex h-8 w-8 items-center justify-center rounded-full"
-                  style={{ background: p.swatch, boxShadow: active ? '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(124,106,240,0.4)' : '0 2px 6px rgba(0,0,0,0.15)' }}
+                  style={{ background: p.swatch, boxShadow: active ? '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgb(var(--accent-500) / 0.4)' : '0 2px 6px rgba(0,0,0,0.15)' }}
                 >
                   {active && <Check size={13} className="text-white" strokeWidth={3} />}
                 </span>
@@ -556,9 +555,11 @@ export default function SettingsModal({ open, onClose }) {
   const closeAndReset = () => { setTab('profile'); onClose(); };
   const navBg     = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(30,34,51,0.03)';
   const navBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(30,34,51,0.06)';
+  // These were the biggest remaining hardcoded-purple culprit — the
+  // active sidebar-tab pill in Settings. Now reads --accent-* vars.
   const activeStyle = isDark
-    ? { background:'rgba(124,106,240,0.15)', color:'#C4B5FD' }
-    : { background:'rgba(124,106,240,0.10)', color:'#5B47E0' };
+    ? { background:'rgb(var(--accent-500) / 0.15)', color:'rgb(var(--accent-300))' }
+    : { background:'rgb(var(--accent-500) / 0.10)', color:'rgb(var(--accent-600))' };
   const inactiveClr = isDark
     ? 'text-white/45 hover:text-white/70 hover:bg-white/5'
     : 'text-ink/50 hover:text-ink/80 hover:bg-ink/5';
