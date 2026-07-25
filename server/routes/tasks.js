@@ -150,8 +150,13 @@ router.put('/:id', async (req, res) => {
     let nextTask  = null;
 
     if (!wasDone && isNowDone) {
-      await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
-      xpAwarded = 20;
+      // Gamification must never break a task save
+      try {
+        await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
+        xpAwarded = 20;
+      } catch (e) {
+        console.error('addXp failed (non-fatal):', e.message);
+      }
 
       // ── Auto-create next occurrence ──────────────────────────
       if (updates.recurrence) {
@@ -182,8 +187,18 @@ router.put('/:id', async (req, res) => {
       }
     }
 
-    const unlocked = await evaluateAchievements(req.user.id);
-    const task     = (await db.execute({
+    // This was the source of the "SQLITE_CONSTRAINT: FOREIGN KEY" error:
+    // user_achievements.key references achievements(key), and if the
+    // achievements catalogue isn't seeded, the insert fails and used to
+    // take the whole save down with it. Now it's non-fatal.
+    let unlocked = [];
+    try {
+      unlocked = await evaluateAchievements(req.user.id);
+    } catch (e) {
+      console.error('evaluateAchievements failed (non-fatal):', e.message);
+    }
+
+    const task = (await db.execute({
       sql:  `SELECT * FROM tasks WHERE id = ? AND user_id = ?`,
       args: [req.params.id, req.user.id],
     })).rows[0];
