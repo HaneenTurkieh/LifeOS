@@ -4,6 +4,7 @@ import { Play, Pause, RotateCcw, Plus, LogOut } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useFocus, MODES } from '../context/FocusContext.jsx';
 import PageHeader  from '../components/PageHeader.jsx';
@@ -57,6 +58,12 @@ export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
   const { t, lang } = useLanguage();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  // Theme-aware "muted text" helper — was previously hardcoded to
+  // rgba(30,34,51,X) (dark ink) everywhere, which vanishes on dark
+  // backgrounds. Now flips to white-based rgba in dark mode.
+  const muted = (a) => (isDark ? `rgba(255,255,255,${a})` : `rgba(30,34,51,${a})`);
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
   const fmtTime = (d) => d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
   const fmtForestDay = (dateStr) => {
@@ -374,10 +381,11 @@ export default function Flow() {
               )}
             </AnimatePresence>
 
-            {/* Task name */}
+            {/* Task name — was hardcoded to #1E2233 on input, invisible
+                on dark backgrounds once you typed. Now theme-aware. */}
             <input
-              className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2"
-              style={{ borderBottom: '1px solid rgba(124,106,240,0.20)', color: taskName ? '#1E2233' : undefined }}
+              className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2 text-ink dark:text-white placeholder:text-ink/30 dark:placeholder:text-white/25"
+              style={{ borderBottom: '1px solid rgba(124,106,240,0.20)' }}
               placeholder={t('flow.workingOn')}
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
@@ -405,7 +413,7 @@ export default function Flow() {
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
                 onClick={addMinute}
                 className="flex items-center gap-1 h-11 px-3.5 rounded-2xl text-xs font-bold"
-                style={{ ...lg(), color: 'rgba(30,34,51,0.55)' }}>
+                style={{ ...lg(), color: muted(0.55) }}>
                 <Plus size={12} /> 1m
               </motion.button>
             </div>
@@ -413,7 +421,7 @@ export default function Flow() {
             {/* Duration picker */}
             <div className="mt-8 pt-6 w-full" style={{ borderTop: '1px solid rgba(255,255,255,0.30)' }}>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-center mb-3"
-                style={{ color: 'rgba(30,34,51,0.30)' }}>{t('flow.duration')}</p>
+                style={{ color: muted(0.30) }}>{t('flow.duration')}</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {OPTIONS[mode].map((min) => (
                   <motion.button key={min}
@@ -438,7 +446,7 @@ export default function Flow() {
             {stats && (
               <div className="rounded-3xl p-5" style={lg()}>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-4"
-                  style={{ color: 'rgba(30,34,51,0.38)' }}>{t('flow.thisWeek')}</p>
+                  style={{ color: muted(0.38) }}>{t('flow.thisWeek')}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { val: stats.total_minutes, label: t('flow.minutes') },
@@ -464,11 +472,11 @@ export default function Flow() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-semibold text-ink dark:text-white text-sm">{displayRoom.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
+                    <p className="text-xs mt-0.5" style={{ color: muted(0.45) }}>
                       {t('flow.code')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                     </p>
                   </div>
-                  <button onClick={handleLeaveRoom} className="text-ink/30 hover:text-coral-500 transition">
+                  <button onClick={handleLeaveRoom} className="text-ink/30 dark:text-white/25 hover:text-coral-500 dark:hover:text-coral-400 transition">
                     <LogOut size={15} className="rtl:rotate-180" />
                   </button>
                 </div>
@@ -488,9 +496,9 @@ export default function Flow() {
                 <div className="flex flex-col gap-1.5">
                   {memberList.slice(0, 4).map((m) => (
                     <div key={m.user_id} className="flex items-center gap-2">
-                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15'}`} />
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15 dark:bg-white/15'}`} />
                       <span className="text-xs text-ink/65 dark:text-white/55 flex-1 truncate">{m.display_name}</span>
-                      <span className="text-xs text-ink/35 shrink-0">{m.focus_minutes}m</span>
+                      <span className="text-xs text-ink/35 dark:text-white/30 shrink-0">{m.focus_minutes}m</span>
                     </div>
                   ))}
                 </div>
@@ -521,12 +529,12 @@ export default function Flow() {
             {board.length > 0 && (
               <div className="rounded-3xl p-5" style={lg()}>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-3"
-                  style={{ color: 'rgba(30,34,51,0.38)' }}>🏆 {t('flow.rankings')}</p>
+                  style={{ color: muted(0.38) }}>🏆 {t('flow.rankings')}</p>
                 {board.slice(0, 3).map((e) => (
                   <div key={e.id} className="flex items-center gap-2 py-1.5">
                     <span className="text-sm w-5 text-center">{['🥇','🥈','🥉'][e.rank - 1]}</span>
                     <span className="flex-1 text-sm text-ink dark:text-white truncate">{e.name}</span>
-                    <span className="text-xs text-ink/40 shrink-0">{e.total_minutes}m</span>
+                    <span className="text-xs text-ink/40 dark:text-white/30 shrink-0">{e.total_minutes}m</span>
                   </div>
                 ))}
                 <button onClick={() => setTab('leaderboard')}
@@ -547,12 +555,12 @@ export default function Flow() {
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <h2 className="font-display font-bold text-ink dark:text-white text-xl">{displayRoom.name}</h2>
-                  <p className="text-sm mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
+                  <p className="text-sm mt-0.5" style={{ color: muted(0.45) }}>
                     {t('flow.shareCode')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                   </p>
                 </div>
                 <button onClick={handleLeaveRoom}
-                  className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2" style={lg()}>
+                  className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink dark:text-white" style={lg()}>
                   <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
                 </button>
               </div>
@@ -575,7 +583,7 @@ export default function Flow() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-bold text-ink dark:text-white">{t('flow.syncedLive')}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>
+                      <p className="text-xs mt-0.5" style={{ color: muted(0.50) }}>
                         {t('flow.remaining', { n: Math.ceil((displayRoom.timer.remaining_seconds || 0) / 60) })}
                       </p>
                     </div>
@@ -585,7 +593,7 @@ export default function Flow() {
                           try { await api.post(`/focus/rooms/${room.code}/timer/stop`); toast.success(t('flow.timerStopped')); }
                           catch (err) { toast.error(err.message); }
                         }}
-                        className="text-xs font-bold shrink-0 rounded-xl px-3 py-2" style={lg()}>
+                        className="text-xs font-bold shrink-0 rounded-xl px-3 py-2 text-ink dark:text-white" style={lg()}>
                         {t('flow.stop')}
                       </button>
                     )}
@@ -594,7 +602,7 @@ export default function Flow() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-bold text-ink dark:text-white">{t('flow.youAreHost')}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>{t('flow.hostDesc')}</p>
+                      <p className="text-xs mt-0.5" style={{ color: muted(0.50) }}>{t('flow.hostDesc')}</p>
                     </div>
                     <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
                       onClick={startForEveryone}
@@ -604,12 +612,12 @@ export default function Flow() {
                     </motion.button>
                   </div>
                 ) : (
-                  <p className="text-xs" style={{ color: 'rgba(30,34,51,0.50)' }}>{t('flow.waitingHost')}</p>
+                  <p className="text-xs" style={{ color: muted(0.50) }}>{t('flow.waitingHost')}</p>
                 )}
               </div>
 
               {memberList.length === 0 ? (
-                <p className="text-sm text-ink/40 text-center py-8">{t('flow.waiting')}</p>
+                <p className="text-sm text-ink/40 dark:text-white/30 text-center py-8">{t('flow.waiting')}</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {memberList.map((m) => (
@@ -623,11 +631,11 @@ export default function Flow() {
                           {m.display_name}
                           {Number(displayRoom.host_id) === Number(m.user_id) && ' 👑'}
                         </p>
-                        <p className="text-xs text-ink/40">{m.focus_minutes} {t('flow.minFocusedSub')}</p>
+                        <p className="text-xs text-ink/40 dark:text-white/30">{m.focus_minutes} {t('flow.minFocusedSub')}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15'}`} />
-                        <span className={`text-xs font-medium ${m.is_focusing ? 'text-sage-600' : 'text-ink/35'}`}>
+                        <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15 dark:bg-white/15'}`} />
+                        <span className={`text-xs font-medium ${m.is_focusing ? 'text-sage-600 dark:text-sage-400' : 'text-ink/35 dark:text-white/30'}`}>
                           {m.is_focusing ? t('flow.focusing') : t('flow.break')}
                         </span>
                       </div>
@@ -730,9 +738,9 @@ export default function Flow() {
             <div className="rounded-3xl p-7" style={cardGlass}>
               <div className="flex items-start justify-between mb-1">
                 <h2 className="font-display font-bold text-ink dark:text-white">{t('flow.weeklyRank')}</h2>
-                <span className="text-xs text-ink/35">{t('flow.resetsSunday')}</span>
+                <span className="text-xs text-ink/35 dark:text-white/30">{t('flow.resetsSunday')}</span>
               </div>
-              <p className="text-xs text-ink/40 mb-6">{t('flow.totalWeekMin')}</p>
+              <p className="text-xs text-ink/40 dark:text-white/30 mb-6">{t('flow.totalWeekMin')}</p>
               <div className="flex flex-col gap-2">
                 {board.map((e) => {
                   const isMe   = e.id == user?.id;
@@ -743,17 +751,17 @@ export default function Flow() {
                     <div key={e.id} className="flex items-center gap-3 rounded-2xl px-4 py-3"
                       style={isMe ? lg({ color: modeColor, active: true }) : lg()}>
                       <span className="text-xl w-8 text-center shrink-0">
-                        {e.rank <= 3 ? medals[e.rank - 1] : <span className="text-sm font-bold text-ink/30">{e.rank}</span>}
+                        {e.rank <= 3 ? medals[e.rank - 1] : <span className="text-sm font-bold text-ink/30 dark:text-white/25">{e.rank}</span>}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-semibold truncate ${isMe ? 'text-lavender-700 dark:text-lavender-300' : 'text-ink dark:text-white'}`}>
                           {e.name}{isMe ? t('flow.you') : ''}
                         </p>
-                        <p className="text-xs text-ink/35">{t('flow.sessionsCount', { n: e.session_count })}</p>
+                        <p className="text-xs text-ink/35 dark:text-white/30">{t('flow.sessionsCount', { n: e.session_count })}</p>
                       </div>
                       <div className="text-end shrink-0">
                         <p className={`text-sm font-bold ${isMe ? 'text-lavender-600' : 'text-ink dark:text-white'}`}>{e.total_minutes}m</p>
-                        <p className="text-xs text-ink/30">{hrs > 0 ? `${hrs}h ` : ''}{mins}m</p>
+                        <p className="text-xs text-ink/30 dark:text-white/25">{hrs > 0 ? `${hrs}h ` : ''}{mins}m</p>
                       </div>
                     </div>
                   );
@@ -772,7 +780,7 @@ export default function Flow() {
               className="flex-1 py-2 rounded-lg text-sm font-semibold transition"
               style={roomForm.tab === key
                 ? { background: 'rgba(255,255,255,0.85)', boxShadow: '0 2px 10px rgba(0,0,0,0.09)', color: '#1E2233' }
-                : { color: 'rgba(30,34,51,0.45)' }}>
+                : { color: muted(0.45) }}>
               {label}
             </button>
           ))}
@@ -821,8 +829,8 @@ export default function Flow() {
                   {TREE_EMOJIS[equippedTree] || '🌱'}
                 </motion.span>
               </div>
-              <p className="text-ink/50 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>
-              <p className="text-xs text-sage-600 font-semibold mb-3">🌳 {t('flow.treePlanted')}</p>
+              <p className="text-ink/50 dark:text-white/40 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>
+              <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3">🌳 {t('flow.treePlanted')}</p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
                   style={lg({ color: '#7C6AF0', active: true })}>
@@ -831,7 +839,7 @@ export default function Flow() {
               )}
               <div className="rounded-2xl px-5 py-4 mb-6 text-start" style={lg()}>
                 <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">"{congrats.quote.text}"</p>
-                <p className="text-xs text-ink/40 mt-2">— {congrats.quote.author}</p>
+                <p className="text-xs text-ink/40 dark:text-white/30 mt-2">— {congrats.quote.author}</p>
               </div>
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 onClick={() => setCongrats(null)} className="btn-primary w-full justify-center text-base">
