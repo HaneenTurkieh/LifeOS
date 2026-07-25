@@ -176,3 +176,10 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
+CREATE TABLE IF NOT EXISTS lumi_settings (
+  user_id         INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  tone            TEXT NOT NULL DEFAULT 'friendly',
+  response_length TEXT NOT NULL DEFAULT 'balanced',
+  emoji_level     TEXT NOT NULL DEFAULT 'some',
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
