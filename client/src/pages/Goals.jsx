@@ -3,6 +3,7 @@ import * as Icons from 'lucide-react';
 import { Plus, Target, Trash2, CheckSquare, Square, Flame, RefreshCw } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import GlassCard from '../components/GlassCard.jsx';
 import ProgressRing from '../components/ProgressRing.jsx';
@@ -11,11 +12,11 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 import HabitHistory from '../components/HabitHistory.jsx';
 
-const ICON_CHOICES = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
+const ICON_CHOICES  = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
 const COLOR_CHOICES = ['#F97316','#6366F1','#06B6D4','#22C55E','#A855F7','#EC4899','#F59E0B','#14B8A6'];
 
-const emptyGoalForm    = { title: '', description: '', category: 'Personal', target_date: '', milestonesText: '' };
-const emptyRecurForm   = { name: '', icon: 'Sparkles', color: '#6366F1', target_per_week: 7 };
+const emptyGoalForm  = { title: '', description: '', category: 'Personal', target_date: '', milestonesText: '' };
+const emptyRecurForm = { name: '', icon: 'Sparkles', color: '#6366F1', target_per_week: 7 };
 
 function last30Dates() {
   const out = [];
@@ -37,6 +38,7 @@ export default function Goals() {
   const [recurForm, setRecurForm]   = useState(emptyRecurForm);
   const [suggesting, setSuggesting] = useState(false);
   const toast = useToast();
+  const { t } = useLanguage();
   const dates = last30Dates();
 
   const loadGoals  = useCallback(async () => {
@@ -52,7 +54,7 @@ export default function Goals() {
 
   // ── Goal handlers ─────────────────────────────────────
   const suggestMilestones = async () => {
-    if (!goalForm.title.trim()) { toast.error('Add a goal title first'); return; }
+    if (!goalForm.title.trim()) { toast.error(t('goals.addTitleFirst')); return; }
     setSuggesting(true);
     try {
       const { plan } = await api.post('/ai/goal-breakdown', { title: goalForm.title, weeks: 4 });
@@ -66,7 +68,7 @@ export default function Goals() {
     const milestones = goalForm.milestonesText.split('\n').map((s) => s.trim()).filter(Boolean);
     try {
       await api.post('/goals', { ...goalForm, target_date: goalForm.target_date || null, milestones });
-      toast.success('Goal created');
+      toast.success(t('goals.created'));
       setGoalForm(emptyGoalForm); setGoalModal(false); loadGoals();
     } catch (err) { toast.error(err.message); }
   };
@@ -80,12 +82,12 @@ export default function Goals() {
     const { xpAwarded, unlocked } = await api.put(`/goals/${goal.id}`, {
       status: goal.status === 'completed' ? 'active' : 'completed',
     });
-    if (xpAwarded) toast.xp(xpAwarded, `Goal complete: ${goal.title}`);
+    if (xpAwarded) toast.xp(xpAwarded, goal.title);
     unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
     loadGoals();
   };
 
-  const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success('Goal removed'); loadGoals(); };
+  const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); };
 
   // ── Recurring task handlers ───────────────────────────
   const createRecur = async (e) => {
@@ -93,7 +95,7 @@ export default function Goals() {
     if (!recurForm.name.trim()) return;
     try {
       await api.post('/habits', recurForm);
-      toast.success('Recurring task added');
+      toast.success(t('goals.recurAdded'));
       setRecurForm(emptyRecurForm); setRecurModal(false); loadHabits();
     } catch (err) { toast.error(err.message); }
   };
@@ -105,46 +107,44 @@ export default function Goals() {
     loadHabits();
   };
 
-  const removeHabit = async (id) => { await api.del(`/habits/${id}`); toast.success('Recurring task removed'); loadHabits(); };
+  const removeHabit = async (id) => { await api.del(`/habits/${id}`); toast.success(t('goals.recurRemoved')); loadHabits(); };
 
   if (loading) return <PageLoader />;
 
   const TABS = [
-    { key: 'goals',     label: 'Goals',            count: goals.length },
-    { key: 'recurring', label: 'Recurring Tasks',  count: habits.length },
+    { key: 'goals',     label: t('goals.tabGoals'),     count: goals.length  },
+    { key: 'recurring', label: t('goals.tabRecurring'), count: habits.length },
   ];
 
   return (
     <div>
       <PageHeader
-        eyebrow="Goals & Recurring Tasks"
-        title={tab === 'goals' ? 'The big picture' : 'Daily commitments'}
-        subtitle={tab === 'goals'
-          ? 'Break ambitious goals into milestones. Progress is calculated automatically.'
-          : 'Tasks that repeat on a schedule — streaks, completion rates, 30-day history.'}
+        eyebrow={t('goals.eyebrow')}
+        title={tab === 'goals' ? t('goals.bigPicture') : t('goals.dailyCommitments')}
+        subtitle={tab === 'goals' ? t('goals.goalsSubtitle') : t('goals.recurSubtitle')}
         action={
           tab === 'goals'
-            ? <button className="btn-primary" onClick={() => setGoalModal(true)}><Plus size={16}/> New goal</button>
-            : <button className="btn-primary" onClick={() => setRecurModal(true)}><Plus size={16}/> New recurring task</button>
+            ? <button className="btn-primary" onClick={() => setGoalModal(true)}><Plus size={16}/> {t('goals.newGoal')}</button>
+            : <button className="btn-primary" onClick={() => setRecurModal(true)}><Plus size={16}/> {t('goals.newRecur')}</button>
         }
       />
 
       {/* Tab switcher */}
       <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 w-fit">
-        {TABS.map((t) => (
+        {TABS.map((tb) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={tb.key}
+            onClick={() => setTab(tb.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-              tab === t.key
+              tab === tb.key
                 ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-sm'
                 : 'text-ink/50 dark:text-white/40 hover:text-ink/80 dark:hover:text-white/60'
             }`}
           >
-            {t.label}
+            {tb.label}
             <span className={`text-xs rounded-full px-1.5 py-0.5 ${
-              tab === t.key ? 'bg-lavender-100 text-lavender-700' : 'bg-ink/5 text-ink/40 dark:bg-white/5 dark:text-white/30'
-            }`}>{t.count}</span>
+              tab === tb.key ? 'bg-lavender-100 text-lavender-700' : 'bg-ink/5 text-ink/40 dark:bg-white/5 dark:text-white/30'
+            }`}>{tb.count}</span>
           </button>
         ))}
       </div>
@@ -153,22 +153,19 @@ export default function Goals() {
       {tab === 'goals' && (
         goals.length === 0 ? (
           <EmptyState
-  icon={Target}
-  title="Think big. Start here."
-  description="Goals are your big picture. Break them into milestones and Aurora tracks your progress automatically — no manual updates needed."
-  features={[
-    { icon: '🎯', text: 'Set a goal — career, personal, academic, anything' },
-    { icon: '🪜', text: 'Add milestones and Aurora calculates progress for you' },
-    { icon: '✨', text: 'Ask Lumi to break down any goal into a step-by-step plan' },
-    { icon: '🏆', text: 'Complete a goal to earn 100 XP and unlock achievements' },
-  ]}
-  action={
-    <button className="btn-primary w-full justify-center" onClick={() => setGoalModal(true)}>
-      <Plus size={16} /> Set your first goal
-    </button>
-  }
-  tip="Try: 'Graduate with a GPA above 3.8' — then let Lumi suggest the milestones"
-/>
+            icon={Target}
+            title={t('goals.emptyGoalsTitle')}
+            description={t('goals.emptyGoalsDesc')}
+            features={[
+              { icon: '🎯', text: t('goals.goalsSubtitle') },
+              { icon: '✨', text: t('goals.suggestAI') },
+            ]}
+            action={
+              <button className="btn-primary w-full justify-center" onClick={() => setGoalModal(true)}>
+                <Plus size={16} /> {t('goals.newGoal')}
+              </button>
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {goals.map((g, i) => (
@@ -189,16 +186,15 @@ export default function Goals() {
                     <Trash2 size={15}/>
                   </button>
                 </div>
-
                 {g.description && <p className="text-sm text-ink/50 mt-3">{g.description}</p>}
                 {g.target_date && (
-  <p className="text-xs text-ink/40 mt-1">Target: {g.target_date}</p>
-)}
+                  <p className="text-xs text-ink/40 mt-1">{t('goals.target')}: {g.target_date}</p>
+                )}
                 {g.milestones.length > 0 && (
                   <div className="mt-4 flex flex-col gap-1.5">
                     {g.milestones.map((m) => (
                       <button key={m.id} onClick={() => toggleMilestone(g, m)}
-                        className="flex items-center gap-2 text-left rounded-xl px-2 py-1.5 hover:bg-white/60 transition">
+                        className="flex items-center gap-2 text-start rounded-xl px-2 py-1.5 hover:bg-white/60 transition">
                         {m.done
                           ? <CheckSquare size={16} className="text-sage-500 shrink-0"/>
                           : <Square      size={16} className="text-ink/25 shrink-0"/>}
@@ -207,14 +203,15 @@ export default function Goals() {
                     ))}
                   </div>
                 )}
-
-                {/* Auto-calculated progress label */}
                 {g.milestones.length > 0 && (
                   <p className="text-xs text-ink/35 mt-2">
-                    {g.milestones.filter((m) => m.done).length} / {g.milestones.length} milestones done — {g.progress}% complete
+                    {t('goals.milestonesDone', {
+                      done:  g.milestones.filter((m) => m.done).length,
+                      total: g.milestones.length,
+                      p:     g.progress,
+                    })}
                   </p>
                 )}
-
                 <button
                   onClick={() => markComplete(g)}
                   className={`mt-4 w-full rounded-2xl py-2 text-sm font-semibold transition ${
@@ -223,7 +220,7 @@ export default function Goals() {
                       : 'bg-lavender-50 text-lavender-700 hover:bg-lavender-100'
                   }`}
                 >
-                  {g.status === 'completed' ? '✓ Goal completed' : 'Mark goal as complete'}
+                  {g.status === 'completed' ? t('goals.completedBtn') : t('goals.markComplete')}
                 </button>
               </GlassCard>
             ))}
@@ -235,22 +232,19 @@ export default function Goals() {
       {tab === 'recurring' && (
         habits.length === 0 ? (
           <EmptyState
-  icon={RefreshCw}
-  title="Consistency is the superpower"
-  description="Recurring tasks repeat on your schedule. Aurora tracks your streak, completion rate, and logs 30 days of history."
-  features={[
-    { icon: '🔁', text: 'Set any task to repeat daily, weekly, or on specific days' },
-    { icon: '🔥', text: 'Build streaks — Aurora celebrates your consistency' },
-    { icon: '📊', text: '30-day history heatmap shows your patterns at a glance' },
-    { icon: '⚡', text: 'Earn 5 XP every time you mark one done' },
-  ]}
-  action={
-    <button className="btn-primary w-full justify-center" onClick={() => setRecurModal(true)}>
-      <Plus size={16} /> Add a recurring task
-    </button>
-  }
-  tip="Start small — 'Read 10 pages' every day beats 'Read 100 pages' once a week"
-/>
+            icon={RefreshCw}
+            title={t('goals.emptyRecurTitle')}
+            description={t('goals.emptyRecurDesc')}
+            features={[
+              { icon: '🔁', text: t('goals.recurSubtitle') },
+              { icon: '🔥', text: t('goals.dayStreak', { n: 7 }) },
+            ]}
+            action={
+              <button className="btn-primary w-full justify-center" onClick={() => setRecurModal(true)}>
+                <Plus size={16} /> {t('goals.addRecur')}
+              </button>
+            }
+          />
         ) : (
           <>
             <div className="flex flex-col gap-4">
@@ -266,11 +260,11 @@ export default function Goals() {
                         </div>
                         <div>
                           <h3 className="font-display font-bold text-ink">{h.name}</h3>
-                          <p className="text-xs text-ink/45">Target: {h.target_per_week}x / week</p>
+                          <p className="text-xs text-ink/45">{t('goals.perWeek', { n: h.target_per_week })}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="pill bg-coral-500/10 text-coral-500"><Flame size={12}/> {h.streak} day streak</span>
+                        <span className="pill bg-coral-500/10 text-coral-500"><Flame size={12}/> {t('goals.dayStreak', { n: h.streak })}</span>
                         <span className="pill bg-lavender-100 text-lavender-700">{h.completionRate}% / 30d</span>
                         <button
                           onClick={() => toggleToday(h)}
@@ -278,7 +272,7 @@ export default function Goals() {
                             h.doneToday ? 'bg-sage-100 text-sage-700' : 'bg-lavender-50 text-lavender-700 hover:bg-lavender-100'
                           }`}
                         >
-                          {h.doneToday ? '✓ Done today' : 'Mark done'}
+                          {h.doneToday ? t('goals.doneToday') : t('goals.markDone')}
                         </button>
                         <button onClick={() => removeHabit(h.id)} className="text-ink/25 hover:text-coral-500 transition">
                           <Trash2 size={15}/>
@@ -302,41 +296,40 @@ export default function Goals() {
       )}
 
       {/* ── Goal Modal ───────────────────────────────────── */}
-      <Modal open={goalModal} onClose={() => setGoalModal(false)} title="New goal">
+      <Modal open={goalModal} onClose={() => setGoalModal(false)} title={t('goals.newGoal')}>
         <form onSubmit={createGoal} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder="Goal title, e.g. Finish Python course"
+          <input className="input-field" placeholder={t('goals.goalTitlePh')}
             value={goalForm.title} onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })} autoFocus required />
-          <textarea className="input-field" placeholder="Description (optional)" rows={2}
+          <textarea className="input-field" placeholder={t('goals.descPh')} rows={2}
             value={goalForm.description} onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}/>
           <div className="grid grid-cols-2 gap-3">
-            <input className="input-field" placeholder="Category"
+            <input className="input-field" placeholder={t('calendar.category')}
               value={goalForm.category} onChange={(e) => setGoalForm({ ...goalForm, category: e.target.value })}/>
             <input type="date" className="input-field"
               value={goalForm.target_date} onChange={(e) => setGoalForm({ ...goalForm, target_date: e.target.value })}/>
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-ink/50">Milestones (one per line)</label>
+              <label className="text-xs font-semibold text-ink/50">{t('goals.milestonesLabel')}</label>
               <button type="button" onClick={suggestMilestones} disabled={suggesting}
                 className="flex items-center gap-1 text-xs font-semibold text-lavender-600 hover:underline disabled:opacity-50">
-                <Icons.Wand2 size={12}/> {suggesting ? 'Thinking…' : 'Suggest with AI'}
+                <Icons.Wand2 size={12}/> {suggesting ? t('goals.thinking') : t('goals.suggestAI')}
               </button>
             </div>
             <textarea className="input-field" rows={4}
-              placeholder={'Research the goal\nFinish first sub-task\nGet feedback\nShip it'}
               value={goalForm.milestonesText} onChange={(e) => setGoalForm({ ...goalForm, milestonesText: e.target.value })}/>
           </div>
-          <button type="submit" className="btn-primary justify-center mt-1">Create goal</button>
+          <button type="submit" className="btn-primary justify-center mt-1">{t('goals.createGoal')}</button>
         </form>
       </Modal>
 
       {/* ── Recurring Task Modal ─────────────────────────── */}
-      <Modal open={recurModal} onClose={() => setRecurModal(false)} title="New recurring task">
+      <Modal open={recurModal} onClose={() => setRecurModal(false)} title={t('goals.newRecur')}>
         <form onSubmit={createRecur} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder="e.g. Exercise, Read 20 pages, Meditate"
+          <input className="input-field" placeholder={t('goals.recurPh')}
             value={recurForm.name} onChange={(e) => setRecurForm({ ...recurForm, name: e.target.value })} autoFocus required/>
           <div>
-            <label className="text-xs font-semibold text-ink/50 mb-1.5 block">Icon</label>
+            <label className="text-xs font-semibold text-ink/50 mb-1.5 block">{t('goals.icon')}</label>
             <div className="flex flex-wrap gap-2">
               {ICON_CHOICES.map((iconName) => {
                 const Icon = Icons[iconName];
@@ -352,7 +345,7 @@ export default function Goals() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-ink/50 mb-1.5 block">Color</label>
+            <label className="text-xs font-semibold text-ink/50 mb-1.5 block">{t('goals.color')}</label>
             <div className="flex flex-wrap gap-2">
               {COLOR_CHOICES.map((c) => (
                 <button type="button" key={c} onClick={() => setRecurForm({ ...recurForm, color: c })}
@@ -363,13 +356,13 @@ export default function Goals() {
           </div>
           <div>
             <label className="text-xs font-semibold text-ink/50 mb-1.5 block">
-              Target days / week: {recurForm.target_per_week}
+              {t('goals.targetDays', { n: recurForm.target_per_week })}
             </label>
             <input type="range" min="1" max="7" value={recurForm.target_per_week}
               onChange={(e) => setRecurForm({ ...recurForm, target_per_week: Number(e.target.value) })}
               className="w-full accent-lavender-600"/>
           </div>
-          <button type="submit" className="btn-primary justify-center mt-1">Add recurring task</button>
+          <button type="submit" className="btn-primary justify-center mt-1">{t('goals.addRecur')}</button>
         </form>
       </Modal>
     </div>
