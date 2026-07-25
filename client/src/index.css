@@ -2,34 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Accent color system ─────────────────────────────────────
+   Each var holds a raw "R G B" triplet so Tailwind can do
+   rgb(var(--accent-500) / <alpha-value>) and respect opacity
+   modifiers (bg-lavender-500/20 etc). Default = purple.
+   Premium presets override via [data-accent="..."] on <html>,
+   set synchronously in ThemeContext.jsx before first paint. */
+:root {
+  --accent-50:  244 243 255;
+  --accent-100: 235 232 255;
+  --accent-200: 217 212 255;
+  --accent-300: 187 176 255;
+  --accent-400: 154 139 251;
+  --accent-500: 124 106 240;
+  --accent-600: 91 71 224;
+  --accent-700: 70 52 184;
+}
+[data-accent="orange"] {
+  --accent-50:  255 244 237;
+  --accent-100: 255 230 213;
+  --accent-200: 255 201 168;
+  --accent-300: 255 163 107;
+  --accent-400: 255 138 66;
+  --accent-500: 255 122 46;
+  --accent-600: 232 93 4;
+  --accent-700: 186 74 3;
+}
+[data-accent="pink"] {
+  --accent-50:  255 240 246;
+  --accent-100: 255 224 237;
+  --accent-200: 255 194 219;
+  --accent-300: 255 148 190;
+  --accent-400: 255 107 166;
+  --accent-500: 245 64 143;
+  --accent-600: 214 36 122;
+  --accent-700: 168 25 96;
+}
+[data-accent="blue"] {
+  --accent-50:  238 245 255;
+  --accent-100: 220 235 255;
+  --accent-200: 184 212 255;
+  --accent-300: 138 184 255;
+  --accent-400: 92 154 255;
+  --accent-500: 59 130 246;
+  --accent-600: 37 99 235;
+  --accent-700: 29 78 216;
+}
+
 * {
   -webkit-font-smoothing: antialiased;
 }
-
 html, body, #root {
   height: 100%;
 }
-
 body {
   @apply text-ink font-body;
   transition: background-color 0.4s ease, color 0.4s ease;
 }
-
 .dark body {
   @apply text-white/90;
 }
-
 .glass-card, .glass-panel, .input-field, .pill, .btn-secondary, .btn-ghost {
   transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
 }
-
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(124, 106, 240, 0.25); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(124, 106, 240, 0.45); }
-.dark ::-webkit-scrollbar-thumb { background: rgba(154, 139, 251, 0.25); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(154, 139, 251, 0.4); }
-
+::-webkit-scrollbar-thumb { background: rgb(var(--accent-500) / 0.25); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent-500) / 0.45); }
+.dark ::-webkit-scrollbar-thumb { background: rgb(var(--accent-400) / 0.25); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent-400) / 0.4); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -37,13 +78,11 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
-
 :focus-visible {
-  outline: 2px solid #7C6AF0;
+  outline: 2px solid rgb(var(--accent-500));
   outline-offset: 2px;
   border-radius: 4px;
 }
-
 @layer components {
   .glass-panel {
     @apply bg-white/55 dark:bg-white/[0.04] backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-glass dark:shadow-none;
@@ -70,7 +109,6 @@ body {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
   }
 }
-
 .skeleton {
   background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.7) 37%, rgba(255,255,255,0.4) 63%);
   background-size: 200% 100%;
@@ -80,7 +118,6 @@ body {
   background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.09) 37%, rgba(255,255,255,0.03) 63%);
   background-size: 200% 100%;
 }
-
 .dark .bg-white\/40  { background-color: rgba(255,255,255,0.035); }
 .dark .bg-white\/50  { background-color: rgba(255,255,255,0.04); }
 .dark .bg-white\/60  { background-color: rgba(255,255,255,0.045); }
@@ -90,11 +127,9 @@ body {
 .dark .hover\:bg-white\/60:hover { background-color: rgba(255,255,255,0.07); }
 .dark .hover\:bg-white\/70:hover { background-color: rgba(255,255,255,0.08); }
 .dark .hover\:bg-white\/90:hover { background-color: rgba(255,255,255,0.1); }
-
 .dark .border-white\/60 { border-color: rgba(255,255,255,0.08); }
 .dark .border-white\/70 { border-color: rgba(255,255,255,0.1); }
 .dark .border-white\/80 { border-color: rgba(255,255,255,0.12); }
-
 .dark .text-ink      { color: rgba(255,255,255,0.92); }
 .dark .text-ink\/80   { color: rgba(255,255,255,0.75); }
 .dark .text-ink\/70   { color: rgba(255,255,255,0.65); }
@@ -106,18 +141,15 @@ body {
 .dark .text-ink\/35   { color: rgba(255,255,255,0.3); }
 .dark .text-ink\/30   { color: rgba(255,255,255,0.25); }
 .dark .text-ink\/25   { color: rgba(255,255,255,0.22); }
-
 .dark .bg-ink\/5      { background-color: rgba(255,255,255,0.06); }
 .dark .divide-white\/50 > * + * { border-color: rgba(255,255,255,0.08); }
-
-.dark .bg-lavender-50  { background-color: rgba(124,106,240,0.1); }
-.dark .bg-lavender-100 { background-color: rgba(124,106,240,0.16); }
-.dark .text-lavender-700 { color: #BBB0FF; }
+.dark .bg-lavender-50  { background-color: rgb(var(--accent-500) / 0.1); }
+.dark .bg-lavender-100 { background-color: rgb(var(--accent-500) / 0.16); }
+.dark .text-lavender-700 { color: rgb(var(--accent-300)); }
 .dark .bg-sage-50  { background-color: rgba(76,195,138,0.1); }
 .dark .bg-sage-100 { background-color: rgba(76,195,138,0.16); }
 .dark .text-sage-700 { color: #7FD8A6; }
 .bg-mesh-app { @apply bg-mesh-light dark:bg-mesh-dark; }
-
 .clay {
   @apply bg-white/70 dark:bg-white/[0.05] border border-white/80 dark:border-white/10 shadow-clay dark:shadow-clay-dark rounded-2xl transition-all duration-300 ease-premium;
 }
@@ -131,7 +163,6 @@ body {
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
-
 .dark .text-ink { color: rgba(255,255,255,0.95) !important; }
 .dark .text-ink\/80, .dark .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
 .dark .text-ink\/60, .dark .text-ink\/55, .dark .text-ink\/50 { color: rgba(255,255,255,0.55) !important; }

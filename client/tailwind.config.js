@@ -7,19 +7,30 @@ export default {
       fontFamily: {
         display: ['"Outfit"', 'sans-serif'],
         body:    ['"Inter"', 'sans-serif'],
-        mono:    ['"JetBrains Mono"', 'monospace'],  // ← add this
+        mono:    ['"JetBrains Mono"', 'monospace'],
       },
       colors: {
         ink: '#1E2233',
         mist: '#F4F6FB',
+        // lavender now reads from CSS custom properties set in index.css,
+        // switched at runtime via [data-accent] on <html>. Every existing
+        // bg-lavender-500 / text-lavender-600 / from-lavender-500 / etc
+        // class across the app automatically respects the active premium
+        // color preset — no per-component changes needed.
         lavender: {
-          50: '#F4F3FF', 100: '#EBE8FF', 200: '#D9D4FF', 300: '#BBB0FF',
-          400: '#9A8BFB', 500: '#7C6AF0', 600: '#5B47E0', 700: '#4634B8',
+          50:  'rgb(var(--accent-50) / <alpha-value>)',
+          100: 'rgb(var(--accent-100) / <alpha-value>)',
+          200: 'rgb(var(--accent-200) / <alpha-value>)',
+          300: 'rgb(var(--accent-300) / <alpha-value>)',
+          400: 'rgb(var(--accent-400) / <alpha-value>)',
+          500: 'rgb(var(--accent-500) / <alpha-value>)',
+          600: 'rgb(var(--accent-600) / <alpha-value>)',
+          700: 'rgb(var(--accent-700) / <alpha-value>)',
         },
         sun: { 400: '#FFC773', 500: '#FFB84D', 600: '#F59E0B' },
         sage: { 
           400: '#6EE7B7', 
-          500: '#3DBE7A',  // warmer than current #4CC38A
+          500: '#3DBE7A',
           600: '#2DA76E' 
         },
         coral: { 400: '#FF9C8A', 500: '#FF7A63' },

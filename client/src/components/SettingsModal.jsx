@@ -44,7 +44,6 @@ function ProfileTab() {
   const [birthday, setBirthday] = useState(user?.birthday || '');
   const [saving,   setSaving]   = useState(false);
   const [cropSrc,  setCropSrc]  = useState(null);
-
   const handleFile = useCallback((file) => {
     if (!file) return;
     if (file.size > 10*1024*1024) { toast.error('Image must be under 10MB'); return; }
@@ -52,25 +51,21 @@ function ProfileTab() {
     reader.onload = e => setCropSrc(e.target.result);
     reader.readAsDataURL(file);
   }, [toast]);
-
   const handleCropSave = async (dataURL) => {
     setCropSrc(null);
     try { await updateUser({ avatar:dataURL }); toast.success('📸'); }
     catch (err) { toast.error(err.message); }
   };
-
   const removeAvatar = async () => {
     try { await updateUser({ avatar:null }); toast.success(t('settings.removePhoto')); }
     catch (err) { toast.error(err.message); }
   };
-
   const save = async () => {
     setSaving(true);
     try { await updateUser({ name:name.trim(), bio, gender, birthday }); toast.success(t('settings.profileSaved')); }
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
-
   const isBirthday = (() => {
     if (!birthday) return false;
     const today = new Date();
@@ -78,7 +73,6 @@ function ProfileTab() {
     return Number(m)===today.getMonth()+1 && Number(d)===today.getDate();
   })();
   const age = birthday ? new Date().getFullYear() - Number(birthday.split('-')[0]) : null;
-
   return (
     <>
       <div className="flex flex-col gap-5">
@@ -89,7 +83,6 @@ function ProfileTab() {
             🎂 {user?.name?.split(' ')[0]} 🎉
           </motion.div>
         )}
-
         {/* Avatar */}
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -117,7 +110,6 @@ function ProfileTab() {
             </div>
           </div>
         </div>
-
         {/* Fields */}
         <div className="flex flex-col gap-3.5">
           <div>
@@ -148,7 +140,6 @@ function ProfileTab() {
             </div>
           </div>
         </div>
-
         <button onClick={save} disabled={saving} className="btn-primary justify-center">
           {saving ? t('common.saving') : <><Check size={15}/> {t('settings.saveProfile')}</>}
         </button>
@@ -171,13 +162,11 @@ function AccountTab() {
   const [showCur,  setShowCur]  = useState(false);
   const [showNew,  setShowNew]  = useState(false);
   const [saving,   setSaving]   = useState(false);
-
   const strength = [
     newPass.length >= 8, /[A-Z]/.test(newPass),
     /[0-9]/.test(newPass), /[^A-Za-z0-9]/.test(newPass),
   ];
   const strengthColors = ['#FF7A63','#FFB84D','#60A5FA','#4CC38A'];
-
   const handleChange = async () => {
     if (newPass !== confirm) { toast.error(t('settings.pwMismatch')); return; }
     if (newPass.length < 8)  { toast.error(t('settings.pwMin')); return; }
@@ -186,7 +175,6 @@ function AccountTab() {
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
-
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -266,7 +254,6 @@ function AppearanceTab() {
           {mode===th.key && <Check size={16} className="text-lavender-500 shrink-0"/>}
         </button>
       ))}
-
       <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 mt-3 block">{t('settings.language')}</label>
       {LANGS.map(l => (
         <button key={l.key} onClick={() => setLang(l.key)}
@@ -287,13 +274,22 @@ function AppearanceTab() {
 // ── Premium tab ───────────────────────────────────────────────
 function PremiumTab() {
   const toast = useToast();
-  const { t } = useLanguage();
-  const [status, setStatus] = useState(null);
-  const [busy,   setBusy]   = useState(false);
+  const { t, lang } = useLanguage();
+  const { accent, setAccent } = useTheme();
+  const [status,    setStatus]    = useState(null);
+  const [busy,      setBusy]      = useState(false);
+  const [themeBusy, setThemeBusy] = useState(false);
 
   const load = useCallback(() => {
-    api.get('/focus/premium/status').then(setStatus).catch(() => setStatus({ is_premium:false, freeze_date:null }));
-  }, []);
+    api.get('/focus/premium/status')
+      .then((d) => {
+        setStatus(d);
+        // Sync local accent to whatever the server has on record —
+        // makes the theme choice follow the account across devices.
+        if (d.theme_preset) setAccent(d.theme_preset);
+      })
+      .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple' }));
+  }, [setAccent]);
   useEffect(() => { load(); }, [load]);
 
   const toggle = async () => {
@@ -301,11 +297,11 @@ function PremiumTab() {
     try {
       const next = await api.post('/focus/premium/toggle', {});
       setStatus(next);
+      if (next.theme_preset) setAccent(next.theme_preset);
       toast.success(next.is_premium ? '👑' : t('settings.freeName'));
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
-
   const pause = async () => {
     setBusy(true);
     try {
@@ -316,17 +312,40 @@ function PremiumTab() {
     finally { setBusy(false); }
   };
 
+  // Kept as inline lang-conditional strings rather than touching
+  // translations.js again — same pattern already used for the
+  // room-tree death/survival messages.
+  const THEME_PRESETS = [
+    { key: 'purple', label: lang === 'ar' ? 'بنفسجي' : 'Purple', swatch: 'linear-gradient(135deg,#7C6AF0,#5B47E0)' },
+    { key: 'orange', label: lang === 'ar' ? 'برتقالي' : 'Orange', swatch: 'linear-gradient(135deg,#FF8A42,#E85D04)' },
+    { key: 'pink',   label: lang === 'ar' ? 'وردي'    : 'Pink',   swatch: 'linear-gradient(135deg,#FF6BA6,#D6247A)' },
+    { key: 'blue',   label: lang === 'ar' ? 'أزرق'    : 'Blue',   swatch: 'linear-gradient(135deg,#5C9AFF,#2563EB)' },
+  ];
+  const themeSectionTitle = lang === 'ar' ? 'لون التطبيق' : 'App color';
+  const themeLockedNote   = lang === 'ar' ? 'ميزة بريميوم' : 'Premium feature';
+
+  const changeTheme = async (preset) => {
+    if (!status?.is_premium || themeBusy || preset === accent) return;
+    setThemeBusy(true);
+    const prev = accent;
+    setAccent(preset); // optimistic — instant visual feedback across the whole app
+    try {
+      await api.post('/focus/premium/theme', { theme_preset: preset });
+      setStatus((s) => ({ ...s, theme_preset: preset }));
+    } catch (err) {
+      setAccent(prev); // rollback on failure
+      toast.error(err.message);
+    } finally { setThemeBusy(false); }
+  };
+
   const today       = new Date().toISOString().slice(0, 10);
   const frozenToday = status?.freeze_date === today;
-
   const PERKS = [
-    { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD'), live: true  },
-    { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD'), live: false },
+    { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD'), live: true },
+    { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD'), live: true },
     { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD'),   live: false },
   ];
-
   if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
-
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl p-5 text-center"
@@ -349,6 +368,44 @@ function PremiumTab() {
         </button>
       </div>
 
+      {/* Accent color picker */}
+      <div className="rounded-2xl p-4"
+        style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-ink dark:text-white">🎨 {themeSectionTitle}</p>
+          {!status.is_premium && (
+            <span className="text-[10px] font-bold rounded-full px-2 py-1"
+              style={{ background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
+              {themeLockedNote}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-4 gap-2.5">
+          {THEME_PRESETS.map((p) => {
+            const active = accent === p.key;
+            const locked = !status.is_premium;
+            return (
+              <button
+                key={p.key}
+                onClick={() => changeTheme(p.key)}
+                disabled={locked || themeBusy}
+                title={locked ? themeLockedNote : p.label}
+                className="flex flex-col items-center gap-1.5 rounded-2xl py-2.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                style={active ? { background:'rgba(124,106,240,0.10)', border:'1px solid rgba(124,106,240,0.30)' } : { border:'1px solid transparent' }}
+              >
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-full"
+                  style={{ background: p.swatch, boxShadow: active ? '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(124,106,240,0.4)' : '0 2px 6px rgba(0,0,0,0.15)' }}
+                >
+                  {active && <Check size={13} className="text-white" strokeWidth={3} />}
+                </span>
+                <span className="text-[10px] font-semibold text-ink/60 dark:text-white/50">{p.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="rounded-2xl p-4"
         style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.18)' }}>
         <div className="flex items-start gap-3">
@@ -368,7 +425,6 @@ function PremiumTab() {
           </div>
         </div>
       </div>
-
       <div className="flex flex-col gap-2">
         {PERKS.map(p => (
           <div key={p.title} className="flex items-center gap-3 rounded-2xl px-4 py-3"
@@ -387,7 +443,6 @@ function PremiumTab() {
           </div>
         ))}
       </div>
-
       <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">{t('settings.noPayment')}</p>
     </div>
   );
@@ -401,7 +456,6 @@ function FeedbackTab() {
   const [msg,     setMsg]     = useState('');
   const [sending, setSending] = useState(false);
   const [sent,    setSent]    = useState(false);
-
   const send = async () => {
     if (!msg.trim()) return;
     setSending(true);
@@ -412,7 +466,6 @@ function FeedbackTab() {
     } catch (_) { toast.error('✗'); }
     finally { setSending(false); }
   };
-
   return (
     <div className="flex flex-col gap-4">
       <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">{t('settings.sendFeedback')}</label>
@@ -436,7 +489,6 @@ function DangerTab({ onClose }) {
   const [confirm,    setConfirm]    = useState('');
   const [deleting,   setDeleting]   = useState(false);
   const [showDelete, setShowDelete] = useState(false);
-
   const handleLogout = () => { logout(); onClose(); navigate('/login',{replace:true}); };
   const handleDelete = async () => {
     if (confirm!=='DELETE') return;
@@ -444,7 +496,6 @@ function DangerTab({ onClose }) {
     try { await deleteAccount(); onClose(); navigate('/login',{replace:true}); }
     catch (err) { toast.error(err.message); setDeleting(false); }
   };
-
   return (
     <div className="flex flex-col gap-4">
       <button onClick={handleLogout}
@@ -496,16 +547,13 @@ const NAV_ITEMS = [
   { key:'feedback',   label:'settings.feedback',   icon:MessageSquare },
   { key:'danger',     label:'settings.danger',     icon:Trash2        },
 ];
-
 export default function SettingsModal({ open, onClose }) {
   const [tab, setTab]     = useState('profile');
   const { user }          = useAuth();
   const { resolvedTheme } = useTheme();
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
-
   const closeAndReset = () => { setTab('profile'); onClose(); };
-
   const navBg     = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(30,34,51,0.03)';
   const navBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(30,34,51,0.06)';
   const activeStyle = isDark
@@ -514,7 +562,6 @@ export default function SettingsModal({ open, onClose }) {
   const inactiveClr = isDark
     ? 'text-white/45 hover:text-white/70 hover:bg-white/5'
     : 'text-ink/50 hover:text-ink/80 hover:bg-ink/5';
-
   return (
     <Modal open={open} onClose={closeAndReset} title={t('settings.title')} maxWidth="max-w-xl">
       <div className="flex flex-col lg:flex-row -mx-6 -mb-6 mt-2" style={{ minHeight:400 }}>
@@ -549,7 +596,6 @@ export default function SettingsModal({ open, onClose }) {
             © {new Date().getFullYear()} Haneen
           </p>
         </div>
-
         <div className="flex-1 min-w-0 p-5 lg:p-6 overflow-y-auto" style={{ maxHeight:'65vh' }}>
           <AnimatePresence mode="wait">
             <motion.div key={tab}

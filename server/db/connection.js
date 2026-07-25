@@ -2,11 +2,9 @@
 // Replaced better-sqlite3 (sync, local file) with @libsql/client (async, Turso cloud).
 // db         → the libsql client, imported by every route file
 // initDb()   → async startup function called once in server/index.js before app.listen()
-
 const { createClient } = require('@libsql/client');
 const fs   = require('fs');
 const path = require('path');
-
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 // ─── 1. Create the Turso client ───────────────────────────────────────────────
@@ -23,7 +21,6 @@ async function hasColumn(table, column) {
 
 // ─── 3. initDb ────────────────────────────────────────────────────────────────
 async function initDb() {
-
   await db.execute('PRAGMA foreign_keys = ON');
 
   // Apply base schema
@@ -38,7 +35,6 @@ async function initDb() {
   if (!(await hasColumn('tasks', 'deadline_time'))) {
     await db.execute('ALTER TABLE tasks ADD COLUMN deadline_time TEXT');
   }
-
   const USER_SCOPED_TABLES = [
     'tasks', 'habits', 'goals', 'learning_items', 'internships',
     'cv_projects', 'cv_skills', 'cv_certifications', 'projects', 'xp_log',
@@ -52,7 +48,6 @@ async function initDb() {
 if (!(await hasColumn('tasks', 'recurrence'))) {
   await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL`);
 }
-
   // ── Profile columns ────────────────────────────────────────────
 const PROFILE_COLS = ['avatar', 'gender', 'birthday', 'bio'];
 for (const col of PROFILE_COLS) {
@@ -60,7 +55,13 @@ for (const col of PROFILE_COLS) {
     await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT NULL`);
   }
 }
-
+  // ── Premium theme preset column ─────────────────────────────────
+  // user_premium table itself comes from schema.sql (executed above).
+  // Free users implicitly get 'purple' via getPremium()'s fallback in
+  // focus.js even before this column existed for their row.
+  if (!(await hasColumn('user_premium', 'theme_preset'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_preset TEXT DEFAULT 'purple'`);
+  }
   // ── Moods table rebuild ────────────────────────────────────────────────────
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([
@@ -82,7 +83,6 @@ for (const col of PROFILE_COLS) {
       { sql: 'DROP TABLE moods_old' },
     ], 'write');
   }
-
   // ── Email deduplication ────────────────────────────────────────────────────
   const dupResult = await db.execute(`
     SELECT LOWER(email) AS lemail, COUNT(*) AS c, GROUP_CONCAT(id) AS ids
@@ -90,7 +90,6 @@ for (const col of PROFILE_COLS) {
     GROUP BY LOWER(email)
     HAVING c > 1
   `);
-
   if (dupResult.rows.length > 0) {
     console.warn(`⚠️  Found ${dupResult.rows.length} email address(es) with case-duplicate accounts.`);
     for (const group of dupResult.rows) {
@@ -104,11 +103,9 @@ for (const col of PROFILE_COLS) {
       }
     }
   }
-
   await db.execute(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase ON users(email COLLATE NOCASE)'
   );
-
   // ── Focus tables ───────────────────────────────────────────────────────────
   await db.execute(`CREATE TABLE IF NOT EXISTS focus_sessions (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,7 +115,6 @@ for (const col of PROFILE_COLS) {
     completed_at     TEXT    DEFAULT (datetime('now')),
     week_start       TEXT    NOT NULL
   )`);
-
   await db.execute(`CREATE TABLE IF NOT EXISTS focus_rooms (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     name          TEXT NOT NULL,
@@ -127,7 +123,6 @@ for (const col of PROFILE_COLS) {
     host_id       INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at    TEXT DEFAULT (datetime('now'))
   )`);
-
   await db.execute(`CREATE TABLE IF NOT EXISTS focus_room_members (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     room_id      INTEGER REFERENCES focus_rooms(id) ON DELETE CASCADE,
@@ -138,7 +133,6 @@ for (const col of PROFILE_COLS) {
     is_focusing  INTEGER DEFAULT 0,
     UNIQUE(room_id, user_id)
   )`);
-
   // ── Lumi AI tables ─────────────────────────────────────────────────────────
   await db.execute(`CREATE TABLE IF NOT EXISTS lumi_conversations (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,7 +141,6 @@ for (const col of PROFILE_COLS) {
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   )`);
-
   await db.execute(`CREATE TABLE IF NOT EXISTS lumi_messages (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id INTEGER REFERENCES lumi_conversations(id) ON DELETE CASCADE,
@@ -156,7 +149,6 @@ for (const col of PROFILE_COLS) {
     actions_json    TEXT DEFAULT '[]',
     created_at      TEXT DEFAULT (datetime('now'))
   )`);
-
   await db.execute(`CREATE TABLE IF NOT EXISTS lumi_memory (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -173,7 +165,6 @@ await db.execute(`CREATE TABLE IF NOT EXISTS user_trees (
   unlocked_at TEXT DEFAULT (datetime('now')),
   UNIQUE(user_id, tree_key)
 )`);
-
 await db.execute(`CREATE TABLE IF NOT EXISTS user_equipped_tree (
   user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   tree_key TEXT NOT NULL DEFAULT 'seedling'
@@ -189,7 +180,6 @@ await db.execute(`CREATE TABLE IF NOT EXISTS notifications (
   read       INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
 )`);
-
   console.log('✅ Database connected and migrations applied.');
 }
 
