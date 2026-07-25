@@ -5,39 +5,26 @@ import Internships from './Internships.jsx';
 import Projects    from './Projects.jsx';
 import CVBuilder   from './CVBuilder.jsx';
 import PageHeader  from '../components/PageHeader.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 const TABS = [
-  { key: 'internships', label: 'Internships', icon: Briefcase },
-  { key: 'projects',    label: 'Projects',    icon: FolderKanban },
-  { key: 'cv',          label: 'CV Builder',  icon: FileText },
+  { key: 'internships', label: 'launch.internships', icon: Briefcase },
+  { key: 'projects',    label: 'launch.projects',    icon: FolderKanban },
+  { key: 'cv',          label: 'launch.cv',          icon: FileText },
 ];
-
-const META = {
-  internships: {
-    eyebrow:  'Launchpad · Internships',
-    title:    'Land the role',
-    subtitle: 'Track every application from first click to offer.',
-    action:   'Add application',
-  },
-  projects: {
-    eyebrow:  'Launchpad · Projects',
-    title:    'From idea to deployed',
-    subtitle: 'Track every side project through its full lifecycle.',
-    action:   'New project',
-  },
-  cv: {
-    eyebrow:  'Launchpad · CV Builder',
-    title:    'Your story, organized',
-    subtitle: 'Collect projects, skills and certifications so your CV writes itself.',
-    action:   'Add',
-  },
-};
 
 export default function Launchpad() {
   const [tab,      setTab]      = useState('internships');
   const [triggers, setTriggers] = useState({ internships: 0, projects: 0, cv: 0 });
+  const { t } = useLanguage();
 
-  const fireAdd = () => setTriggers((t) => ({ ...t, [tab]: t[tab] + 1 }));
+  const META = {
+    internships: { eyebrow:`${t('nav.launchpad')} · ${t('launch.internships')}`, title:t('launch.internTitle'), subtitle:t('launch.internSub'), action:t('launch.internAction') },
+    projects:    { eyebrow:`${t('nav.launchpad')} · ${t('launch.projects')}`,    title:t('launch.projTitle'),   subtitle:t('launch.projSub'),   action:t('launch.projAction')   },
+    cv:          { eyebrow:`${t('nav.launchpad')} · ${t('launch.cv')}`,          title:t('launch.cvTitle'),     subtitle:t('launch.cvSub'),     action:t('launch.cvAction')     },
+  };
+
+  const fireAdd = () => setTriggers((tr) => ({ ...tr, [tab]: tr[tab] + 1 }));
   const meta    = META[tab];
 
   return (
@@ -53,16 +40,12 @@ export default function Launchpad() {
         }
       />
 
-      {/* Tab switcher — with pop effect */}
       <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 w-fit">
         {TABS.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
             onClick={() => setTab(key)}
-            whileHover={tab !== key ? {
-              y: -2, scale: 1.04,
-              transition: { type: 'spring', stiffness: 500, damping: 22 },
-            } : {}}
+            whileHover={tab !== key ? { y: -2, scale: 1.04, transition: { type: 'spring', stiffness: 500, damping: 22 } } : {}}
             whileTap={{ scale: 0.96 }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               tab === key
@@ -70,7 +53,7 @@ export default function Launchpad() {
                 : 'text-ink/50 dark:text-white/40 hover:text-ink/80 dark:hover:text-white/60'
             }`}
           >
-            <Icon size={14} /> {label}
+            <Icon size={14} /> {t(label)}
           </motion.button>
         ))}
       </div>
