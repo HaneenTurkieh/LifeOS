@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X } from 'lucide-react';
-
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
@@ -14,6 +13,7 @@ import { FocusProvider } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
 import { useToast }      from './context/ToastContext.jsx';
 import { useTheme }      from './context/ThemeContext.jsx';
+import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
 
 import Login          from './pages/Login.jsx';
@@ -35,20 +35,21 @@ import NotFound       from './pages/NotFound.jsx';
 // ── Shortcuts modal ───────────────────────────────────────────
 function ShortcutsModal({ onClose }) {
   const { resolvedTheme } = useTheme();
+  const { t } = useLanguage();
   const isDark = resolvedTheme === 'dark';
   const isMac  = navigator.platform?.includes('Mac');
 
   const SHORTCUTS = [
-    { key: 'D',                      desc: 'Dashboard'  },
-    { key: 'T',                      desc: 'Tasks'      },
-    { key: 'G',                      desc: 'Goals'      },
-    { key: 'F',                      desc: 'Flow timer' },
-    { key: 'L',                      desc: 'Lumi AI'    },
-    { key: 'A',                      desc: 'Analytics'  },
-    { key: 'N',                      desc: 'New task'   },
-    { key: isMac ? '⌘K' : 'Ctrl+K', desc: 'Search'     },
-    { key: '?',                      desc: 'This panel' },
-    { key: 'ESC',                    desc: 'Close'      },
+    { key: 'D',                      desc: t('nav.dashboard') },
+    { key: 'T',                      desc: t('nav.tasks')     },
+    { key: 'G',                      desc: t('nav.goals')     },
+    { key: 'F',                      desc: t('app.flowTimer') },
+    { key: 'L',                      desc: t('nav.lumi')      },
+    { key: 'A',                      desc: t('nav.analytics') },
+    { key: 'N',                      desc: t('app.newTask')   },
+    { key: isMac ? '⌘K' : 'Ctrl+K', desc: t('common.search') },
+    { key: '?',                      desc: t('app.thisPanel') },
+    { key: 'ESC',                    desc: t('common.close')  },
   ];
 
   const panelBg     = isDark ? 'rgba(18,14,35,0.97)'              : 'rgba(255,255,255,0.97)';
@@ -85,7 +86,7 @@ function ShortcutsModal({ onClose }) {
       >
         <div className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: `1px solid ${divider}` }}>
-          <span className={`font-display font-bold text-sm ${titleClr}`}>Keyboard shortcuts</span>
+          <span className={`font-display font-bold text-sm ${titleClr}`}>{t('app.shortcutsTitle')}</span>
           <button onClick={onClose}
             className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${
               isDark ? 'text-white/40 hover:text-white/70' : 'text-ink/40 hover:text-ink/70'
@@ -107,7 +108,7 @@ function ShortcutsModal({ onClose }) {
         </div>
         <div className="px-6 pb-4">
           <p className={`text-[11px] text-center ${noteClr}`}>
-            Disabled when typing in a text field
+            {t('app.typingNote')}
           </p>
         </div>
       </motion.div>
@@ -141,6 +142,7 @@ function AppShell() {
   const { user }          = useAuth();
   const toast             = useToast();
   const { resolvedTheme } = useTheme();
+  const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
 
   const [searchOpen,    setSearchOpen]    = useState(false);
@@ -159,7 +161,6 @@ function AppShell() {
         el.isContentEditable
       );
     };
-
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault(); setSearchOpen((o) => !o); return;
@@ -182,7 +183,6 @@ function AppShell() {
         default: break;
       }
     };
-
     const customSearch = () => setSearchOpen(true);
     window.addEventListener('keydown', handler);
     window.addEventListener('aurora:search', customSearch);
@@ -198,7 +198,7 @@ function AppShell() {
     const key = `aurora_search_hint_${user.id}`;
     if (!localStorage.getItem(key)) {
       const id = setTimeout(() => {
-        toast.success('Tip: Press ⌘K to search · ? for all shortcuts');
+        toast.success(t('app.searchTip'));
         localStorage.setItem(key, '1');
       }, 3000);
       return () => clearTimeout(id);
@@ -215,7 +215,6 @@ function AppShell() {
       ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 12px rgba(0,0,0,0.25)'
       : 'inset 0 1px 0 rgba(255,255,255,0.95), 0 2px 12px rgba(0,0,0,0.06)',
   };
-
   const iconClr = isDark ? 'text-white/45' : 'text-ink/50';
   const kbdClr  = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(30,34,51,0.28)';
   const divClr  = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(30,34,51,0.10)';
@@ -223,8 +222,8 @@ function AppShell() {
   return (
     <div className="min-h-screen flex relative z-10">
       <Sidebar />
-
-      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 lg:pr-28 pb-24 lg:pb-10 pt-20 max-w-[1600px] mx-auto w-full">
+      {/* lg:pe-28 is the logical version of lg:pr-28 — flips in RTL */}
+      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 lg:pe-28 pb-24 lg:pb-10 pt-20 max-w-[1600px] mx-auto w-full">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}
@@ -250,19 +249,18 @@ function AppShell() {
           </Routes>
         </motion.div>
       </main>
-
       <MobileNav />
       <FocusBar />
 
-      {/* ── Floating pill — search + bell ─────────────────────── */}
+      {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
       <div
-        className="fixed top-4 right-4 z-50 flex items-center"
+        className="fixed top-4 end-4 z-50 flex items-center"
         style={{ ...pillStyle, borderRadius: 18, padding: '5px 6px', gap: 4 }}
       >
         <motion.button
           whileTap={{ scale: 0.94 }}
           onClick={() => setSearchOpen(true)}
-          title="Search"
+          title={t('common.search')}
           className={`flex items-center gap-1.5 rounded-xl transition-colors ${iconClr}`}
           style={{ padding: '5px 8px', minHeight: 34 }}
         >
@@ -274,19 +272,17 @@ function AppShell() {
             {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
           </span>
         </motion.button>
-
         <div style={{ width: 1, height: 18, background: divClr, flexShrink: 0 }} />
-
         <NotificationBell />
       </div>
 
-      {/* Shortcuts hint */}
+      {/* Shortcuts hint — also flips side in RTL */}
       <button
         onClick={() => setShortcutsOpen(true)}
-        className="hidden lg:flex fixed bottom-6 right-6 z-40 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-all"
+        className="hidden lg:flex fixed bottom-6 end-6 z-40 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-all"
         style={{ ...pillStyle, borderRadius: 12, color: kbdClr }}
       >
-        <kbd>?</kbd> shortcuts
+        <kbd>?</kbd> {t('app.shortcuts')}
       </button>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
