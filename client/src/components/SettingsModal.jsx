@@ -3,14 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
-  Eye, EyeOff, X, ChevronRight, Crown, Snowflake,
+  Eye, EyeOff, ChevronRight, Crown, Snowflake,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
 import { useAuth }   from '../context/AuthContext.jsx';
 import { useTheme }  from '../context/ThemeContext.jsx';
-import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast }  from '../context/ToastContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
 
@@ -36,6 +36,7 @@ function Avatar({ user, size = 56, onClick }) {
 function ProfileTab() {
   const { user, updateUser } = useAuth();
   const toast   = useToast();
+  const { t }   = useLanguage();
   const fileRef = useRef(null);
   const [name,     setName]     = useState(user?.name     || '');
   const [bio,      setBio]      = useState(user?.bio      || '');
@@ -54,18 +55,18 @@ function ProfileTab() {
 
   const handleCropSave = async (dataURL) => {
     setCropSrc(null);
-    try { await updateUser({ avatar:dataURL }); toast.success('Photo updated! 📸'); }
+    try { await updateUser({ avatar:dataURL }); toast.success('📸'); }
     catch (err) { toast.error(err.message); }
   };
 
   const removeAvatar = async () => {
-    try { await updateUser({ avatar:null }); toast.success('Photo removed'); }
+    try { await updateUser({ avatar:null }); toast.success(t('settings.removePhoto')); }
     catch (err) { toast.error(err.message); }
   };
 
   const save = async () => {
     setSaving(true);
-    try { await updateUser({ name:name.trim(), bio, gender, birthday }); toast.success('Profile saved!'); }
+    try { await updateUser({ name:name.trim(), bio, gender, birthday }); toast.success(t('settings.profileSaved')); }
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
@@ -85,7 +86,7 @@ function ProfileTab() {
           <motion.div initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }}
             className="rounded-2xl px-4 py-3 text-sm font-semibold text-center"
             style={{ background:'linear-gradient(135deg,rgba(124,106,240,0.15),rgba(168,85,247,0.10))', border:'1px solid rgba(124,106,240,0.25)' }}>
-            🎂 Happy Birthday, {user?.name?.split(' ')[0]}! {age?`You're ${age} today! `:''} 🎉
+            🎂 {user?.name?.split(' ')[0]} 🎉
           </motion.div>
         )}
 
@@ -94,7 +95,7 @@ function ProfileTab() {
           <div className="relative">
             <Avatar user={user} size={68} onClick={() => fileRef.current?.click()} />
             <button onClick={() => fileRef.current?.click()}
-              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-xl text-white shadow-md"
+              className="absolute -bottom-1 -end-1 flex h-7 w-7 items-center justify-center rounded-xl text-white shadow-md"
               style={{ background:'linear-gradient(135deg,#7C6AF0,#5B47E0)' }}>
               <Camera size={13}/>
             </button>
@@ -106,11 +107,11 @@ function ProfileTab() {
             <p className="text-xs text-ink/40 dark:text-white/30 mt-0.5">{user?.email}</p>
             <div className="flex gap-3 mt-1.5">
               <button onClick={() => fileRef.current?.click()} className="text-xs font-semibold text-lavender-600 hover:underline">
-                Change photo
+                {t('settings.changePhoto')}
               </button>
               {user?.avatar && (
                 <button onClick={removeAvatar} className="text-xs text-ink/35 dark:text-white/30 hover:text-coral-500 transition">
-                  Remove
+                  {t('settings.removePhoto')}
                 </button>
               )}
             </div>
@@ -120,28 +121,28 @@ function ProfileTab() {
         {/* Fields */}
         <div className="flex flex-col gap-3.5">
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">Display name</label>
-            <input className="input-field" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"/>
+            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.displayName')}</label>
+            <input className="input-field" value={name} onChange={e => setName(e.target.value)} placeholder={t('settings.yourName')}/>
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">Bio</label>
+            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.bio')}</label>
             <textarea className="input-field resize-none" rows={2} value={bio}
-              onChange={e => setBio(e.target.value)} placeholder="A short bio — Lumi uses this"/>
+              onChange={e => setBio(e.target.value)} placeholder={t('settings.bioPh')}/>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">Gender</label>
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.gender')}</label>
               <select className="input-field" value={gender} onChange={e => setGender(e.target.value)}>
-                <option value="">Prefer not to say</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-                <option value="non-binary">Non-binary</option>
-                <option value="other">Other</option>
+                <option value="">{t('settings.preferNot')}</option>
+                <option value="female">{t('settings.female')}</option>
+                <option value="male">{t('settings.male')}</option>
+                <option value="non-binary">{t('settings.nonbinary')}</option>
+                <option value="other">{t('settings.other')}</option>
               </select>
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">
-                Birthday {age && <span className="text-lavender-500 normal-case">· {age} yrs</span>}
+                {t('settings.birthday')} {age && <span className="text-lavender-500 normal-case">· {age}</span>}
               </label>
               <input type="date" className="input-field" value={birthday} onChange={e => setBirthday(e.target.value)}/>
             </div>
@@ -149,7 +150,7 @@ function ProfileTab() {
         </div>
 
         <button onClick={save} disabled={saving} className="btn-primary justify-center">
-          {saving ? 'Saving…' : <><Check size={15}/> Save profile</>}
+          {saving ? t('common.saving') : <><Check size={15}/> {t('settings.saveProfile')}</>}
         </button>
       </div>
       <AnimatePresence>
@@ -163,6 +164,7 @@ function ProfileTab() {
 function AccountTab() {
   const { user, changePassword } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
   const [current,  setCurrent]  = useState('');
   const [newPass,  setNewPass]  = useState('');
   const [confirm,  setConfirm]  = useState('');
@@ -177,10 +179,10 @@ function AccountTab() {
   const strengthColors = ['#FF7A63','#FFB84D','#60A5FA','#4CC38A'];
 
   const handleChange = async () => {
-    if (newPass !== confirm) { toast.error('Passwords do not match'); return; }
-    if (newPass.length < 8)  { toast.error('Min 8 characters'); return; }
+    if (newPass !== confirm) { toast.error(t('settings.pwMismatch')); return; }
+    if (newPass.length < 8)  { toast.error(t('settings.pwMin')); return; }
     setSaving(true);
-    try { await changePassword(current, newPass); toast.success('Password changed!'); setCurrent(''); setNewPass(''); setConfirm(''); }
+    try { await changePassword(current, newPass); toast.success(t('settings.pwChanged')); setCurrent(''); setNewPass(''); setConfirm(''); }
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
@@ -188,30 +190,30 @@ function AccountTab() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">Email address</label>
+        <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.emailAddr')}</label>
         <div className="input-field flex items-center gap-2 opacity-60" style={{ pointerEvents:'none' }}>
           <Mail size={14} className="text-ink/40 dark:text-white/30 shrink-0"/> {user?.email}
         </div>
-        <p className="text-[11px] text-ink/30 dark:text-white/25 mt-1">Email cannot be changed.</p>
+        <p className="text-[11px] text-ink/30 dark:text-white/25 mt-1">{t('settings.emailFixed')}</p>
       </div>
       <div>
-        <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-3 block">Change password</label>
+        <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-3 block">{t('settings.changePw')}</label>
         <div className="flex flex-col gap-3">
           <div className="relative">
-            <input type={showCur?'text':'password'} className="input-field pr-10" placeholder="Current password"
+            <input type={showCur?'text':'password'} className="input-field pe-10" placeholder={t('settings.currentPw')}
               value={current} onChange={e => setCurrent(e.target.value)}/>
-            <button onClick={() => setShowCur(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/30 dark:text-white/30 hover:text-ink/60 transition">
+            <button onClick={() => setShowCur(s=>!s)} className="absolute end-3 top-1/2 -translate-y-1/2 text-ink/30 dark:text-white/30 hover:text-ink/60 transition">
               {showCur?<EyeOff size={15}/>:<Eye size={15}/>}
             </button>
           </div>
           <div className="relative">
-            <input type={showNew?'text':'password'} className="input-field pr-10" placeholder="New password (min 8)"
+            <input type={showNew?'text':'password'} className="input-field pe-10" placeholder={t('settings.newPw')}
               value={newPass} onChange={e => setNewPass(e.target.value)}/>
-            <button onClick={() => setShowNew(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/30 dark:text-white/30 hover:text-ink/60 transition">
+            <button onClick={() => setShowNew(s=>!s)} className="absolute end-3 top-1/2 -translate-y-1/2 text-ink/30 dark:text-white/30 hover:text-ink/60 transition">
               {showNew?<EyeOff size={15}/>:<Eye size={15}/>}
             </button>
           </div>
-          <input type="password" className="input-field" placeholder="Confirm new password"
+          <input type="password" className="input-field" placeholder={t('settings.confirmPw')}
             value={confirm} onChange={e => setConfirm(e.target.value)}/>
           {newPass && (
             <div className="flex flex-col gap-1">
@@ -222,13 +224,13 @@ function AccountTab() {
                 ))}
               </div>
               <p className="text-[10px] text-ink/30 dark:text-white/25">
-                {strength.filter(Boolean).length===4?'✓ Strong':strength.filter(Boolean).length>=2?'Add uppercase, numbers or symbols':'Weak — min 8 characters'}
+                {strength.filter(Boolean).length===4?t('settings.pwStrong'):strength.filter(Boolean).length>=2?t('settings.pwAddMore'):t('settings.pwWeak')}
               </p>
             </div>
           )}
           <button onClick={handleChange} disabled={!current||!newPass||!confirm||saving}
             className="btn-primary justify-center disabled:opacity-40">
-            {saving?'Changing…':'Change password'}
+            {saving?t('settings.changing'):t('settings.changePw')}
           </button>
         </div>
       </div>
@@ -241,20 +243,20 @@ function AppearanceTab() {
   const { mode, setMode } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const THEMES = [
-    { key:'light',  label:'Light',  icon:'☀️', desc:'Clean and bright'    },
-    { key:'dark',   label:'Dark',   icon:'🌙', desc:'Easy on the eyes'    },
-    { key:'system', label:'System', icon:'💻', desc:'Follows your device' },
+    { key:'light',  label:t('settings.light'),  icon:'☀️', desc:t('settings.lightDesc')  },
+    { key:'dark',   label:t('settings.dark'),   icon:'🌙', desc:t('settings.darkDesc')   },
+    { key:'system', label:t('settings.system'), icon:'💻', desc:t('settings.systemDesc') },
   ];
   const LANGS = [
-    { key:'en', label:'English',  icon:'🇬🇧', desc:'Left to right'         },
-    { key:'ar', label:'العربية', icon:'🇵🇸', desc:'من اليمين إلى اليسار'  },
+    { key:'en', label:'English',  icon:'🇬🇧', desc:'Left to right'        },
+    { key:'ar', label:'العربية', icon:'🇵🇸', desc:'من اليمين إلى اليسار' },
   ];
   return (
     <div className="flex flex-col gap-3">
       <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">{t('settings.theme')}</label>
       {THEMES.map(th => (
         <button key={th.key} onClick={() => setMode(th.key)}
-          className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all"
+          className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition-all"
           style={mode===th.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
           <span className="text-2xl">{th.icon}</span>
           <div className="flex-1">
@@ -268,7 +270,7 @@ function AppearanceTab() {
       <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 mt-3 block">{t('settings.language')}</label>
       {LANGS.map(l => (
         <button key={l.key} onClick={() => setLang(l.key)}
-          className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all"
+          className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition-all"
           style={lang===l.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
           <span className="text-2xl">{l.icon}</span>
           <div className="flex-1">
@@ -285,8 +287,9 @@ function AppearanceTab() {
 // ── Premium tab ───────────────────────────────────────────────
 function PremiumTab() {
   const toast = useToast();
-  const [status,  setStatus]  = useState(null);   // { is_premium, freeze_date }
-  const [busy,    setBusy]    = useState(false);
+  const { t } = useLanguage();
+  const [status, setStatus] = useState(null);
+  const [busy,   setBusy]   = useState(false);
 
   const load = useCallback(() => {
     api.get('/focus/premium/status').then(setStatus).catch(() => setStatus({ is_premium:false, freeze_date:null }));
@@ -298,7 +301,7 @@ function PremiumTab() {
     try {
       const next = await api.post('/focus/premium/toggle', {});
       setStatus(next);
-      toast.success(next.is_premium ? '👑 Premium activated!' : 'Premium turned off');
+      toast.success(next.is_premium ? '👑' : t('settings.freeName'));
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
@@ -308,7 +311,7 @@ function PremiumTab() {
     try {
       const res = await api.post('/focus/premium/pause', {});
       setStatus(s => ({ ...s, freeze_date: res.freeze_date }));
-      toast.success('❄️ Streak frozen for today — your streak is safe!');
+      toast.success(t('settings.frozenToday'));
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
@@ -317,64 +320,55 @@ function PremiumTab() {
   const frozenToday = status?.freeze_date === today;
 
   const PERKS = [
-    { icon: '❄️', title: 'Streak pause',           desc: 'Freeze your streak for a day — like Duolingo',      live: true  },
-    { icon: '🎨', title: 'Custom themes',           desc: 'Exclusive color themes for Aurora',                 live: false },
-    { icon: '📚', title: 'Unlimited exam history',  desc: 'Keep every generated exam forever',                 live: false },
+    { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD'), live: true  },
+    { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD'), live: false },
+    { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD'),   live: false },
   ];
 
-  if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">Loading…</p>;
+  if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Status card */}
       <div className="rounded-2xl p-5 text-center"
         style={status.is_premium
           ? { background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgba(124,106,240,0.10))', border:'1px solid rgba(255,184,77,0.35)' }
           : { background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
         <Crown size={28} className={`mx-auto mb-2 ${status.is_premium ? 'text-sun-500' : 'text-ink/25 dark:text-white/20'}`}/>
         <p className="font-display font-bold text-ink dark:text-white">
-          {status.is_premium ? 'Aurora Premium' : 'Aurora Free'}
+          {status.is_premium ? t('settings.premiumName') : t('settings.freeName')}
         </p>
         <p className="text-xs text-ink/45 dark:text-white/35 mt-1">
-          {status.is_premium
-            ? 'All premium perks unlocked. Thanks for the support! 💜'
-            : 'Unlock streak pause, custom themes, and unlimited exam history.'}
+          {status.is_premium ? t('settings.premiumDesc') : t('settings.freeDesc')}
         </p>
         <button onClick={toggle} disabled={busy}
-          className={`mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40 ${
-            status.is_premium ? '' : 'text-white'
-          }`}
+          className={`mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40 ${status.is_premium ? '' : 'text-white'}`}
           style={status.is_premium
             ? { background:'rgba(30,34,51,0.05)', border:'1px solid rgba(30,34,51,0.10)', color:'rgba(30,34,51,0.55)' }
             : { background:'linear-gradient(135deg,#FFB84D,#7C6AF0)', boxShadow:'0 4px 14px rgba(255,184,77,0.35)' }}>
-          {busy ? '…' : status.is_premium ? 'Switch back to Free' : '👑 Try Premium (free for now)'}
+          {busy ? '…' : status.is_premium ? t('settings.backToFree') : t('settings.tryPremium')}
         </button>
       </div>
 
-      {/* Streak pause */}
       <div className="rounded-2xl p-4"
         style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.18)' }}>
         <div className="flex items-start gap-3">
           <Snowflake size={18} className="text-blue-400 shrink-0 mt-0.5"/>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-ink dark:text-white">Pause streak</p>
-            <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">
-              Can't do your habits today? Freeze today so your streak survives.
-            </p>
+            <p className="text-sm font-semibold text-ink dark:text-white">{t('settings.pauseStreak')}</p>
+            <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">{t('settings.pauseDesc')}</p>
             {frozenToday ? (
-              <p className="mt-2 text-xs font-bold text-blue-500">❄️ Frozen for today — you're covered!</p>
+              <p className="mt-2 text-xs font-bold text-blue-500">{t('settings.frozenToday')}</p>
             ) : (
               <button onClick={pause} disabled={busy || !status.is_premium}
                 className="mt-2.5 rounded-xl px-4 py-2 text-xs font-bold transition disabled:opacity-40"
                 style={{ background:'rgba(96,165,250,0.14)', border:'1px solid rgba(96,165,250,0.30)', color:'#3B82F6' }}>
-                {status.is_premium ? '❄️ Freeze my streak for today' : '🔒 Premium only'}
+                {status.is_premium ? t('settings.freezeBtn') : t('settings.premiumOnly')}
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Perks list */}
       <div className="flex flex-col gap-2">
         {PERKS.map(p => (
           <div key={p.title} className="flex items-center gap-3 rounded-2xl px-4 py-3"
@@ -388,15 +382,13 @@ function PremiumTab() {
               style={p.live
                 ? { background:'rgba(76,195,138,0.12)', color:'#2DA76E' }
                 : { background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
-              {p.live ? 'LIVE' : 'SOON'}
+              {p.live ? t('settings.live') : t('settings.soon')}
             </span>
           </div>
         ))}
       </div>
 
-      <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">
-        No payment needed yet — Premium is a free preview while Aurora grows.
-      </p>
+      <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">{t('settings.noPayment')}</p>
     </div>
   );
 }
@@ -405,31 +397,32 @@ function PremiumTab() {
 function FeedbackTab() {
   const { user } = useAuth();
   const toast    = useToast();
-  const [msg,    setMsg]    = useState('');
-  const [sending,setSending] = useState(false);
-  const [sent,   setSent]   = useState(false);
+  const { t }    = useLanguage();
+  const [msg,     setMsg]     = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent,    setSent]    = useState(false);
 
   const send = async () => {
     if (!msg.trim()) return;
     setSending(true);
     try {
       await api.post('/feedback', { message:msg, email:user?.email });
-      setSent(true); setMsg(''); toast.success('Feedback sent! 💙');
+      setSent(true); setMsg(''); toast.success(t('settings.feedbackSent'));
       setTimeout(() => setSent(false), 3000);
-    } catch (_) { toast.error('Could not send. Try again.'); }
+    } catch (_) { toast.error('✗'); }
     finally { setSending(false); }
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">Send feedback</label>
+      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">{t('settings.sendFeedback')}</label>
       <textarea className="input-field resize-none" rows={5}
-        placeholder="What's working, what's broken, what you'd love added…"
+        placeholder={t('settings.feedbackPh')}
         value={msg} onChange={e => setMsg(e.target.value)}/>
       <button onClick={send} disabled={!msg.trim()||sending||sent} className="btn-primary justify-center">
-        {sending?'Sending…':sent?'✓ Sent!':'Send feedback'}
+        {sending?t('settings.sending'):sent?t('settings.sent'):t('settings.sendFeedback')}
       </button>
-      <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">Every message is read personally.</p>
+      <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">{t('settings.feedbackRead')}</p>
     </div>
   );
 }
@@ -437,8 +430,9 @@ function FeedbackTab() {
 // ── Danger tab ────────────────────────────────────────────────
 function DangerTab({ onClose }) {
   const { logout, deleteAccount } = useAuth();
-  const navigate     = useNavigate();
-  const toast        = useToast();
+  const navigate = useNavigate();
+  const toast    = useToast();
+  const { t }    = useLanguage();
   const [confirm,    setConfirm]    = useState('');
   const [deleting,   setDeleting]   = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -456,13 +450,13 @@ function DangerTab({ onClose }) {
       <button onClick={handleLogout}
         className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition"
         style={{ background:'rgba(255,122,99,0.08)', border:'1px solid rgba(255,122,99,0.20)', color:'#FF7A63' }}>
-        <LogOut size={15}/> Log out
+        <LogOut size={15}/> {t('settings.logout')}
       </button>
       <div className="rounded-2xl overflow-hidden" style={{ border:'1px solid rgba(239,68,68,0.20)' }}>
         <button onClick={() => setShowDelete(s=>!s)}
           className="flex items-center justify-between w-full px-5 py-4 text-sm font-semibold text-red-500 hover:bg-red-500/5 transition">
-          <span className="flex items-center gap-2"><Trash2 size={15}/> Delete my account</span>
-          <ChevronRight size={15} className={`transition-transform ${showDelete?'rotate-90':''}`}/>
+          <span className="flex items-center gap-2"><Trash2 size={15}/> {t('settings.deleteAcct')}</span>
+          <ChevronRight size={15} className={`transition-transform rtl:rotate-180 ${showDelete?'rotate-90':''}`}/>
         </button>
         <AnimatePresence>
           {showDelete && (
@@ -470,20 +464,18 @@ function DangerTab({ onClose }) {
               <div className="px-5 pb-5 flex flex-col gap-3" style={{ borderTop:'1px solid rgba(239,68,68,0.15)', background:'rgba(239,68,68,0.03)' }}>
                 <div className="flex items-start gap-2 mt-4">
                   <AlertTriangle size={15} className="text-red-500 shrink-0 mt-0.5"/>
-                  <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">
-                    Permanently deletes your account and <strong>all data</strong>. Cannot be undone.
-                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{t('settings.deleteWarn')}</p>
                 </div>
-                <p className="text-xs text-ink/50 dark:text-white/40">Type <strong>DELETE</strong> to confirm:</p>
+                <p className="text-xs text-ink/50 dark:text-white/40">{t('settings.typeDelete')}</p>
                 <input className="input-field" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="DELETE" autoFocus/>
                 <div className="flex gap-2">
                   <button onClick={() => { setShowDelete(false); setConfirm(''); }}
                     className="flex-1 rounded-xl py-2 text-xs font-semibold text-ink/60 dark:text-white/50 bg-ink/5 dark:bg-white/5 hover:bg-ink/10 transition">
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button onClick={handleDelete} disabled={confirm!=='DELETE'||deleting}
                     className="flex-1 rounded-xl py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-40">
-                    {deleting?'Deleting…':'Delete forever'}
+                    {deleting?t('settings.deleting'):t('settings.deleteForever')}
                   </button>
                 </div>
               </div>
@@ -497,19 +489,20 @@ function DangerTab({ onClose }) {
 
 // ── Main ──────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { key:'profile',    label:'Profile',     icon:User          },
-  { key:'account',    label:'Account',     icon:Lock          },
-  { key:'appearance', label:'Appearance',  icon:Palette       },
-  { key:'premium',    label:'Premium',     icon:Crown         },
-  { key:'feedback',   label:'Feedback',    icon:MessageSquare },
-  { key:'danger',     label:'Danger',      icon:Trash2        },
+  { key:'profile',    label:'settings.profile',    icon:User          },
+  { key:'account',    label:'settings.account',    icon:Lock          },
+  { key:'appearance', label:'settings.appearance', icon:Palette       },
+  { key:'premium',    label:'settings.premium',    icon:Crown         },
+  { key:'feedback',   label:'settings.feedback',   icon:MessageSquare },
+  { key:'danger',     label:'settings.danger',     icon:Trash2        },
 ];
 
 export default function SettingsModal({ open, onClose }) {
-  const [tab, setTab]         = useState('profile');
-  const { user }              = useAuth();
-  const { resolvedTheme }     = useTheme();
-  const isDark                = resolvedTheme === 'dark';
+  const [tab, setTab]     = useState('profile');
+  const { user }          = useAuth();
+  const { resolvedTheme } = useTheme();
+  const { t }             = useLanguage();
+  const isDark            = resolvedTheme === 'dark';
 
   const closeAndReset = () => { setTab('profile'); onClose(); };
 
@@ -523,21 +516,18 @@ export default function SettingsModal({ open, onClose }) {
     : 'text-ink/50 hover:text-ink/80 hover:bg-ink/5';
 
   return (
-    <Modal open={open} onClose={closeAndReset} title="Settings" maxWidth="max-w-xl">
+    <Modal open={open} onClose={closeAndReset} title={t('settings.title')} maxWidth="max-w-xl">
       <div className="flex flex-col lg:flex-row -mx-6 -mb-6 mt-2" style={{ minHeight:400 }}>
-        {/* ── Mobile: horizontal tab bar ── Desktop: sidebar ── */}
         <div
-          className="flex lg:flex-col lg:w-40 shrink-0 overflow-x-auto lg:overflow-x-visible py-2 lg:py-3 px-2 lg:rounded-bl-3xl"
-          style={{ background:navBg, borderBottom:`1px solid ${navBorder}`, borderRight:'none' }}
+          className="flex lg:flex-col lg:w-40 shrink-0 overflow-x-auto lg:overflow-x-visible py-2 lg:py-3 px-2"
+          style={{ background:navBg, borderBottom:`1px solid ${navBorder}` }}
         >
-          {/* Avatar — desktop only */}
           <div className="hidden lg:flex flex-col items-center gap-2 py-4 mb-1">
             <Avatar user={user} size={44}/>
             <p className={`text-xs font-semibold text-center truncate w-full px-2 ${isDark?'text-white/50':'text-ink/60'}`}>
               {user?.name?.split(' ')[0]}
             </p>
           </div>
-          {/* Nav items */}
           <div className="flex lg:flex-col gap-1 lg:gap-0.5 flex-nowrap">
             {NAV_ITEMS.map(({ key, label, icon:Icon }) => (
               <button
@@ -551,7 +541,7 @@ export default function SettingsModal({ open, onClose }) {
                 style={tab===key && key!=='danger' ? activeStyle : {}}
               >
                 <Icon size={14} className="shrink-0"/>
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </button>
             ))}
           </div>
@@ -560,7 +550,6 @@ export default function SettingsModal({ open, onClose }) {
           </p>
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0 p-5 lg:p-6 overflow-y-auto" style={{ maxHeight:'65vh' }}>
           <AnimatePresence mode="wait">
             <motion.div key={tab}
