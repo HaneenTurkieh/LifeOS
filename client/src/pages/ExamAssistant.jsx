@@ -401,7 +401,7 @@ export default function ExamAssistant() {
     { key:'mcq',        label:t('exam.mcq'),        icon:'🔵', desc:t('exam.mcqDesc')        },
     { key:'blanks',     label:t('exam.blanks'),     icon:'✏️', desc:t('exam.blanksDesc')     },
     { key:'mixed',      label:t('exam.mixed'),      icon:'🎯', desc:t('exam.mixedDesc')      },
-    { key:'flashcards', label:t('exam.flashcards'), icon:'🃏', desc:t('exam.flashcardsDesc') },
+    { key:'flashcards', label:t('exam.flashcards'), icon:'🃏', desc:t('exam.flashDesc') },
     { key:'slides',     label:t('exam.slides'),     icon:'🖥️', desc:t('exam.slidesDesc')    },
   ];
   const DIFFICULTIES = [
