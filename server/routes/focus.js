@@ -343,13 +343,20 @@ router.delete('/rooms/:code/leave', async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════════
 // Premium — UI-only tier for now (no payments). Backend flag +
-// Duolingo-style streak freeze. Requires user_premium table.
+// Duolingo-style streak freeze + custom accent theme presets.
+// Requires user_premium table (theme_preset column added via migration).
 // ═══════════════════════════════════════════════════════════════
+const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue'];
+
 async function getPremium(userId) {
   const row = (await db.execute({
-    sql: `SELECT is_premium, freeze_date FROM user_premium WHERE user_id = ?`, args: [userId],
+    sql: `SELECT is_premium, freeze_date, theme_preset FROM user_premium WHERE user_id = ?`, args: [userId],
   })).rows[0];
-  return { is_premium: Boolean(row?.is_premium), freeze_date: row?.freeze_date || null };
+  return {
+    is_premium:   Boolean(row?.is_premium),
+    freeze_date:  row?.freeze_date || null,
+    theme_preset: row?.theme_preset || 'purple',
+  };
 }
 router.get('/premium/status', async (req, res) => {
   try { res.json(await getPremium(req.user.id)); }
@@ -359,11 +366,21 @@ router.post('/premium/toggle', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);
     const next = current.is_premium ? 0 : 1;
-    await db.execute({
-      sql: `INSERT INTO user_premium (user_id, is_premium) VALUES (?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET is_premium = excluded.is_premium`,
-      args: [req.user.id, next],
-    });
+    if (next === 0) {
+      // Downgrading to free resets the accent theme to the default —
+      // premium color presets shouldn't linger after losing access.
+      await db.execute({
+        sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset) VALUES (?, 0, 'purple')
+              ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple'`,
+        args: [req.user.id],
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO user_premium (user_id, is_premium) VALUES (?, ?)
+              ON CONFLICT(user_id) DO UPDATE SET is_premium = excluded.is_premium`,
+        args: [req.user.id, next],
+      });
+    }
     res.json(await getPremium(req.user.id));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
@@ -379,6 +396,23 @@ router.post('/premium/pause', async (req, res) => {
       args: [req.user.id, today],
     });
     res.json({ ok: true, freeze_date: today });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+// ── Change accent color preset (Premium only, server-validated) ──
+router.post('/premium/theme', async (req, res) => {
+  try {
+    const current = await getPremium(req.user.id);
+    if (!current.is_premium)
+      return res.status(403).json({ error: 'Custom themes are a Premium feature' });
+    const { theme_preset } = req.body;
+    if (!ALLOWED_THEMES.includes(theme_preset))
+      return res.status(400).json({ error: 'Invalid theme preset' });
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset) VALUES (?, 1, ?)
+            ON CONFLICT(user_id) DO UPDATE SET theme_preset = excluded.theme_preset`,
+      args: [req.user.id, theme_preset],
+    });
+    res.json({ ok: true, theme_preset });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
