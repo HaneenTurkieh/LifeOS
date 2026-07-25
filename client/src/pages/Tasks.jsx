@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api }       from '../api/client.js';
 import { useToast }  from '../context/ToastContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader    from '../components/PageHeader.jsx';
 import PriorityPill  from '../components/PriorityPill.jsx';
 import Modal         from '../components/Modal.jsx';
@@ -13,25 +14,14 @@ import EmptyState    from '../components/EmptyState.jsx';
 import PageLoader    from '../components/Loader.jsx';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-const DAY_LABELS     = ['S','M','T','W','T','F','S'];
-const DAY_NAMES      = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-const RECURRENCE_OPTIONS = [
-  { value:'',        label:'Never'   },
-  { value:'daily',   label:'Daily'   },
-  { value:'custom',  label:'Custom'  },
-  { value:'weekly',  label:'Weekly'  },
-  { value:'monthly', label:'Monthly' },
-];
 
 // ── Local-date helpers ────────────────────────────────────────
-function localTodayStr()       { return new Date().toLocaleDateString('en-CA'); }
-function localOffsetStr(n)     {
+function localTodayStr()   { return new Date().toLocaleDateString('en-CA'); }
+function localOffsetStr(n) {
   const d = new Date(); d.setDate(d.getDate() + n);
   return d.toLocaleDateString('en-CA');
 }
 
-// ── Fixed daysUntil — no UTC bug ──────────────────────────────
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -39,12 +29,6 @@ function daysUntil(deadline) {
   const local  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const target = new Date(dy, dm - 1, dd);
   return Math.ceil((target - local) / (1000 * 60 * 60 * 24));
-}
-
-function formatTime(t) {
-  if (!t) return null;
-  const [h, m] = t.split(':').map(Number);
-  return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
 function formatDate(s) {
@@ -63,21 +47,6 @@ function sortByPriority(tasks) {
     if (b.deadline_time) return 1;
     return 0;
   });
-}
-
-function recurrenceLabel(r) {
-  if (!r) return null;
-  if (r === 'daily')  return 'Daily';
-  if (r === 'weekly') return 'Weekly';
-  if (r === 'monthly') return 'Monthly';
-  if (r?.startsWith('custom:')) {
-    const days = r.split(':')[1].split(',').map(Number);
-    if (days.length === 7) return 'Every day';
-    if (JSON.stringify([...days].sort()) === JSON.stringify([1,2,3,4,5])) return 'Weekdays';
-    if (JSON.stringify([...days].sort()) === JSON.stringify([0,6])) return 'Weekends';
-    return days.map(d => DAY_NAMES[d]).join(', ');
-  }
-  return null;
 }
 
 const emptyForm = {
@@ -104,31 +73,6 @@ function recurrenceToForm(recurrence) {
   return { recurrenceType:'', customDays:[] };
 }
 
-function DayPicker({ selected, onChange }) {
-  const toggle = d => onChange(selected.includes(d) ? selected.filter(x=>x!==d) : [...selected,d]);
-  return (
-    <div className="flex gap-2 mt-2">
-      {DAY_LABELS.map((label, i) => {
-        const isOn = selected.includes(i);
-        return (
-          <button key={i} type="button" onClick={() => toggle(i)}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all"
-            style={isOn ? {
-              background:'linear-gradient(135deg,#7C6AF0,#5B47E0)',
-              color:'white', boxShadow:'0 4px 12px rgba(124,106,240,0.35)',
-            } : {
-              background:'rgba(124,106,240,0.08)',
-              border:'1px solid rgba(124,106,240,0.18)',
-              color:'rgba(124,106,240,0.60)',
-            }}>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function Tasks() {
   const [tasks,         setTasks]         = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -137,11 +81,46 @@ export default function Tasks() {
   const [editingTask,   setEditingTask]   = useState(null);
   const [completedOpen, setCompletedOpen] = useState(false);
   const toast = useToast();
+  const { t, lang } = useLanguage();
+
+  const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
+  // Locale-aware weekday letters/names (Sun..Sat)
+  const dayLetter = (i) => new Date(2023, 0, 1 + i).toLocaleDateString(dateLocale, { weekday:'narrow' });
+  const dayShort  = (i) => new Date(2023, 0, 1 + i).toLocaleDateString(dateLocale, { weekday:'short'  });
+
+  const formatTime = (tm) => {
+    if (!tm) return null;
+    const [h, m] = tm.split(':').map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
+  };
+
+  const recurrenceLabel = (r) => {
+    if (!r) return null;
+    if (r === 'daily')   return t('tasks.daily');
+    if (r === 'weekly')  return t('tasks.weekly');
+    if (r === 'monthly') return t('tasks.monthly');
+    if (r?.startsWith('custom:')) {
+      const days = r.split(':')[1].split(',').map(Number);
+      if (days.length === 7) return t('tasks.everyDay');
+      if (JSON.stringify([...days].sort()) === JSON.stringify([1,2,3,4,5])) return t('tasks.weekdays');
+      if (JSON.stringify([...days].sort()) === JSON.stringify([0,6]))       return t('tasks.weekends');
+      return days.map(d => dayShort(d)).join('، ');
+    }
+    return null;
+  };
+
+  const RECURRENCE_OPTIONS = [
+    { value:'',        label:t('tasks.never')   },
+    { value:'daily',   label:t('tasks.daily')   },
+    { value:'custom',  label:t('tasks.custom')  },
+    { value:'weekly',  label:t('tasks.weekly')  },
+    { value:'monthly', label:t('tasks.monthly') },
+  ];
 
   const load = useCallback(async () => {
     try {
       const data = await api.get('/tasks');
-      setTasks(data.map(t => ({ ...t, priority: (t.priority||'medium').toLowerCase() })));
+      setTasks(data.map(tk => ({ ...tk, priority: (tk.priority||'medium').toLowerCase() })));
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
@@ -158,18 +137,18 @@ export default function Tasks() {
   const tomorrow = localOffsetStr(1);
   const in7Days  = localOffsetStr(7);
 
-  const active    = tasks.filter(t => t.status !== 'done');
-  const completed = tasks.filter(t => t.status === 'done');
+  const active    = tasks.filter(tk => tk.status !== 'done');
+  const completed = tasks.filter(tk => tk.status === 'done');
 
   const groups = {
-    today:    sortByPriority(active.filter(t => !t.deadline || t.deadline === today)),
-    tomorrow: sortByPriority(active.filter(t => t.deadline === tomorrow)),
-    week:     sortByPriority(active.filter(t => t.deadline && t.deadline > tomorrow && t.deadline <= in7Days)),
-    later:    sortByPriority(active.filter(t => t.deadline && t.deadline > in7Days)),
+    today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline === today)),
+    tomorrow: sortByPriority(active.filter(tk => tk.deadline === tomorrow)),
+    week:     sortByPriority(active.filter(tk => tk.deadline && tk.deadline > tomorrow && tk.deadline <= in7Days)),
+    later:    sortByPriority(active.filter(tk => tk.deadline && tk.deadline > in7Days)),
   };
 
   const markDone = async (task) => {
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status:'done', progress:100 } : t));
+    setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status:'done', progress:100 } : tk));
     try {
       const { xpAwarded, unlocked, nextTask } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
       if (xpAwarded) toast.xp(xpAwarded, task.title);
@@ -177,17 +156,17 @@ export default function Tasks() {
       if (nextTask) {
         const norm = { ...nextTask, priority: (nextTask.priority||'medium').toLowerCase() };
         setTasks(prev => [
-          ...prev.filter(t => t.id !== task.id),
-          { ...prev.find(t => t.id === task.id), status:'done', progress:100 },
+          ...prev.filter(tk => tk.id !== task.id),
+          { ...prev.find(tk => tk.id === task.id), status:'done', progress:100 },
           norm,
         ]);
-        toast.success(`🔁 Next: ${formatDate(nextTask.deadline)}`);
+        toast.success(t('tasks.nextOccur', { date: formatDate(nextTask.deadline) }));
       }
     } catch (err) { toast.error(err.message); load(); }
   };
 
   const markUndone = async (task) => {
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status:'todo', progress:0 } : t));
+    setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status:'todo', progress:0 } : tk));
     try { await api.put(`/tasks/${task.id}`, { status:'todo', progress:0 }); }
     catch (err) { toast.error(err.message); load(); }
   };
@@ -216,15 +195,15 @@ export default function Tasks() {
         deadline: form.deadline||null, deadline_time: form.deadline_time||null,
         recurrence,
       };
-      if (editingTask) { await api.put(`/tasks/${editingTask.id}`, payload); toast.success('Task updated'); }
-      else             { await api.post('/tasks', payload);                   toast.success('Task added');   }
+      if (editingTask) { await api.put(`/tasks/${editingTask.id}`, payload); toast.success(t('tasks.updated')); }
+      else             { await api.post('/tasks', payload);                   toast.success(t('tasks.added'));   }
       setForm(emptyForm); setEditingTask(null); setModalOpen(false); load();
     } catch (err) { toast.error(err.message); }
   };
 
   const removeTask = async (id) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-    try { await api.del(`/tasks/${id}`); toast.success('Task deleted'); }
+    setTasks(prev => prev.filter(tk => tk.id !== id));
+    try { await api.del(`/tasks/${id}`); toast.success(t('tasks.deleted')); }
     catch (err) { toast.error(err.message); load(); }
   };
 
@@ -234,43 +213,36 @@ export default function Tasks() {
   return (
     <div>
       <PageHeader
-        eyebrow="Task Manager" title="Your tasks"
-        subtitle="Sorted by priority — high first, then by time."
-        action={<button className="btn-primary" onClick={openCreateModal}><Plus size={16}/> New task</button>}
+        eyebrow={t('tasks.eyebrow')} title={t('tasks.title')}
+        subtitle={t('tasks.subtitle')}
+        action={<button className="btn-primary" onClick={openCreateModal}><Plus size={16}/> {t('tasks.newTask')}</button>}
       />
 
       {isEmpty ? (
-        <EmptyState icon={ListChecks} title="This is where your work lives"
-          description="Tasks organized by date and priority."
-          features={[
-            { icon:'🗓', text:'Auto-group: Today, Tomorrow, Later' },
-            { icon:'⬆️', text:'High priority always floats first' },
-            { icon:'🔁', text:'Recurring tasks auto-create next occurrence' },
-            { icon:'🤖', text:'Ask Lumi to create tasks in plain English' },
-          ]}
-          action={<button className="btn-primary w-full justify-center" onClick={openCreateModal}><Plus size={16}/> Add your first task</button>}
-          tip="Try: 'Add a high priority task to submit my assignment by Friday'"
+        <EmptyState icon={ListChecks} title={t('tasks.emptyTitle')}
+          description={t('tasks.emptyDesc')}
+          action={<button className="btn-primary w-full justify-center" onClick={openCreateModal}><Plus size={16}/> {t('tasks.addFirst')}</button>}
         />
       ) : (
         <div className="flex flex-col gap-8">
-          <TaskGroup label="Today"       tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
-          <TaskGroup label="Tomorrow"    tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
-          <TaskGroup label="Next 7 Days" tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
-          <TaskGroup label="Later"       tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} />
+          <TaskGroup label={t('common.today')}    tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('common.tomorrow')} tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('tasks.next7')}     tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('tasks.later')}     tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
 
           {completed.length > 0 && (
             <div>
               <button onClick={() => setCompletedOpen(o=>!o)}
                 className="flex items-center gap-2 text-sm font-medium text-ink/50 dark:text-white/40 hover:text-ink/70 dark:hover:text-white/60 transition mb-3">
-                {completedOpen ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}
-                Show completed ({completed.length})
+                {completedOpen ? <ChevronDown size={15}/> : <ChevronRight size={15} className="rtl:rotate-180"/>}
+                {t('tasks.showCompleted', { n: completed.length })}
               </button>
               <AnimatePresence>
                 {completedOpen && (
                   <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} className="overflow-hidden">
                     <div className="flex flex-col gap-2">
                       {sortByPriority(completed).map(task => (
-                        <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={removeTask} onMarkUndone={markUndone} done />
+                        <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={removeTask} onMarkUndone={markUndone} done t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
                       ))}
                     </div>
                   </motion.div>
@@ -281,19 +253,19 @@ export default function Tasks() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTask ? 'Edit task' : 'New task'}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTask ? t('tasks.editTask') : t('tasks.newTask')}>
         <form onSubmit={submitForm} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder="Task title" value={form.title}
+          <input className="input-field" placeholder={t('tasks.taskTitle')} value={form.title}
             onChange={e => setForm({...form, title:e.target.value})} autoFocus required />
-          <textarea className="input-field" placeholder="Description (optional)" rows={2}
+          <textarea className="input-field" placeholder={t('goals.descPh')} rows={2}
             value={form.description} onChange={e => setForm({...form, description:e.target.value})} />
           <div className="grid grid-cols-2 gap-3">
             <select className="input-field" value={form.priority} onChange={e => setForm({...form, priority:e.target.value})}>
-              <option value="high">High priority</option>
-              <option value="medium">Medium priority</option>
-              <option value="low">Low priority</option>
+              <option value="high">{t('tasks.priorityHigh')}</option>
+              <option value="medium">{t('tasks.priorityMed')}</option>
+              <option value="low">{t('tasks.priorityLow')}</option>
             </select>
-            <input className="input-field" placeholder="Category" value={form.category}
+            <input className="input-field" placeholder={t('calendar.category')} value={form.category}
               onChange={e => setForm({...form, category:e.target.value})} />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -303,7 +275,7 @@ export default function Tasks() {
               onChange={e => setForm({...form, deadline_time:e.target.value})} />
           </div>
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">Repeat</label>
+            <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">{t('tasks.repeat')}</label>
             <div className="flex flex-wrap gap-2">
               {RECURRENCE_OPTIONS.map(opt => (
                 <button key={opt.value} type="button"
@@ -322,13 +294,32 @@ export default function Tasks() {
             </div>
             {form.recurrenceType === 'custom' && (
               <motion.div initial={{ opacity:0, y:-4 }} animate={{ opacity:1, y:0 }}>
-                <p className="text-[11px] text-ink/35 dark:text-white/25 mt-3 mb-1">Pick days</p>
-                <DayPicker selected={form.customDays} onChange={days => setForm({...form, customDays:days})} />
+                <p className="text-[11px] text-ink/35 dark:text-white/25 mt-3 mb-1">{t('tasks.pickDays')}</p>
+                <div className="flex gap-2 mt-2">
+                  {Array.from({ length: 7 }, (_, i) => {
+                    const isOn = form.customDays.includes(i);
+                    return (
+                      <button key={i} type="button"
+                        onClick={() => setForm({...form, customDays: isOn ? form.customDays.filter(x=>x!==i) : [...form.customDays, i]})}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all"
+                        style={isOn ? {
+                          background:'linear-gradient(135deg,#7C6AF0,#5B47E0)',
+                          color:'white', boxShadow:'0 4px 12px rgba(124,106,240,0.35)',
+                        } : {
+                          background:'rgba(124,106,240,0.08)',
+                          border:'1px solid rgba(124,106,240,0.18)',
+                          color:'rgba(124,106,240,0.60)',
+                        }}>
+                        {dayLetter(i)}
+                      </button>
+                    );
+                  })}
+                </div>
               </motion.div>
             )}
           </div>
           <button type="submit" className="btn-primary justify-center mt-1">
-            {editingTask ? 'Save changes' : 'Add task'}
+            {editingTask ? t('calendar.saveChanges') : t('tasks.addTask')}
           </button>
         </form>
       </Modal>
@@ -336,7 +327,7 @@ export default function Tasks() {
   );
 }
 
-function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone }) {
+function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, recurrenceLabel }) {
   if (!tasks.length) return null;
   return (
     <div>
@@ -346,19 +337,18 @@ function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone }) {
         <div className="flex-1 h-px bg-ink/5 dark:bg-white/5" />
       </div>
       <div className="flex flex-col gap-2">
-        {tasks.map(task => <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} onMarkDone={onMarkDone} />)}
+        {tasks.map(task => <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} onMarkDone={onMarkDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />)}
       </div>
     </div>
   );
 }
 
-function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false }) {
+function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel }) {
   const time  = formatTime(task.deadline_time);
   const date  = formatDate(task.deadline);
   const dl    = daysUntil(task.deadline);
   const label = recurrenceLabel(task.recurrence);
 
-  // ── Fixed: dl < 0 = overdue, dl === 0 = due TODAY ────────
   const isOverdue = dl !== null && dl < 0;
   const isToday   = dl !== null && dl === 0;
   const isSoon    = dl !== null && dl > 0 && dl <= 3;
@@ -406,10 +396,10 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
               : 'text-ink/40 dark:text-white/30'
             }`}>
               <Calendar size={10}/>
-              {isOverdue ? '🚨 Overdue'
-              : isToday  ? '⚠️ Due today'
-              : dl === 1 ? '🔴 Due tomorrow'
-              : isSoon   ? `⚠️ Due in ${dl} days`
+              {isOverdue ? t('dash.overdue')
+              : isToday  ? t('dash.dueToday')
+              : dl === 1 ? t('dash.dueTomorrow')
+              : isSoon   ? t('dash.dueInDays', { n: dl })
               : date}
             </span>
           )}
