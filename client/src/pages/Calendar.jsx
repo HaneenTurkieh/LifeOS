@@ -7,12 +7,9 @@ import {
 import { api }      from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader   from '../components/PageHeader.jsx';
 import Modal        from '../components/Modal.jsx';
-
-const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const MONTHS = ['January','February','March','April','May','June','July',
-                'August','September','October','November','December'];
 
 const PRIORITY_COLORS = {
   high:   { bg:'rgba(255,122,99,0.20)', border:'rgba(255,122,99,0.45)', text:'#FF7A63', dark:'rgba(255,122,99,0.25)' },
@@ -38,49 +35,60 @@ function localToday() {
   return toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-function fmtTime(t) {
-  if (!t) return null;
-  const [h, m] = t.split(':').map(Number);
-  return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`;
-}
-
-function fmtLabel(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m-1, d).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
-}
-
 const emptyForm = { title:'', priority:'medium', category:'General', deadline_time:'', description:'' };
 
 export default function Calendar() {
   const toast             = useToast();
   const { resolvedTheme } = useTheme();
+  const { t, lang }       = useLanguage();
   const isDark            = resolvedTheme === 'dark';
   const now               = new Date();
+
+  // Locale-aware date formatting — Arabic month/day names come free
+  const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
+  const fmtTime = (tm) => {
+    if (!tm) return null;
+    const [h, m] = tm.split(':').map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
+  };
+  const fmtLabel = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m-1, d).toLocaleDateString(dateLocale, { weekday:'long', month:'long', day:'numeric' });
+  };
+  const fmtDayShort = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m-1, d).toLocaleDateString(dateLocale, { weekday:'long' });
+  };
+  // Weekday headers Sun→Sat in the active language
+  const DAYS = Array.from({ length: 7 }, (_, i) =>
+    new Date(2023, 0, 1 + i).toLocaleDateString(dateLocale, { weekday: 'short' }));
 
   const [year,          setYear]          = useState(now.getFullYear());
   const [month,         setMonth]         = useState(now.getMonth());
   const [tasks,         setTasks]         = useState([]);
-  const [selected,      setSelected]      = useState(null);   // clicked date
-  const [selectedTask,  setSelectedTask]  = useState(null);   // clicked task for panel
+  const [selected,      setSelected]      = useState(null);
+  const [selectedTask,  setSelectedTask]  = useState(null);
   const [editForm,      setEditForm]      = useState(null);
-  const [addModalOpen,  setAddModalOpen]  = useState(null);   // date string to add to
+  const [addModalOpen,  setAddModalOpen]  = useState(null);
   const [addForm,       setAddForm]       = useState(emptyForm);
   const [saving,        setSaving]        = useState(false);
   const [draggedId,     setDraggedId]     = useState(null);
   const [dragOverDate,  setDragOverDate]  = useState(null);
-  const [touchGhost,    setTouchGhost]    = useState(null);   // { x, y, title } while finger-dragging
+  const [touchGhost,    setTouchGhost]    = useState(null);
 
-  // Touch drag bookkeeping (refs — no re-renders during move)
   const touchRef         = useRef({ task:null, startX:0, startY:0, dragging:false });
   const suppressClickRef = useRef(false);
 
   const todayStr = localToday();
 
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(dateLocale, { month:'long' });
+
   const load = useCallback(async () => {
     try {
       const data = await api.get('/tasks');
-      setTasks(data.filter(t => t.deadline));
+      setTasks(data.filter(tk => tk.deadline));
     } catch (_) {}
   }, []);
 
@@ -105,21 +113,20 @@ export default function Calendar() {
   const getTasksForDay = (cell) => {
     if (!cell.currentMonth) return [];
     const ds = toDateStr(year, month, cell.day);
-    return tasks.filter(t => t.deadline === ds && t.status !== 'done');
+    return tasks.filter(tk => tk.deadline === ds && tk.status !== 'done');
   };
 
   // ── Shared move (mouse drop + touch drop) ─────────────────
   const moveTask = async (task, dateStr) => {
     if (!task || !dateStr || task.deadline === dateStr) return;
-    // Optimistic
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, deadline:dateStr } : t));
+    setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, deadline:dateStr } : tk));
     if (selectedTask?.id === task.id) {
-      setSelectedTask(t => ({ ...t, deadline:dateStr }));
+      setSelectedTask(tk => ({ ...tk, deadline:dateStr }));
       setEditForm(f => f ? { ...f, deadline:dateStr } : f);
     }
     try {
       await api.put(`/tasks/${task.id}`, { deadline: dateStr });
-      toast.success(`Moved to ${fmtLabel(dateStr).split(',')[0]}!`);
+      toast.success(t('calendar.movedTo', { day: fmtDayShort(dateStr) }));
     } catch (err) { toast.error(err.message); load(); }
   };
 
@@ -152,7 +159,7 @@ export default function Calendar() {
   const onDrop = async (e, dateStr) => {
     e.preventDefault();
     setDragOverDate(null);
-    const task = tasks.find(t => t.id === draggedId);
+    const task = tasks.find(tk => tk.id === draggedId);
     setDraggedId(null);
     await moveTask(task, dateStr);
   };
@@ -160,35 +167,31 @@ export default function Calendar() {
   const onDragEnd = () => { setDraggedId(null); setDragOverDate(null); };
 
   // ── Touch drag handlers (iPhone / iPad) ───────────────────
-  // HTML5 drag events never fire on touch screens, so we track
-  // the finger manually: small movement = tap (opens the panel),
-  // larger movement = drag with a floating ghost pill; on release
-  // we drop onto whichever [data-date] cell is under the finger.
   const cellFromPoint = (x, y) => {
     const el = document.elementFromPoint(x, y);
     return el?.closest?.('[data-date]')?.getAttribute('data-date') || null;
   };
 
   const onTouchStart = (e, task) => {
-    const t = e.touches[0];
-    touchRef.current = { task, startX:t.clientX, startY:t.clientY, dragging:false };
+    const tp = e.touches[0];
+    touchRef.current = { task, startX:tp.clientX, startY:tp.clientY, dragging:false };
   };
 
   const onTouchMove = (e) => {
     const st = touchRef.current;
     if (!st.task) return;
-    const t  = e.touches[0];
-    const dx = t.clientX - st.startX;
-    const dy = t.clientY - st.startY;
+    const tp = e.touches[0];
+    const dx = tp.clientX - st.startX;
+    const dy = tp.clientY - st.startY;
 
     if (!st.dragging && Math.hypot(dx, dy) > 8) {
       st.dragging = true;
       setDraggedId(st.task.id);
-      if (navigator.vibrate) navigator.vibrate(10); // tiny haptic "lift" cue
+      if (navigator.vibrate) navigator.vibrate(10);
     }
     if (st.dragging) {
-      setTouchGhost({ x:t.clientX, y:t.clientY, title:st.task.title, priority:st.task.priority });
-      setDragOverDate(cellFromPoint(t.clientX, t.clientY));
+      setTouchGhost({ x:tp.clientX, y:tp.clientY, title:st.task.title });
+      setDragOverDate(cellFromPoint(tp.clientX, tp.clientY));
     }
   };
 
@@ -197,9 +200,9 @@ export default function Calendar() {
     if (!st.task) return;
 
     if (st.dragging) {
-      suppressClickRef.current = true; // swallow the synthetic click that follows
-      const t = e.changedTouches[0];
-      const dateStr = cellFromPoint(t.clientX, t.clientY);
+      suppressClickRef.current = true;
+      const tp = e.changedTouches[0];
+      const dateStr = cellFromPoint(tp.clientX, tp.clientY);
       const task = st.task;
       setTouchGhost(null);
       setDragOverDate(null);
@@ -234,11 +237,9 @@ export default function Calendar() {
 
   const saveTask = async () => {
     if (!selectedTask || !editForm) return;
-    if (!editForm.title.trim()) { toast.error('Title cannot be empty'); return; }
+    if (!editForm.title.trim()) { toast.error(t('calendar.titleEmpty')); return; }
     setSaving(true);
     try {
-      // Send a clean, explicit payload — empty strings become null
-      // so the server never receives ambiguous values.
       await api.put(`/tasks/${selectedTask.id}`, {
         title:         editForm.title.trim(),
         description:   editForm.description || '',
@@ -248,9 +249,9 @@ export default function Calendar() {
         deadline_time: editForm.deadline_time || null,
       });
       setSelectedTask(null);
-      toast.success('Task updated!');
+      toast.success(t('tasks.updated'));
       load();
-    } catch (err) { toast.error(err.message || 'Save failed — check connection'); }
+    } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
 
@@ -258,7 +259,7 @@ export default function Calendar() {
     try {
       await api.del(`/tasks/${id}`);
       setSelectedTask(null);
-      toast.success('Task deleted');
+      toast.success(t('tasks.deleted'));
       load();
     } catch (err) { toast.error(err.message); }
   };
@@ -278,7 +279,7 @@ export default function Calendar() {
     setSaving(true);
     try {
       await api.post('/tasks', { ...addForm, deadline:addModalOpen, recurrence:null });
-      toast.success('Task added!');
+      toast.success(t('tasks.added'));
       setAddModalOpen(null);
       setAddForm(emptyForm);
       load();
@@ -301,8 +302,8 @@ export default function Calendar() {
   return (
     <div>
       <PageHeader
-        eyebrow="Calendar" title="Your schedule"
-        subtitle="Drag tasks between days. Tap any task to edit."
+        eyebrow={t('calendar.eyebrow')} title={t('calendar.title')}
+        subtitle={t('calendar.subtitle')}
       />
 
       {/* Floating pill that follows the finger while touch-dragging */}
@@ -329,15 +330,15 @@ export default function Calendar() {
             <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom:`1px solid ${divider}` }}>
               <motion.button whileHover={{ scale:1.08 }} whileTap={{ scale:0.94 }} onClick={prevMonth}
                 className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isDark?'text-white/40 hover:bg-white/10':'text-ink/50 hover:bg-ink/5'}`}>
-                <ChevronLeft size={18}/>
+                <ChevronLeft size={18} className="rtl:rotate-180"/>
               </motion.button>
               <div className="text-center">
-                <h2 className={`font-display font-bold text-lg ${textMain}`}>{MONTHS[month]}</h2>
+                <h2 className={`font-display font-bold text-lg ${textMain}`}>{monthLabel}</h2>
                 <p className={`text-xs ${textSub}`}>{year}</p>
               </div>
               <motion.button whileHover={{ scale:1.08 }} whileTap={{ scale:0.94 }} onClick={nextMonth}
                 className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isDark?'text-white/40 hover:bg-white/10':'text-ink/50 hover:bg-ink/5'}`}>
-                <ChevronRight size={18}/>
+                <ChevronRight size={18} className="rtl:rotate-180"/>
               </motion.button>
             </div>
 
@@ -365,7 +366,7 @@ export default function Calendar() {
                     className="relative min-h-[88px] p-2 transition-all"
                     style={{
                       borderBottom: `1px solid ${divider}`,
-                      borderRight:  `1px solid ${divider}`,
+                      borderInlineEnd: `1px solid ${divider}`,
                       cursor:        cell.currentMonth ? 'pointer' : 'default',
                       opacity:       cell.currentMonth ? 1 : 0.25,
                       background:    isDragOver
@@ -426,9 +427,6 @@ export default function Calendar() {
                               color:        colors.text,
                               opacity:      isDragging ? 0.40 : 1,
                               transform:    isDragging ? 'scale(0.95)' : 'scale(1)',
-                              // Critical for iOS/iPad: without this, the browser
-                              // hijacks the touch for scrolling and our drag
-                              // handlers never see the movement.
                               touchAction:  'none',
                               WebkitUserSelect: 'none',
                               WebkitTouchCallout: 'none',
@@ -441,7 +439,7 @@ export default function Calendar() {
                       })}
                       {cellTasks.length > 3 && (
                         <div className={`text-[9px] px-1 ${isDark?'text-white/25':'text-ink/35'}`}>
-                          +{cellTasks.length-3} more
+                          {t('dash.moreTasks', { n: cellTasks.length - 3 })}
                         </div>
                       )}
                     </div>
@@ -456,12 +454,12 @@ export default function Calendar() {
             {Object.entries(PRIORITY_COLORS).map(([key, colors]) => (
               <div key={key} className="flex items-center gap-1.5">
                 <div className="h-2.5 w-2.5 rounded-sm" style={{ background:colors.bg, border:`1px solid ${colors.border}` }}/>
-                <span className={`text-[11px] capitalize ${isDark?'text-white/30':'text-ink/40'}`}>{key}</span>
+                <span className={`text-[11px] ${isDark?'text-white/30':'text-ink/40'}`}>{t(`tasks.${key}`)}</span>
               </div>
             ))}
             <div className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 rounded-sm" style={{ background:'rgba(124,106,240,0.20)', border:'2px solid rgba(124,106,240,0.50)' }}/>
-              <span className={`text-[11px] ${isDark?'text-white/30':'text-ink/40'}`}>Drop target</span>
+              <span className={`text-[11px] ${isDark?'text-white/30':'text-ink/40'}`}>{t('calendar.dropTarget')}</span>
             </div>
           </div>
         </div>
@@ -477,25 +475,24 @@ export default function Calendar() {
                 className="rounded-3xl p-5 sticky top-6"
                 style={panelStyle}
               >
-                {/* Header */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="h-3 w-3 rounded-full shrink-0"
                       style={{ background: PRIORITY_COLORS[editForm.priority]?.text || '#7C6AF0' }}/>
-                    <p className={`text-xs font-bold uppercase tracking-widest ${textSub}`}>Edit task</p>
+                    <p className={`text-xs font-bold uppercase tracking-widest ${textSub}`}>{t('calendar.editTask')}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => markDone(selectedTask)}
                       className="flex h-7 w-7 items-center justify-center rounded-xl transition text-sage-500 hover:bg-sage-500/10"
-                      title="Mark done"
+                      title={t('tasks.markDone')}
                     >
                       <Check size={14}/>
                     </button>
                     <button
                       onClick={() => deleteTask(selectedTask.id)}
                       className="flex h-7 w-7 items-center justify-center rounded-xl transition text-coral-500 hover:bg-coral-500/10"
-                      title="Delete"
+                      title={t('common.delete')}
                     >
                       <Trash2 size={14}/>
                     </button>
@@ -506,27 +503,26 @@ export default function Calendar() {
                   </div>
                 </div>
 
-                {/* Edit form */}
                 <div className="flex flex-col gap-3">
                   <input
                     className="input-field font-semibold"
                     value={editForm.title}
                     onChange={e => setEditForm({...editForm, title:e.target.value})}
-                    placeholder="Task title"
+                    placeholder={t('tasks.taskTitle')}
                   />
                   <textarea
                     className="input-field resize-none text-sm"
                     rows={2}
                     value={editForm.description}
                     onChange={e => setEditForm({...editForm, description:e.target.value})}
-                    placeholder="Description..."
+                    placeholder={t('tasks.description')}
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <select className="input-field text-sm" value={editForm.priority}
                       onChange={e => setEditForm({...editForm, priority:e.target.value})}>
-                      <option value="high">🔴 High</option>
-                      <option value="medium">🟡 Medium</option>
-                      <option value="low">🟣 Low</option>
+                      <option value="high">🔴 {t('tasks.high')}</option>
+                      <option value="medium">🟡 {t('tasks.medium')}</option>
+                      <option value="low">🟣 {t('tasks.low')}</option>
                     </select>
                     <input type="date" className="input-field text-sm" value={editForm.deadline || ''}
                       onChange={e => setEditForm({...editForm, deadline:e.target.value})}/>
@@ -535,11 +531,10 @@ export default function Calendar() {
                     onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}/>
                   <button onClick={saveTask} disabled={saving}
                     className="btn-primary justify-center text-sm py-2.5">
-                    {saving ? 'Saving…' : 'Save changes'}
+                    {saving ? t('common.saving') : t('calendar.saveChanges')}
                   </button>
                 </div>
 
-                {/* Deadline info */}
                 {editForm.deadline && (() => {
                   const dl = daysUntil(editForm.deadline);
                   if (dl === null) return null;
@@ -547,10 +542,10 @@ export default function Calendar() {
                     <div className="mt-3 flex items-center gap-1.5 text-xs"
                       style={{ color: dl < 0 ? '#FF7A63' : dl === 0 ? '#d97706' : '#7C6AF0' }}>
                       <CalIcon size={11}/>
-                      {dl < 0  ? `🚨 ${Math.abs(dl)} day${Math.abs(dl)>1?'s':''} overdue`
-                      : dl === 0 ? '⚠️ Due today'
-                      : dl === 1 ? '🔴 Due tomorrow'
-                      : `${dl} days away`}
+                      {dl < 0  ? t('dash.overdue')
+                      : dl === 0 ? t('dash.dueToday')
+                      : dl === 1 ? t('dash.dueTomorrow')
+                      : t('calendar.daysAway', { n: dl })}
                     </div>
                   );
                 })()}
@@ -569,7 +564,7 @@ export default function Calendar() {
                   <div>
                     <p className={`font-display font-bold ${textMain}`}>{fmtLabel(selected)}</p>
                     <p className={`text-xs mt-0.5 ${textSub}`}>
-                      {tasks.filter(t=>t.deadline===selected&&t.status!=='done').length} tasks
+                      {tasks.filter(tk=>tk.deadline===selected&&tk.status!=='done').length} {t('calendar.tasksCount')}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -577,7 +572,7 @@ export default function Calendar() {
                       onClick={() => { setAddModalOpen(selected); setAddForm(emptyForm); }}
                       className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-lavender-500 dark:text-lavender-300"
                       style={{ background:'rgba(124,106,240,0.12)', border:'1px solid rgba(124,106,240,0.22)' }}>
-                      <Plus size={12}/> Add
+                      <Plus size={12}/> {t('common.add')}
                     </motion.button>
                     <button onClick={() => setSelected(null)}
                       className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${isDark?'text-white/30 hover:text-white/60':'text-ink/30 hover:text-ink/60'}`}>
@@ -586,16 +581,15 @@ export default function Calendar() {
                   </div>
                 </div>
 
-                {/* Tasks for this day */}
-                {tasks.filter(t=>t.deadline===selected).length === 0 ? (
+                {tasks.filter(tk=>tk.deadline===selected).length === 0 ? (
                   <div className="flex flex-col items-center py-8 text-center">
                     <span className="text-3xl mb-2">📅</span>
-                    <p className={`text-sm font-medium ${textSub}`}>Nothing scheduled</p>
-                    <p className={`text-xs mt-1 ${isDark?'text-white/20':'text-ink/30'}`}>Tap + Add to create a task</p>
+                    <p className={`text-sm font-medium ${textSub}`}>{t('calendar.nothing')}</p>
+                    <p className={`text-xs mt-1 ${isDark?'text-white/20':'text-ink/30'}`}>{t('calendar.tapAdd')}</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {tasks.filter(t=>t.deadline===selected&&t.status!=='done').map(task => {
+                    {tasks.filter(tk=>tk.deadline===selected&&tk.status!=='done').map(task => {
                       const colors = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
                       return (
                         <div key={task.id}
@@ -617,8 +611,7 @@ export default function Calendar() {
                         </div>
                       );
                     })}
-                    {/* Done tasks */}
-                    {tasks.filter(t=>t.deadline===selected&&t.status==='done').map(task => (
+                    {tasks.filter(tk=>tk.deadline===selected&&tk.status==='done').map(task => (
                       <div key={task.id}
                         className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 opacity-45"
                         style={{ background:'rgba(76,195,138,0.08)', border:'1px solid rgba(76,195,138,0.15)' }}>
@@ -642,8 +635,7 @@ export default function Calendar() {
                 }}
               >
                 <span className="text-4xl mb-3">📅</span>
-                <p className={`font-semibold text-sm ${isDark?'text-white/40':'text-ink/50'}`}>Tap any day</p>
-                <p className={`text-xs mt-1 ${isDark?'text-white/25':'text-ink/30'}`}>or drag tasks between days</p>
+                <p className={`font-semibold text-sm ${isDark?'text-white/40':'text-ink/50'}`}>{t('calendar.subtitle')}</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -654,22 +646,22 @@ export default function Calendar() {
       <Modal
         open={!!addModalOpen}
         onClose={() => setAddModalOpen(null)}
-        title={addModalOpen ? `Add task · ${fmtLabel(addModalOpen)}` : 'Add task'}
+        title={addModalOpen ? `${t('calendar.addTo')} · ${fmtLabel(addModalOpen)}` : t('calendar.addTo')}
       >
         <form onSubmit={submitAdd} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder="Task title"
+          <input className="input-field" placeholder={t('tasks.taskTitle')}
             value={addForm.title} onChange={e => setAddForm({...addForm, title:e.target.value})}
             autoFocus required />
-          <textarea className="input-field resize-none" placeholder="Description (optional)" rows={2}
+          <textarea className="input-field resize-none" placeholder={t('tasks.description')} rows={2}
             value={addForm.description} onChange={e => setAddForm({...addForm, description:e.target.value})} />
           <div className="grid grid-cols-2 gap-3">
             <select className="input-field" value={addForm.priority}
               onChange={e => setAddForm({...addForm, priority:e.target.value})}>
-              <option value="high">High priority</option>
-              <option value="medium">Medium priority</option>
-              <option value="low">Low priority</option>
+              <option value="high">{t('tasks.high')}</option>
+              <option value="medium">{t('tasks.medium')}</option>
+              <option value="low">{t('tasks.low')}</option>
             </select>
-            <input className="input-field" placeholder="Category"
+            <input className="input-field" placeholder={t('calendar.category')}
               value={addForm.category} onChange={e => setAddForm({...addForm, category:e.target.value})} />
           </div>
           <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium"
@@ -679,7 +671,7 @@ export default function Calendar() {
           <input type="time" className="input-field" value={addForm.deadline_time}
             onChange={e => setAddForm({...addForm, deadline_time:e.target.value})} />
           <button type="submit" disabled={saving} className="btn-primary justify-center mt-1">
-            {saving ? 'Adding…' : 'Add to calendar'}
+            {saving ? t('common.saving') : t('calendar.addToCalendar')}
           </button>
         </form>
       </Modal>
