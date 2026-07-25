@@ -22,23 +22,22 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   used_at     TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_user ON password_reset_tokens(user_id);
 
 CREATE TABLE IF NOT EXISTS tasks (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title       TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  priority    TEXT NOT NULL DEFAULT 'medium',   -- low | medium | high
-  category    TEXT NOT NULL DEFAULT 'general',
-  deadline    TEXT,                              -- ISO date, nullable
-deadline_time TEXT,                             -- "HH:MM" 24h format, nullable 
- status      TEXT NOT NULL DEFAULT 'todo',       -- todo | doing | done
-  progress    INTEGER NOT NULL DEFAULT 0,
-  position    INTEGER NOT NULL DEFAULT 0,         -- order within a column
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  completed_at TEXT
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title         TEXT NOT NULL,
+  description   TEXT DEFAULT '',
+  priority      TEXT NOT NULL DEFAULT 'medium',   -- low | medium | high
+  category      TEXT NOT NULL DEFAULT 'general',
+  deadline      TEXT,                             -- ISO date, nullable
+  deadline_time TEXT,                             -- "HH:MM" 24h format, nullable
+  status        TEXT NOT NULL DEFAULT 'todo',     -- todo | doing | done
+  progress      INTEGER NOT NULL DEFAULT 0,
+  position      INTEGER NOT NULL DEFAULT 0,       -- order within a column
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS habits (
@@ -66,7 +65,7 @@ CREATE TABLE IF NOT EXISTS goals (
   description TEXT DEFAULT '',
   category    TEXT NOT NULL DEFAULT 'personal',
   target_date TEXT,
-  status      TEXT NOT NULL DEFAULT 'active',      -- active | completed
+  status      TEXT NOT NULL DEFAULT 'active',     -- active | completed
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -81,10 +80,10 @@ CREATE TABLE IF NOT EXISTS milestones (
 CREATE TABLE IF NOT EXISTS learning_items (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type       TEXT NOT NULL DEFAULT 'course',       -- course | book | certification
+  type       TEXT NOT NULL DEFAULT 'course',      -- course | book | certification
   title      TEXT NOT NULL,
   provider   TEXT DEFAULT '',
-  status     TEXT NOT NULL DEFAULT 'planned',       -- planned | in_progress | completed
+  status     TEXT NOT NULL DEFAULT 'planned',     -- planned | in_progress | completed
   progress   INTEGER NOT NULL DEFAULT 0,
   notes      TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -94,7 +93,7 @@ CREATE TABLE IF NOT EXISTS moods (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   date    TEXT NOT NULL,
-  mood    INTEGER NOT NULL,                        -- 1..5
+  mood    INTEGER NOT NULL,                       -- 1..5
   note    TEXT DEFAULT '',
   UNIQUE(user_id, date)
 );
@@ -104,7 +103,7 @@ CREATE TABLE IF NOT EXISTS internships (
   user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   company      TEXT NOT NULL,
   role         TEXT NOT NULL,
-  status       TEXT NOT NULL DEFAULT 'applied',      -- applied | interview | accepted | rejected
+  status       TEXT NOT NULL DEFAULT 'applied',   -- applied | interview | accepted | rejected
   applied_date TEXT,
   notes        TEXT DEFAULT '',
   link         TEXT DEFAULT ''
@@ -123,7 +122,7 @@ CREATE TABLE IF NOT EXISTS cv_skills (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name     TEXT NOT NULL,
-  level    TEXT NOT NULL DEFAULT 'intermediate',     -- beginner | intermediate | advanced
+  level    TEXT NOT NULL DEFAULT 'intermediate',  -- beginner | intermediate | advanced
   category TEXT NOT NULL DEFAULT 'technical'
 );
 
@@ -141,7 +140,7 @@ CREATE TABLE IF NOT EXISTS projects (
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
   description TEXT DEFAULT '',
-  stage       TEXT NOT NULL DEFAULT 'idea',           -- idea | design | development | testing | deployment
+  stage       TEXT NOT NULL DEFAULT 'idea',       -- idea | design | development | testing | deployment
   progress    INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -176,6 +175,8 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- ── Lumi: per-user personality settings ────────────────────────
 CREATE TABLE IF NOT EXISTS lumi_settings (
   user_id         INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   tone            TEXT NOT NULL DEFAULT 'friendly',
@@ -183,3 +184,18 @@ CREATE TABLE IF NOT EXISTS lumi_settings (
   emoji_level     TEXT NOT NULL DEFAULT 'some',
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ── Exam Assistant: saved sessions ─────────────────────────────
+-- Every generated exam/flashcard/slide set is stored here so it
+-- survives refresh and shows in "Past sessions".
+CREATE TABLE IF NOT EXISTS exam_sessions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mode        TEXT NOT NULL,                       -- mcq | blanks | mixed | flashcards | slides
+  difficulty  TEXT NOT NULL DEFAULT 'medium',
+  source_name TEXT DEFAULT '',                     -- filename or note snippet
+  item_count  INTEGER NOT NULL DEFAULT 0,
+  payload     TEXT NOT NULL,                       -- questions/cards/slides as JSON
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_exam_sessions_user ON exam_sessions(user_id);
