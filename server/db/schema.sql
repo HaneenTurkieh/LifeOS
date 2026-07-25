@@ -199,3 +199,33 @@ CREATE TABLE IF NOT EXISTS exam_sessions (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_exam_sessions_user ON exam_sessions(user_id);
+
+-- ── Forest: trees planted per completed session (Forest-style) ─
+-- One row per session: 'alive' when completed, 'dead' when the
+-- user quits mid-session.
+CREATE TABLE IF NOT EXISTS planted_trees (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tree_key         TEXT NOT NULL DEFAULT 'seedling',
+  status           TEXT NOT NULL DEFAULT 'alive',    -- alive | dead
+  task_name        TEXT DEFAULT '',
+  duration_minutes INTEGER NOT NULL DEFAULT 0,
+  planted_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_planted_trees_user ON planted_trees(user_id);
+
+-- ── Premium tier (no payments yet — backend flag + streak freeze)
+CREATE TABLE IF NOT EXISTS user_premium (
+  user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  is_premium  INTEGER NOT NULL DEFAULT 0,
+  freeze_date TEXT                                    -- date excused from streak
+);
+
+-- ── Shared room timer (synced Forest-style pomodoro) ───────────
+CREATE TABLE IF NOT EXISTS focus_room_timer (
+  room_id          INTEGER PRIMARY KEY,
+  started_at       TEXT NOT NULL,
+  duration_seconds INTEGER NOT NULL,
+  mode             TEXT NOT NULL DEFAULT 'focus',
+  running          INTEGER NOT NULL DEFAULT 0
+);
