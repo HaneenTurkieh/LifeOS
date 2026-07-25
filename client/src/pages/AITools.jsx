@@ -1,8 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Plus, Trash2, Brain } from 'lucide-react';
+import {
+  Send, Plus, Trash2, Brain, Paperclip, X, FileText,
+  Sparkles, Globe, SlidersHorizontal, Check,
+} from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 
 const SUGGESTIONS = [
   { icon: '📋', text: 'What are my most important tasks today?' },
@@ -13,6 +18,22 @@ const SUGGESTIONS = [
   { icon: '🧠', text: "I'm procrastinating. Help me get started." },
 ];
 
+const CHAT_MODES = [
+  { key: 'chat',   label: 'Chat',        Icon: Sparkles, hint: 'Everyday assistant with Aurora tools' },
+  { key: 'think',  label: 'Deep Think',  Icon: Brain,    hint: 'Careful step-by-step reasoning'       },
+  { key: 'search', label: 'Deep Search', Icon: Globe,    hint: 'Searches the web for live info'       },
+];
+
+const SETTINGS_OPTIONS = {
+  tone:            { label: 'Tone',   options: ['friendly','professional','motivational','calm','playful'] },
+  response_length: { label: 'Length', options: ['short','balanced','detailed'] },
+  emoji_level:     { label: 'Emoji',  options: ['none','some','lots'] },
+};
+
+const ACCEPTED_FILES = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
+const MAX_FILE_MB    = 25;
+const MAX_ATTACH     = 3;
+
 const TOOL_META = {
   create_task:             { icon: '✅', label: 'Task created',      color: '#7C6AF0' },
   complete_task:           { icon: '🎉', label: 'Task completed',    color: '#4CC38A' },
@@ -21,6 +42,11 @@ const TOOL_META = {
   list_goals:              { icon: '🎯', label: 'Goals fetched',     color: '#60A5FA' },
   get_productivity_summary:{ icon: '📊', label: 'Productivity data', color: '#F59E0B' },
   get_focus_stats:         { icon: '⏱', label: 'Focus stats',       color: '#7C6AF0' },
+  get_focus_history:       { icon: '📈', label: 'Focus history',     color: '#7C6AF0' },
+  get_habit_streaks:       { icon: '🔥', label: 'Habit streaks',     color: '#F59E0B' },
+  get_mood_insights:       { icon: '💜', label: 'Mood insights',     color: '#A855F7' },
+  list_upcoming_deadlines: { icon: '⏰', label: 'Deadlines',         color: '#FF7A63' },
+  get_xp_progress:         { icon: '🌳', label: 'XP progress',       color: '#4CC38A' },
   generate_daily_plan:     { icon: '🗓', label: 'Plan generated',    color: '#4CC38A' },
   save_memory:             { icon: '🧠', label: 'Memory saved',      color: '#A855F7' },
   forget_memory:           { icon: '🗑', label: 'Memory cleared',    color: '#EF4444' },
@@ -34,13 +60,18 @@ const glassDark = {
   WebkitBackdropFilter: 'blur(24px)',
   boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.06)',
 };
-
 const glassLight = {
   background:           'rgba(255,255,255,0.55)',
   border:               '1px solid rgba(255,255,255,0.60)',
   backdropFilter:       'blur(24px)',
   WebkitBackdropFilter: 'blur(24px)',
   boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.75)',
+};
+// Always-visible accent button — works on light AND dark backgrounds
+const accentBtn = {
+  background: 'rgba(124,106,240,0.12)',
+  border:     '1px solid rgba(124,106,240,0.30)',
+  color:      '#7C6AF0',
 };
 
 // ── Sub-components ────────────────────────────────────────────
@@ -80,7 +111,7 @@ function Message({ msg }) {
       )}
       <div className={`flex flex-col gap-1 max-w-[82%] ${isLumi ? '' : 'items-end'}`}>
         <div
-          className={`rounded-3xl px-4 py-3 text-sm leading-relaxed ${
+          className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
             isLumi
               ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
               : 'rounded-tr-md text-white'
@@ -89,28 +120,44 @@ function Message({ msg }) {
         >
           {msg.content}
         </div>
+        {!isLumi && msg.attachmentNames?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 justify-end">
+            {msg.attachmentNames.map((n) => (
+              <span key={n}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold"
+                style={accentBtn}
+              >
+                <Paperclip size={9} /> {n}
+              </span>
+            ))}
+          </div>
+        )}
         {isLumi && msg.actions?.map((a, i) => <ActionCard key={i} action={a} />)}
       </div>
     </motion.div>
   );
 }
 
-function TypingIndicator() {
+function TypingIndicator({ mode }) {
   return (
     <div className="flex gap-3">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm"
         style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)' }}
       >✦</div>
-      <div className="rounded-3xl rounded-tl-md px-4 py-3 bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 flex items-center gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className="h-1.5 w-1.5 rounded-full bg-lavender-400"
-            animate={{ y: [0, -4, 0] }}
-            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-          />
-        ))}
+      <div className="rounded-3xl rounded-tl-md px-4 py-3 bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              className="h-1.5 w-1.5 rounded-full bg-lavender-400"
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+            />
+          ))}
+        </div>
+        {mode === 'think'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">thinking deeply…</span>}
+        {mode === 'search' && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">searching the web…</span>}
       </div>
     </div>
   );
@@ -120,33 +167,34 @@ function ConversationList({ convos, activeId, onSelect, onNew, onDelete }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-xs font-bold uppercase tracking-widest text-white/30">History</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/30">History</span>
         <motion.button
           whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
           onClick={onNew}
-          className="flex h-7 w-7 items-center justify-center rounded-xl text-white/40 hover:text-white/70 transition"
+          className="flex h-7 w-7 items-center justify-center rounded-xl transition"
+          style={accentBtn}
         >
           <Plus size={14} />
         </motion.button>
       </div>
       <div className="flex flex-col gap-1 overflow-y-auto flex-1">
         {convos.length === 0 && (
-          <p className="text-xs text-white/25 text-center mt-6">No chats yet</p>
+          <p className="text-xs text-ink/30 dark:text-white/25 text-center mt-6">No chats yet</p>
         )}
         {convos.map((c) => (
           <div
             key={c.id}
             className={`group flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-all ${
               activeId === c.id
-                ? 'bg-lavender-500/20 text-lavender-300'
-                : 'text-white/50 hover:bg-white/[0.06] hover:text-white/75'
+                ? 'bg-lavender-500/20 text-lavender-600 dark:text-lavender-300'
+                : 'text-ink/55 dark:text-white/50 hover:bg-ink/[0.04] dark:hover:bg-white/[0.06] hover:text-ink/80 dark:hover:text-white/75'
             }`}
             onClick={() => onSelect(c.id)}
           >
             <span className="flex-1 text-xs font-medium truncate">{c.title}</span>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
-              className="opacity-0 group-hover:opacity-100 transition text-white/25 hover:text-coral-400 shrink-0"
+              className="opacity-0 group-hover:opacity-100 transition text-ink/25 dark:text-white/25 hover:!text-coral-400 shrink-0"
             >
               <Trash2 size={12} />
             </button>
@@ -160,16 +208,118 @@ function ConversationList({ convos, activeId, onSelect, onNew, onDelete }) {
 // ── Panel toggle icon ─────────────────────────────────────────
 function PanelIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="1" y="1" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.4" />
-      <line x1="5.5" y1="1.5" x2="5.5" y2="14.5" stroke="currentColor" strokeWidth="1.4" />
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.6" />
+      <line x1="5.5" y1="1.5" x2="5.5" y2="14.5" stroke="currentColor" strokeWidth="1.6" />
     </svg>
+  );
+}
+
+// ── Lumi settings panel ───────────────────────────────────────
+function LumiSettingsPanel({ open, onClose, isDark }) {
+  const [settings, setSettings] = useState(null);
+  const [saved,    setSaved]    = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    api.get('/chat/settings').then(setSettings).catch(() => {
+      setSettings({ tone:'friendly', response_length:'balanced', emoji_level:'some' });
+    });
+  }, [open]);
+
+  const update = async (field, value) => {
+    const next = { ...settings, [field]: value };
+    setSettings(next);
+    try {
+      await api.put('/chat/settings', next);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (_) {}
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.97 }}
+          transition={{ duration: 0.16 }}
+          className="absolute bottom-full right-0 mb-2 w-72 rounded-3xl p-4 z-30"
+          style={{
+            ...(isDark ? glassDark : glassLight),
+            background: isDark ? 'rgba(18,14,35,0.92)' : 'rgba(255,255,255,0.92)',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/35">
+              Lumi settings
+            </span>
+            <div className="flex items-center gap-2">
+              <AnimatePresence>
+                {saved && (
+                  <motion.span
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-sage-500"
+                  >
+                    <Check size={10} /> Saved
+                  </motion.span>
+                )}
+              </AnimatePresence>
+              <button onClick={onClose} className="text-ink/30 dark:text-white/30 hover:text-ink/60 dark:hover:text-white/60 transition">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+
+          {!settings ? (
+            <p className="text-xs text-ink/35 dark:text-white/30 py-4 text-center">Loading…</p>
+          ) : (
+            <div className="flex flex-col gap-3.5">
+              {Object.entries(SETTINGS_OPTIONS).map(([field, { label, options }]) => (
+                <div key={field}>
+                  <p className="text-[11px] font-bold text-ink/45 dark:text-white/40 mb-1.5">{label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {options.map((opt) => {
+                      const active = settings[field] === opt;
+                      return (
+                        <button
+                          key={opt}
+                          onClick={() => update(field, opt)}
+                          className="rounded-xl px-2.5 py-1.5 text-[11px] font-semibold capitalize transition-all"
+                          style={active
+                            ? { background:'rgba(124,106,240,0.18)', border:'1px solid rgba(124,106,240,0.45)', color:'#7C6AF0' }
+                            : {
+                                background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(30,34,51,0.04)',
+                                border:     isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(30,34,51,0.07)',
+                                color:      isDark ? 'rgba(255,255,255,0.45)' : 'rgba(30,34,51,0.50)',
+                              }}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <p className="text-[10px] text-ink/30 dark:text-white/25 pt-1">
+                Changes apply to your next message.
+              </p>
+            </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
 // ── Main component ────────────────────────────────────────────
 export default function AITools() {
-  const { user } = useAuth();
+  const { user }          = useAuth();
+  const { resolvedTheme } = useTheme();
+  const toast             = useToast();
+  const isDark            = resolvedTheme === 'dark';
 
   const [convos,         setConvos]         = useState([]);
   const [activeConvId,   setActiveConvId]   = useState(null);
@@ -178,9 +328,18 @@ export default function AITools() {
   const [loading,        setLoading]        = useState(false);
   const [sidebarOpen,    setSidebarOpen]    = useState(false);   // mobile overlay
   const [sidebarVisible, setSidebarVisible] = useState(true);    // desktop toggle
+  const [mode,           setMode]           = useState('chat');
+  const [attachments,    setAttachments]    = useState([]);      // [{name, text, wordCount}]
+  const [attaching,      setAttaching]      = useState(false);
+  const [settingsOpen,   setSettingsOpen]   = useState(false);
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
+  const fileRef   = useRef(null);
+
+  const BASE_URL = window.location.hostname === 'localhost'
+    ? 'http://localhost:4000'
+    : 'https://lifeos-0l81.onrender.com';
 
   const loadConvos = useCallback(async () => {
     try {
@@ -208,6 +367,7 @@ export default function AITools() {
     setActiveConvId(null);
     setMessages([]);
     setInput('');
+    setAttachments([]);
     setSidebarOpen(false);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -218,19 +378,68 @@ export default function AITools() {
     setConvos((c) => c.filter((x) => x.id !== id));
   };
 
+  // ── File attachments (reuses /api/exam/extract) ─────────────
+  const handleAttach = async (file) => {
+    if (!file) return;
+    if (attachments.length >= MAX_ATTACH) {
+      toast.error(`Max ${MAX_ATTACH} files per message.`);
+      return;
+    }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      toast.error(`File too large. Max ${MAX_FILE_MB}MB.`);
+      return;
+    }
+    setAttaching(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${BASE_URL}/api/exam/extract`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('aurora_auth_token')}` },
+        body:    formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setAttachments((prev) => [...prev, { name: file.name, text: data.text, wordCount: data.wordCount }]);
+      toast.success(`📎 ${file.name} attached`);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setAttaching(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (name) => setAttachments((prev) => prev.filter((a) => a.name !== name));
+
+  // ── Send ────────────────────────────────────────────────────
   const sendMessage = useCallback(async (text) => {
     const content = (text || input).trim();
-    if (!content || loading) return;
-    setInput('');
+    if ((!content && attachments.length === 0) || loading) return;
 
-    const userMsg = { role: 'user', content };
+    const finalContent = content || `Summarize the attached file${attachments.length > 1 ? 's' : ''} for me.`;
+    const sendAttachments = attachments;
+
+    setInput('');
+    setAttachments([]);
+
+    const userMsg = {
+      role: 'user',
+      content: finalContent,
+      attachmentNames: sendAttachments.map((a) => a.name),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
     const history = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
 
     try {
-      const res = await api.post('/chat', { messages: history, conversation_id: activeConvId });
+      const res = await api.post('/chat', {
+        messages:        history,
+        conversation_id: activeConvId,
+        mode,
+        attachments:     sendAttachments.map(({ name, text }) => ({ name, text })),
+      });
       setMessages((prev) => [...prev, { role: 'assistant', content: res.text, actions: res.actions || [] }]);
       if (!activeConvId) {
         setActiveConvId(res.conversation_id);
@@ -242,7 +451,7 @@ export default function AITools() {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, messages, activeConvId, loadConvos]);
+  }, [input, loading, messages, activeConvId, loadConvos, mode, attachments]);
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -250,10 +459,10 @@ export default function AITools() {
 
   const isFirstMessage = messages.length === 0;
   const firstName      = user?.name?.split(' ')[0] || 'there';
+  const glass          = isDark ? glassDark : glassLight;
 
   return (
     <div className="flex h-[calc(100vh-88px)] lg:h-[calc(100vh-64px)] gap-3">
-
       {/* ── Desktop sidebar ───────────────────────────────── */}
       <AnimatePresence initial={false}>
         {sidebarVisible && (
@@ -265,7 +474,7 @@ export default function AITools() {
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             className="hidden lg:flex flex-col shrink-0 overflow-hidden"
           >
-            <div className="flex flex-col h-full rounded-3xl p-4" style={glassDark}>
+            <div className="flex flex-col h-full rounded-3xl p-4" style={glass}>
               <ConversationList
                 convos={convos}
                 activeId={activeConvId}
@@ -280,42 +489,42 @@ export default function AITools() {
 
       {/* ── Chat area ─────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0">
-
         {/* Top bar */}
-        <div className="flex items-center justify-between mb-3 h-8">
+        <div className="flex items-center justify-between mb-3 h-9">
           {/* Mobile — history + new */}
           <div className="flex items-center gap-2 lg:hidden">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-ink/55 dark:text-white/45"
-              style={glassDark}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition"
+              style={accentBtn}
             >
-              <Brain size={13} /> History
+              <PanelIcon /> History
             </button>
-            <button onClick={startNew} className="btn-primary !py-1.5 !px-3 !text-xs !rounded-xl">
+            <button onClick={startNew} className="btn-primary !py-2 !px-3 !text-xs !rounded-xl">
               <Plus size={13} /> New
             </button>
           </div>
 
-          {/* Desktop — new chat + panel toggle */}
+          {/* Desktop — new chat + panel toggle (always clearly visible) */}
           <div className="hidden lg:flex items-center gap-2 ml-auto">
             {!isFirstMessage && (
               <button
                 onClick={startNew}
-                className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white/40 hover:text-white/70 transition"
-                style={glassDark}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition hover:scale-[1.03]"
+                style={accentBtn}
               >
                 <Plus size={13} /> New chat
               </button>
             )}
             <motion.button
-              whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
+              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.94 }}
               onClick={() => setSidebarVisible((v) => !v)}
               title={sidebarVisible ? 'Hide history' : 'Show history'}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-white/40 hover:text-white/75 transition"
-              style={glassDark}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition"
+              style={accentBtn}
             >
               <PanelIcon />
+              <span>{sidebarVisible ? 'Hide' : 'History'}</span>
             </motion.button>
           </div>
         </div>
@@ -325,7 +534,7 @@ export default function AITools() {
           {isFirstMessage && (
             <motion.div
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="flex flex-col items-center justify-center flex-1 gap-6 px-4 pb-4"
+              className="flex flex-col items-center justify-center flex-1 gap-6 px-4 pb-4 overflow-y-auto"
             >
               <div className="flex flex-col items-center gap-3">
                 <motion.div
@@ -352,7 +561,7 @@ export default function AITools() {
                     whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}
                     onClick={() => sendMessage(text)}
                     className="flex items-center gap-2.5 rounded-2xl px-4 py-3 text-left text-sm font-medium text-ink/70 dark:text-white/60"
-                    style={glassLight}
+                    style={glass}
                   >
                     <span className="text-base shrink-0">{icon}</span>{text}
                   </motion.button>
@@ -366,40 +575,143 @@ export default function AITools() {
         {!isFirstMessage && (
           <div className="flex-1 overflow-y-auto px-1 py-2 flex flex-col gap-4">
             {messages.map((msg, i) => <Message key={i} msg={msg} />)}
-            {loading && <TypingIndicator />}
+            {loading && <TypingIndicator mode={mode} />}
             <div ref={bottomRef} />
           </div>
         )}
 
-        {/* Input bar */}
+        {/* ── Composer ─────────────────────────────────────── */}
         <div className="pt-3 pb-1">
-          <div className="flex items-end gap-2 rounded-3xl p-2 pl-4" style={glassLight}>
-            <textarea
-              ref={inputRef}
-              rows={1}
-              className="flex-1 bg-transparent outline-none resize-none text-sm text-ink dark:text-white placeholder:text-ink/35 dark:placeholder:text-white/30 py-2 max-h-32"
-              placeholder="Ask Lumi anything…"
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-              }}
-              onKeyDown={handleKey}
-            />
-            <motion.button
-              whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
-              style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
-            >
-              <Send size={15} />
-            </motion.button>
+          {/* Mode pills */}
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            {CHAT_MODES.map(({ key, label, Icon, hint }) => {
+              const active = mode === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setMode(key)}
+                  title={hint}
+                  className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all"
+                  style={active
+                    ? { background:'rgba(124,106,240,0.16)', border:'1px solid rgba(124,106,240,0.45)', color:'#7C6AF0' }
+                    : {
+                        background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.40)',
+                        border:     isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.55)',
+                        color:      isDark ? 'rgba(255,255,255,0.40)' : 'rgba(30,34,51,0.45)',
+                      }}
+                >
+                  <Icon size={12} /> {label}
+                </button>
+              );
+            })}
           </div>
-          <p className="text-center text-[10px] text-ink/25 dark:text-white/20 mt-2">
-            Lumi can make mistakes. Double-check important actions.
-          </p>
+
+          {/* Attachment chips */}
+          <AnimatePresence>
+            {attachments.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                className="flex flex-wrap gap-1.5 mb-2 px-1 overflow-hidden"
+              >
+                {attachments.map((a) => (
+                  <div
+                    key={a.name}
+                    className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold"
+                    style={accentBtn}
+                  >
+                    <FileText size={11} />
+                    <span className="max-w-[140px] truncate">{a.name}</span>
+                    <span className="opacity-50">{a.wordCount?.toLocaleString()}w</span>
+                    <button onClick={() => removeAttachment(a.name)} className="opacity-60 hover:opacity-100 transition">
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Input bar */}
+          <div className="relative">
+            <div className="flex items-end gap-1.5 rounded-3xl p-2 pl-2" style={glass}>
+              {/* Attach */}
+              <input
+                ref={fileRef} type="file" accept={ACCEPTED_FILES} className="hidden"
+                onChange={(e) => handleAttach(e.target.files[0])}
+              />
+              <motion.button
+                whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
+                onClick={() => fileRef.current?.click()}
+                disabled={attaching || loading}
+                title="Attach a file — PDF, PPTX, DOCX, TXT, images"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl transition disabled:opacity-40"
+                style={accentBtn}
+              >
+                {attaching
+                  ? <div className="h-4 w-4 rounded-full border-2 border-lavender-300 border-t-lavender-600 animate-spin" />
+                  : <Paperclip size={15} />}
+              </motion.button>
+
+              {/* Textarea */}
+              <textarea
+                ref={inputRef}
+                rows={1}
+                className="flex-1 bg-transparent outline-none resize-none text-sm text-ink dark:text-white placeholder:text-ink/35 dark:placeholder:text-white/30 py-2 px-2 max-h-32"
+                placeholder={
+                  attachments.length > 0
+                    ? 'Ask about the attached file — or just hit send to summarize…'
+                    : mode === 'search'
+                    ? 'Ask Lumi to research anything…'
+                    : mode === 'think'
+                    ? 'Give Lumi a hard problem to think through…'
+                    : 'Ask Lumi anything…'
+                }
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                onKeyDown={handleKey}
+              />
+
+              {/* Settings */}
+              <motion.button
+                whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
+                onClick={() => setSettingsOpen((s) => !s)}
+                title="Lumi settings — tone, length, emoji"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl transition"
+                style={settingsOpen
+                  ? { background:'rgba(124,106,240,0.22)', border:'1px solid rgba(124,106,240,0.50)', color:'#7C6AF0' }
+                  : accentBtn}
+              >
+                <SlidersHorizontal size={15} />
+              </motion.button>
+
+              {/* Send */}
+              <motion.button
+                whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
+                onClick={() => sendMessage()}
+                disabled={(!input.trim() && attachments.length === 0) || loading}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
+              >
+                <Send size={15} />
+              </motion.button>
+            </div>
+
+            <LumiSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} isDark={isDark} />
+          </div>
+
+          {/* Footer — disclaimer left, shortcuts right, same baseline */}
+          <div className="flex items-center justify-between mt-2 px-2">
+            <p className="text-[10px] text-ink/25 dark:text-white/20">
+              Lumi can make mistakes. Double-check important actions.
+            </p>
+            <p className="text-[10px] text-ink/25 dark:text-white/20 font-medium shrink-0">
+              ⏎ send · ⇧⏎ new line
+            </p>
+          </div>
         </div>
       </div>
 
@@ -415,7 +727,11 @@ export default function AITools() {
               initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
               className="absolute top-0 left-0 bottom-0 w-64 p-5"
-              style={{ ...glassDark, borderRadius: '0 2rem 2rem 0' }}
+              style={{
+                ...(isDark ? glassDark : glassLight),
+                background: isDark ? 'rgba(18,14,35,0.95)' : 'rgba(255,255,255,0.95)',
+                borderRadius: '0 2rem 2rem 0',
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               <ConversationList
