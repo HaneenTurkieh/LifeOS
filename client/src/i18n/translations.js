@@ -167,6 +167,16 @@ export const translations = {
       'mood.okay':            'Okay',
       'mood.good':            'Good',
       'mood.great':           'Great',
+      // ── Calendar extras ────────────────────────────────────
+    'calendar.eyebrow':       'Calendar',
+    'calendar.movedTo':       'Moved to {day}!',
+    'calendar.daysAway':      '{n} days away',
+    'calendar.dropTarget':    'Drop target',
+    'calendar.tasksCount':    'tasks',
+    'calendar.addToCalendar': 'Add to calendar',
+    'calendar.category':      'Category',
+    'calendar.titleEmpty':    'Title cannot be empty',
+    'calendar.resetWarning':  'Resetting now will kill your tree',
     },
   
     ar: {
@@ -334,4 +344,14 @@ export const translations = {
       'mood.good':            'جيد',
       'mood.great':           'رائع',
     },
+    // ── إضافات التقويم ──────────────────────────────────────
+    'calendar.eyebrow':       'التقويم',
+    'calendar.movedTo':       'انتقلت إلى {day}!',
+    'calendar.daysAway':      'بعد {n} أيام',
+    'calendar.dropTarget':    'منطقة الإفلات',
+    'calendar.tasksCount':    'مهام',
+    'calendar.addToCalendar': 'إضافة إلى التقويم',
+    'calendar.category':      'التصنيف',
+    'calendar.titleEmpty':    'العنوان لا يمكن أن يكون فارغًا',
+    'calendar.resetWarning':  'إعادة الضبط الآن ستقتل شجرتك',
   };
