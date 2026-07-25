@@ -4,6 +4,7 @@ import { Bell, X, CheckCheck, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 const TYPE_COLORS = {
   overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)'  },
@@ -13,25 +14,26 @@ const TYPE_COLORS = {
   default:  { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.10)' },
 };
 
-function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const m    = Math.floor(diff / 60000);
-  if (m < 1)  return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 export default function NotificationBell() {
-  const navigate               = useNavigate();
-  const panelRef               = useRef(null);
-  const { resolvedTheme }      = useTheme();
-  const isDark                 = resolvedTheme === 'dark';
+  const navigate          = useNavigate();
+  const panelRef          = useRef(null);
+  const { resolvedTheme } = useTheme();
+  const { t }             = useLanguage();
+  const isDark            = resolvedTheme === 'dark';
 
   const [open,          setOpen]          = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unread,        setUnread]        = useState(0);
+
+  const timeAgo = (dateStr) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const m    = Math.floor(diff / 60000);
+    if (m < 1)  return t('notif.justNow');
+    if (m < 60) return t('notif.mAgo', { n: m });
+    const h = Math.floor(m / 60);
+    if (h < 24) return t('notif.hAgo', { n: h });
+    return t('notif.dAgo', { n: Math.floor(h / 24) });
+  };
 
   // ── Theme-aware styles ────────────────────────────────────────
   const panelBg     = isDark ? 'rgba(18,14,35,0.95)'        : 'rgba(255,255,255,0.96)';
@@ -112,7 +114,6 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={panelRef}>
-
       {/* ── Bell button ───────────────────────────────────── */}
       <motion.button
         whileHover={{ scale: 1.08, y: -2 }}
@@ -143,7 +144,7 @@ export default function NotificationBell() {
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{   scale: 0, opacity: 0 }}
-              className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              className="absolute -top-1.5 -end-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
               style={{ background: 'linear-gradient(135deg,#FF7A63,#FF4040)', boxShadow: '0 2px 8px rgba(255,100,64,0.50)' }}
             >
               {unread > 9 ? '9+' : unread}
@@ -152,7 +153,7 @@ export default function NotificationBell() {
         </AnimatePresence>
       </motion.button>
 
-      {/* ── Panel ─────────────────────────────────────────── */}
+      {/* ── Panel — insetInlineEnd anchors it INWARD in both LTR and RTL ── */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -163,7 +164,7 @@ export default function NotificationBell() {
             className="absolute w-80 overflow-hidden rounded-3xl"
             style={{
               top:                  '3rem',
-              right:                0,
+              insetInlineEnd:       0,
               maxWidth:             'calc(100vw - 1.5rem)',
               background:           panelBg,
               backdropFilter:       'blur(40px)',
@@ -182,7 +183,7 @@ export default function NotificationBell() {
             >
               <div className="flex items-center gap-2">
                 <Bell size={14} className="text-lavender-500" />
-                <span className={`font-display font-bold text-sm ${titleClr}`}>Notifications</span>
+                <span className={`font-display font-bold text-sm ${titleClr}`}>{t('notif.title')}</span>
                 {unread > 0 && (
                   <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
                     style={{ background: 'linear-gradient(135deg,#FF7A63,#FF4040)' }}>
@@ -193,7 +194,7 @@ export default function NotificationBell() {
               {unread > 0 && (
                 <button onClick={markAllRead}
                   className="flex items-center gap-1 text-[11px] font-semibold text-lavender-500 hover:underline">
-                  <CheckCheck size={11} /> Mark all read
+                  <CheckCheck size={11} /> {t('notif.markAll')}
                 </button>
               )}
             </div>
@@ -209,8 +210,8 @@ export default function NotificationBell() {
                   >
                     🔔
                   </motion.div>
-                  <p className={`font-semibold text-sm mb-1 ${titleClr}`}>All caught up!</p>
-                  <p className={`text-xs ${bodyClr}`}>No notifications right now.</p>
+                  <p className={`font-semibold text-sm mb-1 ${titleClr}`}>{t('notif.caughtUp')}</p>
+                  <p className={`text-xs ${bodyClr}`}>{t('notif.none')}</p>
                 </div>
               ) : (
                 notifications.map((n, idx) => {
@@ -229,7 +230,6 @@ export default function NotificationBell() {
                     >
                       <div className="mt-1.5 h-2 w-2 rounded-full shrink-0"
                         style={{ backgroundColor: colors.dot }} />
-
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <p className={`text-xs font-semibold leading-snug ${
@@ -251,12 +251,11 @@ export default function NotificationBell() {
                           <span className={`text-[10px] ${timeClr}`}>{timeAgo(n.created_at)}</span>
                           {n.link && (
                             <span className="flex items-center gap-0.5 text-[10px] text-lavender-500 font-medium">
-                              <ExternalLink size={9} /> Open
+                              <ExternalLink size={9} /> {t('notif.open')}
                             </span>
                           )}
                         </div>
                       </div>
-
                       {!n.read && (
                         <div className="mt-2 h-1.5 w-1.5 rounded-full bg-lavender-500 shrink-0" />
                       )}
@@ -273,7 +272,7 @@ export default function NotificationBell() {
                   onClick={clearAll}
                   className={`w-full text-xs font-semibold transition-colors text-center py-1 ${clearClr}`}
                 >
-                  Clear all
+                  {t('notif.clearAll')}
                 </button>
               </div>
             )}
