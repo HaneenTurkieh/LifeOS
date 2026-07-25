@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth }  from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 const DEMO_EMAIL    = 'demo@aurora.app';
 const DEMO_PASSWORD = 'password123';
@@ -18,13 +19,14 @@ export default function Login() {
   const [error,           setError]           = useState('');
   const [submitting,      setSubmitting]      = useState(false);
 
-  const { login, register }   = useAuth();
-  const { resolvedTheme }     = useTheme();
-  const navigate              = useNavigate();
-  const location              = useLocation();
-  const redirectTo            = location.state?.from?.pathname || '/';
-  const isLogin               = mode === 'login';
-  const isDark                = resolvedTheme === 'dark';
+  const { login, register } = useAuth();
+  const { resolvedTheme }   = useTheme();
+  const { t }               = useLanguage();
+  const navigate            = useNavigate();
+  const location            = useLocation();
+  const redirectTo          = location.state?.from?.pathname || '/';
+  const isLogin             = mode === 'login';
+  const isDark              = resolvedTheme === 'dark';
 
   const switchMode = () => { setMode(isLogin ? 'signup' : 'login'); setError(''); };
   const fillDemo   = () => { setMode('login'); setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); setError(''); };
@@ -33,14 +35,14 @@ export default function Login() {
     e.preventDefault();
     if (submitting) return;
     setError('');
-    if (!isLogin && password !== confirmPassword) { setError("Passwords don't match"); return; }
+    if (!isLogin && password !== confirmPassword) { setError(t('login.pwMismatch')); return; }
     setSubmitting(true);
     try {
       isLogin
         ? await login(email.trim(), password)
         : await register(name.trim(), email.trim(), password);
       navigate(redirectTo, { replace: true });
-    } catch (err) { setError(err.message || 'Something went wrong'); }
+    } catch (err) { setError(err.message || t('login.wentWrong')); }
     finally { setSubmitting(false); }
   };
 
@@ -67,16 +69,20 @@ export default function Login() {
   const errorBorder = isDark ? 'rgba(255,122,99,0.25)'               : 'rgba(255,122,99,0.30)';
   const errorClr    = isDark ? '#FCA5A5'                             : '#ef4444';
 
+  // Logical padding: icon side flips automatically in RTL
   const inputStyle = {
     background: inputBg,
     border:     inputBorder,
     color:      inputClr,
     width:      '100%',
     borderRadius: '1rem',
-    padding:    '0.75rem 1rem 0.75rem 2.75rem',
+    paddingBlock: '0.75rem',
+    paddingInlineStart: '2.75rem',
+    paddingInlineEnd:   '1rem',
     fontSize:   '0.875rem',
     outline:    'none',
   };
+  const iconPos = { insetInlineStart: '0.875rem', top: '50%', transform: 'translateY(-50%)', position: 'absolute', color: iconClr };
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10">
@@ -87,7 +93,6 @@ export default function Login() {
         className="relative w-full max-w-sm"
         style={{ background:cardBg, backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)', border:cardBorder, borderRadius:'2rem', boxShadow:cardShadow, padding:'2.5rem 2.25rem' }}
       >
-        {/* Top shimmer */}
         <span className="pointer-events-none absolute inset-x-8 top-0 h-px"
           style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
 
@@ -119,11 +124,11 @@ export default function Login() {
               transition={{ duration:0.2 }}
               style={{ fontFamily:'var(--font-display)', fontSize:'1.4rem', fontWeight:700, color:titleClr }}
             >
-              {isLogin ? 'Welcome back' : 'Create account'}
+              {isLogin ? t('login.welcomeBack') : t('login.createAcct')}
             </motion.h1>
           </AnimatePresence>
           <p className="text-sm mt-1.5" style={{ color:subClr }}>
-            {isLogin ? 'Pick up where you left off.' : 'Start building your second brain.'}
+            {isLogin ? t('login.pickUp') : t('login.startBrain')}
           </p>
         </div>
 
@@ -143,35 +148,35 @@ export default function Login() {
           <AnimatePresence mode="popLayout">
             {!isLogin && (
               <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Full name</label>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.fullName')}</label>
                 <div className="relative">
-                  <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
+                  <User size={15} style={iconPos} />
                   <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                    placeholder="Your name" style={inputStyle} />
+                    placeholder={t('settings.yourName')} style={inputStyle} />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Email</label>
+            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.email')}</label>
             <div className="relative">
-              <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
+              <Mail size={15} style={iconPos} />
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com" style={inputStyle} />
+                placeholder="you@example.com" style={inputStyle} dir="ltr" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Password</label>
+            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.password')}</label>
             <div className="relative">
-              <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
+              <Lock size={15} style={iconPos} />
               <input type={showPassword ? 'text' : 'password'} required value={password}
                 onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={8}
-                style={{ ...inputStyle, paddingRight:'2.75rem' }} />
+                style={{ ...inputStyle, paddingInlineEnd:'2.75rem' }} dir="ltr" />
               <button type="button" onClick={() => setShowPassword(s=>!s)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 transition"
-                style={{ color:iconClr }}>
+                className="absolute top-1/2 -translate-y-1/2 transition"
+                style={{ insetInlineEnd:'0.875rem', color:iconClr }}>
                 {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
               </button>
             </div>
@@ -180,12 +185,12 @@ export default function Login() {
           <AnimatePresence mode="popLayout">
             {!isLogin && (
               <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>Confirm password</label>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.confirmPw')}</label>
                 <div className="relative">
-                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color:iconClr }} />
+                  <Lock size={15} style={iconPos} />
                   <input type={showPassword ? 'text' : 'password'} required value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" minLength={8}
-                    style={inputStyle} />
+                    style={inputStyle} dir="ltr" />
                 </div>
               </motion.div>
             )}
@@ -194,7 +199,7 @@ export default function Login() {
           {isLogin && (
             <Link to="/forgot-password" className="self-end text-xs transition -mt-1"
               style={{ color:linkClr }}>
-              Forgot password?
+              {t('login.forgotPw')}
             </Link>
           )}
 
@@ -204,26 +209,23 @@ export default function Login() {
               background: 'linear-gradient(135deg,#9B8AFF 0%,#7C6AF0 50%,#5B47E0 100%)',
               boxShadow:  '0 8px 28px rgba(124,106,240,0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
             }}>
-            {submitting ? <Loader2 size={16} className="animate-spin"/> : isLogin ? 'Sign in' : 'Create account'}
+            {submitting ? <Loader2 size={16} className="animate-spin"/> : isLogin ? t('login.signIn') : t('login.createAcct')}
           </motion.button>
         </form>
 
-        {/* Demo */}
         <button onClick={fillDemo} type="button"
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-2.5 text-[11px] font-medium transition"
           style={{ background:demoBg, border:demoBorder, color:demoClr }}>
-          <Sparkles size={11}/> Try the demo account
+          <Sparkles size={11}/> {t('login.demo')}
         </button>
 
-        {/* Switch */}
         <p className="text-center text-xs mt-5" style={{ color:switchClr }}>
-          {isLogin ? 'New to Aurora? ' : 'Already have an account? '}
+          {isLogin ? t('login.newTo') : t('login.already')}
           <button type="button" onClick={switchMode} className="font-bold transition" style={{ color:switchBold }}>
-            {isLogin ? 'Sign up' : 'Log in'}
+            {isLogin ? t('login.signUp') : t('login.logIn')}
           </button>
         </p>
 
-        {/* Bottom shimmer */}
         <span className="pointer-events-none absolute inset-x-8 bottom-0 h-px"
           style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
       </motion.div>
