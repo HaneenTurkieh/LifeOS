@@ -505,8 +505,9 @@ export default function AITools() {
             </button>
           </div>
 
-          {/* Desktop — new chat + panel toggle (always clearly visible) */}
-          <div className="hidden lg:flex items-center gap-2 ml-auto">
+          {/* Desktop — new chat + panel toggle (top-LEFT, so it never
+              collides with the global search + bell in the top-right) */}
+          <div className="hidden lg:flex items-center gap-2">
             {!isFirstMessage && (
               <button
                 onClick={startNew}
