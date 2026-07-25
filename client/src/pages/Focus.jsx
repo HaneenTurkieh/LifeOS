@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, RotateCcw, Plus, LogOut } from 'lucide-react';
 import { api } from '../api/client.js';
@@ -48,31 +48,120 @@ const TREE_EMOJIS = {
   cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
   pine:           '🌲', crystal: '✨',
 };
+const DEAD_EMOJI = '🥀';
 
+// XP rate — must match server (2 XP per 5 minutes)
+const xpFor = (min) => Math.floor(min / 5) * 2;
 
-
+function fmtForestDay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date  = new Date(y, m - 1, d);
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  if (isToday) return 'Today';
+  if (date.toDateString() === yest.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
 
 export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
-
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
     taskName, dots, startedAt, congrats, stats, board, room,
     setTaskName, setRoom, setCongrats,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
   } = useFocus();
-  const [equippedTree, setEquippedTree] = useState('seedling');
 
-useEffect(() => {
-  api.get('/trees')
-    .then((d) => setEquippedTree(d.equipped || 'seedling'))
-    .catch(() => {});
-}, []);
+  const [equippedTree, setEquippedTree] = useState('seedling');
+  useEffect(() => {
+    api.get('/trees')
+      .then((d) => setEquippedTree(d.equipped || 'seedling'))
+      .catch(() => {});
+  }, []);
 
   const [tab,       setTab]       = useState('timer');
   const [roomModal, setRoomModal] = useState(false);
   const [roomForm,  setRoomForm]  = useState({ tab: 'join', name: '', code: '', password: '' });
+  const [forest,    setForest]    = useState(null);
+  const [liveRoom,  setLiveRoom]  = useState(null);   // fresh room data from polling
+  const lastTimerStartRef = useRef(null);
+  const isRunningRef      = useRef(isRunning);
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+
+  // ── Forest data ───────────────────────────────────────────
+  const loadForest = () => api.get('/focus/forest').then(setForest).catch(() => {});
+  useEffect(() => { if (tab === 'forest') loadForest(); }, [tab]);
+
+  // ── Room polling: live members + synced timer auto-start ──
+  useEffect(() => {
+    if (!room) { setLiveRoom(null); return; }
+    let active = true;
+
+    const poll = async () => {
+      try {
+        const d = await api.get(`/focus/rooms/${room.code}`);
+        if (!active) return;
+        setLiveRoom(d);
+
+        // Forest-style sync: when the host starts the shared timer,
+        // every member's local timer starts automatically.
+        const t = d.timer;
+        if (t?.running && t.started_at && lastTimerStartRef.current !== t.started_at) {
+          lastTimerStartRef.current = t.started_at;
+          if (!isRunningRef.current && t.remaining_seconds > 20) {
+            const mins = Math.max(1, Math.round(t.duration_seconds / 60));
+            if (mode !== 'focus') handleModeClick('focus');
+            setDuration(mins);
+            setTimeout(() => { if (!isRunningRef.current) toggleTimer(); }, 150);
+            toast.success(`⏱ ${d.name}: host started a ${mins}-minute session — you're in!`);
+          }
+        }
+      } catch (_) {}
+    };
+
+    poll();
+    const iv = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(iv); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room]);
+
+  const displayRoom = liveRoom
+    ? { ...room, ...liveRoom }
+    : room;
+  const isHost = displayRoom?.host_id != null && Number(displayRoom.host_id) === Number(user?.id);
+
+  const startForEveryone = async () => {
+    if (!room) return;
+    const mins = customMin.focus || 25;
+    try {
+      await api.post(`/focus/rooms/${room.code}/timer/start`, { duration_minutes: mins, mode: 'focus' });
+      toast.success(`🚀 Started a ${mins}-minute session for the whole room!`);
+      if (!isRunning) {
+        if (mode !== 'focus') handleModeClick('focus');
+        setDuration(mins);
+        setTimeout(() => { if (!isRunningRef.current) toggleTimer(); }, 150);
+      }
+      setTab('timer');
+    } catch (err) { toast.error(err.message); }
+  };
+
+  // ── Quit while running = your tree dies 🥀 ────────────────
+  const handleReset = async () => {
+    const elapsedMin = Math.floor((totalTime - timeLeft) / 60);
+    if (isRunning && mode === 'focus' && elapsedMin >= 1) {
+      try {
+        await api.post('/focus/sessions/abandon', {
+          task_name: taskName || 'Focus Session',
+          duration_minutes: elapsedMin,
+        });
+        toast.error('🥀 Your tree died! Finish sessions to grow your land.');
+        if (forest) loadForest();
+      } catch (_) {}
+    }
+    resetTimer();
+  };
 
   const handleRoomSubmit = async (e) => {
     e.preventDefault();
@@ -96,6 +185,7 @@ useEffect(() => {
     if (!room) return;
     try { await api.del(`/focus/rooms/${room.code}/leave`); } catch (_) {}
     setRoom(null);
+    setLiveRoom(null);
     toast.success('Left the room');
   };
 
@@ -113,19 +203,22 @@ useEffect(() => {
   const TABS_NAV = [
     { key: 'timer',       label: 'Timer',                               icon: '⏱' },
     { key: 'room',        label: room ? `Room · ${room.code}` : 'Room', icon: '👥' },
+    { key: 'forest',      label: 'My Land',                             icon: '🌳' },
     { key: 'leaderboard', label: 'Rankings',                            icon: '🏆' },
   ];
+
+  const memberList = displayRoom?.members || [];
 
   return (
     <div>
       <PageHeader
         eyebrow="Flow"
         title="Enter your flow state"
-        subtitle="Deep work timer · Study rooms · Weekly rankings."
+        subtitle="Deep work timer · Study rooms · Your forest · Weekly rankings."
       />
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl" style={lg()}>
+      <div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl flex-wrap" style={lg()}>
         {TABS_NAV.map(({ key, label, icon }) => (
           <motion.button
             key={key}
@@ -155,10 +248,8 @@ useEffect(() => {
       {/* ── TIMER TAB ─────────────────────────────────────── */}
       {tab === 'timer' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
           {/* Main card */}
           <div className="lg:col-span-2 flex flex-col items-center py-10 px-8" style={cardGlass}>
-
             {/* Mode pills */}
             <div className="flex gap-2 mb-8 flex-wrap justify-center">
               {Object.entries(MODES).map(([key, m]) => (
@@ -212,50 +303,64 @@ useEffect(() => {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
-  {/* Equipped tree — floats above the timer */}
-  <motion.div
-    key={equippedTree}
-    animate={isRunning
-      ? { y: [0, -5, 0], scale: [1, 1.05, 1] }
-      : { y: [0, -3, 0] }
-    }
-    transition={{ duration: isRunning ? 2 : 3.5, repeat: Infinity, ease: 'easeInOut' }}
-    className="text-4xl mb-1 select-none"
-    style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
-  >
-    {TREE_EMOJIS[equippedTree] || '🌱'}
-  </motion.div>
-
-  {/* Timer digits */}
-  <span
-    className="font-display tabular-nums leading-none text-ink dark:text-white"
-    style={{ fontSize: 52, fontWeight: 700 }}
-  >
-    {mm}:{ss}
-  </span>
-
-  {/* Mode label */}
-  <span className="text-xs font-medium mt-1.5" style={{ color: modeColor }}>
-    {MODES[mode].label}
-  </span>
-
-  {/* Session dots */}
-  {dots > 0 && (
-    <div className="flex gap-1.5 mt-3">
-      {Array.from({ length: Math.min(dots, 8) }).map((_, i) => (
-        <motion.div
-          key={i}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-          className="h-2 w-2 rounded-full"
-          style={{ backgroundColor: modeColor, boxShadow: `0 0 4px ${modeColor}` }}
-        />
-      ))}
-    </div>
-  )}
-</div>
+                {/* Equipped tree — floats above the timer */}
+                <motion.div
+                  key={equippedTree}
+                  animate={isRunning
+                    ? { y: [0, -5, 0], scale: [1, 1.05, 1] }
+                    : { y: [0, -3, 0] }
+                  }
+                  transition={{ duration: isRunning ? 2 : 3.5, repeat: Infinity, ease: 'easeInOut' }}
+                  className="text-4xl mb-1 select-none"
+                  style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
+                >
+                  {TREE_EMOJIS[equippedTree] || '🌱'}
+                </motion.div>
+                {/* Timer digits */}
+                <span
+                  className="font-display tabular-nums leading-none text-ink dark:text-white"
+                  style={{ fontSize: 52, fontWeight: 700 }}
+                >
+                  {mm}:{ss}
+                </span>
+                {/* Mode label */}
+                <span className="text-xs font-medium mt-1.5" style={{ color: modeColor }}>
+                  {MODES[mode].label}
+                </span>
+                {/* XP for this session */}
+                {mode === 'focus' && xpFor(Math.round(totalTime / 60)) > 0 && (
+                  <span className="text-[10px] font-bold mt-1" style={{ color: '#7C6AF0' }}>
+                    ✨ +{xpFor(Math.round(totalTime / 60))} XP on completion
+                  </span>
+                )}
+                {/* Session dots */}
+                {dots > 0 && (
+                  <div className="flex gap-1.5 mt-3">
+                    {Array.from({ length: Math.min(dots, 8) }).map((_, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: modeColor, boxShadow: `0 0 4px ${modeColor}` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Warning while running — quitting kills the tree */}
+            <AnimatePresence>
+              {isRunning && mode === 'focus' && (
+                <motion.p
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="text-[11px] mt-2 font-medium" style={{ color: 'rgba(255,122,99,0.75)' }}>
+                  🥀 Resetting now will kill your tree
+                </motion.p>
+              )}
+            </AnimatePresence>
 
             {/* Task name */}
             <input
@@ -269,11 +374,10 @@ useEffect(() => {
             {/* Controls */}
             <div className="flex items-center gap-5">
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
-                onClick={resetTimer}
+                onClick={handleReset}
                 className="flex h-11 w-11 items-center justify-center rounded-2xl" style={lg()}>
                 <RotateCcw size={16} className="text-ink/50 dark:text-white/40" />
               </motion.button>
-
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 onClick={toggleTimer}
                 className="flex h-[76px] w-[76px] items-center justify-center rounded-full"
@@ -286,7 +390,6 @@ useEffect(() => {
                 }}>
                 {isRunning ? <Pause size={26} className="text-white" /> : <Play size={26} className="text-white ml-1" />}
               </motion.button>
-
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
                 onClick={addMinute}
                 className="flex items-center gap-1 h-11 px-3.5 rounded-2xl text-xs font-bold"
@@ -295,7 +398,7 @@ useEffect(() => {
               </motion.button>
             </div>
 
-            {/* Duration picker */}
+            {/* Duration picker — now shows XP per option */}
             <div className="mt-8 pt-6 w-full" style={{ borderTop: '1px solid rgba(255,255,255,0.30)' }}>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-center mb-3"
                 style={{ color: 'rgba(30,34,51,0.30)' }}>Duration</p>
@@ -306,10 +409,15 @@ useEffect(() => {
                     onClick={() => setDuration(min)} disabled={isRunning}
                     className="px-4 py-1.5 rounded-xl text-xs font-semibold transition disabled:opacity-40"
                     style={lg({ color: modeColor, active: customMin[mode] === min })}>
-                    {min}m
+                    {min}m{mode === 'focus' && <span className="opacity-60"> · {xpFor(min)}xp</span>}
                   </motion.button>
                 ))}
               </div>
+              {mode === 'focus' && (
+                <p className="text-[10px] text-center mt-3 font-medium" style={{ color: 'rgba(124,106,240,0.65)' }}>
+                  ✨ You earn 2 XP for every 5 minutes of focus
+                </p>
+              )}
             </div>
           </div>
 
@@ -320,12 +428,21 @@ useEffect(() => {
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-4"
                   style={{ color: 'rgba(30,34,51,0.38)' }}>This Week</p>
                 <div className="grid grid-cols-2 gap-3">
-                  {[{ val: stats.total_minutes, label: 'minutes' }, { val: stats.sessions, label: 'sessions' }].map(({ val, label }) => (
+                  {[
+                    { val: stats.total_minutes, label: 'minutes' },
+                    { val: stats.sessions, label: 'sessions' },
+                  ].map(({ val, label }) => (
                     <div key={label} className="rounded-2xl p-3 text-center" style={lg()}>
                       <p className="font-display text-2xl font-bold text-ink dark:text-white">{val}</p>
                       <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">{label}</p>
                     </div>
                   ))}
+                </div>
+                <div className="mt-3 rounded-2xl px-3 py-2 text-center"
+                  style={{ background: 'rgba(124,106,240,0.08)', border: '1px solid rgba(124,106,240,0.15)' }}>
+                  <p className="text-xs font-bold" style={{ color: '#7C6AF0' }}>
+                    ✨ ~{xpFor(stats.total_minutes)} XP earned from focus this week
+                  </p>
                 </div>
               </div>
             )}
@@ -334,9 +451,9 @@ useEffect(() => {
               <div className="rounded-3xl p-5" style={lg({ color: MODES.focus.color, active: true })}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-semibold text-ink dark:text-white text-sm">{room.name}</p>
+                    <p className="font-semibold text-ink dark:text-white text-sm">{displayRoom.name}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
-                      Code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{room.code}</span>
+                      Code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{displayRoom.code}</span>
                     </p>
                   </div>
                   <button onClick={leaveRoom} className="text-ink/30 hover:text-coral-500 transition">
@@ -344,7 +461,7 @@ useEffect(() => {
                   </button>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  {room.members?.slice(0, 4).map((m) => (
+                  {memberList.slice(0, 4).map((m) => (
                     <div key={m.user_id} className="flex items-center gap-2">
                       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15'}`} />
                       <span className="text-xs text-ink/65 dark:text-white/55 flex-1 truncate">{m.display_name}</span>
@@ -352,6 +469,14 @@ useEffect(() => {
                     </div>
                   ))}
                 </div>
+                {isHost && (
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={startForEveryone}
+                    className="mt-3 w-full rounded-2xl py-2.5 text-xs font-bold text-white"
+                    style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
+                    ▶ Start {customMin.focus}m for everyone
+                  </motion.button>
+                )}
                 <button onClick={() => setTab('room')} className="mt-3 text-xs font-semibold hover:underline"
                   style={{ color: modeColor }}>
                   View room →
@@ -364,7 +489,7 @@ useEffect(() => {
                   <span className="text-lg">👥</span>
                   <p className="font-semibold text-ink dark:text-white text-sm">Study Room</p>
                 </div>
-                <p className="text-xs text-ink/45 dark:text-white/35">Focus with friends. Shared leaderboard inside.</p>
+                <p className="text-xs text-ink/45 dark:text-white/35">Focus with friends. Host starts one synced timer for everyone.</p>
               </motion.button>
             )}
 
@@ -396,9 +521,9 @@ useEffect(() => {
             <div className="rounded-3xl p-7" style={cardGlass}>
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h2 className="font-display font-bold text-ink dark:text-white text-xl">{room.name}</h2>
+                  <h2 className="font-display font-bold text-ink dark:text-white text-xl">{displayRoom.name}</h2>
                   <p className="text-sm mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
-                    Share code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{room.code}</span>
+                    Share code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{displayRoom.code}</span>
                   </p>
                 </div>
                 <button onClick={leaveRoom}
@@ -406,18 +531,67 @@ useEffect(() => {
                   <LogOut size={14} /> Leave
                 </button>
               </div>
-              {room.members?.length === 0 ? (
+
+              {/* Shared timer status / host controls */}
+              <div className="rounded-2xl px-5 py-4 mb-5" style={lg({ color: modeColor, active: true })}>
+                {displayRoom.timer?.running ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-ink dark:text-white">
+                        ⏱ Synced session in progress
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>
+                        {Math.ceil((displayRoom.timer.remaining_seconds || 0) / 60)} min remaining — everyone's timers are running together
+                      </p>
+                    </div>
+                    {isHost && (
+                      <button
+                        onClick={async () => {
+                          try { await api.post(`/focus/rooms/${room.code}/timer/stop`); toast.success('Shared timer stopped'); }
+                          catch (err) { toast.error(err.message); }
+                        }}
+                        className="text-xs font-bold shrink-0 rounded-xl px-3 py-2" style={lg()}>
+                        Stop
+                      </button>
+                    )}
+                  </div>
+                ) : isHost ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-ink dark:text-white">You're the host 👑</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>
+                        Start one timer and every member's timer starts with it — like Forest.
+                      </p>
+                    </div>
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+                      onClick={startForEveryone}
+                      className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-bold text-white"
+                      style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
+                      ▶ Start {customMin.focus}m
+                    </motion.button>
+                  </div>
+                ) : (
+                  <p className="text-xs" style={{ color: 'rgba(30,34,51,0.50)' }}>
+                    ⏳ Waiting for the host to start a synced session. Your timer will start automatically.
+                  </p>
+                )}
+              </div>
+
+              {memberList.length === 0 ? (
                 <p className="text-sm text-ink/40 text-center py-8">Waiting for others to join…</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {room.members.map((m) => (
+                  {memberList.map((m) => (
                     <div key={m.user_id} className="flex items-center gap-3 rounded-2xl px-4 py-3" style={lg()}>
                       <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-xs font-bold shrink-0"
                         style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}88 100%)` }}>
                         {m.display_name?.[0]?.toUpperCase() || '?'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink dark:text-white truncate">{m.display_name}</p>
+                        <p className="text-sm font-medium text-ink dark:text-white truncate">
+                          {m.display_name}
+                          {Number(displayRoom.host_id) === Number(m.user_id) && ' 👑'}
+                        </p>
                         <p className="text-xs text-ink/40">{m.focus_minutes} min focused</p>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -432,16 +606,15 @@ useEffect(() => {
               )}
             </div>
           ) : (
-            // ── Apple-style empty state for Room tab ──────────
             <EmptyState
               illustration={<span className="text-6xl">👥</span>}
               title="Study together, achieve more"
-              description="Create a private room with a password and share the code with friends. Everyone's focus time appears on a shared leaderboard inside the room."
+              description="Create a private room with a password and share the code with friends. The host starts one timer and everyone's timer runs together — like Forest."
               features={[
                 { icon: '🔒', text: 'Private rooms — password protected, invite only' },
+                { icon: '⏱', text: 'Synced pomodoro — host starts, everyone focuses together' },
                 { icon: '📡', text: 'Live presence — see who\'s focusing right now' },
                 { icon: '🏆', text: 'Room leaderboard tracks minutes focused this week' },
-                { icon: '🎯', text: 'Accountability makes you stay focused longer' },
               ]}
               action={
                 <button className="btn-primary w-full justify-center" onClick={() => setRoomModal(true)}>
@@ -454,11 +627,81 @@ useEffect(() => {
         </div>
       )}
 
+      {/* ── FOREST / MY LAND TAB ──────────────────────────── */}
+      {tab === 'forest' && (
+        <div className="max-w-3xl">
+          {!forest || (forest.days.length === 0) ? (
+            <EmptyState
+              illustration={<span className="text-6xl">🌳</span>}
+              title="Your land is waiting"
+              description="Every completed focus session plants your equipped tree here. Quit a session halfway and the tree dies — so stay focused!"
+              features={[
+                { icon: '🌱', text: 'Finish a session → a living tree is planted on your land' },
+                { icon: '🥀', text: 'Quit mid-session → a dead tree marks the spot' },
+                { icon: '📅', text: 'Trees are grouped day by day — watch your forest grow' },
+                { icon: '🛍', text: 'Change which tree you plant in the Tree Shop' },
+              ]}
+              action={
+                <button className="btn-primary w-full justify-center" onClick={() => setTab('timer')}>
+                  Plant your first tree →
+                </button>
+              }
+              tip="Even a 15-minute session plants a tree"
+            />
+          ) : (
+            <div className="flex flex-col gap-4">
+              {/* Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { val: forest.stats.total_alive,   label: 'trees alive',   icon: '🌳' },
+                  { val: forest.stats.total_dead,    label: 'trees died',    icon: '🥀' },
+                  { val: forest.stats.today_planted, label: 'planted today', icon: '☀️' },
+                  { val: `${Math.round(forest.stats.total_minutes / 60 * 10) / 10}h`, label: 'total focus', icon: '⏱' },
+                ].map(({ val, label, icon }) => (
+                  <div key={label} className="rounded-2xl p-4 text-center" style={lg()}>
+                    <p className="text-xl mb-1">{icon}</p>
+                    <p className="font-display text-xl font-bold text-ink dark:text-white">{val}</p>
+                    <p className="text-[11px] text-ink/40 dark:text-white/35">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Day-by-day land */}
+              {forest.days.map((day) => (
+                <div key={day.date} className="rounded-3xl p-5" style={lg()}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-bold text-ink dark:text-white">{fmtForestDay(day.date)}</p>
+                    <p className="text-[11px] text-ink/35 dark:text-white/30">
+                      {day.trees.filter(t => t.status === 'alive').length} 🌳 · {day.trees.filter(t => t.status === 'dead').length} 🥀
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {day.trees.map((t, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ scale: 0 }} animate={{ scale: 1 }}
+                        transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
+                        className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
+                        title={`${t.task_name || 'Focus'} · ${t.duration_minutes}m`}
+                        style={t.status === 'dead'
+                          ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
+                          : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
+                      >
+                        {t.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[t.tree_key] || '🌳')}
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── LEADERBOARD TAB ───────────────────────────────── */}
       {tab === 'leaderboard' && (
         <div className="max-w-2xl">
           {board.length === 0 ? (
-            // ── Apple-style empty state for Leaderboard ───────
             <EmptyState
               illustration={<span className="text-6xl">🏆</span>}
               title="The rankings start with you"
@@ -562,23 +805,25 @@ useEffect(() => {
                 animate={{ y: [0, -8, 0], rotate: [0, -5, 5, -3, 0] }}
                 transition={{ duration: 0.7, ease: 'easeOut' }}
                 className="text-6xl mb-4">🎉</motion.div>
-<div className="flex items-center justify-center gap-2 mb-1">
-  <motion.span
-    animate={{ rotate: [-10, 10, -10] }}
-    transition={{ duration: 0.5, repeat: 2 }}
-    className="text-3xl"
-  >
-    {TREE_EMOJIS[equippedTree] || '🌱'}
-  </motion.span>
-  <h2 className="font-display text-2xl font-bold text-ink dark:text-white">Session Complete!</h2>
-  <motion.span
-    animate={{ rotate: [10, -10, 10] }}
-    transition={{ duration: 0.5, repeat: 2 }}
-    className="text-3xl"
-  >
-    {TREE_EMOJIS[equippedTree] || '🌱'}
-  </motion.span>
-</div>              <p className="text-ink/50 mb-3">{congrats.minutes} min of focused work.</p>
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <motion.span
+                  animate={{ rotate: [-10, 10, -10] }}
+                  transition={{ duration: 0.5, repeat: 2 }}
+                  className="text-3xl"
+                >
+                  {TREE_EMOJIS[equippedTree] || '🌱'}
+                </motion.span>
+                <h2 className="font-display text-2xl font-bold text-ink dark:text-white">Session Complete!</h2>
+                <motion.span
+                  animate={{ rotate: [10, -10, 10] }}
+                  transition={{ duration: 0.5, repeat: 2 }}
+                  className="text-3xl"
+                >
+                  {TREE_EMOJIS[equippedTree] || '🌱'}
+                </motion.span>
+              </div>
+              <p className="text-ink/50 mb-1">{congrats.minutes} min of focused work.</p>
+              <p className="text-xs text-sage-600 font-semibold mb-3">🌳 A tree was planted on your land!</p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
                   style={lg({ color: '#7C6AF0', active: true })}>

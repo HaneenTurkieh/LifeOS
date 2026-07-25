@@ -1,9 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
-  Eye, EyeOff, X, ChevronRight,
+  Eye, EyeOff, X, ChevronRight, Crown, Snowflake,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -75,7 +75,6 @@ function ProfileTab() {
     const [,m,d] = birthday.split('-');
     return Number(m)===today.getMonth()+1 && Number(d)===today.getDate();
   })();
-
   const age = birthday ? new Date().getFullYear() - Number(birthday.split('-')[0]) : null;
 
   return (
@@ -263,6 +262,125 @@ function AppearanceTab() {
   );
 }
 
+// ── Premium tab ───────────────────────────────────────────────
+function PremiumTab() {
+  const toast = useToast();
+  const [status,  setStatus]  = useState(null);   // { is_premium, freeze_date }
+  const [busy,    setBusy]    = useState(false);
+
+  const load = useCallback(() => {
+    api.get('/focus/premium/status').then(setStatus).catch(() => setStatus({ is_premium:false, freeze_date:null }));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      const next = await api.post('/focus/premium/toggle', {});
+      setStatus(next);
+      toast.success(next.is_premium ? '👑 Premium activated!' : 'Premium turned off');
+    } catch (err) { toast.error(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const pause = async () => {
+    setBusy(true);
+    try {
+      const res = await api.post('/focus/premium/pause', {});
+      setStatus(s => ({ ...s, freeze_date: res.freeze_date }));
+      toast.success('❄️ Streak frozen for today — your streak is safe!');
+    } catch (err) { toast.error(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const today       = new Date().toISOString().slice(0, 10);
+  const frozenToday = status?.freeze_date === today;
+
+  const PERKS = [
+    { icon: '❄️', title: 'Streak pause',           desc: 'Freeze your streak for a day — like Duolingo',      live: true  },
+    { icon: '🎨', title: 'Custom themes',           desc: 'Exclusive color themes for Aurora',                 live: false },
+    { icon: '📚', title: 'Unlimited exam history',  desc: 'Keep every generated exam forever',                 live: false },
+  ];
+
+  if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">Loading…</p>;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Status card */}
+      <div className="rounded-2xl p-5 text-center"
+        style={status.is_premium
+          ? { background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgba(124,106,240,0.10))', border:'1px solid rgba(255,184,77,0.35)' }
+          : { background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+        <Crown size={28} className={`mx-auto mb-2 ${status.is_premium ? 'text-sun-500' : 'text-ink/25 dark:text-white/20'}`}/>
+        <p className="font-display font-bold text-ink dark:text-white">
+          {status.is_premium ? 'Aurora Premium' : 'Aurora Free'}
+        </p>
+        <p className="text-xs text-ink/45 dark:text-white/35 mt-1">
+          {status.is_premium
+            ? 'All premium perks unlocked. Thanks for the support! 💜'
+            : 'Unlock streak pause, custom themes, and unlimited exam history.'}
+        </p>
+        <button onClick={toggle} disabled={busy}
+          className={`mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40 ${
+            status.is_premium ? '' : 'text-white'
+          }`}
+          style={status.is_premium
+            ? { background:'rgba(30,34,51,0.05)', border:'1px solid rgba(30,34,51,0.10)', color:'rgba(30,34,51,0.55)' }
+            : { background:'linear-gradient(135deg,#FFB84D,#7C6AF0)', boxShadow:'0 4px 14px rgba(255,184,77,0.35)' }}>
+          {busy ? '…' : status.is_premium ? 'Switch back to Free' : '👑 Try Premium (free for now)'}
+        </button>
+      </div>
+
+      {/* Streak pause */}
+      <div className="rounded-2xl p-4"
+        style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.18)' }}>
+        <div className="flex items-start gap-3">
+          <Snowflake size={18} className="text-blue-400 shrink-0 mt-0.5"/>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-ink dark:text-white">Pause streak</p>
+            <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">
+              Can't do your habits today? Freeze today so your streak survives.
+            </p>
+            {frozenToday ? (
+              <p className="mt-2 text-xs font-bold text-blue-500">❄️ Frozen for today — you're covered!</p>
+            ) : (
+              <button onClick={pause} disabled={busy || !status.is_premium}
+                className="mt-2.5 rounded-xl px-4 py-2 text-xs font-bold transition disabled:opacity-40"
+                style={{ background:'rgba(96,165,250,0.14)', border:'1px solid rgba(96,165,250,0.30)', color:'#3B82F6' }}>
+                {status.is_premium ? '❄️ Freeze my streak for today' : '🔒 Premium only'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Perks list */}
+      <div className="flex flex-col gap-2">
+        {PERKS.map(p => (
+          <div key={p.title} className="flex items-center gap-3 rounded-2xl px-4 py-3"
+            style={{ background:'rgba(255,255,255,0.45)', border:'1px solid rgba(255,255,255,0.60)' }}>
+            <span className="text-xl shrink-0">{p.icon}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-ink dark:text-white">{p.title}</p>
+              <p className="text-[11px] text-ink/40 dark:text-white/30">{p.desc}</p>
+            </div>
+            <span className="text-[10px] font-bold shrink-0 rounded-full px-2 py-1"
+              style={p.live
+                ? { background:'rgba(76,195,138,0.12)', color:'#2DA76E' }
+                : { background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
+              {p.live ? 'LIVE' : 'SOON'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">
+        No payment needed yet — Premium is a free preview while Aurora grows.
+      </p>
+    </div>
+  );
+}
+
 // ── Feedback tab ──────────────────────────────────────────────
 function FeedbackTab() {
   const { user } = useAuth();
@@ -362,6 +480,7 @@ const NAV_ITEMS = [
   { key:'profile',    label:'Profile',     icon:User          },
   { key:'account',    label:'Account',     icon:Lock          },
   { key:'appearance', label:'Appearance',  icon:Palette       },
+  { key:'premium',    label:'Premium',     icon:Crown         },
   { key:'feedback',   label:'Feedback',    icon:MessageSquare },
   { key:'danger',     label:'Danger',      icon:Trash2        },
 ];
@@ -386,7 +505,6 @@ export default function SettingsModal({ open, onClose }) {
   return (
     <Modal open={open} onClose={closeAndReset} title="Settings" maxWidth="max-w-xl">
       <div className="flex flex-col lg:flex-row -mx-6 -mb-6 mt-2" style={{ minHeight:400 }}>
-
         {/* ── Mobile: horizontal tab bar ── Desktop: sidebar ── */}
         <div
           className="flex lg:flex-col lg:w-40 shrink-0 overflow-x-auto lg:overflow-x-visible py-2 lg:py-3 px-2 lg:rounded-bl-3xl"
@@ -399,7 +517,6 @@ export default function SettingsModal({ open, onClose }) {
               {user?.name?.split(' ')[0]}
             </p>
           </div>
-
           {/* Nav items */}
           <div className="flex lg:flex-col gap-1 lg:gap-0.5 flex-nowrap">
             {NAV_ITEMS.map(({ key, label, icon:Icon }) => (
@@ -418,7 +535,6 @@ export default function SettingsModal({ open, onClose }) {
               </button>
             ))}
           </div>
-
           <p className={`hidden lg:block text-[10px] text-center pb-3 mt-auto ${isDark?'text-white/15':'text-ink/20'}`}>
             © {new Date().getFullYear()} Haneen
           </p>
@@ -434,6 +550,7 @@ export default function SettingsModal({ open, onClose }) {
               {tab==='profile'    && <ProfileTab/>}
               {tab==='account'    && <AccountTab/>}
               {tab==='appearance' && <AppearanceTab/>}
+              {tab==='premium'    && <PremiumTab/>}
               {tab==='feedback'   && <FeedbackTab/>}
               {tab==='danger'     && <DangerTab onClose={closeAndReset}/>}
             </motion.div>
