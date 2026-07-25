@@ -59,4 +59,17 @@ export function LanguageProvider({ children }) {
   );
 }
 
-export const useLanguage = () => useContext(LanguageContext);
+// Safe fallback: if the provider isn't mounted (or during hot-reload),
+// return working English defaults instead of crashing the whole app.
+const FALLBACK = {
+  lang: 'en',
+  isRTL: false,
+  setLang: () => {},
+  t: (key, vars) => {
+    let str = translations.en[key] ?? key;
+    if (vars) for (const [k, v] of Object.entries(vars)) str = str.replaceAll(`{${k}}`, v);
+    return str;
+  },
+};
+
+export const useLanguage = () => useContext(LanguageContext) || FALLBACK;

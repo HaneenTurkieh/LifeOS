@@ -8,26 +8,31 @@ import {
   GraduationCap, CalendarDays,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
+// Labels are translation keys — resolved with t() at render time
 const NAV = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/history',   icon: Clock,           label: 'History'   },
-  { to: '/tasks',     icon: ListChecks,      label: 'Tasks'     },
-  { to: '/calendar',  icon: CalendarDays,    label: 'Calendar'  },
-  { to: '/goals',     icon: Target,          label: 'Goals'     },
-  { to: '/learning',  icon: Timer,           label: 'Flow'      },
-  { to: '/ai',        icon: Sparkles,        label: 'Lumi AI'   },
-  { to: '/exam',      icon: GraduationCap,   label: 'Exam AI'   },
-  { to: '/analytics', icon: BarChart3,       label: 'Analytics' },
-  { to: '/launchpad', icon: Rocket,          label: 'Launchpad' },
-  { to: '/trees',     icon: TreePine,        label: 'Tree Shop' },
+  { to: '/',          icon: LayoutDashboard, label: 'nav.dashboard' },
+  { to: '/history',   icon: Clock,           label: 'nav.history'   },
+  { to: '/tasks',     icon: ListChecks,      label: 'nav.tasks'     },
+  { to: '/calendar',  icon: CalendarDays,    label: 'nav.calendar'  },
+  { to: '/goals',     icon: Target,          label: 'nav.goals'     },
+  { to: '/learning',  icon: Timer,           label: 'nav.flow'      },
+  { to: '/ai',        icon: Sparkles,        label: 'nav.lumi'      },
+  { to: '/exam',      icon: GraduationCap,   label: 'nav.exam'      },
+  { to: '/analytics', icon: BarChart3,       label: 'nav.analytics' },
+  { to: '/launchpad', icon: Rocket,          label: 'nav.launchpad' },
+  { to: '/trees',     icon: TreePine,        label: 'nav.treeshop'  },
 ];
 
 function NavTooltip({ label }) {
   return (
     <span
       className="pointer-events-none absolute whitespace-nowrap rounded-xl bg-ink/90 dark:bg-black/90 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
-      style={{ left: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
+      // insetInlineStart is a CSS *logical* property: it means "left" in
+      // LTR and "right" in RTL, so the tooltip always points toward the
+      // page content no matter which side the sidebar sits on.
+      style={{ insetInlineStart: '3.25rem', top: '50%', transform: 'translateY(-50%)', zIndex: 9999 }}
     >
       {label}
     </span>
@@ -41,6 +46,7 @@ const hoverCard = {
 
 export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { t } = useLanguage();
 
   return (
     <aside
@@ -53,7 +59,7 @@ export default function Sidebar() {
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
 
-        {/* ✦ Logo mark — replaces TreePine */}
+        {/* ✦ Logo mark */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
@@ -90,7 +96,6 @@ export default function Sidebar() {
                       style={{ boxShadow: '0 8px 24px rgba(124,92,255,0.5)' }}
                     />
                   )}
-
                   <motion.span
                     whileHover={!isActive ? {
                       y: -4, scale: 1.18,
@@ -117,8 +122,7 @@ export default function Sidebar() {
                       }`}
                     />
                   </motion.span>
-
-                  <NavTooltip label={label} />
+                  <NavTooltip label={t(label)} />
                 </>
               )}
             </NavLink>
@@ -146,7 +150,7 @@ export default function Sidebar() {
               strokeWidth={2.1}
               className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-aurora-violet transition-colors duration-150"
             />
-            <NavTooltip label="Settings" />
+            <NavTooltip label={t('nav.settings')} />
           </motion.button>
         </div>
       </div>
