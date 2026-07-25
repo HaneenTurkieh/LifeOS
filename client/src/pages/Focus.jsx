@@ -4,6 +4,7 @@ import { Play, Pause, RotateCcw, Plus, LogOut } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import { useFocus, MODES } from '../context/FocusContext.jsx';
 import PageHeader  from '../components/PageHeader.jsx';
 import Modal       from '../components/Modal.jsx';
@@ -41,8 +42,6 @@ const cardGlass = {
   borderRadius:         '2rem',
 };
 
-const fmtTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
 const TREE_EMOJIS = {
   seedling:       '🌱', sprout: '🌿',  oak:  '🌳',
   cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
@@ -53,20 +52,25 @@ const DEAD_EMOJI = '🥀';
 // XP rate — must match server (2 XP per 5 minutes)
 const xpFor = (min) => Math.floor(min / 5) * 2;
 
-function fmtForestDay(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date  = new Date(y, m - 1, d);
-  const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
-  if (isToday) return 'Today';
-  if (date.toDateString() === yest.toDateString()) return 'Yesterday';
-  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
+// Mode label keys
+const MODE_LABEL_KEYS = { focus: 'flow.focus', short: 'flow.shortBreak', long: 'flow.longBreak' };
 
 export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
+  const { t, lang } = useLanguage();
+  const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
+  const fmtTime = (d) => d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
+  const fmtForestDay = (dateStr) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date  = new Date(y, m - 1, d);
+    const today = new Date();
+    const yest  = new Date(today); yest.setDate(yest.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return t('common.today');
+    if (date.toDateString() === yest.toDateString())  return t('common.yesterday');
+    return date.toLocaleDateString(dateLocale, { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
     taskName, dots, startedAt, congrats, stats, board, room,
@@ -85,7 +89,7 @@ export default function Flow() {
   const [roomModal, setRoomModal] = useState(false);
   const [roomForm,  setRoomForm]  = useState({ tab: 'join', name: '', code: '', password: '' });
   const [forest,    setForest]    = useState(null);
-  const [liveRoom,  setLiveRoom]  = useState(null);   // fresh room data from polling
+  const [liveRoom,  setLiveRoom]  = useState(null);
   const lastTimerStartRef = useRef(null);
   const isRunningRef      = useRef(isRunning);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
@@ -105,17 +109,15 @@ export default function Flow() {
         if (!active) return;
         setLiveRoom(d);
 
-        // Forest-style sync: when the host starts the shared timer,
-        // every member's local timer starts automatically.
-        const t = d.timer;
-        if (t?.running && t.started_at && lastTimerStartRef.current !== t.started_at) {
-          lastTimerStartRef.current = t.started_at;
-          if (!isRunningRef.current && t.remaining_seconds > 20) {
-            const mins = Math.max(1, Math.round(t.duration_seconds / 60));
+        const tm = d.timer;
+        if (tm?.running && tm.started_at && lastTimerStartRef.current !== tm.started_at) {
+          lastTimerStartRef.current = tm.started_at;
+          if (!isRunningRef.current && tm.remaining_seconds > 20) {
+            const mins = Math.max(1, Math.round(tm.duration_seconds / 60));
             if (mode !== 'focus') handleModeClick('focus');
             setDuration(mins);
             setTimeout(() => { if (!isRunningRef.current) toggleTimer(); }, 150);
-            toast.success(`⏱ ${d.name}: host started a ${mins}-minute session — you're in!`);
+            toast.success(t('flow.hostStarted', { name: d.name, n: mins }));
           }
         }
       } catch (_) {}
@@ -127,9 +129,7 @@ export default function Flow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
 
-  const displayRoom = liveRoom
-    ? { ...room, ...liveRoom }
-    : room;
+  const displayRoom = liveRoom ? { ...room, ...liveRoom } : room;
   const isHost = displayRoom?.host_id != null && Number(displayRoom.host_id) === Number(user?.id);
 
   const startForEveryone = async () => {
@@ -137,7 +137,7 @@ export default function Flow() {
     const mins = customMin.focus || 25;
     try {
       await api.post(`/focus/rooms/${room.code}/timer/start`, { duration_minutes: mins, mode: 'focus' });
-      toast.success(`🚀 Started a ${mins}-minute session for the whole room!`);
+      toast.success(t('flow.startedAll', { n: mins }));
       if (!isRunning) {
         if (mode !== 'focus') handleModeClick('focus');
         setDuration(mins);
@@ -156,7 +156,7 @@ export default function Flow() {
           task_name: taskName || 'Focus Session',
           duration_minutes: elapsedMin,
         });
-        toast.error('🥀 Your tree died! Finish sessions to grow your land.');
+        toast.error(t('flow.treeDied'));
         if (forest) loadForest();
       } catch (_) {}
     }
@@ -169,11 +169,11 @@ export default function Flow() {
       if (roomForm.tab === 'create') {
         const res = await api.post('/focus/rooms', { name: roomForm.name, password: roomForm.password });
         setRoom({ code: res.code, name: res.name, members: [] });
-        toast.success(`Room created! Code: ${res.code}`);
+        toast.success(t('flow.roomCreated', { code: res.code }));
       } else {
         const res = await api.post('/focus/rooms/join', { code: roomForm.code, password: roomForm.password });
         setRoom({ code: res.code, name: res.name, members: [] });
-        toast.success(`Joined ${res.name}`);
+        toast.success(t('flow.joined', { name: res.name }));
       }
       setRoomModal(false);
       setRoomForm({ tab: 'join', name: '', code: '', password: '' });
@@ -186,7 +186,7 @@ export default function Flow() {
     try { await api.del(`/focus/rooms/${room.code}/leave`); } catch (_) {}
     setRoom(null);
     setLiveRoom(null);
-    toast.success('Left the room');
+    toast.success(t('flow.leftRoom'));
   };
 
   const mm         = String(Math.floor(timeLeft / 60)).padStart(2, '0');
@@ -198,13 +198,13 @@ export default function Flow() {
   const endsAt     = new Date(now.getTime() + timeLeft * 1000);
   const timeRange  = startedAt
     ? `${fmtTime(startedAt)} → ${fmtTime(endsAt)}`
-    : isRunning ? `now → ${fmtTime(endsAt)}` : null;
+    : isRunning ? `→ ${fmtTime(endsAt)}` : null;
 
   const TABS_NAV = [
-    { key: 'timer',       label: 'Timer',                               icon: '⏱' },
-    { key: 'room',        label: room ? `Room · ${room.code}` : 'Room', icon: '👥' },
-    { key: 'forest',      label: 'My Land',                             icon: '🌳' },
-    { key: 'leaderboard', label: 'Rankings',                            icon: '🏆' },
+    { key: 'timer',       label: t('flow.timer'),                                icon: '⏱' },
+    { key: 'room',        label: room ? `${t('flow.room')} · ${room.code}` : t('flow.room'), icon: '👥' },
+    { key: 'forest',      label: t('flow.myLand'),                               icon: '🌳' },
+    { key: 'leaderboard', label: t('flow.rankings'),                             icon: '🏆' },
   ];
 
   const memberList = displayRoom?.members || [];
@@ -212,9 +212,9 @@ export default function Flow() {
   return (
     <div>
       <PageHeader
-        eyebrow="Flow"
-        title="Enter your flow state"
-        subtitle="Deep work timer · Study rooms · Your forest · Weekly rankings."
+        eyebrow={t('flow.eyebrow')}
+        title={t('flow.title')}
+        subtitle={t('flow.pageSubtitle')}
       />
 
       {/* Tab bar */}
@@ -248,7 +248,6 @@ export default function Flow() {
       {/* ── TIMER TAB ─────────────────────────────────────── */}
       {tab === 'timer' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main card */}
           <div className="lg:col-span-2 flex flex-col items-center py-10 px-8" style={cardGlass}>
             {/* Mode pills */}
             <div className="flex gap-2 mb-8 flex-wrap justify-center">
@@ -258,7 +257,7 @@ export default function Flow() {
                   onClick={() => handleModeClick(key)}
                   className="px-5 py-2 rounded-2xl text-sm font-semibold transition-all"
                   style={lg({ color: m.color, active: mode === key })}>
-                  {m.emoji} {m.label}
+                  {m.emoji} {t(MODE_LABEL_KEYS[key])}
                 </motion.button>
               ))}
             </div>
@@ -269,7 +268,7 @@ export default function Flow() {
                 {timeRange && (
                   <motion.p
                     initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                    className="text-sm font-mono font-medium" style={{ color: modeColor }}>
+                    className="text-sm font-mono font-medium" style={{ color: modeColor, direction: 'ltr' }}>
                     {timeRange}
                   </motion.p>
                 )}
@@ -303,7 +302,6 @@ export default function Flow() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
-                {/* Equipped tree — floats above the timer */}
                 <motion.div
                   key={equippedTree}
                   animate={isRunning
@@ -316,24 +314,20 @@ export default function Flow() {
                 >
                   {TREE_EMOJIS[equippedTree] || '🌱'}
                 </motion.div>
-                {/* Timer digits */}
                 <span
                   className="font-display tabular-nums leading-none text-ink dark:text-white"
-                  style={{ fontSize: 52, fontWeight: 700 }}
+                  style={{ fontSize: 52, fontWeight: 700, direction: 'ltr' }}
                 >
                   {mm}:{ss}
                 </span>
-                {/* Mode label */}
                 <span className="text-xs font-medium mt-1.5" style={{ color: modeColor }}>
-                  {MODES[mode].label}
+                  {t(MODE_LABEL_KEYS[mode])}
                 </span>
-                {/* XP for this session */}
                 {mode === 'focus' && xpFor(Math.round(totalTime / 60)) > 0 && (
                   <span className="text-[10px] font-bold mt-1" style={{ color: '#7C6AF0' }}>
-                    ✨ +{xpFor(Math.round(totalTime / 60))} XP on completion
+                    {t('flow.xpOnComplete', { n: xpFor(Math.round(totalTime / 60)) })}
                   </span>
                 )}
-                {/* Session dots */}
                 {dots > 0 && (
                   <div className="flex gap-1.5 mt-3">
                     {Array.from({ length: Math.min(dots, 8) }).map((_, i) => (
@@ -351,13 +345,13 @@ export default function Flow() {
               </div>
             </div>
 
-            {/* Warning while running — quitting kills the tree */}
+            {/* Warning while running */}
             <AnimatePresence>
               {isRunning && mode === 'focus' && (
                 <motion.p
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="text-[11px] mt-2 font-medium" style={{ color: 'rgba(255,122,99,0.75)' }}>
-                  🥀 Resetting now will kill your tree
+                  {t('flow.resetWarning')}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -366,7 +360,7 @@ export default function Flow() {
             <input
               className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2"
               style={{ borderBottom: '1px solid rgba(124,106,240,0.20)', color: taskName ? '#1E2233' : undefined }}
-              placeholder="What are you working on?"
+              placeholder={t('flow.workingOn')}
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
             />
@@ -388,7 +382,7 @@ export default function Flow() {
                   border:               '1.5px solid rgba(255,255,255,0.55)',
                   boxShadow:            `0 10px 36px ${modeColor}55, 0 4px 16px rgba(0,0,0,0.14), inset 0 2px 0 rgba(255,255,255,0.55), inset 0 -2px 0 rgba(0,0,0,0.10)`,
                 }}>
-                {isRunning ? <Pause size={26} className="text-white" /> : <Play size={26} className="text-white ml-1" />}
+                {isRunning ? <Pause size={26} className="text-white" /> : <Play size={26} className="text-white ms-1 rtl:rotate-180" />}
               </motion.button>
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
                 onClick={addMinute}
@@ -398,10 +392,10 @@ export default function Flow() {
               </motion.button>
             </div>
 
-            {/* Duration picker — now shows XP per option */}
+            {/* Duration picker */}
             <div className="mt-8 pt-6 w-full" style={{ borderTop: '1px solid rgba(255,255,255,0.30)' }}>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-center mb-3"
-                style={{ color: 'rgba(30,34,51,0.30)' }}>Duration</p>
+                style={{ color: 'rgba(30,34,51,0.30)' }}>{t('flow.duration')}</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {OPTIONS[mode].map((min) => (
                   <motion.button key={min}
@@ -415,7 +409,7 @@ export default function Flow() {
               </div>
               {mode === 'focus' && (
                 <p className="text-[10px] text-center mt-3 font-medium" style={{ color: 'rgba(124,106,240,0.65)' }}>
-                  ✨ You earn 2 XP for every 5 minutes of focus
+                  {t('flow.xpRate')}
                 </p>
               )}
             </div>
@@ -426,11 +420,11 @@ export default function Flow() {
             {stats && (
               <div className="rounded-3xl p-5" style={lg()}>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-4"
-                  style={{ color: 'rgba(30,34,51,0.38)' }}>This Week</p>
+                  style={{ color: 'rgba(30,34,51,0.38)' }}>{t('flow.thisWeek')}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { val: stats.total_minutes, label: 'minutes' },
-                    { val: stats.sessions, label: 'sessions' },
+                    { val: stats.total_minutes, label: t('flow.minutes') },
+                    { val: stats.sessions, label: t('flow.sessions') },
                   ].map(({ val, label }) => (
                     <div key={label} className="rounded-2xl p-3 text-center" style={lg()}>
                       <p className="font-display text-2xl font-bold text-ink dark:text-white">{val}</p>
@@ -441,7 +435,7 @@ export default function Flow() {
                 <div className="mt-3 rounded-2xl px-3 py-2 text-center"
                   style={{ background: 'rgba(124,106,240,0.08)', border: '1px solid rgba(124,106,240,0.15)' }}>
                   <p className="text-xs font-bold" style={{ color: '#7C6AF0' }}>
-                    ✨ ~{xpFor(stats.total_minutes)} XP earned from focus this week
+                    {t('flow.weeklyXp', { n: xpFor(stats.total_minutes) })}
                   </p>
                 </div>
               </div>
@@ -453,11 +447,11 @@ export default function Flow() {
                   <div>
                     <p className="font-semibold text-ink dark:text-white text-sm">{displayRoom.name}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
-                      Code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{displayRoom.code}</span>
+                      {t('flow.code')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                     </p>
                   </div>
                   <button onClick={leaveRoom} className="text-ink/30 hover:text-coral-500 transition">
-                    <LogOut size={15} />
+                    <LogOut size={15} className="rtl:rotate-180" />
                   </button>
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -474,29 +468,29 @@ export default function Flow() {
                     onClick={startForEveryone}
                     className="mt-3 w-full rounded-2xl py-2.5 text-xs font-bold text-white"
                     style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
-                    ▶ Start {customMin.focus}m for everyone
+                    {t('flow.startForAll', { n: customMin.focus })}
                   </motion.button>
                 )}
                 <button onClick={() => setTab('room')} className="mt-3 text-xs font-semibold hover:underline"
                   style={{ color: modeColor }}>
-                  View room →
+                  {t('flow.viewRoom')}
                 </button>
               </div>
             ) : (
               <motion.button whileHover={{ y: -1 }} onClick={() => setRoomModal(true)}
-                className="rounded-3xl p-5 text-left w-full" style={lg()}>
+                className="rounded-3xl p-5 text-start w-full" style={lg()}>
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <span className="text-lg">👥</span>
-                  <p className="font-semibold text-ink dark:text-white text-sm">Study Room</p>
+                  <p className="font-semibold text-ink dark:text-white text-sm">{t('flow.studyRoom')}</p>
                 </div>
-                <p className="text-xs text-ink/45 dark:text-white/35">Focus with friends. Host starts one synced timer for everyone.</p>
+                <p className="text-xs text-ink/45 dark:text-white/35">{t('flow.studyRoomDesc')}</p>
               </motion.button>
             )}
 
             {board.length > 0 && (
               <div className="rounded-3xl p-5" style={lg()}>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-3"
-                  style={{ color: 'rgba(30,34,51,0.38)' }}>🏆 Top This Week</p>
+                  style={{ color: 'rgba(30,34,51,0.38)' }}>🏆 {t('flow.rankings')}</p>
                 {board.slice(0, 3).map((e) => (
                   <div key={e.id} className="flex items-center gap-2 py-1.5">
                     <span className="text-sm w-5 text-center">{['🥇','🥈','🥉'][e.rank - 1]}</span>
@@ -506,7 +500,7 @@ export default function Flow() {
                 ))}
                 <button onClick={() => setTab('leaderboard')}
                   className="mt-2 text-xs font-semibold hover:underline" style={{ color: modeColor }}>
-                  Full rankings →
+                  {t('flow.viewRoom').replace('room', 'rankings')}
                 </button>
               </div>
             )}
@@ -523,12 +517,12 @@ export default function Flow() {
                 <div>
                   <h2 className="font-display font-bold text-ink dark:text-white text-xl">{displayRoom.name}</h2>
                   <p className="text-sm mt-0.5" style={{ color: 'rgba(30,34,51,0.45)' }}>
-                    Share code: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor }}>{displayRoom.code}</span>
+                    {t('flow.shareCode')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                   </p>
                 </div>
                 <button onClick={leaveRoom}
                   className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2" style={lg()}>
-                  <LogOut size={14} /> Leave
+                  <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
                 </button>
               </div>
 
@@ -537,48 +531,42 @@ export default function Flow() {
                 {displayRoom.timer?.running ? (
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-ink dark:text-white">
-                        ⏱ Synced session in progress
-                      </p>
+                      <p className="text-sm font-bold text-ink dark:text-white">{t('flow.syncedLive')}</p>
                       <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>
-                        {Math.ceil((displayRoom.timer.remaining_seconds || 0) / 60)} min remaining — everyone's timers are running together
+                        {t('flow.remaining', { n: Math.ceil((displayRoom.timer.remaining_seconds || 0) / 60) })}
                       </p>
                     </div>
                     {isHost && (
                       <button
                         onClick={async () => {
-                          try { await api.post(`/focus/rooms/${room.code}/timer/stop`); toast.success('Shared timer stopped'); }
+                          try { await api.post(`/focus/rooms/${room.code}/timer/stop`); toast.success(t('flow.timerStopped')); }
                           catch (err) { toast.error(err.message); }
                         }}
                         className="text-xs font-bold shrink-0 rounded-xl px-3 py-2" style={lg()}>
-                        Stop
+                        {t('flow.stop')}
                       </button>
                     )}
                   </div>
                 ) : isHost ? (
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-ink dark:text-white">You're the host 👑</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>
-                        Start one timer and every member's timer starts with it — like Forest.
-                      </p>
+                      <p className="text-sm font-bold text-ink dark:text-white">{t('flow.youAreHost')}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'rgba(30,34,51,0.50)' }}>{t('flow.hostDesc')}</p>
                     </div>
                     <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
                       onClick={startForEveryone}
                       className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-bold text-white"
                       style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
-                      ▶ Start {customMin.focus}m
+                      {t('flow.startForAll', { n: customMin.focus })}
                     </motion.button>
                   </div>
                 ) : (
-                  <p className="text-xs" style={{ color: 'rgba(30,34,51,0.50)' }}>
-                    ⏳ Waiting for the host to start a synced session. Your timer will start automatically.
-                  </p>
+                  <p className="text-xs" style={{ color: 'rgba(30,34,51,0.50)' }}>{t('flow.waitingHost')}</p>
                 )}
               </div>
 
               {memberList.length === 0 ? (
-                <p className="text-sm text-ink/40 text-center py-8">Waiting for others to join…</p>
+                <p className="text-sm text-ink/40 text-center py-8">{t('flow.waiting')}</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {memberList.map((m) => (
@@ -592,12 +580,12 @@ export default function Flow() {
                           {m.display_name}
                           {Number(displayRoom.host_id) === Number(m.user_id) && ' 👑'}
                         </p>
-                        <p className="text-xs text-ink/40">{m.focus_minutes} min focused</p>
+                        <p className="text-xs text-ink/40">{m.focus_minutes} {t('flow.minFocusedSub')}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15'}`} />
                         <span className={`text-xs font-medium ${m.is_focusing ? 'text-sage-600' : 'text-ink/35'}`}>
-                          {m.is_focusing ? 'Focusing' : 'Break'}
+                          {m.is_focusing ? t('flow.focusing') : t('flow.break')}
                         </span>
                       </div>
                     </div>
@@ -608,20 +596,13 @@ export default function Flow() {
           ) : (
             <EmptyState
               illustration={<span className="text-6xl">👥</span>}
-              title="Study together, achieve more"
-              description="Create a private room with a password and share the code with friends. The host starts one timer and everyone's timer runs together — like Forest."
-              features={[
-                { icon: '🔒', text: 'Private rooms — password protected, invite only' },
-                { icon: '⏱', text: 'Synced pomodoro — host starts, everyone focuses together' },
-                { icon: '📡', text: 'Live presence — see who\'s focusing right now' },
-                { icon: '🏆', text: 'Room leaderboard tracks minutes focused this week' },
-              ]}
+              title={t('flow.studyRoom')}
+              description={t('flow.studyRoomDesc')}
               action={
                 <button className="btn-primary w-full justify-center" onClick={() => setRoomModal(true)}>
-                  <Plus size={16} /> Create or join a room
+                  <Plus size={16} /> {t('flow.createRoom')}
                 </button>
               }
-              tip="Share your 6-character room code — friends just need the password to join"
             />
           )}
         </div>
@@ -633,30 +614,22 @@ export default function Flow() {
           {!forest || (forest.days.length === 0) ? (
             <EmptyState
               illustration={<span className="text-6xl">🌳</span>}
-              title="Your land is waiting"
-              description="Every completed focus session plants your equipped tree here. Quit a session halfway and the tree dies — so stay focused!"
-              features={[
-                { icon: '🌱', text: 'Finish a session → a living tree is planted on your land' },
-                { icon: '🥀', text: 'Quit mid-session → a dead tree marks the spot' },
-                { icon: '📅', text: 'Trees are grouped day by day — watch your forest grow' },
-                { icon: '🛍', text: 'Change which tree you plant in the Tree Shop' },
-              ]}
+              title={t('flow.landEmptyTitle')}
+              description={t('flow.landEmptyDesc')}
               action={
                 <button className="btn-primary w-full justify-center" onClick={() => setTab('timer')}>
-                  Plant your first tree →
+                  {t('flow.plantFirst')}
                 </button>
               }
-              tip="Even a 15-minute session plants a tree"
             />
           ) : (
             <div className="flex flex-col gap-4">
-              {/* Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { val: forest.stats.total_alive,   label: 'trees alive',   icon: '🌳' },
-                  { val: forest.stats.total_dead,    label: 'trees died',    icon: '🥀' },
-                  { val: forest.stats.today_planted, label: 'planted today', icon: '☀️' },
-                  { val: `${Math.round(forest.stats.total_minutes / 60 * 10) / 10}h`, label: 'total focus', icon: '⏱' },
+                  { val: forest.stats.total_alive,   label: t('flow.treesAlive'),   icon: '🌳' },
+                  { val: forest.stats.total_dead,    label: t('flow.treesDied'),    icon: '🥀' },
+                  { val: forest.stats.today_planted, label: t('flow.plantedToday'), icon: '☀️' },
+                  { val: `${Math.round(forest.stats.total_minutes / 60 * 10) / 10}h`, label: t('flow.totalFocus'), icon: '⏱' },
                 ].map(({ val, label, icon }) => (
                   <div key={label} className="rounded-2xl p-4 text-center" style={lg()}>
                     <p className="text-xl mb-1">{icon}</p>
@@ -666,28 +639,27 @@ export default function Flow() {
                 ))}
               </div>
 
-              {/* Day-by-day land */}
               {forest.days.map((day) => (
                 <div key={day.date} className="rounded-3xl p-5" style={lg()}>
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-sm font-bold text-ink dark:text-white">{fmtForestDay(day.date)}</p>
                     <p className="text-[11px] text-ink/35 dark:text-white/30">
-                      {day.trees.filter(t => t.status === 'alive').length} 🌳 · {day.trees.filter(t => t.status === 'dead').length} 🥀
+                      {day.trees.filter(tr => tr.status === 'alive').length} 🌳 · {day.trees.filter(tr => tr.status === 'dead').length} 🥀
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {day.trees.map((t, i) => (
+                    {day.trees.map((tr, i) => (
                       <motion.div
                         key={i}
                         initial={{ scale: 0 }} animate={{ scale: 1 }}
                         transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
                         className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
-                        title={`${t.task_name || 'Focus'} · ${t.duration_minutes}m`}
-                        style={t.status === 'dead'
+                        title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
+                        style={tr.status === 'dead'
                           ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
                           : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
                       >
-                        {t.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[t.tree_key] || '🌳')}
+                        {tr.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[tr.tree_key] || '🌳')}
                       </motion.div>
                     ))}
                   </div>
@@ -704,28 +676,21 @@ export default function Flow() {
           {board.length === 0 ? (
             <EmptyState
               illustration={<span className="text-6xl">🏆</span>}
-              title="The rankings start with you"
-              description="Complete your first flow session this week to appear on the leaderboard. Rankings reset every Sunday at midnight."
-              features={[
-                { icon: '⏱', text: 'Every minute of focus counts toward your weekly rank' },
-                { icon: '🥇', text: 'Top 3 earn gold, silver, and bronze medals' },
-                { icon: '👥', text: 'Room members get their own private leaderboard too' },
-                { icon: '🔄', text: 'Resets weekly — everyone gets a fresh start Sunday' },
-              ]}
+              title={t('flow.weeklyRank')}
+              description={t('flow.totalWeekMin')}
               action={
                 <button className="btn-primary w-full justify-center" onClick={() => setTab('timer')}>
-                  Start a session →
+                  {t('flow.plantFirst')}
                 </button>
               }
-              tip="Even a 15-minute session puts you on the board"
             />
           ) : (
             <div className="rounded-3xl p-7" style={cardGlass}>
               <div className="flex items-start justify-between mb-1">
-                <h2 className="font-display font-bold text-ink dark:text-white">Weekly Rankings</h2>
-                <span className="text-xs text-ink/35">Resets every Sunday midnight</span>
+                <h2 className="font-display font-bold text-ink dark:text-white">{t('flow.weeklyRank')}</h2>
+                <span className="text-xs text-ink/35">{t('flow.resetsSunday')}</span>
               </div>
-              <p className="text-xs text-ink/40 mb-6">Total flow minutes logged this week</p>
+              <p className="text-xs text-ink/40 mb-6">{t('flow.totalWeekMin')}</p>
               <div className="flex flex-col gap-2">
                 {board.map((e) => {
                   const isMe   = e.id == user?.id;
@@ -740,11 +705,11 @@ export default function Flow() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-semibold truncate ${isMe ? 'text-lavender-700 dark:text-lavender-300' : 'text-ink dark:text-white'}`}>
-                          {e.name}{isMe ? ' (you)' : ''}
+                          {e.name}{isMe ? t('flow.you') : ''}
                         </p>
-                        <p className="text-xs text-ink/35">{e.session_count} sessions</p>
+                        <p className="text-xs text-ink/35">{t('flow.sessionsCount', { n: e.session_count })}</p>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="text-end shrink-0">
                         <p className={`text-sm font-bold ${isMe ? 'text-lavender-600' : 'text-ink dark:text-white'}`}>{e.total_minutes}m</p>
                         <p className="text-xs text-ink/30">{hrs > 0 ? `${hrs}h ` : ''}{mins}m</p>
                       </div>
@@ -758,9 +723,9 @@ export default function Flow() {
       )}
 
       {/* ── Room modal ─────────────────────────────────────── */}
-      <Modal open={roomModal} onClose={() => setRoomModal(false)} title="Study Room">
+      <Modal open={roomModal} onClose={() => setRoomModal(false)} title={t('flow.studyRoom')}>
         <div className="flex gap-1 mb-5 p-1 rounded-xl" style={lg()}>
-          {[{ key: 'join', label: 'Join Room' }, { key: 'create', label: 'Create Room' }].map(({ key, label }) => (
+          {[{ key: 'join', label: t('flow.joinRoom') }, { key: 'create', label: t('flow.createRoom') }].map(({ key, label }) => (
             <button key={key} onClick={() => setRoomForm({ ...roomForm, tab: key })}
               className="flex-1 py-2 rounded-lg text-sm font-semibold transition"
               style={roomForm.tab === key
@@ -772,18 +737,18 @@ export default function Flow() {
         </div>
         <form onSubmit={handleRoomSubmit} className="flex flex-col gap-3.5">
           {roomForm.tab === 'create' && (
-            <input className="input-field" placeholder="Room name, e.g. Study Squad"
+            <input className="input-field" placeholder={t('flow.roomNamePh')}
               value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} autoFocus required />
           )}
           {roomForm.tab === 'join' && (
             <input className="input-field font-mono tracking-[0.3em] text-center uppercase"
-              placeholder="ROOM CODE" maxLength={6}
+              placeholder={t('flow.roomCode')} maxLength={6} dir="ltr"
               value={roomForm.code} onChange={(e) => setRoomForm({ ...roomForm, code: e.target.value.toUpperCase() })} autoFocus required />
           )}
-          <input type="password" className="input-field" placeholder="Password"
+          <input type="password" className="input-field" placeholder={t('flow.password')}
             value={roomForm.password} onChange={(e) => setRoomForm({ ...roomForm, password: e.target.value })} required />
           <button type="submit" className="btn-primary justify-center">
-            {roomForm.tab === 'join' ? 'Join Room' : 'Create Room'}
+            {roomForm.tab === 'join' ? t('flow.joinRoom') : t('flow.createRoom')}
           </button>
         </form>
       </Modal>
@@ -806,37 +771,29 @@ export default function Flow() {
                 transition={{ duration: 0.7, ease: 'easeOut' }}
                 className="text-6xl mb-4">🎉</motion.div>
               <div className="flex items-center justify-center gap-2 mb-1">
-                <motion.span
-                  animate={{ rotate: [-10, 10, -10] }}
-                  transition={{ duration: 0.5, repeat: 2 }}
-                  className="text-3xl"
-                >
+                <motion.span animate={{ rotate: [-10, 10, -10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
                   {TREE_EMOJIS[equippedTree] || '🌱'}
                 </motion.span>
-                <h2 className="font-display text-2xl font-bold text-ink dark:text-white">Session Complete!</h2>
-                <motion.span
-                  animate={{ rotate: [10, -10, 10] }}
-                  transition={{ duration: 0.5, repeat: 2 }}
-                  className="text-3xl"
-                >
+                <h2 className="font-display text-2xl font-bold text-ink dark:text-white">{t('flow.complete')}</h2>
+                <motion.span animate={{ rotate: [10, -10, 10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
                   {TREE_EMOJIS[equippedTree] || '🌱'}
                 </motion.span>
               </div>
-              <p className="text-ink/50 mb-1">{congrats.minutes} min of focused work.</p>
-              <p className="text-xs text-sage-600 font-semibold mb-3">🌳 A tree was planted on your land!</p>
+              <p className="text-ink/50 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>
+              <p className="text-xs text-sage-600 font-semibold mb-3">🌳 {t('flow.treePlanted')}</p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
                   style={lg({ color: '#7C6AF0', active: true })}>
                   ✨ +{congrats.xpAwarded} XP
                 </span>
               )}
-              <div className="rounded-2xl px-5 py-4 mb-6 text-left" style={lg()}>
+              <div className="rounded-2xl px-5 py-4 mb-6 text-start" style={lg()}>
                 <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">"{congrats.quote.text}"</p>
                 <p className="text-xs text-ink/40 mt-2">— {congrats.quote.author}</p>
               </div>
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 onClick={() => setCongrats(null)} className="btn-primary w-full justify-center text-base">
-                Keep going 🚀
+                {t('flow.keepGoing')}
               </motion.button>
             </motion.div>
           </motion.div>
