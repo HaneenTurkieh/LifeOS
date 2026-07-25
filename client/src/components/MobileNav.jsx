@@ -17,7 +17,6 @@ const NAV = [
   { to: '/goals',     icon: Target,          label: 'nav.goals'     },
   { to: '/ai',        icon: Sparkles,        label: 'nav.lumi'      },
 ];
-
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,          label: 'nav.history'   },
   { to: '/learning',  icon: Timer,          label: 'nav.flow'      },
@@ -31,7 +30,6 @@ export default function MobileNav() {
   const [moreOpen,     setMoreOpen]     = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useLanguage();
-
   return (
     <>
       {/* Bottom nav */}
@@ -55,16 +53,16 @@ export default function MobileNav() {
                     className="relative flex h-9 w-9 items-center justify-center rounded-xl"
                     style={isActive ? {
                       background: 'rgba(255,255,255,0.95)',
-                      boxShadow:  '0 8px 20px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.22), inset 0 1px 0 rgba(255,255,255,1)',
+                      boxShadow:  '0 8px 20px rgba(0,0,0,0.14), 0 2px 8px rgb(var(--accent-500) / 0.22), inset 0 1px 0 rgba(255,255,255,1)',
                     } : {}}
                   >
                     <Icon
                       size={17}
-                      className={isActive ? 'text-aurora-violet' : 'text-ink/40 dark:text-white/40'}
+                      className={isActive ? 'text-[rgb(var(--accent-500))]' : 'text-ink/40 dark:text-white/40'}
                     />
                   </motion.div>
                   <span className={`text-[10px] font-medium ${
-                    isActive ? 'text-aurora-violet dark:text-lavender-300' : 'text-ink/40 dark:text-white/40'
+                    isActive ? 'text-[rgb(var(--accent-500))] dark:text-lavender-300' : 'text-ink/40 dark:text-white/40'
                   }`}>
                     {t(label)}
                   </span>
@@ -72,7 +70,6 @@ export default function MobileNav() {
               )}
             </NavLink>
           ))}
-
           {/* More */}
           <motion.button
             whileTap={{ scale: 0.90 }}
@@ -86,7 +83,6 @@ export default function MobileNav() {
           </motion.button>
         </div>
       </nav>
-
       {/* More sheet */}
       <AnimatePresence>
         {moreOpen && (
@@ -133,7 +129,6 @@ export default function MobileNav() {
           </motion.div>
         )}
       </AnimatePresence>
-
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
