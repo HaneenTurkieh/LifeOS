@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const multer  = require('multer');
+const { db }  = require('../db/connection');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -94,7 +95,6 @@ router.post('/extract', upload.single('file'), async (req, res) => {
       return res.status(422).json({ error: 'Could not extract text. Try pasting content directly.' });
 
     res.json({ text: text.trim(), filename: file.originalname, wordCount: text.split(/\s+/).filter(Boolean).length });
-
   } catch (err) {
     console.error('Exam extract error:', err);
     res.status(500).json({ error: 'Extraction failed. Try pasting content directly.' });
@@ -126,6 +126,89 @@ router.post('/generate', async (req, res) => {
   } catch (err) {
     console.error('Exam generate error:', err);
     res.status(500).json({ error: 'Generation failed. Please try again.' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Exam sessions — persist generated exams so they survive refresh
+// Requires the exam_sessions table (see schema.sql addition).
+// ═══════════════════════════════════════════════════════════════
+
+// ── POST /sessions — save a generated exam ────────────────────
+router.post('/sessions', async (req, res) => {
+  try {
+    const { mode, difficulty, sourceName = '', items } = req.body;
+    if (!mode || !Array.isArray(items) || !items.length)
+      return res.status(400).json({ error: 'mode and items are required' });
+
+    const insert = await db.execute({
+      sql:  `INSERT INTO exam_sessions (user_id, mode, difficulty, source_name, item_count, payload)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [
+        req.user.id, mode, difficulty || 'medium',
+        String(sourceName).slice(0, 120),
+        items.length, JSON.stringify(items),
+      ],
+    });
+
+    res.status(201).json({ id: Number(insert.lastInsertRowid) });
+  } catch (err) {
+    console.error('POST /exam/sessions error:', err);
+    res.status(500).json({ error: 'Could not save session' });
+  }
+});
+
+// ── GET /sessions — list (newest first, no heavy payload) ─────
+router.get('/sessions', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql:  `SELECT id, mode, difficulty, source_name, item_count, created_at
+             FROM exam_sessions WHERE user_id = ?
+             ORDER BY created_at DESC LIMIT 50`,
+      args: [req.user.id],
+    });
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /exam/sessions error:', err);
+    res.status(500).json({ error: 'Could not load sessions' });
+  }
+});
+
+// ── GET /sessions/:id — full session with parsed payload ──────
+router.get('/sessions/:id', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql:  `SELECT * FROM exam_sessions WHERE id = ? AND user_id = ?`,
+      args: [req.params.id, req.user.id],
+    })).rows[0];
+    if (!row) return res.status(404).json({ error: 'Session not found' });
+
+    let items = [];
+    try { items = JSON.parse(row.payload); } catch (_) {}
+
+    res.json({
+      id: row.id, mode: row.mode, difficulty: row.difficulty,
+      source_name: row.source_name, item_count: row.item_count,
+      created_at: row.created_at, items,
+    });
+  } catch (err) {
+    console.error('GET /exam/sessions/:id error:', err);
+    res.status(500).json({ error: 'Could not load session' });
+  }
+});
+
+// ── DELETE /sessions/:id ──────────────────────────────────────
+router.delete('/sessions/:id', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql:  `DELETE FROM exam_sessions WHERE id = ? AND user_id = ?`,
+      args: [req.params.id, req.user.id],
+    });
+    if (result.rowsAffected === 0) return res.status(404).json({ error: 'Session not found' });
+    res.status(204).end();
+  } catch (err) {
+    console.error('DELETE /exam/sessions/:id error:', err);
+    res.status(500).json({ error: 'Could not delete session' });
   }
 });
 

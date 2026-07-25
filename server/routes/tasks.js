@@ -10,25 +10,19 @@ function nextRecurrenceDate(recurrence, fromDate) {
 
   if (recurrence === 'daily') {
     base.setDate(base.getDate() + 1);
-
   } else if (recurrence === 'weekly') {
     base.setDate(base.getDate() + 7);
-
   } else if (recurrence === 'monthly') {
     base.setMonth(base.getMonth() + 1);
-
   } else if (recurrence?.startsWith('custom:')) {
     const raw  = recurrence.split(':')[1] || '';
     const days = raw.split(',').map(Number).filter((n) => !isNaN(n)).sort((a, b) => a - b);
 
     if (!days.length) {
-      // Fallback — just go to tomorrow
       base.setDate(base.getDate() + 1);
     } else {
       const today = base.getDay(); // 0 = Sun … 6 = Sat
-      // Find the next selected day strictly after today
       let next = days.find((d) => d > today);
-      // Nothing found — wrap to next week
       if (next === undefined) next = days[0];
       const add = next > today ? next - today : 7 - today + next;
       base.setDate(base.getDate() + add);
@@ -46,7 +40,10 @@ router.get('/', async (req, res) => {
       args: [req.user.id],
     });
     res.json(result.rows);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+  } catch (err) {
+    console.error('GET /tasks error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // ── POST /tasks ────────────────────────────────────────────────
@@ -72,7 +69,7 @@ router.post('/', async (req, res) => {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
       args: [
         req.user.id, title.trim(), description, priority, category,
-        deadline, deadline_time, recurrence,
+        deadline || null, deadline_time || null, recurrence || null,
         Number(maxPos.rows[0].m) + 1,
       ],
     });
@@ -83,10 +80,23 @@ router.post('/', async (req, res) => {
     })).rows[0];
 
     res.status(201).json(task);
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+  } catch (err) {
+    console.error('POST /tasks error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // ── PUT /tasks/:id ─────────────────────────────────────────────
+// Hardened: only whitelisted fields are merged, empty strings are
+// normalized to NULL, numbers are coerced, and the real failure
+// reason is both logged and returned so the client toast shows it.
+const UPDATABLE = [
+  'title', 'description', 'priority', 'category',
+  'deadline', 'deadline_time', 'recurrence',
+  'status', 'progress', 'position',
+];
+const NULLABLE = new Set(['deadline', 'deadline_time', 'recurrence']);
+
 router.put('/:id', async (req, res) => {
   try {
     const existing = (await db.execute({
@@ -95,10 +105,28 @@ router.put('/:id', async (req, res) => {
     })).rows[0];
     if (!existing) return res.status(404).json({ error: 'Task not found' });
 
-    const updates   = { ...existing, ...req.body };
+    // Build a clean patch from the request body
+    const patch = {};
+    for (const key of UPDATABLE) {
+      if (!(key in (req.body || {}))) continue;
+      let value = req.body[key];
+      if (value === undefined) continue;                       // libSQL rejects undefined
+      if (value === '' && NULLABLE.has(key)) value = null;     // '' → NULL for optional cols
+      patch[key] = value;
+    }
+
+    if ('title' in patch) {
+      if (typeof patch.title !== 'string' || !patch.title.trim())
+        return res.status(400).json({ error: 'Title cannot be empty' });
+      patch.title = patch.title.trim();
+    }
+
+    const updates   = { ...existing, ...patch };
     const wasDone   = existing.status === 'done';
     const isNowDone = updates.status  === 'done';
 
+    updates.progress = Number(updates.progress) || 0;
+    updates.position = Number(updates.position) || 0;
     if (isNowDone && updates.progress < 100) updates.progress = 100;
     updates.completed_at = isNowDone
       ? (existing.completed_at || new Date().toISOString())
@@ -111,8 +139,8 @@ router.put('/:id', async (req, res) => {
                  status=?, progress=?, position=?, completed_at=?
              WHERE id = ? AND user_id = ?`,
       args: [
-        updates.title, updates.description, updates.priority, updates.category,
-        updates.deadline, updates.deadline_time, updates.recurrence,
+        updates.title, updates.description ?? '', updates.priority, updates.category,
+        updates.deadline ?? null, updates.deadline_time ?? null, updates.recurrence ?? null,
         updates.status, updates.progress, updates.position, updates.completed_at,
         req.params.id, req.user.id,
       ],
@@ -125,7 +153,7 @@ router.put('/:id', async (req, res) => {
       await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
       xpAwarded = 20;
 
-      // ── Auto-create next occurrence ────────────────────────────
+      // ── Auto-create next occurrence ──────────────────────────
       if (updates.recurrence) {
         const nextDeadline = nextRecurrenceDate(updates.recurrence, updates.deadline);
 
@@ -141,8 +169,8 @@ router.put('/:id', async (req, res) => {
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
           args: [
             req.user.id,
-            updates.title, updates.description, updates.priority, updates.category,
-            nextDeadline, updates.deadline_time, updates.recurrence,
+            updates.title, updates.description ?? '', updates.priority, updates.category,
+            nextDeadline, updates.deadline_time ?? null, updates.recurrence,
             Number(maxPos.rows[0].m) + 1,
           ],
         });
@@ -161,7 +189,13 @@ router.put('/:id', async (req, res) => {
     })).rows[0];
 
     res.json({ task, xpAwarded, unlocked, nextTask });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+  } catch (err) {
+    // Log full detail server-side AND return the message so the
+    // client toast shows the real reason instead of a generic one.
+    console.error(`PUT /tasks/${req.params.id} error:`, err);
+    console.error('  → request body was:', JSON.stringify(req.body));
+    res.status(500).json({ error: err.message || 'Database error' });
+  }
 });
 
 // ── DELETE /tasks/:id ──────────────────────────────────────────
@@ -173,7 +207,10 @@ router.delete('/:id', async (req, res) => {
     });
     if (result.rowsAffected === 0) return res.status(404).json({ error: 'Task not found' });
     res.status(204).end();
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+  } catch (err) {
+    console.error('DELETE /tasks error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // ── POST /tasks/reorder ────────────────────────────────────────
@@ -189,7 +226,10 @@ router.post('/reorder', async (req, res) => {
       'write'
     );
     res.json({ ok: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+  } catch (err) {
+    console.error('POST /tasks/reorder error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 module.exports = router;

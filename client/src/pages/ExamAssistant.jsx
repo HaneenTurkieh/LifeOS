@@ -1,9 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain, Sparkles, RotateCcw, Check, X,
   ChevronLeft, ChevronRight, Upload, FileText,
-  Clock, BarChart2, Info, AlertCircle,
+  Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -17,13 +17,13 @@ const MODES = [
   { key:'flashcards', label:'Flashcards',      icon:'🃏', desc:'Active recall flip cards'             },
   { key:'slides',     label:'Slide Deck',      icon:'🖥️', desc:'Full presentation — no info lost'    },
 ];
+
 const DIFFICULTIES = [
   { key:'easy',   label:'Easy',   color:'#4CC38A' },
   { key:'medium', label:'Medium', color:'#FFB84D' },
   { key:'hard',   label:'Hard',   color:'#FF7A63' },
 ];
 
-// Supported file types with size limits
 const FILE_TYPES = [
   { ext:'PDF',  icon:'📄', desc:'Up to 25MB',   accept:'.pdf'              },
   { ext:'PPTX', icon:'📊', desc:'Up to 25MB',   accept:'.pptx'             },
@@ -31,7 +31,8 @@ const FILE_TYPES = [
   { ext:'TXT',  icon:'📃', desc:'Up to 25MB',   accept:'.txt'              },
   { ext:'IMG',  icon:'🖼️', desc:'PNG/JPG/WEBP', accept:'.png,.jpg,.jpeg,.webp,.gif' },
 ];
-const ACCEPTED = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
+
+const ACCEPTED    = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
 const MAX_SIZE_MB = 25;
 
 const glass = {
@@ -41,6 +42,7 @@ const glass = {
   WebkitBackdropFilter: 'blur(24px)',
   boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.80)',
 };
+
 const cardGlass = {
   background:           'rgba(255,255,255,0.60)',
   border:               '1px solid rgba(255,255,255,0.70)',
@@ -49,6 +51,14 @@ const cardGlass = {
   boxShadow:            '0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.85)',
   borderRadius:         '1.5rem',
 };
+
+function fmtSessionDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+}
 
 // ── MCQ question ──────────────────────────────────────────────
 function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal }) {
@@ -144,7 +154,9 @@ function MCQExam({ questions }) {
   const [selected, setSelected] = useState({});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
+
   const correct = Object.entries(selected).filter(([i,v]) => v === questions[i].correct).length;
+
   if (finished) {
     const pct = Math.round((correct/questions.length)*100);
     return (
@@ -159,6 +171,7 @@ function MCQExam({ questions }) {
       </motion.div>
     );
   }
+
   const q = questions[current];
   return (
     <div className="max-w-2xl mx-auto">
@@ -194,8 +207,10 @@ function FillBlanks({ questions }) {
   const [answers,  setAnswers]  = useState({});
   const [checked,  setChecked]  = useState({});
   const [finished, setFinished] = useState(false);
+
   const correct = Object.entries(checked).filter(([i]) =>
     answers[i]?.trim().toLowerCase() === questions[i].answer?.trim().toLowerCase()).length;
+
   if (finished) {
     const pct = Math.round((correct/questions.length)*100);
     return (
@@ -210,6 +225,7 @@ function FillBlanks({ questions }) {
       </motion.div>
     );
   }
+
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
       {questions.map((q,i) => (
@@ -230,11 +246,14 @@ function MixedExam({ questions }) {
   const [answers,     setAnswers]     = useState({});
   const [checked,     setChecked]     = useState({});
   const [finished,    setFinished]    = useState(false);
+
   const mcqQs   = questions.filter(q => q.type==='mcq');
   const blankQs = questions.filter(q => q.type==='blank');
+
   const mcqCorrect   = Object.entries(selectedMCQ).filter(([i,v]) => v===mcqQs[i]?.correct).length;
   const blankCorrect = Object.entries(checked).filter(([i]) =>
     answers[i]?.trim().toLowerCase()===blankQs[i]?.answer?.trim().toLowerCase()).length;
+
   if (finished) {
     const total = questions.length;
     const pct   = Math.round(((mcqCorrect+blankCorrect)/total)*100);
@@ -253,6 +272,7 @@ function MixedExam({ questions }) {
       </motion.div>
     );
   }
+
   let mi=0, bi=0;
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
@@ -278,10 +298,12 @@ function Flashcards({ cards }) {
   const [flipped, setFlipped] = useState(false);
   const [known,   setKnown]   = useState(new Set());
   const [done,    setDone]    = useState(false);
+
   const next = () => {
     setFlipped(false);
     setTimeout(() => { if (current<cards.length-1) setCurrent(c=>c+1); else setDone(true); }, 150);
   };
+
   if (done) return (
     <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }}
       className="flex flex-col items-center gap-6 py-10 text-center">
@@ -291,6 +313,7 @@ function Flashcards({ cards }) {
         className="btn-primary flex items-center gap-2"><RotateCcw size={15}/> Review again</button>
     </motion.div>
   );
+
   return (
     <div className="max-w-lg mx-auto">
       <div className="flex justify-between mb-4 text-xs font-semibold">
@@ -395,22 +418,78 @@ function SlideDeck({ slides }) {
 // ── Main ──────────────────────────────────────────────────────
 export default function ExamAssistant() {
   const toast = useToast();
+
   const [mode,          setMode]          = useState('mcq');
   const [difficulty,    setDifficulty]    = useState('medium');
   const [count,         setCount]         = useState(10);
   const [duration,      setDuration]      = useState(15);
   const [notes,         setNotes]         = useState('');
-  const [extractedText, setExtractedText] = useState(''); // hidden — from file
+  const [extractedText, setExtractedText] = useState('');
   const [loading,       setLoading]       = useState(false);
   const [uploading,     setUploading]     = useState(false);
-  const [uploadedFile,  setUploadedFile]  = useState(null); // { name, wordCount }
+  const [uploadedFile,  setUploadedFile]  = useState(null);
   const [result,        setResult]        = useState(null);
   const [showFileInfo,  setShowFileInfo]  = useState(false);
+  const [sessions,      setSessions]      = useState([]);
+  const [sessionBusy,   setSessionBusy]   = useState(null); // session id being opened/deleted
   const fileRef = useRef(null);
 
   const BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:4000'
     : 'https://lifeos-0l81.onrender.com';
+
+  const authedFetch = useCallback((path, opts = {}) => fetch(`${BASE_URL}${path}`, {
+    ...opts,
+    headers: {
+      ...(opts.body && !(opts.body instanceof FormData) ? { 'Content-Type':'application/json' } : {}),
+      Authorization: `Bearer ${localStorage.getItem('aurora_auth_token')}`,
+      ...(opts.headers || {}),
+    },
+  }), [BASE_URL]);
+
+  // ── Session history ───────────────────────────────────────────
+  const loadSessions = useCallback(async () => {
+    try {
+      const res  = await authedFetch('/api/exam/sessions');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) setSessions(data);
+    } catch (_) {}
+  }, [authedFetch]);
+
+  useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  const saveSession = async (sessionMode, sessionDifficulty, items, sourceName) => {
+    try {
+      const res = await authedFetch('/api/exam/sessions', {
+        method: 'POST',
+        body: JSON.stringify({ mode:sessionMode, difficulty:sessionDifficulty, items, sourceName }),
+      });
+      if (res.ok) loadSessions();
+    } catch (_) { /* saving history is best-effort — never block the exam */ }
+  };
+
+  const openSession = async (session) => {
+    setSessionBusy(session.id);
+    try {
+      const res  = await authedFetch(`/api/exam/sessions/${session.id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not open session');
+      setDifficulty(data.difficulty || 'medium');
+      setResult({ mode: data.mode, data: data.items });
+    } catch (err) { toast.error(err.message); }
+    finally { setSessionBusy(null); }
+  };
+
+  const removeSession = async (e, id) => {
+    e.stopPropagation();
+    setSessionBusy(id);
+    try {
+      const res = await authedFetch(`/api/exam/sessions/${id}`, { method:'DELETE' });
+      if (!res.ok && res.status !== 204) throw new Error('Delete failed');
+      setSessions(s => s.filter(x => x.id !== id));
+    } catch (err) { toast.error(err.message); }
+    finally { setSessionBusy(null); }
+  };
 
   // ── File upload ───────────────────────────────────────────────
   const handleFile = useCallback(async (file) => {
@@ -425,15 +504,9 @@ export default function ExamAssistant() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${BASE_URL}/api/exam/extract`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('aurora_auth_token')}` },
-        body:    formData,
-      });
+      const res = await authedFetch('/api/exam/extract', { method:'POST', body:formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
-
-      // Store extracted text internally — don't dump into textarea
       setExtractedText(data.text);
       setUploadedFile({ name: file.name, wordCount: data.wordCount });
       toast.success(`✓ ${file.name} ready — ${data.wordCount?.toLocaleString()} words extracted`);
@@ -443,10 +516,9 @@ export default function ExamAssistant() {
     } finally {
       setUploading(false);
     }
-  }, [toast, BASE_URL]);
+  }, [toast, authedFetch]);
 
   const onDrop = (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
-
   const removeFile = () => { setUploadedFile(null); setExtractedText(''); };
 
   // ── Generate ──────────────────────────────────────────────────
@@ -462,47 +534,36 @@ export default function ExamAssistant() {
 - Return ONLY a valid JSON array. No markdown, no explanation, no text before or after.
 - Cover ALL topics in the content. Do not skip any concept.
 - The content to study is at the end of this message.
-
 `;
 
     if (mode === 'mcq') {
       prompt = `${base}Generate a ${difficulty} multiple choice exam with exactly ${count} questions.
 Each object: { "question": string, "options": [4 strings], "correct": 0-indexed number, "explanation": string }
-
 Content:\n${content}`;
     } else if (mode === 'blanks') {
       prompt = `${base}Generate a ${difficulty} fill-in-the-blank exercise with exactly ${count} questions.
 Each object: { "sentence": "text with ___ blank", "answer": string, "hint": string }
-
 Content:\n${content}`;
     } else if (mode === 'mixed') {
       const half = Math.ceil(count/2);
       prompt = `${base}Generate a ${difficulty} mixed exam: ${half} MCQ and ${count-half} fill-in-the-blank questions. Interleave them.
 MCQ object:   { "type": "mcq",   "question": string, "options": [4 strings], "correct": number, "explanation": string }
 Blank object: { "type": "blank", "sentence": "text with ___", "answer": string, "hint": string }
-
 Content:\n${content}`;
     } else if (mode === 'flashcards') {
       prompt = `${base}Generate exactly ${count} flashcards. Every important concept, term, formula must appear.
 Each object: { "front": string, "back": string }
-
 Content:\n${content}`;
     } else if (mode === 'slides') {
       prompt = `${base}Create a comprehensive slide deck. Include 100% of the information — no summarizing or omitting.
 Create as many slides as needed to cover everything.
 Each object: { "title": string, "bullets": [detailed strings], "note": string or null }
-
 Content:\n${content}`;
     }
 
     try {
-      // Use dedicated /exam/generate endpoint — NOT Lumi chat
-      const res = await fetch(`${BASE_URL}/api/exam/generate`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          Authorization:   `Bearer ${localStorage.getItem('aurora_auth_token')}`,
-        },
+      const res = await authedFetch('/api/exam/generate', {
+        method: 'POST',
         body: JSON.stringify({ prompt }),
       });
       const data = await res.json();
@@ -517,11 +578,13 @@ Content:\n${content}`;
         if (match) parsed = JSON.parse(match[0]);
         else throw new Error('Invalid response format — try again');
       }
-
       if (!Array.isArray(parsed) || !parsed.length) throw new Error('Empty result — try again');
 
       setResult({ mode, data: parsed });
       toast.success(`Generated ${parsed.length} ${mode==='slides'?'slides':mode==='flashcards'?'cards':'questions'} ✓`);
+
+      // Persist to history so it survives refresh
+      saveSession(mode, difficulty, parsed, uploadedFile?.name || notes.slice(0, 60));
     } catch (err) {
       toast.error(err.message || 'Generation failed. Try again.');
     } finally {
@@ -529,8 +592,8 @@ Content:\n${content}`;
     }
   };
 
-  const wordCount     = (extractedText || notes).split(/\s+/).filter(Boolean).length;
-  const hasContent    = !!(extractedText || notes.trim());
+  const wordCount  = (extractedText || notes).split(/\s+/).filter(Boolean).length;
+  const hasContent = !!(extractedText || notes.trim());
 
   return (
     <div>
@@ -541,11 +604,10 @@ Content:\n${content}`;
       />
 
       {!result ? (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
           {/* ── Config ──────────────────────────────────────── */}
           <div className="lg:col-span-1 flex flex-col gap-4">
-
             {/* Mode */}
             <div className="rounded-3xl p-5" style={glass}>
               <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">Study type</p>
@@ -643,7 +705,6 @@ Content:\n${content}`;
           {/* ── Notes + Upload ───────────────────────────────── */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="rounded-3xl p-6 flex flex-col gap-4" style={glass}>
-
               {/* File upload zone */}
               {!uploadedFile ? (
                 <div
@@ -675,7 +736,6 @@ Content:\n${content}`;
                   </div>
                 </div>
               ) : (
-                /* Uploaded file badge */
                 <div className="flex items-center gap-3 rounded-2xl px-4 py-3"
                   style={{ background:'rgba(76,195,138,0.10)', border:'1px solid rgba(76,195,138,0.25)' }}>
                   <FileText size={18} className="text-sage-600 shrink-0"/>
@@ -759,8 +819,50 @@ Content:\n${content}`;
           </div>
         </div>
 
+        {/* ── Past sessions ──────────────────────────────────── */}
+        {sessions.length > 0 && (
+          <div className="mt-6 rounded-3xl p-5" style={glass}>
+            <div className="flex items-center gap-2 mb-4">
+              <HistoryIcon size={14} className="text-lavender-500"/>
+              <p className="text-xs font-bold uppercase tracking-widest text-ink/40">
+                Past sessions · tap to reopen
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {sessions.map(s => {
+                const m = MODES.find(x => x.key === s.mode);
+                const busy = sessionBusy === s.id;
+                return (
+                  <button key={s.id} onClick={() => openSession(s)} disabled={busy}
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all hover:scale-[1.01] disabled:opacity-50"
+                    style={{ background:'rgba(255,255,255,0.45)', border:'1px solid rgba(255,255,255,0.60)' }}>
+                    <span className="text-xl shrink-0">{m?.icon || '📚'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-ink/80 dark:text-white/75 truncate">
+                        {m?.label || s.mode}
+                        {s.source_name ? ` · ${s.source_name}` : ''}
+                      </p>
+                      <p className="text-[11px] text-ink/40 dark:text-white/30">
+                        {s.item_count} {s.mode==='slides'?'slides':s.mode==='flashcards'?'cards':'questions'} · {s.difficulty} · {fmtSessionDate(s.created_at)}
+                      </p>
+                    </div>
+                    <span
+                      role="button" tabIndex={0}
+                      onClick={e => removeSession(e, s.id)}
+                      onKeyDown={e => { if (e.key==='Enter') removeSession(e, s.id); }}
+                      className="text-ink/25 hover:text-coral-500 transition shrink-0 p-1"
+                      title="Delete session"
+                    >
+                      <Trash2 size={13}/>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        </>
       ) : (
-
         /* ── Result ─────────────────────────────────────────── */
         <div>
           <div className="flex items-center justify-between mb-6">
@@ -775,7 +877,7 @@ Content:\n${content}`;
                 </p>
               </div>
             </div>
-            <button onClick={() => setResult(null)}
+            <button onClick={() => { setResult(null); loadSessions(); }}
               className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-ink/55 transition" style={glass}>
               <RotateCcw size={14}/> New session
             </button>

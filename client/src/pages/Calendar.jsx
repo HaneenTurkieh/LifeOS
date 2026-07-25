@@ -69,6 +69,11 @@ export default function Calendar() {
   const [saving,        setSaving]        = useState(false);
   const [draggedId,     setDraggedId]     = useState(null);
   const [dragOverDate,  setDragOverDate]  = useState(null);
+  const [touchGhost,    setTouchGhost]    = useState(null);   // { x, y, title } while finger-dragging
+
+  // Touch drag bookkeeping (refs — no re-renders during move)
+  const touchRef         = useRef({ task:null, startX:0, startY:0, dragging:false });
+  const suppressClickRef = useRef(false);
 
   const todayStr = localToday();
 
@@ -85,7 +90,8 @@ export default function Calendar() {
   const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const daysInPrev  = new Date(year, month, 0).getDate();
-  const cells       = [];
+
+  const cells = [];
   for (let i = firstDay-1; i >= 0; i--)
     cells.push({ day: daysInPrev-i, currentMonth:false });
   for (let d = 1; d <= daysInMonth; d++)
@@ -102,11 +108,25 @@ export default function Calendar() {
     return tasks.filter(t => t.deadline === ds && t.status !== 'done');
   };
 
-  // ── Drag handlers ─────────────────────────────────────────
+  // ── Shared move (mouse drop + touch drop) ─────────────────
+  const moveTask = async (task, dateStr) => {
+    if (!task || !dateStr || task.deadline === dateStr) return;
+    // Optimistic
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, deadline:dateStr } : t));
+    if (selectedTask?.id === task.id) {
+      setSelectedTask(t => ({ ...t, deadline:dateStr }));
+      setEditForm(f => f ? { ...f, deadline:dateStr } : f);
+    }
+    try {
+      await api.put(`/tasks/${task.id}`, { deadline: dateStr });
+      toast.success(`Moved to ${fmtLabel(dateStr).split(',')[0]}!`);
+    } catch (err) { toast.error(err.message); load(); }
+  };
+
+  // ── Mouse drag handlers (desktop) ─────────────────────────
   const onDragStart = (e, task) => {
     setDraggedId(task.id);
     e.dataTransfer.effectAllowed = 'move';
-    // Custom ghost
     const ghost = document.createElement('div');
     ghost.textContent = task.title;
     ghost.style.cssText = `
@@ -132,28 +152,74 @@ export default function Calendar() {
   const onDrop = async (e, dateStr) => {
     e.preventDefault();
     setDragOverDate(null);
-    if (!draggedId || !dateStr) return;
-
     const task = tasks.find(t => t.id === draggedId);
-    if (!task || task.deadline === dateStr) { setDraggedId(null); return; }
-
-    // Optimistic
-    setTasks(prev => prev.map(t => t.id === draggedId ? { ...t, deadline:dateStr } : t));
-    // Update selected panel if this task is open
-    if (selectedTask?.id === draggedId) setSelectedTask(t => ({ ...t, deadline:dateStr }));
-
-    try {
-      await api.put(`/tasks/${draggedId}`, { ...task, deadline:dateStr });
-      toast.success(`Moved to ${fmtLabel(dateStr).split(',')[0]}!`);
-    } catch (err) { toast.error(err.message); load(); }
     setDraggedId(null);
+    await moveTask(task, dateStr);
   };
 
   const onDragEnd = () => { setDraggedId(null); setDragOverDate(null); };
 
+  // ── Touch drag handlers (iPhone / iPad) ───────────────────
+  // HTML5 drag events never fire on touch screens, so we track
+  // the finger manually: small movement = tap (opens the panel),
+  // larger movement = drag with a floating ghost pill; on release
+  // we drop onto whichever [data-date] cell is under the finger.
+  const cellFromPoint = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    return el?.closest?.('[data-date]')?.getAttribute('data-date') || null;
+  };
+
+  const onTouchStart = (e, task) => {
+    const t = e.touches[0];
+    touchRef.current = { task, startX:t.clientX, startY:t.clientY, dragging:false };
+  };
+
+  const onTouchMove = (e) => {
+    const st = touchRef.current;
+    if (!st.task) return;
+    const t  = e.touches[0];
+    const dx = t.clientX - st.startX;
+    const dy = t.clientY - st.startY;
+
+    if (!st.dragging && Math.hypot(dx, dy) > 8) {
+      st.dragging = true;
+      setDraggedId(st.task.id);
+      if (navigator.vibrate) navigator.vibrate(10); // tiny haptic "lift" cue
+    }
+    if (st.dragging) {
+      setTouchGhost({ x:t.clientX, y:t.clientY, title:st.task.title, priority:st.task.priority });
+      setDragOverDate(cellFromPoint(t.clientX, t.clientY));
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    const st = touchRef.current;
+    if (!st.task) return;
+
+    if (st.dragging) {
+      suppressClickRef.current = true; // swallow the synthetic click that follows
+      const t = e.changedTouches[0];
+      const dateStr = cellFromPoint(t.clientX, t.clientY);
+      const task = st.task;
+      setTouchGhost(null);
+      setDragOverDate(null);
+      setDraggedId(null);
+      moveTask(task, dateStr);
+    }
+    touchRef.current = { task:null, startX:0, startY:0, dragging:false };
+  };
+
+  const onTouchCancel = () => {
+    setTouchGhost(null);
+    setDragOverDate(null);
+    setDraggedId(null);
+    touchRef.current = { task:null, startX:0, startY:0, dragging:false };
+  };
+
   // ── Task click — open edit panel ──────────────────────────
   const openTaskPanel = (e, task) => {
     e.stopPropagation();
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     setSelectedTask(task);
     setEditForm({
       title:         task.title,
@@ -168,13 +234,23 @@ export default function Calendar() {
 
   const saveTask = async () => {
     if (!selectedTask || !editForm) return;
+    if (!editForm.title.trim()) { toast.error('Title cannot be empty'); return; }
     setSaving(true);
     try {
-      await api.put(`/tasks/${selectedTask.id}`, editForm);
+      // Send a clean, explicit payload — empty strings become null
+      // so the server never receives ambiguous values.
+      await api.put(`/tasks/${selectedTask.id}`, {
+        title:         editForm.title.trim(),
+        description:   editForm.description || '',
+        priority:      editForm.priority,
+        category:      editForm.category || 'General',
+        deadline:      editForm.deadline || null,
+        deadline_time: editForm.deadline_time || null,
+      });
       setSelectedTask(null);
       toast.success('Task updated!');
       load();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) { toast.error(err.message || 'Save failed — check connection'); }
     finally { setSaving(false); }
   };
 
@@ -192,7 +268,7 @@ export default function Calendar() {
       await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
       setSelectedTask(null);
       load();
-    } catch (_) {}
+    } catch (err) { toast.error(err.message); }
   };
 
   // ── Add task ──────────────────────────────────────────────
@@ -229,12 +305,26 @@ export default function Calendar() {
         subtitle="Drag tasks between days. Tap any task to edit."
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      {/* Floating pill that follows the finger while touch-dragging */}
+      {touchGhost && (
+        <div
+          style={{
+            position:'fixed', left:touchGhost.x, top:touchGhost.y,
+            transform:'translate(-50%,-130%)', pointerEvents:'none', zIndex:9999,
+            background:'#7C6AF0', color:'white', padding:'7px 14px',
+            borderRadius:10, fontSize:12, fontWeight:600, maxWidth:190,
+            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+            boxShadow:'0 6px 20px rgba(124,106,240,0.55)',
+          }}
+        >
+          {touchGhost.title}
+        </div>
+      )}
 
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* ── Calendar ──────────────────────────────────────── */}
         <div className="xl:col-span-2">
           <div className="rounded-3xl overflow-hidden" style={panelStyle}>
-
             {/* Month nav */}
             <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom:`1px solid ${divider}` }}>
               <motion.button whileHover={{ scale:1.08 }} whileTap={{ scale:0.94 }} onClick={prevMonth}
@@ -271,6 +361,7 @@ export default function Calendar() {
                 return (
                   <div
                     key={idx}
+                    data-date={dateStr || undefined}
                     className="relative min-h-[88px] p-2 transition-all"
                     style={{
                       borderBottom: `1px solid ${divider}`,
@@ -286,7 +377,6 @@ export default function Calendar() {
                         : 'transparent',
                       outline: isDragOver ? '2px solid rgba(124,106,240,0.50)' : 'none',
                       outlineOffset: '-2px',
-                      borderRadius:  isDragOver ? '0px' : undefined,
                     }}
                     onClick={() => cell.currentMonth && setSelected(isSelected ? null : dateStr)}
                     onDragOver={e => onDragOver(e, dateStr)}
@@ -317,7 +407,7 @@ export default function Calendar() {
                     {/* Task pills */}
                     <div className="flex flex-col gap-0.5">
                       {cellTasks.slice(0, 3).map(task => {
-                        const colors   = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
+                        const colors     = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
                         const isDragging = draggedId === task.id;
                         return (
                           <div
@@ -326,12 +416,22 @@ export default function Calendar() {
                             onDragStart={e => onDragStart(e, task)}
                             onDragEnd={onDragEnd}
                             onClick={e => openTaskPanel(e, task)}
+                            onTouchStart={e => onTouchStart(e, task)}
+                            onTouchMove={onTouchMove}
+                            onTouchEnd={onTouchEnd}
+                            onTouchCancel={onTouchCancel}
                             className="truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-tight cursor-grab active:cursor-grabbing transition-all select-none"
                             style={{
                               background:   isDark ? colors.dark : colors.bg,
                               color:        colors.text,
                               opacity:      isDragging ? 0.40 : 1,
                               transform:    isDragging ? 'scale(0.95)' : 'scale(1)',
+                              // Critical for iOS/iPad: without this, the browser
+                              // hijacks the touch for scrolling and our drag
+                              // handlers never see the movement.
+                              touchAction:  'none',
+                              WebkitUserSelect: 'none',
+                              WebkitTouchCallout: 'none',
                             }}
                             title={task.title}
                           >
@@ -369,7 +469,6 @@ export default function Calendar() {
         {/* ── Right panel ───────────────────────────────────── */}
         <div className="xl:col-span-1">
           <AnimatePresence mode="wait">
-
             {/* Task edit panel */}
             {selectedTask && editForm && (
               <motion.div key={`task-${selectedTask.id}`}
@@ -429,12 +528,11 @@ export default function Calendar() {
                       <option value="medium">🟡 Medium</option>
                       <option value="low">🟣 Low</option>
                     </select>
-                    <input type="date" className="input-field text-sm" value={editForm.deadline}
+                    <input type="date" className="input-field text-sm" value={editForm.deadline || ''}
                       onChange={e => setEditForm({...editForm, deadline:e.target.value})}/>
                   </div>
                   <input type="time" className="input-field text-sm" value={editForm.deadline_time}
                     onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}/>
-
                   <button onClick={saveTask} disabled={saving}
                     className="btn-primary justify-center text-sm py-2.5">
                     {saving ? 'Saving…' : 'Save changes'}
