@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
 import { useAuth }   from '../context/AuthContext.jsx';
 import { useTheme }  from '../context/ThemeContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast }  from '../context/ToastContext.jsx';
 import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
@@ -238,24 +239,43 @@ function AccountTab() {
 // ── Appearance tab ────────────────────────────────────────────
 function AppearanceTab() {
   const { mode, setMode } = useTheme();
+  const { lang, setLang, t } = useLanguage();
   const THEMES = [
     { key:'light',  label:'Light',  icon:'☀️', desc:'Clean and bright'    },
     { key:'dark',   label:'Dark',   icon:'🌙', desc:'Easy on the eyes'    },
     { key:'system', label:'System', icon:'💻', desc:'Follows your device' },
   ];
+  const LANGS = [
+    { key:'en', label:'English',  icon:'🇬🇧', desc:'Left to right'         },
+    { key:'ar', label:'العربية', icon:'🇵🇸', desc:'من اليمين إلى اليسار'  },
+  ];
   return (
     <div className="flex flex-col gap-3">
-      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">Theme</label>
-      {THEMES.map(t => (
-        <button key={t.key} onClick={() => setMode(t.key)}
+      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">{t('settings.theme')}</label>
+      {THEMES.map(th => (
+        <button key={th.key} onClick={() => setMode(th.key)}
           className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all"
-          style={mode===t.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
-          <span className="text-2xl">{t.icon}</span>
+          style={mode===th.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
+          <span className="text-2xl">{th.icon}</span>
           <div className="flex-1">
-            <p className={`text-sm font-semibold ${mode===t.key?'text-lavender-700 dark:text-lavender-300':'text-ink dark:text-white'}`}>{t.label}</p>
-            <p className="text-xs text-ink/40 dark:text-white/30">{t.desc}</p>
+            <p className={`text-sm font-semibold ${mode===th.key?'text-lavender-700 dark:text-lavender-300':'text-ink dark:text-white'}`}>{th.label}</p>
+            <p className="text-xs text-ink/40 dark:text-white/30">{th.desc}</p>
           </div>
-          {mode===t.key && <Check size={16} className="text-lavender-500 shrink-0"/>}
+          {mode===th.key && <Check size={16} className="text-lavender-500 shrink-0"/>}
+        </button>
+      ))}
+
+      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 mt-3 block">{t('settings.language')}</label>
+      {LANGS.map(l => (
+        <button key={l.key} onClick={() => setLang(l.key)}
+          className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all"
+          style={lang===l.key?{background:'rgba(124,106,240,0.10)',border:'1px solid rgba(124,106,240,0.28)'}:{background:'rgba(255,255,255,0.50)',border:'1px solid rgba(255,255,255,0.65)'}}>
+          <span className="text-2xl">{l.icon}</span>
+          <div className="flex-1">
+            <p className={`text-sm font-semibold ${lang===l.key?'text-lavender-700 dark:text-lavender-300':'text-ink dark:text-white'}`}>{l.label}</p>
+            <p className="text-xs text-ink/40 dark:text-white/30">{l.desc}</p>
+          </div>
+          {lang===l.key && <Check size={16} className="text-lavender-500 shrink-0"/>}
         </button>
       ))}
     </div>
