@@ -32,7 +32,6 @@ function lg({ color, active } = {}) {
     boxShadow:            'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.12)',
   };
 }
-
 const cardGlass = {
   background:           'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)',
   backdropFilter:       'blur(48px)',
@@ -41,7 +40,6 @@ const cardGlass = {
   boxShadow:            '0 24px 64px rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(0,0,0,0.08)',
   borderRadius:         '2rem',
 };
-
 const TREE_EMOJIS = {
   seedling:       '🌱', sprout: '🌿',  oak:  '🌳',
   cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
@@ -73,8 +71,8 @@ export default function Flow() {
 
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
-    taskName, dots, startedAt, congrats, stats, board, room,
-    setTaskName, setRoom, setCongrats,
+    taskName, dots, startedAt, congrats, stats, board, room, roomTree,
+    setTaskName, setRoom, setCongrats, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
   } = useFocus();
 
@@ -102,13 +100,11 @@ export default function Flow() {
   useEffect(() => {
     if (!room) { setLiveRoom(null); return; }
     let active = true;
-
     const poll = async () => {
       try {
         const d = await api.get(`/focus/rooms/${room.code}`);
         if (!active) return;
         setLiveRoom(d);
-
         const tm = d.timer;
         if (tm?.running && tm.started_at && lastTimerStartRef.current !== tm.started_at) {
           lastTimerStartRef.current = tm.started_at;
@@ -122,7 +118,6 @@ export default function Flow() {
         }
       } catch (_) {}
     };
-
     poll();
     const iv = setInterval(poll, 3000);
     return () => { active = false; clearInterval(iv); };
@@ -181,12 +176,35 @@ export default function Flow() {
     } catch (err) { toast.error(err.message); }
   };
 
-  const leaveRoom = async () => {
+  // Uses the context's leaveRoom() so roomTree state clears in the same
+  // place it's tracked — server-side kill logic already runs on the
+  // DELETE /leave call regardless of which wrapper triggers it.
+  const handleLeaveRoom = async () => {
     if (!room) return;
-    try { await api.del(`/focus/rooms/${room.code}/leave`); } catch (_) {}
-    setRoom(null);
+    await leaveRoom();
     setLiveRoom(null);
     toast.success(t('flow.leftRoom'));
+  };
+
+  // Shared room tree status label — kept as inline lang-conditional
+  // strings (not translations.js) to avoid touching that file again.
+  const treeStatusLabel = () => {
+    if (!roomTree) return null;
+    if (roomTree.status === 'alive')
+      return lang === 'ar' ? 'الشجرة المشتركة حيّة 🌳' : 'Shared tree is alive 🌳';
+    if (roomTree.status === 'dead')
+      return lang === 'ar'
+        ? `ماتت الشجرة — ${roomTree.died_by_name || 'أحد الأعضاء'} استسلم 💔`
+        : `Tree died — ${roomTree.died_by_name || 'someone'} gave up 💔`;
+    if (roomTree.status === 'completed')
+      return lang === 'ar' ? 'نجت الشجرة من الجلسة! 🌱' : 'Tree survived the session! 🌱';
+    return null;
+  };
+  const treeStatusColor = () => {
+    if (!roomTree) return modeColor;
+    if (roomTree.status === 'dead') return '#FF7A63';
+    if (roomTree.status === 'completed') return '#4CC38A';
+    return modeColor;
   };
 
   const mm         = String(Math.floor(timeLeft / 60)).padStart(2, '0');
@@ -450,10 +468,23 @@ export default function Flow() {
                       {t('flow.code')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                     </p>
                   </div>
-                  <button onClick={leaveRoom} className="text-ink/30 hover:text-coral-500 transition">
+                  <button onClick={handleLeaveRoom} className="text-ink/30 hover:text-coral-500 transition">
                     <LogOut size={15} className="rtl:rotate-180" />
                   </button>
                 </div>
+
+                {roomTree && (
+                  <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-3"
+                    style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
+                    <span className="text-lg shrink-0">
+                      {roomTree.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[roomTree.tree_key] || '🌱')}
+                    </span>
+                    <span className="text-[11px] font-semibold leading-snug" style={{ color: treeStatusColor() }}>
+                      {treeStatusLabel()}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-1.5">
                   {memberList.slice(0, 4).map((m) => (
                     <div key={m.user_id} className="flex items-center gap-2">
@@ -520,11 +551,23 @@ export default function Flow() {
                     {t('flow.shareCode')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                   </p>
                 </div>
-                <button onClick={leaveRoom}
+                <button onClick={handleLeaveRoom}
                   className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2" style={lg()}>
                   <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
                 </button>
               </div>
+
+              {roomTree && (
+                <div className="flex items-center gap-2.5 rounded-2xl px-5 py-3 mb-4"
+                  style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
+                  <span className="text-xl shrink-0">
+                    {roomTree.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[roomTree.tree_key] || '🌱')}
+                  </span>
+                  <span className="text-xs font-semibold leading-snug" style={{ color: treeStatusColor() }}>
+                    {treeStatusLabel()}
+                  </span>
+                </div>
+              )}
 
               {/* Shared timer status / host controls */}
               <div className="rounded-2xl px-5 py-4 mb-5" style={lg({ color: modeColor, active: true })}>
@@ -638,7 +681,6 @@ export default function Flow() {
                   </div>
                 ))}
               </div>
-
               {forest.days.map((day) => (
                 <div key={day.date} className="rounded-3xl p-5" style={lg()}>
                   <div className="flex items-center justify-between mb-3">
