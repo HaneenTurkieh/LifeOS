@@ -7,27 +7,30 @@ import {
   GraduationCap, CalendarDays, X, Settings,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
+// Labels are translation keys — resolved with t() at render time
 const NAV = [
-  { to: '/',          icon: LayoutDashboard, label: 'Home'     },
-  { to: '/tasks',     icon: ListChecks,      label: 'Tasks'    },
-  { to: '/calendar',  icon: CalendarDays,    label: 'Calendar' },
-  { to: '/goals',     icon: Target,          label: 'Goals'    },
-  { to: '/ai',        icon: Sparkles,        label: 'Lumi'     },
+  { to: '/',          icon: LayoutDashboard, label: 'nav.dashboard' },
+  { to: '/tasks',     icon: ListChecks,      label: 'nav.tasks'     },
+  { to: '/calendar',  icon: CalendarDays,    label: 'nav.calendar'  },
+  { to: '/goals',     icon: Target,          label: 'nav.goals'     },
+  { to: '/ai',        icon: Sparkles,        label: 'nav.lumi'      },
 ];
 
 const MORE_ITEMS = [
-  { to: '/history',   icon: Clock,          label: 'History'   },
-  { to: '/learning',  icon: Timer,          label: 'Flow'      },
-  { to: '/exam',      icon: GraduationCap,  label: 'Exam AI'   },
-  { to: '/analytics', icon: BarChart3,      label: 'Stats'     },
-  { to: '/launchpad', icon: Rocket,         label: 'Launchpad' },
-  { to: '/trees',     icon: TreePine,       label: 'Tree Shop' },
+  { to: '/history',   icon: Clock,          label: 'nav.history'   },
+  { to: '/learning',  icon: Timer,          label: 'nav.flow'      },
+  { to: '/exam',      icon: GraduationCap,  label: 'nav.exam'      },
+  { to: '/analytics', icon: BarChart3,      label: 'nav.analytics' },
+  { to: '/launchpad', icon: Rocket,         label: 'nav.launchpad' },
+  { to: '/trees',     icon: TreePine,       label: 'nav.treeshop'  },
 ];
 
 export default function MobileNav() {
   const [moreOpen,     setMoreOpen]     = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { t } = useLanguage();
 
   return (
     <>
@@ -63,7 +66,7 @@ export default function MobileNav() {
                   <span className={`text-[10px] font-medium ${
                     isActive ? 'text-aurora-violet dark:text-lavender-300' : 'text-ink/40 dark:text-white/40'
                   }`}>
-                    {label}
+                    {t(label)}
                   </span>
                 </motion.div>
               )}
@@ -79,7 +82,7 @@ export default function MobileNav() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl">
               <MoreHorizontal size={17} className="text-ink/40 dark:text-white/40" />
             </div>
-            <span className="text-[10px] font-medium text-ink/40 dark:text-white/40">More</span>
+            <span className="text-[10px] font-medium text-ink/40 dark:text-white/40">{t('common.more')}</span>
           </motion.button>
         </div>
       </nav>
@@ -99,7 +102,7 @@ export default function MobileNav() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-display font-bold text-ink dark:text-white">More</h3>
+                <h3 className="font-display font-bold text-ink dark:text-white">{t('common.more')}</h3>
                 <button
                   onClick={() => setMoreOpen(false)}
                   className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 dark:text-white/40 hover:bg-ink/5 dark:hover:bg-white/10"
@@ -107,7 +110,6 @@ export default function MobileNav() {
                   <X size={18} />
                 </button>
               </div>
-
               <div className="grid grid-cols-3 gap-3">
                 {MORE_ITEMS.map(({ to, icon: Icon, label }) => (
                   <NavLink
@@ -117,14 +119,14 @@ export default function MobileNav() {
                     className="flex flex-col items-center gap-2 rounded-2xl bg-ink/5 dark:bg-white/5 py-4 text-xs font-medium text-ink/70 dark:text-white/60"
                   >
                     <Icon size={20} />
-                    {label}
+                    {t(label)}
                   </NavLink>
                 ))}
                 <button
                   onClick={() => { setMoreOpen(false); setSettingsOpen(true); }}
                   className="flex flex-col items-center gap-2 rounded-2xl bg-ink/5 dark:bg-white/5 py-4 text-xs font-medium text-ink/70 dark:text-white/60"
                 >
-                  <Settings size={20} /> Settings
+                  <Settings size={20} /> {t('nav.settings')}
                 </button>
               </div>
             </motion.div>
