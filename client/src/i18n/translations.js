@@ -445,6 +445,17 @@ export const translations = {
     'flow.plantFirst':    'Plant your first tree →',
     'flow.minFocused':    '{n} min of focused work.',
     'flow.minFocusedSub': 'min focused',
+    // ── Notifications ──────────────────────────────────────
+    'notif.title':    'Notifications',
+    'notif.markAll':  'Mark all read',
+    'notif.caughtUp': 'All caught up!',
+    'notif.none':     'No notifications right now.',
+    'notif.clearAll': 'Clear all',
+    'notif.open':     'Open',
+    'notif.justNow':  'just now',
+    'notif.mAgo':     '{n}m ago',
+    'notif.hAgo':     '{n}h ago',
+    'notif.dAgo':     '{n}d ago',
     },
   
     ar: {
@@ -890,4 +901,15 @@ export const translations = {
     'flow.plantFirst':    'ازرع شجرتك الأولى ←',
     'flow.minFocused':    '{n} دقيقة من العمل المركّز.',
     'flow.minFocusedSub': 'دقيقة تركيز',
+    // ── الإشعارات ────────────────────────────────────────────
+    'notif.title':    'الإشعارات',
+    'notif.markAll':  'تحديد الكل كمقروء',
+    'notif.caughtUp': 'كل شيء تمام!',
+    'notif.none':     'لا إشعارات حاليًا.',
+    'notif.clearAll': 'مسح الكل',
+    'notif.open':     'فتح',
+    'notif.justNow':  'الآن',
+    'notif.mAgo':     'منذ {n} دقيقة',
+    'notif.hAgo':     'منذ {n} ساعة',
+    'notif.dAgo':     'منذ {n} يوم',
   };
