@@ -15,6 +15,14 @@ const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30]
 const CX = 140, CY = 140, R = 108;
 const CIRC = 2 * Math.PI * R;
 
+// Focus mode's brand color needs to be accent-aware (it's the primary
+// "you" color throughout this page), but many spots below append a hex
+// alpha suffix like `${modeColor}88` — which only works with hex strings,
+// not rgb(var(...)) function syntax. So this stays a hex lookup, same
+// pattern as ProductivitySphere's SVG gradient map, kept in sync with
+// index.css's --accent-500 values.
+const ACCENT_HEX = { purple: '#7C6AF0', orange: '#FF7A2E', pink: '#F5408F', blue: '#3B82F6' };
+
 function lg({ color, active } = {}) {
   if (active && color) {
     return {
@@ -58,11 +66,9 @@ export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
   const { t, lang } = useLanguage();
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, accent } = useTheme();
   const isDark = resolvedTheme === 'dark';
-  // Theme-aware "muted text" helper — was previously hardcoded to
-  // rgba(30,34,51,X) (dark ink) everywhere, which vanishes on dark
-  // backgrounds. Now flips to white-based rgba in dark mode.
+  // Theme-aware "muted text" helper
   const muted = (a) => (isDark ? `rgba(255,255,255,${a})` : `rgba(30,34,51,${a})`);
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
   const fmtTime = (d) => d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
@@ -183,9 +189,6 @@ export default function Flow() {
     } catch (err) { toast.error(err.message); }
   };
 
-  // Uses the context's leaveRoom() so roomTree state clears in the same
-  // place it's tracked — server-side kill logic already runs on the
-  // DELETE /leave call regardless of which wrapper triggers it.
   const handleLeaveRoom = async () => {
     if (!room) return;
     await leaveRoom();
@@ -193,8 +196,6 @@ export default function Flow() {
     toast.success(t('flow.leftRoom'));
   };
 
-  // Shared room tree status label — kept as inline lang-conditional
-  // strings (not translations.js) to avoid touching that file again.
   const treeStatusLabel = () => {
     if (!roomTree) return null;
     if (roomTree.status === 'alive')
@@ -218,7 +219,11 @@ export default function Flow() {
   const ss         = String(timeLeft % 60).padStart(2, '0');
   const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const dashOffset = CIRC * (1 - progress);
-  const modeColor  = MODES[mode].color;
+  // Focus mode's displayed color now follows the active premium accent
+  // preset instead of MODES.focus.color's hardcoded purple default.
+  // Short/long break keep their fixed green/blue — intentional, matches
+  // how streak/mood colors elsewhere stay semantic regardless of accent.
+  const modeColor  = mode === 'focus' ? (ACCENT_HEX[accent] || ACCENT_HEX.purple) : MODES[mode].color;
   const now        = new Date();
   const endsAt     = new Date(now.getTime() + timeLeft * 1000);
   const timeRange  = startedAt
@@ -253,7 +258,7 @@ export default function Flow() {
             className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
             style={tab === key ? {
               background: 'rgba(255,255,255,0.88)',
-              boxShadow:  '0 8px 24px rgba(0,0,0,0.13), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+              boxShadow:  `0 8px 24px rgba(0,0,0,0.13), 0 2px 8px ${modeColor}2E, inset 0 1px 0 rgba(255,255,255,1)`,
               color:      '#1E2233',
             } : { color: 'rgba(255,255,255,0.45)' }}
           >
@@ -281,7 +286,7 @@ export default function Flow() {
                   whileHover={{ y: -1, scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={() => handleModeClick(key)}
                   className="px-5 py-2 rounded-2xl text-sm font-semibold transition-all"
-                  style={lg({ color: m.color, active: mode === key })}>
+                  style={lg({ color: key === 'focus' ? modeColor : m.color, active: mode === key })}>
                   {m.emoji} {t(MODE_LABEL_KEYS[key])}
                 </motion.button>
               ))}
@@ -313,7 +318,7 @@ export default function Flow() {
                     <line key={i}
                       x1={CX + innerR * Math.cos(angle)} y1={CY + innerR * Math.sin(angle)}
                       x2={CX + outerR * Math.cos(angle)} y2={CY + outerR * Math.sin(angle)}
-                      stroke={isPast ? modeColor : 'rgba(124,106,240,0.10)'}
+                      stroke={isPast ? modeColor : 'rgb(var(--accent-500) / 0.10)'}
                       strokeWidth={isMajor ? 2.5 : 1.2} strokeLinecap="round"
                     />
                   );
@@ -349,7 +354,7 @@ export default function Flow() {
                   {t(MODE_LABEL_KEYS[mode])}
                 </span>
                 {mode === 'focus' && xpFor(Math.round(totalTime / 60)) > 0 && (
-                  <span className="text-[10px] font-bold mt-1" style={{ color: '#7C6AF0' }}>
+                  <span className="text-[10px] font-bold mt-1" style={{ color: modeColor }}>
                     {t('flow.xpOnComplete', { n: xpFor(Math.round(totalTime / 60)) })}
                   </span>
                 )}
@@ -381,11 +386,10 @@ export default function Flow() {
               )}
             </AnimatePresence>
 
-            {/* Task name — was hardcoded to #1E2233 on input, invisible
-                on dark backgrounds once you typed. Now theme-aware. */}
+            {/* Task name */}
             <input
               className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2 text-ink dark:text-white placeholder:text-ink/30 dark:placeholder:text-white/25"
-              style={{ borderBottom: '1px solid rgba(124,106,240,0.20)' }}
+              style={{ borderBottom: `1px solid ${modeColor}33` }}
               placeholder={t('flow.workingOn')}
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
@@ -434,7 +438,7 @@ export default function Flow() {
                 ))}
               </div>
               {mode === 'focus' && (
-                <p className="text-[10px] text-center mt-3 font-medium" style={{ color: 'rgba(124,106,240,0.65)' }}>
+                <p className="text-[10px] text-center mt-3 font-medium" style={{ color: `${modeColor}A6` }}>
                   {t('flow.xpRate')}
                 </p>
               )}
@@ -459,8 +463,8 @@ export default function Flow() {
                   ))}
                 </div>
                 <div className="mt-3 rounded-2xl px-3 py-2 text-center"
-                  style={{ background: 'rgba(124,106,240,0.08)', border: '1px solid rgba(124,106,240,0.15)' }}>
-                  <p className="text-xs font-bold" style={{ color: '#7C6AF0' }}>
+                  style={{ background: `${modeColor}14`, border: `1px solid ${modeColor}26` }}>
+                  <p className="text-xs font-bold" style={{ color: modeColor }}>
                     {t('flow.weeklyXp', { n: xpFor(stats.total_minutes) })}
                   </p>
                 </div>
@@ -468,7 +472,7 @@ export default function Flow() {
             )}
 
             {room ? (
-              <div className="rounded-3xl p-5" style={lg({ color: MODES.focus.color, active: true })}>
+              <div className="rounded-3xl p-5" style={lg({ color: modeColor, active: true })}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-semibold text-ink dark:text-white text-sm">{displayRoom.name}</p>
@@ -833,7 +837,7 @@ export default function Flow() {
               <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3">🌳 {t('flow.treePlanted')}</p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
-                  style={lg({ color: '#7C6AF0', active: true })}>
+                  style={lg({ color: modeColor, active: true })}>
                   ✨ +{congrats.xpAwarded} XP
                 </span>
               )}
