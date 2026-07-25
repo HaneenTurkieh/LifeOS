@@ -571,17 +571,34 @@ async function generateTitle(firstUserMessage) {
 async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const [tasks, goals, habits, mood, focus, xp, memories, profile, settings] = await Promise.all([
-      db.execute({ sql: `SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, args: [userId] }),
-      db.execute({ sql: `SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, args: [userId] }),
-      db.execute({ sql: `SELECT name,streak FROM habits WHERE user_id=? LIMIT 6`, args: [userId] }),
-      db.execute({ sql: `SELECT mood FROM moods WHERE user_id=? AND date=?`, args: [userId, today] }),
-      db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, args: [userId] }),
-      db.execute({ sql: `SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, args: [userId] }),
-      db.execute({ sql: `SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, args: [userId] }),
-      db.execute({ sql: `SELECT name, email, gender, birthday, bio FROM users WHERE id=?`, args: [userId] }),
-      getSettings(userId),
+
+    // Each query is individually fault-tolerant: if one fails (e.g. a
+    // column missing in production), it logs and returns empty rows
+    // instead of nuking the ENTIRE prompt down to the generic fallback.
+    const q = (sql, args) =>
+      db.execute({ sql, args }).catch((e) => {
+        console.error('[lumi prompt] query failed (non-fatal):', e.message, '—', sql.slice(0, 60));
+        return { rows: [] };
+      });
+
+    const [tasks, goals, habits, mood, focus, xp, memories] = await Promise.all([
+      q(`SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, [userId]),
+      q(`SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, [userId]),
+      q(`SELECT name,streak FROM habits WHERE user_id=? LIMIT 6`, [userId]),
+      q(`SELECT mood FROM moods WHERE user_id=? AND date=?`, [userId, today]),
+      q(`SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, [userId]),
+      q(`SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, [userId]),
+      q(`SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, [userId]),
     ]);
+
+    // Profile: try the full select; if gender/birthday/bio columns
+    // don't exist yet, fall back to the guaranteed name + email.
+    let profile = await q(`SELECT name, email, gender, birthday, bio FROM users WHERE id=?`, [userId]);
+    if (!profile.rows.length) {
+      profile = await q(`SELECT name, email FROM users WHERE id=?`, [userId]);
+    }
+
+    const settings = await getSettings(userId);
 
     const taskList   = tasks.rows.map(t => `• ${t.title} [${t.priority}${t.deadline ? ` · due ${t.deadline}` : ''}]`).join('\n') || 'None';
     const goalList   = goals.rows.map(g => `• ${g.title} [${g.status}]`).join('\n') || 'None';
@@ -694,7 +711,8 @@ INSTRUCTIONS:
 - Never fabricate numbers — always fetch data with tools.
 - If mood is 1-2, lead with empathy before anything else.
 - If mood is 4-5, match their energy and be ambitious.`;
-  } catch (_) {
+  } catch (err) {
+    console.error('[lumi prompt] TOTAL failure — using generic fallback:', err.message);
     return `You are Lumi ✦, Aurora's productivity assistant. Be concise, warm, and helpful. Today is ${new Date().toLocaleDateString()}.`;
   }
 }
