@@ -38,16 +38,14 @@ function NavTooltip({ label }) {
     </span>
   );
 }
-
 const hoverCard = {
   background: 'rgba(255,255,255,0.90)',
-  boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,1)',
+  boxShadow:  '0 8px 24px rgba(0,0,0,0.14), 0 2px 8px rgb(var(--accent-500) / 0.18), inset 0 1px 0 rgba(255,255,255,1)',
 };
 
 export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useLanguage();
-
   return (
     <aside
       className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6"
@@ -58,15 +56,14 @@ export default function Sidebar() {
         style={{ overflow: 'visible' }}
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
-
-        {/* ✦ Logo mark */}
+        {/* ✦ Logo mark — now theme-accent-aware */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
           className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-white shrink-0"
           style={{
-            background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
-            boxShadow:  '0 8px 20px rgba(124,92,255,0.45)',
+            background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
+            boxShadow:  '0 8px 20px rgb(var(--accent-500) / 0.45)',
             fontSize:   20,
             fontFamily: 'serif',
             fontWeight: 700,
@@ -75,7 +72,6 @@ export default function Sidebar() {
         >
           ✦
         </motion.div>
-
         {/* Nav */}
         <nav className="flex flex-col gap-1" style={{ overflow: 'visible' }}>
           {NAV.map(({ to, icon: Icon, label }) => (
@@ -92,8 +88,11 @@ export default function Sidebar() {
                     <motion.span
                       layoutId="sidebar-active"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                      className="absolute inset-0 rounded-2xl bg-gradient-to-br from-aurora-violet to-aurora-indigo"
-                      style={{ boxShadow: '0 8px 24px rgba(124,92,255,0.5)' }}
+                      className="absolute inset-0 rounded-2xl"
+                      style={{
+                        background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
+                        boxShadow: '0 8px 24px rgb(var(--accent-500) / 0.5)',
+                      }}
                     />
                   )}
                   <motion.span
@@ -118,7 +117,7 @@ export default function Sidebar() {
                       className={`relative z-10 transition-colors duration-150 ${
                         isActive
                           ? 'text-white'
-                          : 'text-ink/40 dark:text-white/40 group-hover:text-aurora-violet'
+                          : 'text-ink/40 dark:text-white/40 group-hover:text-[rgb(var(--accent-500))]'
                       }`}
                     />
                   </motion.span>
@@ -128,7 +127,6 @@ export default function Sidebar() {
             </NavLink>
           ))}
         </nav>
-
         {/* Settings */}
         <div
           className="mt-3 pt-3 border-t border-ink/5 dark:border-white/10 w-full flex justify-center"
@@ -148,13 +146,12 @@ export default function Sidebar() {
             <Settings
               size={19}
               strokeWidth={2.1}
-              className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-aurora-violet transition-colors duration-150"
+              className="relative z-10 text-ink/40 dark:text-white/40 group-hover:text-[rgb(var(--accent-500))] transition-colors duration-150"
             />
             <NavTooltip label={t('nav.settings')} />
           </motion.button>
         </div>
       </div>
-
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </aside>
   );
