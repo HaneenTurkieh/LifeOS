@@ -229,3 +229,15 @@ CREATE TABLE IF NOT EXISTS focus_room_timer (
   mode             TEXT NOT NULL DEFAULT 'focus',
   running          INTEGER NOT NULL DEFAULT 0
 );
+-- ── Shared room tree (Forest-style, ONE tree for the whole room) ─
+-- Reset every time the host starts a new synced session. If any
+-- member leaves while the session is running, the tree dies for
+-- everyone; if the session completes naturally, it survives.
+CREATE TABLE IF NOT EXISTS focus_room_tree (
+  room_id      INTEGER PRIMARY KEY,
+  tree_key     TEXT NOT NULL DEFAULT 'seedling',
+  status       TEXT NOT NULL DEFAULT 'none',      -- none | alive | dead | completed
+  died_by_name TEXT,
+  started_at   TEXT,
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
