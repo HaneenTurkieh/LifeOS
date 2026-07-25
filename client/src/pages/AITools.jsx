@@ -8,31 +8,7 @@ import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-
-const SUGGESTIONS = [
-  { icon: '📋', text: 'What are my most important tasks today?' },
-  { icon: '🎯', text: 'Create a goal to learn a new skill this month' },
-  { icon: '📊', text: 'How productive have I been this week?' },
-  { icon: '⚡', text: 'Plan my day — I have 4 hours and high energy' },
-  { icon: '✅', text: 'Add a task: Review project proposal, high priority' },
-  { icon: '🧠', text: "I'm procrastinating. Help me get started." },
-];
-
-const CHAT_MODES = [
-  { key: 'chat',   label: 'Chat',        Icon: Sparkles, hint: 'Everyday assistant with Aurora tools' },
-  { key: 'think',  label: 'Deep Think',  Icon: Brain,    hint: 'Careful step-by-step reasoning'       },
-  { key: 'search', label: 'Deep Search', Icon: Globe,    hint: 'Searches the web for live info'       },
-];
-
-const SETTINGS_OPTIONS = {
-  tone:            { label: 'Tone',   options: ['friendly','professional','motivational','calm','playful'] },
-  response_length: { label: 'Length', options: ['short','balanced','detailed'] },
-  emoji_level:     { label: 'Emoji',  options: ['none','some','lots'] },
-};
-
-const ACCEPTED_FILES = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
-const MAX_FILE_MB    = 25;
-const MAX_ATTACH     = 3;
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 const TOOL_META = {
   create_task:             { icon: '✅', label: 'Task created',      color: '#7C6AF0' },
@@ -51,6 +27,9 @@ const TOOL_META = {
   save_memory:             { icon: '🧠', label: 'Memory saved',      color: '#A855F7' },
   forget_memory:           { icon: '🗑', label: 'Memory cleared',    color: '#EF4444' },
 };
+const ACCEPTED_FILES = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
+const MAX_FILE_MB    = 25;
+const MAX_ATTACH     = 3;
 
 // ── Glass styles ──────────────────────────────────────────────
 const glassDark = {
@@ -111,6 +90,7 @@ function Message({ msg }) {
       )}
       <div className={`flex flex-col gap-1 max-w-[82%] ${isLumi ? '' : 'items-end'}`}>
         <div
+          dir="auto"
           className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
             isLumi
               ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
@@ -138,7 +118,7 @@ function Message({ msg }) {
   );
 }
 
-function TypingIndicator({ mode }) {
+function TypingIndicator({ mode, t }) {
   return (
     <div className="flex gap-3">
       <div
@@ -156,18 +136,18 @@ function TypingIndicator({ mode }) {
             />
           ))}
         </div>
-        {mode === 'think'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">thinking deeply…</span>}
-        {mode === 'search' && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">searching the web…</span>}
+        {mode === 'think'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.thinkingDeeply')}</span>}
+        {mode === 'search' && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.searchingWeb')}</span>}
       </div>
     </div>
   );
 }
 
-function ConversationList({ convos, activeId, onSelect, onNew, onDelete }) {
+function ConversationList({ convos, activeId, onSelect, onNew, onDelete, t }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/30">History</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/30">{t('lumi.history')}</span>
         <motion.button
           whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
           onClick={onNew}
@@ -179,7 +159,7 @@ function ConversationList({ convos, activeId, onSelect, onNew, onDelete }) {
       </div>
       <div className="flex flex-col gap-1 overflow-y-auto flex-1">
         {convos.length === 0 && (
-          <p className="text-xs text-ink/30 dark:text-white/25 text-center mt-6">No chats yet</p>
+          <p className="text-xs text-ink/30 dark:text-white/25 text-center mt-6">{t('lumi.noChats')}</p>
         )}
         {convos.map((c) => (
           <div
@@ -216,9 +196,21 @@ function PanelIcon() {
 }
 
 // ── Lumi settings panel ───────────────────────────────────────
-function LumiSettingsPanel({ open, onClose, isDark }) {
+function LumiSettingsPanel({ open, onClose, isDark, t }) {
   const [settings, setSettings] = useState(null);
   const [saved,    setSaved]    = useState(false);
+
+  const SETTINGS_OPTIONS = {
+    tone:            { label: t('lumi.tone'),       options: ['friendly','professional','motivational','calm','playful'] },
+    response_length: { label: t('lumi.length'),     options: ['short','balanced','detailed'] },
+    emoji_level:     { label: t('lumi.emojiLabel'), options: ['none','some','lots'] },
+  };
+  const OPTION_LABELS = {
+    friendly: t('lumi.toneFriendly'), professional: t('lumi.toneProfessional'), motivational: t('lumi.toneMotivational'),
+    calm: t('lumi.toneCalm'), playful: t('lumi.tonePlayful'),
+    short: t('lumi.lengthShort'), balanced: t('lumi.lengthBalanced'), detailed: t('lumi.lengthDetailed'),
+    none: t('lumi.emojiNone'), some: t('lumi.emojiSome'), lots: t('lumi.emojiLots'),
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -245,7 +237,7 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.97 }}
           transition={{ duration: 0.16 }}
-          className="absolute bottom-full right-0 mb-2 w-72 rounded-3xl p-4 z-30"
+          className="absolute bottom-full end-0 mb-2 w-72 rounded-3xl p-4 z-30"
           style={{
             ...(isDark ? glassDark : glassLight),
             background: isDark ? 'rgba(18,14,35,0.92)' : 'rgba(255,255,255,0.92)',
@@ -254,7 +246,7 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/35">
-              Lumi settings
+              {t('lumi.settingsTitle')}
             </span>
             <div className="flex items-center gap-2">
               <AnimatePresence>
@@ -263,7 +255,7 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     className="flex items-center gap-1 text-[10px] font-semibold text-sage-500"
                   >
-                    <Check size={10} /> Saved
+                    <Check size={10} /> {t('lumi.saved')}
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -272,9 +264,8 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
               </button>
             </div>
           </div>
-
           {!settings ? (
-            <p className="text-xs text-ink/35 dark:text-white/30 py-4 text-center">Loading…</p>
+            <p className="text-xs text-ink/35 dark:text-white/30 py-4 text-center">{t('lumi.loadingSettings')}</p>
           ) : (
             <div className="flex flex-col gap-3.5">
               {Object.entries(SETTINGS_OPTIONS).map(([field, { label, options }]) => (
@@ -287,7 +278,7 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
                         <button
                           key={opt}
                           onClick={() => update(field, opt)}
-                          className="rounded-xl px-2.5 py-1.5 text-[11px] font-semibold capitalize transition-all"
+                          className="rounded-xl px-2.5 py-1.5 text-[11px] font-semibold transition-all"
                           style={active
                             ? { background:'rgba(124,106,240,0.18)', border:'1px solid rgba(124,106,240,0.45)', color:'#7C6AF0' }
                             : {
@@ -296,7 +287,7 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
                                 color:      isDark ? 'rgba(255,255,255,0.45)' : 'rgba(30,34,51,0.50)',
                               }}
                         >
-                          {opt}
+                          {OPTION_LABELS[opt] || opt}
                         </button>
                       );
                     })}
@@ -304,7 +295,7 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
                 </div>
               ))}
               <p className="text-[10px] text-ink/30 dark:text-white/25 pt-1">
-                Changes apply to your next message.
+                {t('lumi.settingsHint')}
               </p>
             </div>
           )}
@@ -318,8 +309,24 @@ function LumiSettingsPanel({ open, onClose, isDark }) {
 export default function AITools() {
   const { user }          = useAuth();
   const { resolvedTheme } = useTheme();
-  const toast             = useToast();
-  const isDark            = resolvedTheme === 'dark';
+  const toast              = useToast();
+  const { t, lang }        = useLanguage();
+  const isDark             = resolvedTheme === 'dark';
+  const isRTL              = lang === 'ar';
+
+  const SUGGESTIONS = [
+    { icon: '📋', text: t('lumi.sugg1') },
+    { icon: '🎯', text: t('lumi.sugg2') },
+    { icon: '📊', text: t('lumi.sugg3') },
+    { icon: '⚡', text: t('lumi.sugg4') },
+    { icon: '✅', text: t('lumi.sugg5') },
+    { icon: '🧠', text: t('lumi.sugg6') },
+  ];
+  const CHAT_MODES = [
+    { key: 'chat',   label: t('lumi.chat'),       Icon: Sparkles, hint: t('lumi.chatHint')   },
+    { key: 'think',  label: t('lumi.deepThink'),  Icon: Brain,    hint: t('lumi.thinkHint')  },
+    { key: 'search', label: t('lumi.deepSearch'), Icon: Globe,    hint: t('lumi.searchHint') },
+  ];
 
   const [convos,         setConvos]         = useState([]);
   const [activeConvId,   setActiveConvId]   = useState(null);
@@ -332,7 +339,6 @@ export default function AITools() {
   const [attachments,    setAttachments]    = useState([]);      // [{name, text, wordCount}]
   const [attaching,      setAttaching]      = useState(false);
   const [settingsOpen,   setSettingsOpen]   = useState(false);
-
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileRef   = useRef(null);
@@ -347,7 +353,6 @@ export default function AITools() {
       setConvos(data);
     } catch (_) {}
   }, []);
-
   useEffect(() => { loadConvos(); }, [loadConvos]);
 
   useEffect(() => {
@@ -382,11 +387,11 @@ export default function AITools() {
   const handleAttach = async (file) => {
     if (!file) return;
     if (attachments.length >= MAX_ATTACH) {
-      toast.error(`Max ${MAX_ATTACH} files per message.`);
+      toast.error(t('lumi.maxFiles', { n: MAX_ATTACH }));
       return;
     }
     if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      toast.error(`File too large. Max ${MAX_FILE_MB}MB.`);
+      toast.error(t('lumi.fileTooLarge', { n: MAX_FILE_MB }));
       return;
     }
     setAttaching(true);
@@ -401,7 +406,7 @@ export default function AITools() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       setAttachments((prev) => [...prev, { name: file.name, text: data.text, wordCount: data.wordCount }]);
-      toast.success(`📎 ${file.name} attached`);
+      toast.success(t('lumi.attached', { name: file.name }));
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -409,20 +414,16 @@ export default function AITools() {
       if (fileRef.current) fileRef.current.value = '';
     }
   };
-
   const removeAttachment = (name) => setAttachments((prev) => prev.filter((a) => a.name !== name));
 
   // ── Send ────────────────────────────────────────────────────
   const sendMessage = useCallback(async (text) => {
     const content = (text || input).trim();
     if ((!content && attachments.length === 0) || loading) return;
-
-    const finalContent = content || `Summarize the attached file${attachments.length > 1 ? 's' : ''} for me.`;
+    const finalContent = content || (attachments.length > 1 ? t('lumi.summarizeFiles') : t('lumi.summarizeFile'));
     const sendAttachments = attachments;
-
     setInput('');
     setAttachments([]);
-
     const userMsg = {
       role: 'user',
       content: finalContent,
@@ -430,9 +431,7 @@ export default function AITools() {
     };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
-
     const history = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
-
     try {
       const res = await api.post('/chat', {
         messages:        history,
@@ -446,12 +445,12 @@ export default function AITools() {
         loadConvos();
       }
     } catch (_) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: "Sorry, I couldn't connect. Please try again.", actions: [] }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: t('lumi.errorConnect'), actions: [] }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, messages, activeConvId, loadConvos, mode, attachments]);
+  }, [input, loading, messages, activeConvId, loadConvos, mode, attachments, t]);
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -481,6 +480,7 @@ export default function AITools() {
                 onSelect={loadConversation}
                 onNew={startNew}
                 onDelete={deleteConvo}
+                t={t}
               />
             </div>
           </motion.div>
@@ -498,15 +498,13 @@ export default function AITools() {
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition"
               style={accentBtn}
             >
-              <PanelIcon /> History
+              <PanelIcon /> {t('lumi.history')}
             </button>
             <button onClick={startNew} className="btn-primary !py-2 !px-3 !text-xs !rounded-xl">
-              <Plus size={13} /> New
+              <Plus size={13} /> {t('common.new')}
             </button>
           </div>
-
-          {/* Desktop — new chat + panel toggle (top-LEFT, so it never
-              collides with the global search + bell in the top-right) */}
+          {/* Desktop — new chat + panel toggle */}
           <div className="hidden lg:flex items-center gap-2">
             {!isFirstMessage && (
               <button
@@ -514,18 +512,18 @@ export default function AITools() {
                 className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition hover:scale-[1.03]"
                 style={accentBtn}
               >
-                <Plus size={13} /> New chat
+                <Plus size={13} /> {t('lumi.newChat')}
               </button>
             )}
             <motion.button
               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.94 }}
               onClick={() => setSidebarVisible((v) => !v)}
-              title={sidebarVisible ? 'Hide history' : 'Show history'}
+              title={sidebarVisible ? t('lumi.hide') : t('lumi.history')}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition"
               style={accentBtn}
             >
               <PanelIcon />
-              <span>{sidebarVisible ? 'Hide' : 'History'}</span>
+              <span>{sidebarVisible ? t('lumi.hide') : t('lumi.history')}</span>
             </motion.button>
           </div>
         </div>
@@ -548,10 +546,10 @@ export default function AITools() {
                 </motion.div>
                 <div className="text-center">
                   <h1 className="font-display text-2xl font-bold text-ink dark:text-white">
-                    Hi {firstName}, I'm Lumi ✦
+                    {t('lumi.greeting', { name: firstName })}
                   </h1>
                   <p className="text-sm text-ink/50 dark:text-white/40 mt-1">
-                    Your Aurora productivity assistant. I remember things between chats.
+                    {t('lumi.subtitle')}
                   </p>
                 </div>
               </div>
@@ -561,7 +559,7 @@ export default function AITools() {
                     key={text}
                     whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}
                     onClick={() => sendMessage(text)}
-                    className="flex items-center gap-2.5 rounded-2xl px-4 py-3 text-left text-sm font-medium text-ink/70 dark:text-white/60"
+                    className="flex items-center gap-2.5 rounded-2xl px-4 py-3 text-start text-sm font-medium text-ink/70 dark:text-white/60"
                     style={glass}
                   >
                     <span className="text-base shrink-0">{icon}</span>{text}
@@ -576,7 +574,7 @@ export default function AITools() {
         {!isFirstMessage && (
           <div className="flex-1 overflow-y-auto px-1 py-2 flex flex-col gap-4">
             {messages.map((msg, i) => <Message key={i} msg={msg} />)}
-            {loading && <TypingIndicator mode={mode} />}
+            {loading && <TypingIndicator mode={mode} t={t} />}
             <div ref={bottomRef} />
           </div>
         )}
@@ -634,7 +632,7 @@ export default function AITools() {
 
           {/* Input bar */}
           <div className="relative">
-            <div className="flex items-end gap-1.5 rounded-3xl p-2 pl-2" style={glass}>
+            <div className="flex items-end gap-1.5 rounded-3xl p-2" style={glass}>
               {/* Attach */}
               <input
                 ref={fileRef} type="file" accept={ACCEPTED_FILES} className="hidden"
@@ -644,7 +642,7 @@ export default function AITools() {
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={() => fileRef.current?.click()}
                 disabled={attaching || loading}
-                title="Attach a file — PDF, PPTX, DOCX, TXT, images"
+                title={t('lumi.attachTitle')}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl transition disabled:opacity-40"
                 style={accentBtn}
               >
@@ -652,20 +650,20 @@ export default function AITools() {
                   ? <div className="h-4 w-4 rounded-full border-2 border-lavender-300 border-t-lavender-600 animate-spin" />
                   : <Paperclip size={15} />}
               </motion.button>
-
               {/* Textarea */}
               <textarea
                 ref={inputRef}
                 rows={1}
+                dir="auto"
                 className="flex-1 bg-transparent outline-none resize-none text-sm text-ink dark:text-white placeholder:text-ink/35 dark:placeholder:text-white/30 py-2 px-2 max-h-32"
                 placeholder={
                   attachments.length > 0
-                    ? 'Ask about the attached file — or just hit send to summarize…'
+                    ? t('lumi.askAttachment')
                     : mode === 'search'
-                    ? 'Ask Lumi to research anything…'
+                    ? t('lumi.askSearch')
                     : mode === 'think'
-                    ? 'Give Lumi a hard problem to think through…'
-                    : 'Ask Lumi anything…'
+                    ? t('lumi.askThink')
+                    : t('lumi.ask')
                 }
                 value={input}
                 onChange={(e) => {
@@ -675,12 +673,11 @@ export default function AITools() {
                 }}
                 onKeyDown={handleKey}
               />
-
               {/* Settings */}
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={() => setSettingsOpen((s) => !s)}
-                title="Lumi settings — tone, length, emoji"
+                title={t('lumi.settingsBtn')}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl transition"
                 style={settingsOpen
                   ? { background:'rgba(124,106,240,0.22)', border:'1px solid rgba(124,106,240,0.50)', color:'#7C6AF0' }
@@ -688,7 +685,6 @@ export default function AITools() {
               >
                 <SlidersHorizontal size={15} />
               </motion.button>
-
               {/* Send */}
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
@@ -697,20 +693,19 @@ export default function AITools() {
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
                 style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
               >
-                <Send size={15} />
+                <Send size={15} className="rtl:-scale-x-100" />
               </motion.button>
             </div>
-
-            <LumiSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} isDark={isDark} />
+            <LumiSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} isDark={isDark} t={t} />
           </div>
 
-          {/* Footer — disclaimer left, shortcuts right, same baseline */}
+          {/* Footer — disclaimer + shortcuts, same baseline */}
           <div className="flex items-center justify-between mt-2 px-2">
             <p className="text-[10px] text-ink/25 dark:text-white/20">
-              Lumi can make mistakes. Double-check important actions.
+              {t('lumi.disclaimer')}
             </p>
             <p className="text-[10px] text-ink/25 dark:text-white/20 font-medium shrink-0">
-              ⏎ send · ⇧⏎ new line
+              {t('lumi.sendHint')}
             </p>
           </div>
         </div>
@@ -725,13 +720,13 @@ export default function AITools() {
             onClick={() => setSidebarOpen(false)}
           >
             <motion.div
-              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+              initial={{ x: isRTL ? '100%' : '-100%' }} animate={{ x: 0 }} exit={{ x: isRTL ? '100%' : '-100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="absolute top-0 left-0 bottom-0 w-64 p-5"
+              className="absolute top-0 bottom-0 start-0 w-64 p-5"
               style={{
                 ...(isDark ? glassDark : glassLight),
                 background: isDark ? 'rgba(18,14,35,0.95)' : 'rgba(255,255,255,0.95)',
-                borderRadius: '0 2rem 2rem 0',
+                borderRadius: isRTL ? '2rem 0 0 2rem' : '0 2rem 2rem 0',
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -741,6 +736,7 @@ export default function AITools() {
                 onSelect={loadConversation}
                 onNew={startNew}
                 onDelete={deleteConvo}
+                t={t}
               />
             </motion.div>
           </motion.div>
