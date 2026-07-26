@@ -10,39 +10,29 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
   const [offsetY,  setOffsetY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-  const SIZE = 280; // preview circle size
+  const SIZE = 280;
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const img    = imgRef.current;
     if (!canvas || !img) return;
-
     const ctx = canvas.getContext('2d');
     canvas.width  = SIZE;
     canvas.height = SIZE;
-
-    // Clear
     ctx.clearRect(0, 0, SIZE, SIZE);
-
-    // Clip to circle
     ctx.save();
     ctx.beginPath();
     ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2, 0, Math.PI * 2);
     ctx.clip();
-
-    // Draw image centered with zoom and offset
     const scale  = (SIZE / Math.min(img.naturalWidth, img.naturalHeight)) * zoom;
     const w      = img.naturalWidth  * scale;
     const h      = img.naturalHeight * scale;
     const x      = (SIZE - w) / 2 + offsetX;
     const y      = (SIZE - h) / 2 + offsetY;
-
     ctx.drawImage(img, x, y, w, h);
     ctx.restore();
   }, [zoom, offsetX, offsetY]);
 
-  // Redraw whenever deps change
   React.useEffect(() => {
     const img = imgRef.current;
     if (img?.complete) draw();
@@ -58,8 +48,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
     setOffsetY(e.clientY - dragStart.y);
   };
   const handleMouseUp   = () => setDragging(false);
-
-  // Touch support
   const handleTouchStart = (e) => {
     const t = e.touches[0];
     setDragging(true);
@@ -71,10 +59,8 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
     setOffsetX(t.clientX - dragStart.x);
     setOffsetY(t.clientY - dragStart.y);
   };
-
   const handleSave = () => {
     const canvas = canvasRef.current;
-    // Export as 400×400 high-quality JPEG
     const out = document.createElement('canvas');
     out.width  = 400;
     out.height = 400;
@@ -101,7 +87,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
           boxShadow:    '0 32px 80px rgba(0,0,0,0.40)',
         }}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <span className="font-display font-bold text-white text-sm">Crop photo</span>
@@ -110,11 +95,8 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
             <X size={15} />
           </button>
         </div>
-
-        {/* Canvas */}
         <div className="flex flex-col items-center gap-5 p-6">
           <div className="relative" style={{ width: SIZE, height: SIZE }}>
-            {/* Hidden img for drawing */}
             <img
               ref={imgRef}
               src={imageSrc}
@@ -122,16 +104,14 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               className="hidden"
               onLoad={draw}
             />
-
-            {/* Canvas */}
             <canvas
               ref={canvasRef}
               width={SIZE}
               height={SIZE}
               className="rounded-full cursor-grab active:cursor-grabbing"
               style={{
-                border:    '3px solid rgba(124,106,240,0.60)',
-                boxShadow: '0 0 0 6px rgba(124,106,240,0.15)',
+                border:    '3px solid rgb(var(--accent-500) / 0.60)',
+                boxShadow: '0 0 0 6px rgb(var(--accent-500) / 0.15)',
                 userSelect: 'none',
               }}
               onMouseDown={handleMouseDown}
@@ -142,14 +122,10 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               onTouchMove={handleTouchMove}
               onTouchEnd={handleMouseUp}
             />
-
-            {/* Drag hint */}
             <p className="absolute -bottom-6 left-0 right-0 text-center text-[11px] text-white/30">
               Drag to reposition
             </p>
           </div>
-
-          {/* Zoom slider */}
           <div className="flex items-center gap-3 w-full mt-4">
             <button onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}
               className="text-white/40 hover:text-white/70 transition">
@@ -166,8 +142,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               <ZoomIn size={16} />
             </button>
           </div>
-
-          {/* Actions */}
           <div className="flex gap-3 w-full">
             <button onClick={onCancel}
               className="flex-1 rounded-2xl py-2.5 text-sm font-semibold text-white/50 transition"
@@ -179,8 +153,8 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               onClick={handleSave}
               className="flex-1 flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-white"
               style={{
-                background: 'linear-gradient(135deg,#7C6AF0,#5B47E0)',
-                boxShadow:  '0 4px 14px rgba(124,106,240,0.40)',
+                background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))',
+                boxShadow:  '0 4px 14px rgb(var(--accent-500) / 0.40)',
               }}
             >
               <Check size={15} /> Use photo

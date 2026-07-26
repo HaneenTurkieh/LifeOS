@@ -24,13 +24,11 @@ export default function GlobalSearch({ open, onClose }) {
   const isDark                = resolvedTheme === 'dark';
   const inputRef              = useRef(null);
   const listRef               = useRef(null);
-
   const [query,   setQuery]   = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [active,  setActive]  = useState(0);
 
-  // ── Theme-aware styles ────────────────────────────────────────
   const panelBg      = isDark ? 'rgba(18,14,35,0.97)'              : 'rgba(255,255,255,0.97)';
   const panelBorder  = isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.80)';
   const divider      = isDark ? 'rgba(255,255,255,0.06)'           : 'rgba(30,34,51,0.07)';
@@ -45,7 +43,6 @@ export default function GlobalSearch({ open, onClose }) {
   const kbdBg        = isDark ? 'rgba(255,255,255,0.06)'           : 'rgba(30,34,51,0.05)';
   const kbdBorder    = isDark ? 'rgba(255,255,255,0.10)'           : 'rgba(30,34,51,0.10)';
   const kbdClr       = isDark ? 'text-white/25'                    : 'text-ink/30';
-
   const RESULT_ICONS = {
     task:         <ListChecks size={14} className="text-lavender-500" />,
     goal:         <Target     size={14} className="text-blue-400"     />,
@@ -70,9 +67,7 @@ export default function GlobalSearch({ open, onClose }) {
         p.keywords.some((k) => k.includes(trimmed))
       )
       .map((p) => ({ type: 'page', label: p.label, icon: p.icon, path: p.path }));
-
     if (!trimmed) { setResults(pageMatches.slice(0, 6)); return; }
-
     setLoading(true);
     try {
       const [tasks, goals, convos] = await Promise.all([
@@ -84,17 +79,14 @@ export default function GlobalSearch({ open, onClose }) {
         .filter((t) => t.title.toLowerCase().includes(trimmed))
         .slice(0, 4)
         .map((t) => ({ type:'task', label:t.title, subtitle:`${t.priority} priority · ${t.status}`, path:'/tasks' }));
-
       const goalResults = goals
         .filter((g) => g.title.toLowerCase().includes(trimmed))
         .slice(0, 3)
         .map((g) => ({ type:'goal', label:g.title, subtitle:`${g.status} · ${g.progress||0}% complete`, path:'/goals' }));
-
       const convoResults = convos
         .filter((c) => c.title.toLowerCase().includes(trimmed))
         .slice(0, 3)
         .map((c) => ({ type:'conversation', label:c.title, subtitle:'Lumi conversation', path:'/ai' }));
-
       setResults([...taskResults, ...goalResults, ...convoResults, ...pageMatches.slice(0, 3)]);
     } catch (_) {
       setResults(pageMatches);
@@ -102,14 +94,12 @@ export default function GlobalSearch({ open, onClose }) {
       setLoading(false);
     }
   }, []);
-
   useEffect(() => {
     const id = setTimeout(() => search(query), 150);
     return () => clearTimeout(id);
   }, [query, search]);
 
   const go = (result) => { navigate(result.path); onClose(); };
-
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -121,7 +111,6 @@ export default function GlobalSearch({ open, onClose }) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [open, active, results]); // eslint-disable-line
-
   useEffect(() => {
     listRef.current?.children[active]?.scrollIntoView({ block:'nearest' });
   }, [active]);
@@ -155,7 +144,6 @@ export default function GlobalSearch({ open, onClose }) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Input */}
             <div
               className="flex items-center gap-3 px-5 py-4"
               style={{ borderBottom: `1px solid ${divider}` }}
@@ -181,11 +169,7 @@ export default function GlobalSearch({ open, onClose }) {
                 ESC
               </kbd>
             </div>
-
-            {/* Results */}
             <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: 360 }}>
-
-              {/* No results */}
               {results.length === 0 && !loading && query.trim() && (
                 <div className="flex flex-col items-center py-10 text-center">
                   <span className="text-3xl mb-2">🔍</span>
@@ -197,8 +181,6 @@ export default function GlobalSearch({ open, onClose }) {
                   </p>
                 </div>
               )}
-
-              {/* Quick nav */}
               {results.length === 0 && !loading && !query.trim() && (
                 <div className="px-5 py-4">
                   <p className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${labelClr}`}>
@@ -219,8 +201,6 @@ export default function GlobalSearch({ open, onClose }) {
                   </div>
                 </div>
               )}
-
-              {/* Grouped results */}
               {results.length > 0 && (
                 <div className="py-2">
                   {['task','goal','conversation','page'].map((type) => {
@@ -243,7 +223,7 @@ export default function GlobalSearch({ open, onClose }) {
                               className="w-full flex items-center gap-3 px-5 py-3 text-left transition-colors"
                               style={{
                                 background: isActive
-                                  ? isDark ? 'rgba(124,106,240,0.15)' : 'rgba(124,106,240,0.08)'
+                                  ? isDark ? 'rgb(var(--accent-500) / 0.15)' : 'rgb(var(--accent-500) / 0.08)'
                                   : 'transparent',
                               }}
                             >
@@ -268,8 +248,6 @@ export default function GlobalSearch({ open, onClose }) {
                   })}
                 </div>
               )}
-
-              {/* Loading */}
               {loading && (
                 <div className="flex items-center justify-center py-8">
                   <motion.div
@@ -280,8 +258,6 @@ export default function GlobalSearch({ open, onClose }) {
                 </div>
               )}
             </div>
-
-            {/* Footer */}
             <div
               className="flex items-center gap-4 px-5 py-3"
               style={{ borderTop: `1px solid ${divider}` }}
