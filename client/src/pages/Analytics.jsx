@@ -12,11 +12,10 @@ import GlassCard     from '../components/GlassCard.jsx';
 import EmptyState    from '../components/EmptyState.jsx';
 import PageLoader    from '../components/Loader.jsx';
 
-const PURPLE     = '#7C6AF0';
-const PIE_COLORS = ['#7C6AF0','#FFB84D','#4CC38A','#FF7A63','#06B6D4','#A855F7'];
+const ACCENT_HEX = { purple: '#7C6AF0', orange: '#FF7A2E', pink: '#F5408F', blue: '#3B82F6' };
 const MOOD_LABELS = { 1:'😞', 2:'😐', 3:'🙂', 4:'😊', 5:'🤩' };
 
-function StatCard({ label, value, sub, color = PURPLE, delay = 0 }) {
+function StatCard({ label, value, sub, color, delay = 0 }) {
   return (
     <GlassCard delay={delay} className="p-5 flex flex-col gap-1">
       <p className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/30">{label}</p>
@@ -25,7 +24,6 @@ function StatCard({ label, value, sub, color = PURPLE, delay = 0 }) {
     </GlassCard>
   );
 }
-
 function Chart({ title, children, delay = 0, height = 220 }) {
   return (
     <GlassCard delay={delay} className="p-6">
@@ -36,7 +34,6 @@ function Chart({ title, children, delay = 0, height = 220 }) {
     </GlassCard>
   );
 }
-
 function MoodTick({ x, y, payload }) {
   return (
     <text x={x} y={y} dy={4} textAnchor="middle" fontSize={14}>
@@ -48,10 +45,12 @@ function MoodTick({ x, y, payload }) {
 export default function Analytics() {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
-  const { resolvedTheme }     = useTheme();
+  const { resolvedTheme, accent } = useTheme();
   const { t }                 = useLanguage();
   const isDark                = resolvedTheme === 'dark';
   const toast                 = useToast();
+  const PURPLE     = ACCENT_HEX[accent] || ACCENT_HEX.purple;
+  const PIE_COLORS = [PURPLE,'#FFB84D','#4CC38A','#FF7A63','#06B6D4','#A855F7'];
 
   useEffect(() => {
     api.get('/analytics')
@@ -59,20 +58,17 @@ export default function Analytics() {
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line
-
   if (loading || !data) return <PageLoader />;
-
   const hasData =
     data.tasksPerWeek?.some((w) => w.tasks > 0)    ||
     data.habitsPerWeek?.some((w) => w.habits > 0)  ||
     data.moodTrend?.some((d)  => d.mood !== null);
-
   const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(30,34,51,0.06)';
   const tickColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(30,34,51,0.45)';
   const tooltipStyle = {
     contentStyle: {
       background:   isDark ? 'rgba(18,14,35,0.95)' : 'rgba(255,255,255,0.97)',
-      border:       isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(124,106,240,0.20)',
+      border:       isDark ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${PURPLE}33`,
       borderRadius: 14, fontSize: 12,
       color:        isDark ? 'white' : '#111827',
       boxShadow:    '0 8px 24px rgba(0,0,0,0.15)',
@@ -80,7 +76,6 @@ export default function Analytics() {
     labelStyle: { color: isDark ? 'rgba(255,255,255,0.50)' : 'rgba(30,34,51,0.50)' },
   };
   const axisProps = { tick: { fontSize: 11, fill: tickColor }, axisLine: false, tickLine: false };
-
   if (!hasData) {
     return (
       <div>
@@ -93,7 +88,6 @@ export default function Analytics() {
       </div>
     );
   }
-
   const totalTasksDone  = data.tasksPerWeek?.reduce((s, w) => s + (w.tasks  || 0), 0) || 0;
   const totalHabitLogs  = data.habitsPerWeek?.reduce((s, w) => s + (w.habits || 0), 0) || 0;
   const totalFocusHours = data.studyHoursPerWeek?.reduce((s, w) => s + (w.hours || 0), 0) || 0;
@@ -102,18 +96,15 @@ export default function Analytics() {
     if (!valid.length) return null;
     return (valid.reduce((s, d) => s + d.mood, 0) / valid.length).toFixed(1);
   })();
-
   return (
     <div>
       <PageHeader eyebrow={t('analytics.eyebrow')} title={t('analytics.title')} subtitle={t('analytics.subtitle')} />
-
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label={t('analytics.tasksDone')}  value={totalTasksDone} sub={t('analytics.last8')} color={PURPLE} delay={0} />
         <StatCard label={t('analytics.habitLogs')}  value={totalHabitLogs} sub={t('analytics.last8')} color="#4CC38A" delay={0.04} />
         <StatCard label={t('analytics.focusHours')} value={`${Math.round(totalFocusHours * 10) / 10}h`} sub={t('analytics.totalDeep')} color="#FFB84D" delay={0.08} />
         <StatCard label={t('analytics.avgMood')}    value={avgMood ? `${avgMood} ${MOOD_LABELS[Math.round(avgMood)] || ''}` : '—'} sub={t('analytics.last14')} color="#FF7A63" delay={0.12} />
       </div>
-
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <Chart title={t('analytics.tasksWeek')} delay={0.05}>
           <BarChart data={data.tasksPerWeek}>
@@ -124,7 +115,6 @@ export default function Analytics() {
             <Bar dataKey="tasks" fill={PURPLE} radius={[8,8,0,0]} />
           </BarChart>
         </Chart>
-
         <Chart title={t('analytics.habitsWeek')} delay={0.1}>
           <BarChart data={data.habitsPerWeek}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -134,7 +124,6 @@ export default function Analytics() {
             <Bar dataKey="habits" fill="#4CC38A" radius={[8,8,0,0]} />
           </BarChart>
         </Chart>
-
         <Chart title={t('analytics.focusWeek')} delay={0.15}>
           <AreaChart data={data.studyHoursPerWeek}>
             <defs>
@@ -150,7 +139,6 @@ export default function Analytics() {
             <Area type="monotone" dataKey="hours" stroke="#F59E0B" strokeWidth={2.5} fill="url(#studyGrad)" />
           </AreaChart>
         </Chart>
-
         <Chart title={t('analytics.moodTrend')} delay={0.2}>
           <LineChart data={data.moodTrend}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -160,7 +148,6 @@ export default function Analytics() {
             <Line type="monotone" dataKey="mood" stroke="#FF7A63" strokeWidth={2.5} dot={{ r: 4, fill:'#FF7A63', strokeWidth:0 }} connectNulls />
           </LineChart>
         </Chart>
-
         <Chart title={t('analytics.prodTrend')} delay={0.25}>
           <AreaChart data={data.productivityTrend}>
             <defs>
@@ -176,7 +163,6 @@ export default function Analytics() {
             <Area type="monotone" dataKey="score" stroke={PURPLE} strokeWidth={2.5} fill="url(#prodGrad)" />
           </AreaChart>
         </Chart>
-
         <GlassCard delay={0.30} className="p-6">
           <h3 className="font-display font-semibold text-ink dark:text-white mb-4 text-sm">
             {t('analytics.byCategory')}
