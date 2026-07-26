@@ -29,7 +29,6 @@ export const randQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)]
 
 const SESSION_KEY = 'aurora_focus_state';
 
-// ── Persist to sessionStorage ─────────────────────────────────
 function saveState(state) {
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({
@@ -39,18 +38,14 @@ function saveState(state) {
     }));
   } catch (_) {}
 }
-
-// ── Restore from sessionStorage (adjusting for elapsed time) ──
 function loadState() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    // If timer was running, subtract elapsed seconds since last save
     if (s.isRunning && s.savedAt) {
       const elapsed = Math.floor((Date.now() - new Date(s.savedAt).getTime()) / 1000);
       s.timeLeft = Math.max(0, (s.timeLeft || 0) - elapsed);
-      // If it would have finished while away, mark as not running
       if (s.timeLeft === 0) { s.isRunning = false; s.startedAt = null; }
     }
     if (s.startedAt) s.startedAt = new Date(s.startedAt);
@@ -58,7 +53,6 @@ function loadState() {
   } catch (_) { return null; }
 }
 
-// ── Audio ─────────────────────────────────────────────────────
 function playDone() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -105,7 +99,6 @@ export function FocusProvider({ children }) {
   const toast      = useToast();
   const { lang }   = useLanguage();
 
-  // ── Restore saved state on first render ───────────────────
   const saved = loadState();
   const [mode,      setMode]      = useState(saved?.mode      || 'focus');
   const [customMin, setCustomMin] = useState(saved?.customMin || { focus: 25, short: 5, long: 15 });
@@ -119,17 +112,14 @@ export function FocusProvider({ children }) {
   const [stats,     setStats]     = useState(null);
   const [board,     setBoard]     = useState([]);
   const [room,      setRoom]      = useState(null);
-  const [roomTree,  setRoomTree]  = useState(null); // { tree_key, status, died_by_name }
+  const [roomTree,  setRoomTree]  = useState(null);
 
-  // ── Persist on every meaningful state change ──────────────
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
-    // Save immediately on mode/task/running state changes
     saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
   }, [mode, customMin, isRunning, taskName, dots]); // eslint-disable-line
 
   useEffect(() => {
-    // Debounce timeLeft saves — only write every 5 seconds while running
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
@@ -137,19 +127,17 @@ export function FocusProvider({ children }) {
     return () => clearTimeout(saveTimeoutRef.current);
   }, [timeLeft]); // eslint-disable-line
 
-  // ── Refs ──────────────────────────────────────────────────
-  const intervalRef      = useRef(null);
-  const modeRef           = useRef(mode);
-  const customMinRef      = useRef(customMin);
-  const taskRef            = useRef(taskName);
-  const roomRef            = useRef(room);
-  const prevTreeStatusRef  = useRef(null); // tracks alive→dead / alive→completed transitions
+  const intervalRef       = useRef(null);
+  const modeRef            = useRef(mode);
+  const customMinRef       = useRef(customMin);
+  const taskRef             = useRef(taskName);
+  const roomRef             = useRef(room);
+  const prevTreeStatusRef   = useRef(null);
   useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
   useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
   useEffect(() => { roomRef.current      = room;      }, [room]);
 
-  // ── Data ──────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
       const [s, l] = await Promise.all([api.get('/focus/stats'), api.get('/focus/leaderboard')]);
@@ -158,23 +146,34 @@ export function FocusProvider({ children }) {
   }, []);
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Room polling — now also tracks the shared room tree ───
+  // ── Rehydrate room membership from the server on mount. This is what
+  //    makes room/tree/timer state actually sync across devices logged
+  //    into the same account — sessionStorage is per-device, this isn't.
+  useEffect(() => {
+    api.get('/focus/rooms/mine').then((d) => {
+      if (d.code && !roomRef.current) {
+        setRoom({ code: d.code, name: '', members: [] });
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line
+
   useEffect(() => {
     if (!room) { setRoomTree(null); prevTreeStatusRef.current = null; return; }
     const poll = async () => {
       try {
         const d = await api.get(`/focus/rooms/${room.code}`);
-        setRoom((r) => r ? { ...r, members: d.members, host_id: d.host_id, timer: d.timer } : null);
+        setRoom((r) => r ? { ...r, name: d.name, members: d.members, host_id: d.host_id, timer: d.timer } : null);
 
         if (d.tree) {
           const prevStatus = prevTreeStatusRef.current;
           if (prevStatus === 'alive' && d.tree.status === 'dead') {
             playTreeDied();
             const who = d.tree.died_by_name || (lang === 'ar' ? 'أحد الأعضاء' : 'someone');
+            const isHostStop = d.tree.died_reason === 'host_stopped';
             toast.error(
               lang === 'ar'
-                ? `ماتت شجرة الغرفة — ${who} استسلم 💔`
-                : `Your shared tree died — ${who} gave up 💔`
+                ? (isHostStop ? `أنهى المضيف الجلسة مبكرًا — ماتت شجرة الغرفة 💔` : `ماتت شجرة الغرفة — ${who} استسلم 💔`)
+                : (isHostStop ? `The host ended the session early — the tree died 💔` : `Your shared tree died — ${who} gave up 💔`)
             );
           } else if (prevStatus === 'alive' && d.tree.status === 'completed') {
             toast.success(
@@ -196,7 +195,6 @@ export function FocusProvider({ children }) {
     return () => clearInterval(id);
   }, [room?.code]); // eslint-disable-line
 
-  // ── Room pulse ────────────────────────────────────────────
   useEffect(() => {
     if (!room) return;
     const pulse = () => api.post(`/focus/rooms/${room.code}/pulse`, { is_focusing: isRunning }).catch(() => {});
@@ -205,17 +203,16 @@ export function FocusProvider({ children }) {
     return () => clearInterval(id);
   }, [room?.code, isRunning]); // eslint-disable-line
 
-  // ── Leave the current room — server kills the shared tree if a
-  //    synced session is actively running ("giving up") ───────
+  // Throws on failure (e.g. 403 while a session is running) so the caller
+  // (Focus.jsx) can show the server's exact reason instead of failing silently.
   const leaveRoom = useCallback(async () => {
     if (!room) return;
-    try { await api.del(`/focus/rooms/${room.code}/leave`); } catch (_) {}
+    await api.del(`/focus/rooms/${room.code}/leave`);
     setRoom(null);
     setRoomTree(null);
     prevTreeStatusRef.current = null;
   }, [room]);
 
-  // ── Session complete ──────────────────────────────────────
   const handleComplete = useCallback(async () => {
     const m   = modeRef.current;
     const min = customMinRef.current;
@@ -237,7 +234,6 @@ export function FocusProvider({ children }) {
       }
     } else {
       playBreakEnd();
-      // Auto switch back to focus — instant, no confirm needed
       const mins = customMinRef.current.focus;
       setMode('focus');
       setTimeLeft(mins * 60);
@@ -245,31 +241,24 @@ export function FocusProvider({ children }) {
     }
   }, [loadData]);
 
-  // ── Timer tick ────────────────────────────────────────────
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
-
     const wallStart   = Date.now();
-    const timeAtStart = timeLeft; // snapshot exact timeLeft when timer starts
-
+    const timeAtStart = timeLeft;
     intervalRef.current = setInterval(() => {
       const elapsed   = Math.floor((Date.now() - wallStart) / 1000);
       const remaining = Math.max(0, timeAtStart - elapsed);
-
       setTimeLeft(remaining);
-
       if (remaining <= 0) {
         clearInterval(intervalRef.current);
         setIsRunning(false);
         setStartedAt(null);
         setTimeout(handleComplete, 50);
       }
-    }, 500); // check every 500ms so we never miss the 0 crossing
-
+    }, 500);
     return () => clearInterval(intervalRef.current);
   }, [isRunning, handleComplete]); // eslint-disable-line
 
-  // ── Document title ────────────────────────────────────────
   useEffect(() => {
     if (isRunning) {
       const mm = String(Math.floor(timeLeft / 60)).padStart(2, '0');
@@ -280,8 +269,6 @@ export function FocusProvider({ children }) {
     }
   }, [isRunning, timeLeft, mode]);
 
-  // ── Controls ──────────────────────────────────────────────
-  // No window.confirm — instant switch, no lag
   const switchMode = (m) => {
     clearInterval(intervalRef.current);
     setIsRunning(false);
@@ -291,13 +278,10 @@ export function FocusProvider({ children }) {
     setTimeLeft(mins * 60);
     setTotalTime(mins * 60);
   };
-
-  // If running, just switch — no blocking dialog
   const handleModeClick = (m) => {
-    if (m === mode) return; // already on this mode, no-op
+    if (m === mode) return;
     switchMode(m);
   };
-
   const toggleTimer = () => {
     if (timeLeft === 0) return;
     if (!isRunning) setStartedAt(new Date());
@@ -312,6 +296,7 @@ export function FocusProvider({ children }) {
     setTotalTime(mins * 60);
   };
   const addMinute = () => {
+    if (isRunning) return; // can't extend once started — enforced here too, not just UI
     setTimeLeft((t) => t + 60);
     setTotalTime((t) => t + 60);
     setCustomMin((c) => ({ ...c, [mode]: c[mode] + 1 }));
