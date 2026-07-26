@@ -46,11 +46,10 @@ export default function Login() {
     finally { setSubmitting(false); }
   };
 
-  // ── Theme-aware styles ────────────────────────────────────
   const cardBg      = isDark ? 'rgba(255,255,255,0.08)'              : 'rgba(255,255,255,0.85)';
   const cardBorder  = isDark ? '1px solid rgba(255,255,255,0.16)'    : '1px solid rgba(255,255,255,0.95)';
   const cardShadow  = isDark ? '0 32px 80px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.20)'
-                             : '0 32px 80px rgba(124,106,240,0.15), inset 0 1px 0 rgba(255,255,255,1)';
+                             : '0 32px 80px rgb(var(--accent-500) / 0.15), inset 0 1px 0 rgba(255,255,255,1)';
   const titleClr    = isDark ? 'white'                               : '#1a1430';
   const subClr      = isDark ? 'rgba(255,255,255,0.42)'              : 'rgba(30,34,51,0.50)';
   const labelClr    = isDark ? 'rgba(255,255,255,0.52)'              : 'rgba(30,34,51,0.58)';
@@ -64,12 +63,11 @@ export default function Login() {
   const demoBg      = isDark ? 'rgba(255,255,255,0.04)'              : 'rgba(30,34,51,0.04)';
   const demoBorder  = isDark ? '1px solid rgba(255,255,255,0.09)'    : '1px solid rgba(30,34,51,0.10)';
   const demoClr     = isDark ? 'rgba(255,255,255,0.35)'              : 'rgba(30,34,51,0.40)';
-  const shimmer     = isDark ? 'rgba(255,255,255,0.40)'              : 'rgba(124,106,240,0.30)';
+  const shimmer     = isDark ? 'rgba(255,255,255,0.40)'              : 'rgb(var(--accent-500) / 0.30)';
   const errorBg     = isDark ? 'rgba(255,122,99,0.12)'               : 'rgba(255,122,99,0.08)';
   const errorBorder = isDark ? 'rgba(255,122,99,0.25)'               : 'rgba(255,122,99,0.30)';
   const errorClr    = isDark ? '#FCA5A5'                             : '#ef4444';
 
-  // Logical padding: icon side flips automatically in RTL
   const inputStyle = {
     background: inputBg,
     border:     inputBorder,
@@ -96,15 +94,14 @@ export default function Login() {
         <span className="pointer-events-none absolute inset-x-8 top-0 h-px"
           style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
 
-        {/* ✦ Logo */}
         <div className="flex flex-col items-center mb-8">
           <motion.div
             animate={{ y:[0,-4,0] }}
             transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
             className="flex h-16 w-16 items-center justify-center rounded-[1.25rem] text-white mb-3"
             style={{
-              background: 'linear-gradient(135deg,#9B8AFF 0%,#7C6AF0 50%,#5B47E0 100%)',
-              boxShadow:  '0 12px 32px rgba(124,106,240,0.55), inset 0 1px 0 rgba(255,255,255,0.30)',
+              background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
+              boxShadow:  '0 12px 32px rgb(var(--accent-500) / 0.55), inset 0 1px 0 rgba(255,255,255,0.30)',
               fontSize:   28, fontFamily:'serif', fontWeight:700, lineHeight:1,
             }}
           >
@@ -116,7 +113,6 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Heading */}
         <div className="text-center mb-7">
           <AnimatePresence mode="wait">
             <motion.h1 key={mode}
@@ -132,7 +128,6 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Error */}
         <AnimatePresence>
           {error && (
             <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
@@ -143,7 +138,6 @@ export default function Login() {
           )}
         </AnimatePresence>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <AnimatePresence mode="popLayout">
             {!isLogin && (
@@ -206,8 +200,8 @@ export default function Login() {
           <motion.button type="submit" disabled={submitting} whileTap={{ scale:0.98 }}
             className="mt-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-55 disabled:pointer-events-none"
             style={{
-              background: 'linear-gradient(135deg,#9B8AFF 0%,#7C6AF0 50%,#5B47E0 100%)',
-              boxShadow:  '0 8px 28px rgba(124,106,240,0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
+              background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
+              boxShadow:  '0 8px 28px rgb(var(--accent-500) / 0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
             }}>
             {submitting ? <Loader2 size={16} className="animate-spin"/> : isLogin ? t('login.signIn') : t('login.createAcct')}
           </motion.button>
