@@ -11,7 +11,6 @@ import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
 
-// ── Tree data ─────────────────────────────────────────────────
 const TREE_EMOJIS = {
   seedling:'🌱', sprout:'🌿', oak:'🌳',
   cherry_blossom:'🌸', bamboo:'🎋', palm:'🌴',
@@ -42,8 +41,6 @@ const NEXT_TREE = {
   pine:           { key:'crystal',        name:'Crystal Tree',  cost:5000 },
   crystal:        null,
 };
-
-// Mood labels are translation keys
 const MOOD_OPTIONS = [
   { value:1, emoji:'😞', label:'mood.rough' },
   { value:2, emoji:'😐', label:'mood.meh'   },
@@ -52,7 +49,6 @@ const MOOD_OPTIONS = [
   { value:5, emoji:'🤩', label:'mood.great' },
 ];
 
-// ── Local-date-safe deadline helper ───────────────────────────
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -61,7 +57,6 @@ function daysUntil(deadline) {
   const target = new Date(dy, dm - 1, dd);
   return Math.ceil((target - local) / (1000 * 60 * 60 * 24));
 }
-
 function formatDeadline(d) {
   if (!d) return null;
   const [, m, day] = d.split('-');
@@ -74,7 +69,6 @@ export default function Dashboard() {
   const navigate    = useNavigate();
   const { weather } = useWeather();
   const { t, lang } = useLanguage();
-
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [moodSaving,   setMoodSaving]   = useState(false);
@@ -94,7 +88,6 @@ export default function Dashboard() {
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
-
   useEffect(() => { load(); }, [load]);
 
   const saveMood = async (value) => {
@@ -106,7 +99,6 @@ export default function Dashboard() {
     } catch (e) { toast.error(e.message); }
     finally { setMoodSaving(false); }
   };
-
   const completeTask = async (task) => {
     try {
       const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
@@ -117,20 +109,15 @@ export default function Dashboard() {
   };
 
   if (loading || !data) return <PageLoader />;
-
   const firstName = user?.name?.split(' ')[0] || '';
   const { todaysTasks, todaysHabits, upcomingDeadlines, mood, quote, productivityScore, streak, level, counts } = data;
-
   const moodValue  = mood?.mood || null;
   const isRoughDay = moodValue && moodValue <= 2;
   const isGreatDay = moodValue && moodValue >= 4;
-
-  // Locale-aware date + greeting
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
   const todayLabel = new Date().toLocaleDateString(dateLocale, { weekday:'long', month:'long', day:'numeric' });
   const h = new Date().getHours();
   const greetKey = h < 12 ? 'greet.morning' : h < 17 ? 'greet.afternoon' : 'greet.evening';
-
   const habitsLeft = todaysHabits.filter(hb => !hb.doneToday).length;
   const subtitle = isRoughDay
     ? t('dash.roughSubtitle')
@@ -139,7 +126,6 @@ export default function Dashboard() {
     : todaysTasks.length === 0 && todaysHabits.length === 0
     ? t('dash.clearSubtitle')
     : t('dash.leftSummary', { tasks: todaysTasks.length, habits: habitsLeft });
-
   const visibleTasks = isRoughDay ? todaysTasks.slice(0, 2) : todaysTasks;
   const taskLabel    = isRoughDay ? t('dash.justTwo') : t('dash.todaysTasks');
   const totalXp      = treeData?.totalXp || 0;
@@ -147,7 +133,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* ── Hero card ─────────────────────────────────────────── */}
       <GlassCard className="p-7">
         <div className="flex flex-col lg:flex-row lg:items-start gap-6">
           <div className="flex-1 min-w-0">
@@ -158,13 +143,11 @@ export default function Dashboard() {
               {t(greetKey)}, {firstName} 👋
             </h1>
             <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
-
-            {/* Stat cards */}
             <div className="flex flex-wrap gap-3">
               {[
-                { icon:'🔥', color:'from-sun-400 to-sun-500',             value:`${streak}d`,           label:t('dash.streak') },
-                { icon:'⚡', color:'from-aurora-violet to-aurora-indigo', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), onClick:() => navigate('/trees') },
-                { icon:'📋', color:'from-aurora-sky to-aurora-indigo',    value: counts.totalTasksToday > 0 ? `${counts.tasksDoneToday}/${counts.totalTasksToday}` : String(todaysTasks.length), label:t('dash.leftToday') },
+                { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak') },
+                { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), onClick:() => navigate('/trees') },
+                { icon:'📋', color:'from-aurora-sky to-blue-500', value: counts.totalTasksToday > 0 ? `${counts.tasksDoneToday}/${counts.totalTasksToday}` : String(todaysTasks.length), label:t('dash.leftToday') },
               ].map(({ icon, color, value, label, onClick }) => (
                 <motion.div
                   key={label}
@@ -183,8 +166,6 @@ export default function Dashboard() {
                 </motion.div>
               ))}
             </div>
-
-            {/* Weather + quote */}
             <div className="flex items-center gap-4 mt-5 flex-wrap">
               {weather && (
                 <motion.div
@@ -208,8 +189,6 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-
-          {/* Sphere / rough day */}
           <div className="flex flex-col items-center gap-2 shrink-0">
             {isRoughDay ? (
               <div className="flex flex-col items-center gap-2 py-4">
@@ -233,10 +212,7 @@ export default function Dashboard() {
           </div>
         </div>
       </GlassCard>
-
-      {/* ── Main grid ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Tasks */}
         <div className="lg:col-span-2">
           <GlassCard className="p-6 h-full">
             <div className="flex items-center justify-between mb-4">
@@ -246,7 +222,6 @@ export default function Dashboard() {
                 {t('dash.viewAll')}
               </button>
             </div>
-
             {visibleTasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <span className="text-4xl mb-3">🎉</span>
@@ -259,8 +234,8 @@ export default function Dashboard() {
               <div className="flex flex-col gap-2">
                 {visibleTasks.map((task) => {
                   const dl        = daysUntil(task.deadline);
-                  const isOverdue = dl !== null && dl < 0;    // ← strictly negative
-                  const isToday   = dl !== null && dl === 0;  // ← exactly today = NOT overdue
+                  const isOverdue = dl !== null && dl < 0;
+                  const isToday   = dl !== null && dl === 0;
                   const isSoon    = dl !== null && dl > 0 && dl <= 3;
                   return (
                     <motion.div key={task.id} layout
@@ -306,10 +281,7 @@ export default function Dashboard() {
             )}
           </GlassCard>
         </div>
-
-        {/* Right column */}
         <div className="flex flex-col gap-4">
-          {/* Mood */}
           <GlassCard className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Smile size={15} className="text-lavender-500" />
@@ -332,8 +304,6 @@ export default function Dashboard() {
               ))}
             </div>
           </GlassCard>
-
-          {/* Habits */}
           {todaysHabits.length > 0 && !isRoughDay && (
             <GlassCard className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -357,8 +327,6 @@ export default function Dashboard() {
               </div>
             </GlassCard>
           )}
-
-          {/* Coming up */}
           {upcomingDeadlines?.length > 0 && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -377,8 +345,6 @@ export default function Dashboard() {
               </div>
             </GlassCard>
           )}
-
-          {/* Tree */}
           <GlassCard className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -394,7 +360,7 @@ export default function Dashboard() {
               <motion.div
                 animate={{ y:[0,-5,0] }} transition={{ duration:3, repeat:Infinity, ease:'easeInOut' }}
                 className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shrink-0"
-                style={{ background:'linear-gradient(135deg,rgba(124,106,240,0.12),rgba(91,71,224,0.06))', border:'1px solid rgba(124,106,240,0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)' }}
+                style={{ background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))', border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)' }}
               >
                 {TREE_EMOJIS[equippedTree] || '🌱'}
               </motion.div>
@@ -421,7 +387,7 @@ export default function Dashboard() {
                         animate={{ width:`${Math.min(100,(totalXp/nextTree.cost)*100)}%` }}
                         transition={{ duration:1, ease:[0.16,1,0.3,1] }}
                         className="h-full rounded-full"
-                        style={{ background:'linear-gradient(90deg,#7C6AF0,#60A5FA)' }}
+                        style={{ background:'linear-gradient(90deg, rgb(var(--accent-500)), #60A5FA)' }}
                       />
                     </div>
                   </div>
@@ -432,8 +398,6 @@ export default function Dashboard() {
               </div>
             </div>
           </GlassCard>
-
-          {/* Quote card */}
           {quote && !isRoughDay && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -444,11 +408,9 @@ export default function Dashboard() {
               <p className="text-[10px] text-ink/35 mt-2">— {quote.author}</p>
             </GlassCard>
           )}
-
-          {/* Rough day */}
           {isRoughDay && (
             <GlassCard className="p-5"
-              style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+              style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
               <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
                 "{t('dash.roughQuote')}"
               </p>
