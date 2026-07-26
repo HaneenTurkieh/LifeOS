@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, RotateCcw, Plus, LogOut } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, LogOut, Lock } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -15,12 +15,6 @@ const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30]
 const CX = 140, CY = 140, R = 108;
 const CIRC = 2 * Math.PI * R;
 
-// Focus mode's brand color needs to be accent-aware (it's the primary
-// "you" color throughout this page), but many spots below append a hex
-// alpha suffix like `${modeColor}88` — which only works with hex strings,
-// not rgb(var(...)) function syntax. So this stays a hex lookup, same
-// pattern as ProductivitySphere's SVG gradient map, kept in sync with
-// index.css's --accent-500 values.
 const ACCENT_HEX = { purple: '#7C6AF0', orange: '#FF7A2E', pink: '#F5408F', blue: '#3B82F6' };
 
 function lg({ color, active } = {}) {
@@ -56,11 +50,59 @@ const TREE_EMOJIS = {
 };
 const DEAD_EMOJI = '🥀';
 
-// XP rate — must match server (2 XP per 5 minutes)
 const xpFor = (min) => Math.floor(min / 5) * 2;
-
-// Mode label keys
 const MODE_LABEL_KEYS = { focus: 'flow.focus', short: 'flow.shortBreak', long: 'flow.longBreak' };
+
+// ── Forest-style land plot: today's trees planted on grass ─────────────
+function LandPlot({ trees, t }) {
+  const seeded = (i) => {
+    const x = Math.sin(i * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  return (
+    <div className="relative w-full rounded-3xl overflow-hidden mb-4" style={{ height: 190 }}>
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(180deg, rgba(147,197,253,0.30) 0%, rgba(147,197,253,0.06) 55%, transparent 62%)',
+      }} />
+      <div className="absolute inset-x-0 bottom-0" style={{
+        height: '64%',
+        background: 'linear-gradient(180deg, #93D9A0 0%, #5FAE72 35%, #3E7A4E 100%)',
+        borderTopLeftRadius: '50% 20px', borderTopRightRadius: '50% 20px',
+      }}>
+        <div className="absolute inset-0 opacity-[0.15]" style={{
+          backgroundImage: 'repeating-linear-gradient(100deg, rgba(255,255,255,0.25) 0px, transparent 2px, transparent 16px)',
+        }} />
+      </div>
+      {trees.length === 0 ? (
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+          <p className="text-white/85 text-xs font-semibold drop-shadow">{t('flow.landEmptyDesc')}</p>
+        </div>
+      ) : (
+        trees.map((tr, i) => {
+          const leftPct   = 8 + seeded(i) * 82;
+          const bottomPct = 6 + seeded(i + 50) * 24;
+          return (
+            <motion.div
+              key={i}
+              initial={{ scale: 0, y: 10 }} animate={{ scale: 1, y: 0 }}
+              transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 18 }}
+              className="absolute text-3xl select-none"
+              style={{
+                left: `${leftPct}%`, bottom: `${bottomPct}%`,
+                filter: tr.status === 'dead' ? 'grayscale(0.7) brightness(0.85)' : 'none',
+                transform: 'translateX(-50%)',
+                textShadow: '0 2px 6px rgba(0,0,0,0.25)',
+              }}
+              title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
+            >
+              {tr.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[tr.tree_key] || '🌳')}
+            </motion.div>
+          );
+        })
+      )}
+    </div>
+  );
+}
 
 export default function Flow() {
   const toast    = useToast();
@@ -68,7 +110,6 @@ export default function Flow() {
   const { t, lang } = useLanguage();
   const { resolvedTheme, accent } = useTheme();
   const isDark = resolvedTheme === 'dark';
-  // Theme-aware "muted text" helper
   const muted = (a) => (isDark ? `rgba(255,255,255,${a})` : `rgba(30,34,51,${a})`);
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
   const fmtTime = (d) => d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
@@ -105,11 +146,9 @@ export default function Flow() {
   const isRunningRef      = useRef(isRunning);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
 
-  // ── Forest data ───────────────────────────────────────────
   const loadForest = () => api.get('/focus/forest').then(setForest).catch(() => {});
   useEffect(() => { if (tab === 'forest') loadForest(); }, [tab]);
 
-  // ── Room polling: live members + synced timer auto-start ──
   useEffect(() => {
     if (!room) { setLiveRoom(null); return; }
     let active = true;
@@ -137,8 +176,9 @@ export default function Flow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
 
-  const displayRoom = liveRoom ? { ...room, ...liveRoom } : room;
-  const isHost = displayRoom?.host_id != null && Number(displayRoom.host_id) === Number(user?.id);
+  const displayRoom  = liveRoom ? { ...room, ...liveRoom } : room;
+  const isHost       = displayRoom?.host_id != null && Number(displayRoom.host_id) === Number(user?.id);
+  const sessionLive  = Boolean(displayRoom?.timer?.running); // blocks leaving while true
 
   const startForEveryone = async () => {
     if (!room) return;
@@ -155,7 +195,16 @@ export default function Flow() {
     } catch (err) { toast.error(err.message); }
   };
 
-  // ── Quit while running = your tree dies 🥀 ────────────────
+  const stopForEveryone = async () => {
+    try {
+      const res = await api.post(`/focus/rooms/${room.code}/timer/stop`);
+      toast.success(t('flow.timerStopped'));
+      if (res.stoppedEarly) {
+        toast.error(lang === 'ar' ? 'أنهيت الجلسة مبكرًا — ماتت الشجرة 💔' : "You ended the session early — the tree died 💔");
+      }
+    } catch (err) { toast.error(err.message); }
+  };
+
   const handleReset = async () => {
     const elapsedMin = Math.floor((totalTime - timeLeft) / 60);
     if (isRunning && mode === 'focus' && elapsedMin >= 1) {
@@ -189,21 +238,29 @@ export default function Flow() {
     } catch (err) { toast.error(err.message); }
   };
 
+  // Blocked server-side too — this just surfaces the exact reason.
   const handleLeaveRoom = async () => {
     if (!room) return;
-    await leaveRoom();
-    setLiveRoom(null);
-    toast.success(t('flow.leftRoom'));
+    try {
+      await leaveRoom();
+      setLiveRoom(null);
+      toast.success(t('flow.leftRoom'));
+    } catch (err) {
+      toast.error(err.message);
+    }
   };
 
   const treeStatusLabel = () => {
     if (!roomTree) return null;
     if (roomTree.status === 'alive')
       return lang === 'ar' ? 'الشجرة المشتركة حيّة 🌳' : 'Shared tree is alive 🌳';
-    if (roomTree.status === 'dead')
+    if (roomTree.status === 'dead') {
+      const isHostStop = roomTree.died_reason === 'host_stopped';
+      if (isHostStop) return lang === 'ar' ? 'أنهى المضيف الجلسة مبكرًا — ماتت الشجرة 💔' : 'Host ended the session early — the tree died 💔';
       return lang === 'ar'
         ? `ماتت الشجرة — ${roomTree.died_by_name || 'أحد الأعضاء'} استسلم 💔`
         : `Tree died — ${roomTree.died_by_name || 'someone'} gave up 💔`;
+    }
     if (roomTree.status === 'completed')
       return lang === 'ar' ? 'نجت الشجرة من الجلسة! 🌱' : 'Tree survived the session! 🌱';
     return null;
@@ -219,10 +276,6 @@ export default function Flow() {
   const ss         = String(timeLeft % 60).padStart(2, '0');
   const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const dashOffset = CIRC * (1 - progress);
-  // Focus mode's displayed color now follows the active premium accent
-  // preset instead of MODES.focus.color's hardcoded purple default.
-  // Short/long break keep their fixed green/blue — intentional, matches
-  // how streak/mood colors elsewhere stay semantic regardless of accent.
   const modeColor  = mode === 'focus' ? (ACCENT_HEX[accent] || ACCENT_HEX.purple) : MODES[mode].color;
   const now        = new Date();
   const endsAt     = new Date(now.getTime() + timeLeft * 1000);
@@ -238,6 +291,8 @@ export default function Flow() {
   ];
 
   const memberList = displayRoom?.members || [];
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const todaysTrees = forest?.days.find((d) => d.date === todayStr)?.trees || [];
 
   return (
     <div>
@@ -247,7 +302,6 @@ export default function Flow() {
         subtitle={t('flow.pageSubtitle')}
       />
 
-      {/* Tab bar */}
       <div className="flex gap-1 mb-6 p-1 w-fit rounded-2xl flex-wrap" style={lg()}>
         {TABS_NAV.map(({ key, label, icon }) => (
           <motion.button
@@ -275,11 +329,9 @@ export default function Flow() {
         ))}
       </div>
 
-      {/* ── TIMER TAB ─────────────────────────────────────── */}
       {tab === 'timer' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 flex flex-col items-center py-10 px-8" style={cardGlass}>
-            {/* Mode pills */}
             <div className="flex gap-2 mb-8 flex-wrap justify-center">
               {Object.entries(MODES).map(([key, m]) => (
                 <motion.button key={key}
@@ -292,7 +344,6 @@ export default function Flow() {
               ))}
             </div>
 
-            {/* Time range */}
             <div className="h-5 mb-2">
               <AnimatePresence>
                 {timeRange && (
@@ -305,7 +356,6 @@ export default function Flow() {
               </AnimatePresence>
             </div>
 
-            {/* Ring */}
             <div className="relative my-2">
               <svg width="280" height="280">
                 {Array.from({ length: 60 }, (_, i) => {
@@ -375,7 +425,6 @@ export default function Flow() {
               </div>
             </div>
 
-            {/* Warning while running */}
             <AnimatePresence>
               {isRunning && mode === 'focus' && (
                 <motion.p
@@ -386,7 +435,6 @@ export default function Flow() {
               )}
             </AnimatePresence>
 
-            {/* Task name */}
             <input
               className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2 text-ink dark:text-white placeholder:text-ink/30 dark:placeholder:text-white/25"
               style={{ borderBottom: `1px solid ${modeColor}33` }}
@@ -395,7 +443,6 @@ export default function Flow() {
               onChange={(e) => setTaskName(e.target.value)}
             />
 
-            {/* Controls */}
             <div className="flex items-center gap-5">
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
                 onClick={handleReset}
@@ -414,15 +461,16 @@ export default function Flow() {
                 }}>
                 {isRunning ? <Pause size={26} className="text-white" /> : <Play size={26} className="text-white ms-1 rtl:rotate-180" />}
               </motion.button>
-              <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
+              <motion.button whileHover={!isRunning ? { scale: 1.08, y: -1 } : {}} whileTap={!isRunning ? { scale: 0.94 } : {}}
                 onClick={addMinute}
-                className="flex items-center gap-1 h-11 px-3.5 rounded-2xl text-xs font-bold"
+                disabled={isRunning}
+                title={isRunning ? (lang === 'ar' ? 'لا يمكن الزيادة بعد البدء' : "Can't extend once started") : undefined}
+                className="flex items-center gap-1 h-11 px-3.5 rounded-2xl text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed"
                 style={{ ...lg(), color: muted(0.55) }}>
                 <Plus size={12} /> 1m
               </motion.button>
             </div>
 
-            {/* Duration picker */}
             <div className="mt-8 pt-6 w-full" style={{ borderTop: '1px solid rgba(255,255,255,0.30)' }}>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-center mb-3"
                 style={{ color: muted(0.30) }}>{t('flow.duration')}</p>
@@ -445,7 +493,6 @@ export default function Flow() {
             </div>
           </div>
 
-          {/* Side panel */}
           <div className="flex flex-col gap-4">
             {stats && (
               <div className="rounded-3xl p-5" style={lg()}>
@@ -480,9 +527,16 @@ export default function Flow() {
                       {t('flow.code')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                     </p>
                   </div>
-                  <button onClick={handleLeaveRoom} className="text-ink/30 dark:text-white/25 hover:text-coral-500 dark:hover:text-coral-400 transition">
-                    <LogOut size={15} className="rtl:rotate-180" />
-                  </button>
+                  {sessionLive ? (
+                    <div title={lang === 'ar' ? 'لا يمكن المغادرة أثناء الجلسة' : 'Cannot leave during a session'}
+                      className="text-ink/20 dark:text-white/15 cursor-not-allowed">
+                      <Lock size={14} />
+                    </div>
+                  ) : (
+                    <button onClick={handleLeaveRoom} className="text-ink/30 dark:text-white/25 hover:text-coral-500 dark:hover:text-coral-400 transition">
+                      <LogOut size={15} className="rtl:rotate-180" />
+                    </button>
+                  )}
                 </div>
 
                 {roomTree && (
@@ -506,13 +560,20 @@ export default function Flow() {
                     </div>
                   ))}
                 </div>
-                {isHost && (
+                {isHost && !sessionLive && (
                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                     onClick={startForEveryone}
                     className="mt-3 w-full rounded-2xl py-2.5 text-xs font-bold text-white"
                     style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
                     {t('flow.startForAll', { n: customMin.focus })}
                   </motion.button>
+                )}
+                {isHost && sessionLive && (
+                  <button onClick={stopForEveryone}
+                    className="mt-3 w-full rounded-2xl py-2.5 text-xs font-bold text-white"
+                    style={{ background: 'linear-gradient(135deg,#FF7A63,#E85D50)', boxShadow: '0 4px 14px rgba(255,122,99,0.35)' }}>
+                    {t('flow.stop')}
+                  </button>
                 )}
                 <button onClick={() => setTab('room')} className="mt-3 text-xs font-semibold hover:underline"
                   style={{ color: modeColor }}>
@@ -551,7 +612,6 @@ export default function Flow() {
         </div>
       )}
 
-      {/* ── ROOM TAB ──────────────────────────────────────── */}
       {tab === 'room' && (
         <div className="max-w-2xl">
           {room ? (
@@ -563,10 +623,17 @@ export default function Flow() {
                     {t('flow.shareCode')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                   </p>
                 </div>
-                <button onClick={handleLeaveRoom}
-                  className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink dark:text-white" style={lg()}>
-                  <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
-                </button>
+                {sessionLive ? (
+                  <div className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink/30 dark:text-white/25 cursor-not-allowed" style={lg()}
+                    title={lang === 'ar' ? 'لا يمكن المغادرة أثناء الجلسة — انتظر أن يوقفها المضيف' : 'Cannot leave while a session is running — wait for the host to stop it'}>
+                    <Lock size={14} /> {t('flow.leave')}
+                  </div>
+                ) : (
+                  <button onClick={handleLeaveRoom}
+                    className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink dark:text-white" style={lg()}>
+                    <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
+                  </button>
+                )}
               </div>
 
               {roomTree && (
@@ -581,7 +648,6 @@ export default function Flow() {
                 </div>
               )}
 
-              {/* Shared timer status / host controls */}
               <div className="rounded-2xl px-5 py-4 mb-5" style={lg({ color: modeColor, active: true })}>
                 {displayRoom.timer?.running ? (
                   <div className="flex items-center justify-between gap-3">
@@ -592,11 +658,7 @@ export default function Flow() {
                       </p>
                     </div>
                     {isHost && (
-                      <button
-                        onClick={async () => {
-                          try { await api.post(`/focus/rooms/${room.code}/timer/stop`); toast.success(t('flow.timerStopped')); }
-                          catch (err) { toast.error(err.message); }
-                        }}
+                      <button onClick={stopForEveryone}
                         className="text-xs font-bold shrink-0 rounded-xl px-3 py-2 text-ink dark:text-white" style={lg()}>
                         {t('flow.stop')}
                       </button>
@@ -663,21 +725,9 @@ export default function Flow() {
         </div>
       )}
 
-      {/* ── FOREST / MY LAND TAB ──────────────────────────── */}
       {tab === 'forest' && (
         <div className="max-w-3xl">
-          {!forest || (forest.days.length === 0) ? (
-            <EmptyState
-              illustration={<span className="text-6xl">🌳</span>}
-              title={t('flow.landEmptyTitle')}
-              description={t('flow.landEmptyDesc')}
-              action={
-                <button className="btn-primary w-full justify-center" onClick={() => setTab('timer')}>
-                  {t('flow.plantFirst')}
-                </button>
-              }
-            />
-          ) : (
+          {!forest ? null : (
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
@@ -693,38 +743,53 @@ export default function Flow() {
                   </div>
                 ))}
               </div>
-              {forest.days.map((day) => (
-                <div key={day.date} className="rounded-3xl p-5" style={lg()}>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-bold text-ink dark:text-white">{fmtForestDay(day.date)}</p>
-                    <p className="text-[11px] text-ink/35 dark:text-white/30">
-                      {day.trees.filter(tr => tr.status === 'alive').length} 🌳 · {day.trees.filter(tr => tr.status === 'dead').length} 🥀
-                    </p>
+
+              <LandPlot trees={todaysTrees} t={t} />
+
+              {forest.days.length === 0 ? (
+                <EmptyState
+                  illustration={<span className="text-6xl">🌳</span>}
+                  title={t('flow.landEmptyTitle')}
+                  description={t('flow.landEmptyDesc')}
+                  action={
+                    <button className="btn-primary w-full justify-center" onClick={() => setTab('timer')}>
+                      {t('flow.plantFirst')}
+                    </button>
+                  }
+                />
+              ) : (
+                forest.days.map((day) => (
+                  <div key={day.date} className="rounded-3xl p-5" style={lg()}>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-bold text-ink dark:text-white">{fmtForestDay(day.date)}</p>
+                      <p className="text-[11px] text-ink/35 dark:text-white/30">
+                        {day.trees.filter(tr => tr.status === 'alive').length} 🌳 · {day.trees.filter(tr => tr.status === 'dead').length} 🥀
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {day.trees.map((tr, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ scale: 0 }} animate={{ scale: 1 }}
+                          transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
+                          className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
+                          title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
+                          style={tr.status === 'dead'
+                            ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
+                            : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
+                        >
+                          {tr.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[tr.tree_key] || '🌳')}
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {day.trees.map((tr, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ scale: 0 }} animate={{ scale: 1 }}
-                        transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
-                        className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
-                        title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
-                        style={tr.status === 'dead'
-                          ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
-                          : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
-                      >
-                        {tr.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[tr.tree_key] || '🌳')}
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* ── LEADERBOARD TAB ───────────────────────────────── */}
       {tab === 'leaderboard' && (
         <div className="max-w-2xl">
           {board.length === 0 ? (
@@ -776,7 +841,6 @@ export default function Flow() {
         </div>
       )}
 
-      {/* ── Room modal ─────────────────────────────────────── */}
       <Modal open={roomModal} onClose={() => setRoomModal(false)} title={t('flow.studyRoom')}>
         <div className="flex gap-1 mb-5 p-1 rounded-xl" style={lg()}>
           {[{ key: 'join', label: t('flow.joinRoom') }, { key: 'create', label: t('flow.createRoom') }].map(({ key, label }) => (
@@ -807,7 +871,6 @@ export default function Flow() {
         </form>
       </Modal>
 
-      {/* ── Congrats overlay ───────────────────────────────── */}
       <AnimatePresence>
         {congrats && (
           <motion.div
