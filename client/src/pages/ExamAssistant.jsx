@@ -10,7 +10,6 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 
-// ── Constants ─────────────────────────────────────────────────
 const FILE_TYPES = [
   { ext:'PDF',  icon:'📄', accept:'.pdf'              },
   { ext:'PPTX', icon:'📊', accept:'.pptx'             },
@@ -46,7 +45,6 @@ function fmtSessionDate(dateStr, lang) {
     ' · ' + d.toLocaleTimeString(locale, { hour:'numeric', minute:'2-digit' });
 }
 
-// ── MCQ question ──────────────────────────────────────────────
 function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
   return (
     <div className="p-6" style={cardGlass}>
@@ -64,13 +62,13 @@ function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
           if (revealed) {
             if (isCorrect)       { bg='rgba(76,195,138,0.15)';  border='1px solid rgba(76,195,138,0.40)';  color='#2DA76E'; }
             else if (isSelected) { bg='rgba(255,122,99,0.15)';  border='1px solid rgba(255,122,99,0.40)';  color='#FF7A63'; }
-          } else if (isSelected) { bg='rgba(124,106,240,0.12)'; border='1px solid rgba(124,106,240,0.35)'; color='#5B47E0'; }
+          } else if (isSelected) { bg='rgb(var(--accent-500) / 0.12)'; border='1px solid rgb(var(--accent-500) / 0.35)'; color='rgb(var(--accent-600))'; }
           return (
             <button key={i} onClick={() => onChoose(i)}
               className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start text-sm font-medium transition-all"
               style={{ background:bg, border, color }}>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                style={{ background:'rgba(124,106,240,0.10)', color:'#7C6AF0' }}>
+                style={{ background:'rgb(var(--accent-500) / 0.10)', color:'rgb(var(--accent-500))' }}>
                 {['A','B','C','D'][i]}
               </span>
               {opt}
@@ -82,14 +80,14 @@ function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
       </div>
       {revealed && q.explanation && (
         <div className="rounded-2xl px-4 py-3 text-sm text-ink/60 dark:text-white/50 mb-3"
-          style={{ background:'rgba(124,106,240,0.08)', border:'1px solid rgba(124,106,240,0.15)' }}>
+          style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
           💡 {q.explanation}
         </div>
       )}
       {selected !== undefined && !revealed && (
         <button onClick={onReveal}
           className="w-full rounded-2xl py-2.5 text-sm font-semibold text-lavender-600"
-          style={{ background:'rgba(124,106,240,0.10)', border:'1px solid rgba(124,106,240,0.20)' }}>
+          style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.20)' }}>
           {t('exam.checkAnswer')}
         </button>
       )}
@@ -97,7 +95,6 @@ function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
   );
 }
 
-// ── Blank question ────────────────────────────────────────────
 function BlankQuestion({ q, idx, answer, checked, onChange, onCheck, t }) {
   const isCorrect = answer?.trim().toLowerCase() === q.answer?.trim().toLowerCase();
   return (
@@ -112,7 +109,7 @@ function BlankQuestion({ q, idx, answer, checked, onChange, onCheck, t }) {
             {j < arr.length-1 && (
               <input value={answer||''} onChange={e => onChange(e.target.value)} disabled={checked}
                 className="inline-block mx-1 px-2 py-0.5 rounded-lg text-sm font-semibold outline-none border-b-2 bg-transparent w-32 text-center"
-                style={{ borderColor: checked ? (isCorrect?'#4CC38A':'#FF7A63') : '#7C6AF0', color: checked ? (isCorrect?'#2DA76E':'#FF7A63') : '#7C6AF0' }}
+                style={{ borderColor: checked ? (isCorrect?'#4CC38A':'#FF7A63') : 'rgb(var(--accent-500))', color: checked ? (isCorrect?'#2DA76E':'#FF7A63') : 'rgb(var(--accent-500))' }}
                 placeholder="___"
               />
             )}
@@ -134,7 +131,6 @@ function BlankQuestion({ q, idx, answer, checked, onChange, onCheck, t }) {
   );
 }
 
-// ── MCQ Exam ──────────────────────────────────────────────────
 function MCQExam({ questions, t }) {
   const [current,  setCurrent]  = useState(0);
   const [selected, setSelected] = useState({});
@@ -163,7 +159,7 @@ function MCQExam({ questions, t }) {
         <div className="flex gap-1">
           {questions.map((_,i) => (
             <div key={i} className="h-1.5 w-6 rounded-full"
-              style={{ background: i<=current?'#7C6AF0':'rgba(124,106,240,0.15)', opacity: i===current?1:i<current?0.5:0.25 }}/>
+              style={{ background: i<=current?'rgb(var(--accent-500))':'rgb(var(--accent-500) / 0.15)', opacity: i===current?1:i<current?0.5:0.25 }}/>
           ))}
         </div>
       </div>
@@ -186,7 +182,6 @@ function MCQExam({ questions, t }) {
   );
 }
 
-// ── Fill Blanks ───────────────────────────────────────────────
 function FillBlanks({ questions, t }) {
   const [answers,  setAnswers]  = useState({});
   const [checked,  setChecked]  = useState({});
@@ -221,7 +216,6 @@ function FillBlanks({ questions, t }) {
   );
 }
 
-// ── Mixed Exam ────────────────────────────────────────────────
 function MixedExam({ questions, t }) {
   const [selectedMCQ, setSelectedMCQ] = useState({});
   const [revealedMCQ, setRevealedMCQ] = useState({});
@@ -272,7 +266,6 @@ function MixedExam({ questions, t }) {
   );
 }
 
-// ── Flashcards ────────────────────────────────────────────────
 function Flashcards({ cards, t }) {
   const [current, setCurrent] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -307,7 +300,7 @@ function Flashcards({ cards, t }) {
             <p className="text-xs text-ink/30 mt-4">{t('exam.tapReveal')}</p>
           </div>
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center"
-            style={{ ...cardGlass, backfaceVisibility:'hidden', transform:'rotateY(180deg)', background:'rgba(124,106,240,0.08)', border:'1px solid rgba(124,106,240,0.20)' }}>
+            style={{ ...cardGlass, backfaceVisibility:'hidden', transform:'rotateY(180deg)', background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.20)' }}>
             <span className="text-xs font-bold uppercase tracking-widest text-lavender-500 mb-4">{t('exam.answer')}</span>
             <p className="text-ink dark:text-white leading-relaxed">{cards[current].back}</p>
           </div>
@@ -328,14 +321,13 @@ function Flashcards({ cards, t }) {
       <div className="flex gap-2 justify-center mt-5">
         {cards.map((_,i) => (
           <div key={i} className="h-1.5 w-5 rounded-full transition-all"
-            style={{ background: known.has(i)?'#4CC38A':i===current?'#7C6AF0':'rgba(124,106,240,0.15)' }}/>
+            style={{ background: known.has(i)?'#4CC38A':i===current?'rgb(var(--accent-500))':'rgb(var(--accent-500) / 0.15)' }}/>
         ))}
       </div>
     </div>
   );
 }
 
-// ── Slide Deck ────────────────────────────────────────────────
 function SlideDeck({ slides, t }) {
   const [current, setCurrent] = useState(0);
   const slide = slides[current];
@@ -356,7 +348,7 @@ function SlideDeck({ slides, t }) {
               {slides.map((_,i) => (
                 <button key={i} onClick={() => setCurrent(i)}
                   className="h-1.5 rounded-full transition-all"
-                  style={{ width:i===current?24:6, background:i===current?'#7C6AF0':'rgba(124,106,240,0.20)' }}/>
+                  style={{ width:i===current?24:6, background:i===current?'rgb(var(--accent-500))':'rgb(var(--accent-500) / 0.20)' }}/>
               ))}
             </div>
           </div>
@@ -392,7 +384,6 @@ function SlideDeck({ slides, t }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────
 export default function ExamAssistant() {
   const toast = useToast();
   const { t, lang } = useLanguage();
@@ -401,7 +392,7 @@ export default function ExamAssistant() {
     { key:'mcq',        label:t('exam.mcq'),        icon:'🔵', desc:t('exam.mcqDesc')        },
     { key:'blanks',     label:t('exam.blanks'),     icon:'✏️', desc:t('exam.blanksDesc')     },
     { key:'mixed',      label:t('exam.mixed'),      icon:'🎯', desc:t('exam.mixedDesc')      },
-    { key:'flashcards', label:t('exam.flashcards'), icon:'🃏', desc:t('exam.flashDesc') },
+    { key:'flashcards', label:t('exam.flashcards'), icon:'🃏', desc:t('exam.flashDesc')      },
     { key:'slides',     label:t('exam.slides'),     icon:'🖥️', desc:t('exam.slidesDesc')    },
   ];
   const DIFFICULTIES = [
@@ -422,7 +413,7 @@ export default function ExamAssistant() {
   const [result,        setResult]        = useState(null);
   const [showFileInfo,  setShowFileInfo]  = useState(false);
   const [sessions,      setSessions]      = useState([]);
-  const [sessionBusy,   setSessionBusy]   = useState(null); // session id being opened/deleted
+  const [sessionBusy,   setSessionBusy]   = useState(null);
   const fileRef = useRef(null);
 
   const BASE_URL = window.location.hostname === 'localhost'
@@ -438,7 +429,6 @@ export default function ExamAssistant() {
     },
   }), [BASE_URL]);
 
-  // ── Session history ───────────────────────────────────────────
   const loadSessions = useCallback(async () => {
     try {
       const res  = await authedFetch('/api/exam/sessions');
@@ -455,7 +445,7 @@ export default function ExamAssistant() {
         body: JSON.stringify({ mode:sessionMode, difficulty:sessionDifficulty, items, sourceName }),
       });
       if (res.ok) loadSessions();
-    } catch (_) { /* saving history is best-effort — never block the exam */ }
+    } catch (_) {}
   };
   const openSession = async (session) => {
     setSessionBusy(session.id);
@@ -479,7 +469,6 @@ export default function ExamAssistant() {
     finally { setSessionBusy(null); }
   };
 
-  // ── File upload ───────────────────────────────────────────────
   const handleFile = useCallback(async (file) => {
     if (!file) return;
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
@@ -508,7 +497,6 @@ export default function ExamAssistant() {
   const onDrop = (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
   const removeFile = () => { setUploadedFile(null); setExtractedText(''); };
 
-  // ── Generate ──────────────────────────────────────────────────
   const generate = async () => {
     const content = extractedText || notes;
     if (!content.trim()) { toast.error(t('exam.addFirst')); return; }
@@ -562,8 +550,10 @@ Content:\n${content}`;
       }
       if (!Array.isArray(parsed) || !parsed.length) throw new Error('Empty result — try again');
       setResult({ mode, data: parsed });
-      toast.success(`${parsed.length} ${mode==='slides'?t('exam.slides'):mode==='flashcards'?t('exam.cards',{n:parsed.length}):t('exam.questions',{n:parsed.length})} ✓`);
-      // Persist to history so it survives refresh
+      // Fixed: exam.slides/cards/questions strings have no {n} placeholder
+      // in translations.js, so the count is built here instead of via t(key,{n}).
+      const unitLabel = mode==='slides' ? t('exam.slides') : mode==='flashcards' ? t('exam.cards') : t('exam.questions');
+      toast.success(`${parsed.length} ${unitLabel} ✓`);
       saveSession(mode, difficulty, parsed, uploadedFile?.name || notes.slice(0, 60));
     } catch (err) {
       toast.error(err.message || 'Generation failed. Try again.');
@@ -571,7 +561,6 @@ Content:\n${content}`;
       setLoading(false);
     }
   };
-
   const wordCount  = (extractedText || notes).split(/\s+/).filter(Boolean).length;
   const hasContent = !!(extractedText || notes.trim());
 
@@ -585,9 +574,7 @@ Content:\n${content}`;
       {!result ? (
         <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ── Config ──────────────────────────────────────── */}
           <div className="lg:col-span-1 flex flex-col gap-4">
-            {/* Mode */}
             <div className="rounded-3xl p-5" style={glass}>
               <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">{t('exam.studyType')}</p>
               <div className="flex flex-col gap-2">
@@ -595,7 +582,7 @@ Content:\n${content}`;
                   <button key={m.key} onClick={() => setMode(m.key)}
                     className="flex items-start gap-3 rounded-2xl px-4 py-3 text-start transition-all"
                     style={mode===m.key
-                      ? { background:'rgba(124,106,240,0.12)', border:'1px solid rgba(124,106,240,0.30)' }
+                      ? { background:'rgb(var(--accent-500) / 0.12)', border:'1px solid rgb(var(--accent-500) / 0.30)' }
                       : { background:'rgba(255,255,255,0.40)', border:'1px solid rgba(255,255,255,0.50)' }}>
                     <span className="text-xl shrink-0">{m.icon}</span>
                     <div>
@@ -608,7 +595,6 @@ Content:\n${content}`;
                 ))}
               </div>
             </div>
-            {/* Difficulty */}
             <div className="rounded-3xl p-5" style={glass}>
               <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">{t('exam.difficulty')}</p>
               <div className="flex gap-2">
@@ -623,15 +609,15 @@ Content:\n${content}`;
                 ))}
               </div>
             </div>
-            {/* Count */}
             <div className="rounded-3xl p-5" style={glass}>
               <div className="mb-4">
+                {/* Fixed: the count was silently disappearing because
+                    exam.questions / exam.cards / exam.minSlides strings
+                    in translations.js have no {n} placeholder to fill.
+                    Now the number is appended in code, guaranteed visible
+                    regardless of the translation string's content. */}
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
-                  {mode==='slides'
-                    ? t('exam.minSlides', { n: count })
-                    : mode==='flashcards'
-                    ? t('exam.cards', { n: count })
-                    : t('exam.questions', { n: count })}
+                  {mode==='slides' ? t('exam.minSlides') : mode==='flashcards' ? t('exam.cards') : t('exam.questions')}: {count}
                 </p>
                 <input type="range" min={5} max={30} value={count}
                   onChange={e => setCount(Number(e.target.value))}
@@ -650,17 +636,16 @@ Content:\n${content}`;
                 </div>
               )}
             </div>
-            {/* File type info */}
             <button onClick={() => setShowFileInfo(s=>!s)}
               className="flex items-center gap-2 rounded-2xl px-4 py-3 text-xs font-semibold text-lavender-600 transition-all text-start"
-              style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+              style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
               <Info size={14}/> {t('exam.fileInfo')}
             </button>
             <AnimatePresence>
               {showFileInfo && (
                 <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
                   className="overflow-hidden rounded-3xl"
-                  style={{ background:'rgba(124,106,240,0.06)', border:'1px solid rgba(124,106,240,0.15)' }}>
+                  style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
                   <div className="p-4 flex flex-col gap-2">
                     {FILE_TYPES.map(ft => (
                       <div key={ft.ext} className="flex items-center justify-between text-xs">
@@ -671,7 +656,7 @@ Content:\n${content}`;
                         <span className="text-ink/40 dark:text-white/30">{t('exam.maxNote', { n: MAX_SIZE_MB })}</span>
                       </div>
                     ))}
-                    <div className="mt-2 pt-2" style={{ borderTop:'1px solid rgba(124,106,240,0.15)' }}>
+                    <div className="mt-2 pt-2" style={{ borderTop:'1px solid rgb(var(--accent-500) / 0.15)' }}>
                       <p className="text-[11px] text-ink/40 dark:text-white/30">
                         {t('exam.maxNote', { n: MAX_SIZE_MB })}
                       </p>
@@ -681,16 +666,14 @@ Content:\n${content}`;
               )}
             </AnimatePresence>
           </div>
-          {/* ── Notes + Upload ───────────────────────────────── */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="rounded-3xl p-6 flex flex-col gap-4" style={glass}>
-              {/* File upload zone */}
               {!uploadedFile ? (
                 <div
                   onDrop={onDrop}
                   onDragOver={e => e.preventDefault()}
                   className="relative rounded-2xl border-2 border-dashed cursor-pointer transition-all hover:border-lavender-400"
-                  style={{ borderColor:'rgba(124,106,240,0.30)', background:'rgba(124,106,240,0.04)' }}
+                  style={{ borderColor:'rgb(var(--accent-500) / 0.30)', background:'rgb(var(--accent-500) / 0.04)' }}
                   onClick={() => fileRef.current?.click()}
                 >
                   <input ref={fileRef} type="file" accept={ACCEPTED} className="hidden"
@@ -729,7 +712,6 @@ Content:\n${content}`;
                   </button>
                 </div>
               )}
-              {/* Divider */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-px bg-ink/8"/>
                 <span className="text-xs text-ink/30 font-medium">
@@ -737,7 +719,6 @@ Content:\n${content}`;
                 </span>
                 <div className="flex-1 h-px bg-ink/8"/>
               </div>
-              {/* Notes textarea */}
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
                   {uploadedFile ? t('exam.extraNotes') : t('exam.notes')}
@@ -750,7 +731,6 @@ Content:\n${content}`;
                   onChange={e => setNotes(e.target.value)}
                 />
               </div>
-              {/* Stats */}
               {hasContent && (
                 <div className="flex gap-4 flex-wrap">
                   {[
@@ -769,7 +749,6 @@ Content:\n${content}`;
                   )}
                 </div>
               )}
-              {/* Generate button */}
               <motion.button
                 whileHover={{ scale:1.01 }} whileTap={{ scale:0.98 }}
                 onClick={generate}
@@ -791,7 +770,6 @@ Content:\n${content}`;
             </div>
           </div>
         </div>
-        {/* ── Past sessions ──────────────────────────────────── */}
         {sessions.length > 0 && (
           <div className="mt-6 rounded-3xl p-5" style={glass}>
             <div className="flex items-center gap-2 mb-4">
@@ -804,11 +782,10 @@ Content:\n${content}`;
               {sessions.map(s => {
                 const m = MODES.find(x => x.key === s.mode);
                 const busy = sessionBusy === s.id;
-                const countLabel = s.mode==='slides'
-                  ? t('exam.minSlides', { n: s.item_count })
-                  : s.mode==='flashcards'
-                  ? t('exam.cards', { n: s.item_count })
-                  : t('exam.questions', { n: s.item_count });
+                // Fixed: build count label in code instead of via {n}
+                // interpolation the translation strings don't support.
+                const unitLabel = s.mode==='slides' ? t('exam.minSlides') : s.mode==='flashcards' ? t('exam.cards') : t('exam.questions');
+                const countLabel = `${s.item_count} ${unitLabel}`;
                 return (
                   <button key={s.id} onClick={() => openSession(s)} disabled={busy}
                     className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition-all hover:scale-[1.01] disabled:opacity-50"
@@ -840,7 +817,6 @@ Content:\n${content}`;
         )}
         </>
       ) : (
-        /* ── Result ─────────────────────────────────────────── */
         <div>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -850,11 +826,8 @@ Content:\n${content}`;
                   {MODES.find(m=>m.key===result.mode)?.label}
                 </h2>
                 <p className="text-xs text-ink/40">
-                  {result.mode==='slides'
-                    ? t('exam.minSlides', { n: result.data.length })
-                    : result.mode==='flashcards'
-                    ? t('exam.cards', { n: result.data.length })
-                    : t('exam.questions', { n: result.data.length })} · {t(`exam.${difficulty}`)}
+                  {/* Fixed: same {n}-less translation string issue */}
+                  {result.data.length} {result.mode==='slides' ? t('exam.minSlides') : result.mode==='flashcards' ? t('exam.cards') : t('exam.questions')} · {t(`exam.${difficulty}`)}
                 </p>
               </div>
             </div>
