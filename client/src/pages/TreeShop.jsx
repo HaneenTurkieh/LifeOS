@@ -7,7 +7,6 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import PageLoader from '../components/Loader.jsx';
 
-// rarity label is a translation key
 const RARITY = {
   seedling:       { label: 'shop.rarStarter',   color: '#4CC38A', bg: 'rgba(76,195,138,0.12)' },
   sprout:         { label: 'shop.rarCommon',    color: '#60A5FA', bg: 'rgba(96,165,250,0.12)' },
@@ -23,12 +22,12 @@ function XPBar({ totalXp, t }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl px-5 py-3 mb-8"
       style={{
-        background:   'linear-gradient(135deg, rgba(124,106,240,0.15) 0%, rgba(91,71,224,0.08) 100%)',
-        border:       '1px solid rgba(124,106,240,0.25)',
+        background:   'linear-gradient(135deg, rgb(var(--accent-500) / 0.15) 0%, rgb(var(--accent-600) / 0.08) 100%)',
+        border:       '1px solid rgb(var(--accent-500) / 0.25)',
         backdropFilter: 'blur(16px)',
       }}>
       <div className="flex h-10 w-10 items-center justify-center rounded-xl text-xl"
-        style={{ background: 'linear-gradient(135deg, #7C6AF0, #5B47E0)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}>
+        style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', boxShadow: '0 4px 12px rgb(var(--accent-500) / 0.35)' }}>
         ⚡
       </div>
       <div>
@@ -40,7 +39,6 @@ function XPBar({ totalXp, t }) {
     </div>
   );
 }
-
 function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
   const rarity = RARITY[tree.key] || RARITY.seedling;
   return (
@@ -92,8 +90,8 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
       {tree.cost > 0 && (
         <div className="flex items-center gap-1 mb-4 rounded-full px-3 py-1 text-xs font-semibold"
           style={{
-            background: tree.owned ? 'rgba(76,195,138,0.12)' : tree.canAfford ? 'rgba(124,106,240,0.12)' : 'rgba(0,0,0,0.06)',
-            color:      tree.owned ? '#2DA76E' : tree.canAfford ? '#7C6AF0' : 'rgba(30,34,51,0.35)',
+            background: tree.owned ? 'rgba(76,195,138,0.12)' : tree.canAfford ? 'rgb(var(--accent-500) / 0.12)' : 'rgba(0,0,0,0.06)',
+            color:      tree.owned ? '#2DA76E' : tree.canAfford ? 'rgb(var(--accent-500))' : 'rgba(30,34,51,0.35)',
           }}>
           ⚡ {tree.cost.toLocaleString()} XP
         </div>
@@ -121,8 +119,8 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
           disabled={loading}
           className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
           style={{
-            background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
-            boxShadow:  '0 6px 16px rgba(124,106,240,0.38)',
+            background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
+            boxShadow:  '0 6px 16px rgb(var(--accent-500) / 0.38)',
           }}>
           {t('shop.unlock')}
         </motion.button>
@@ -135,7 +133,6 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
     </motion.div>
   );
 }
-
 function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
   if (!tree) return null;
   const rarity = RARITY[tree.key] || RARITY.seedling;
@@ -186,15 +183,12 @@ export default function TreeShop() {
   const [loading,  setLoading]  = useState(true);
   const [acting,   setActing]   = useState(false);
   const [confirm,  setConfirm]  = useState(null);
-
   const load = useCallback(async () => {
     try { setData(await api.get('/trees')); }
     catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
-
   useEffect(() => { load(); }, [load]);
-
   const handleUnlock = async () => {
     if (!confirm) return;
     setActing(true);
@@ -206,7 +200,6 @@ export default function TreeShop() {
     } catch (e) { toast.error(e.message); }
     finally { setActing(false); }
   };
-
   const handleEquip = async (key) => {
     setActing(true);
     try {
@@ -217,24 +210,19 @@ export default function TreeShop() {
     } catch (e) { toast.error(e.message); }
     finally { setActing(false); }
   };
-
   if (loading) return <PageLoader />;
-
   const equippedTree = data?.trees.find(tr => tr.equipped);
   const ownedCount   = data?.trees.filter(tr => tr.owned).length || 0;
-
   const EARN = [
     { icon: '✅', action: t('shop.earnTask'),  xp: '+20 XP' },
     { icon: '🔁', action: t('shop.earnHabit'), xp: '+5 XP'  },
     { icon: '🎯', action: t('shop.earnGoal'),  xp: '+100 XP'},
     { icon: '⏱', action: t('shop.earnFocus'), xp: '+2 XP'  },
   ];
-
   return (
     <div>
       <PageHeader eyebrow={t('shop.eyebrow')} title={t('shop.title')} subtitle={t('shop.subtitle')} />
       <XPBar totalXp={data?.totalXp || 0} t={t} />
-
       <div className="flex gap-3 mb-8 flex-wrap">
         {[
           { label: t('shop.treesOwned'),     value: `${ownedCount} / ${data?.trees.length}` },
@@ -248,13 +236,11 @@ export default function TreeShop() {
           </div>
         ))}
       </div>
-
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {data?.trees.map((tree) => (
           <TreeCard key={tree.key} tree={tree} onUnlock={(tr) => setConfirm(tr)} onEquip={handleEquip} loading={acting} t={t} />
         ))}
       </div>
-
       <div className="mt-10 rounded-3xl p-6"
         style={{ background: 'rgba(255,255,255,0.40)', border: '1px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(16px)' }}>
         <div className="flex items-center gap-2 mb-4">
@@ -272,7 +258,6 @@ export default function TreeShop() {
           ))}
         </div>
       </div>
-
       <AnimatePresence>
         {confirm && (
           <ConfirmModal tree={confirm} onConfirm={handleUnlock} onCancel={() => setConfirm(null)} loading={acting} t={t} />
