@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks } from 'lucide-react';
 import { api } from '../api/client.js';
 
-// ── Persistence ───────────────────────────────────────────────
 export function markOnboarded(userId) {
   localStorage.setItem(`aurora_onboarded_${userId}`, '1');
 }
@@ -12,7 +11,6 @@ export function isOnboarded(userId) {
   return !!localStorage.getItem(`aurora_onboarded_${userId}`);
 }
 
-// ── Styles ────────────────────────────────────────────────────
 const card = {
   background:           'linear-gradient(160deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 100%)',
   backdropFilter:       'blur(40px)',
@@ -21,7 +19,6 @@ const card = {
   boxShadow:            '0 24px 64px rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.50)',
   borderRadius:         '2rem',
 };
-
 const inputStyle = {
   background:           'rgba(255,255,255,0.10)',
   border:               '1px solid rgba(255,255,255,0.22)',
@@ -35,7 +32,6 @@ const inputStyle = {
   outline:              'none',
 };
 
-// ── Shared buttons ────────────────────────────────────────────
 function PrimaryBtn({ onClick, disabled, children }) {
   return (
     <motion.button
@@ -44,15 +40,14 @@ function PrimaryBtn({ onClick, disabled, children }) {
       disabled={disabled}
       className="flex items-center justify-center gap-2 w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-40 transition-all"
       style={{
-        background: 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 100%)',
-        boxShadow:  '0 8px 24px rgba(124,106,240,0.40), inset 0 1px 0 rgba(255,255,255,0.30)',
+        background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
+        boxShadow:  '0 8px 24px rgb(var(--accent-500) / 0.40), inset 0 1px 0 rgba(255,255,255,0.30)',
       }}
     >
       {children}
     </motion.button>
   );
 }
-
 function SkipBtn({ onClick }) {
   return (
     <button onClick={onClick}
@@ -62,7 +57,6 @@ function SkipBtn({ onClick }) {
   );
 }
 
-// ── Step 0: Welcome ───────────────────────────────────────────
 function WelcomeStep({ name, onNext }) {
   return (
     <div className="flex flex-col items-center text-center gap-6">
@@ -70,7 +64,7 @@ function WelcomeStep({ name, onNext }) {
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
         className="flex h-20 w-20 items-center justify-center rounded-3xl text-white text-4xl"
-        style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 50%,#4634B8 100%)', boxShadow: '0 16px 40px rgba(124,106,240,0.45)' }}
+        style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 50%, rgb(var(--accent-700)) 100%)', boxShadow: '0 16px 40px rgb(var(--accent-500) / 0.45)' }}
       >
         ✦
       </motion.div>
@@ -104,13 +98,11 @@ function WelcomeStep({ name, onNext }) {
   );
 }
 
-// ── Step 1: Task ──────────────────────────────────────────────
 function TaskStep({ onNext, onSkip }) {
   const [title,    setTitle]    = useState('');
   const [priority, setPriority] = useState('high');
   const [done,     setDone]     = useState(false);
   const [loading,  setLoading]  = useState(false);
-
   const submit = async () => {
     if (!title.trim()) return;
     setLoading(true);
@@ -120,7 +112,6 @@ function TaskStep({ onNext, onSkip }) {
       setTimeout(onNext, 900);
     } catch (_) { setLoading(false); }
   };
-
   return (
     <div className="flex flex-col gap-5">
       <div className="text-center">
@@ -137,8 +128,8 @@ function TaskStep({ onNext, onSkip }) {
             <button key={p} onClick={() => setPriority(p)}
               className="flex-1 rounded-xl py-2 text-xs font-semibold capitalize transition-all"
               style={priority === p ? {
-                background: p === 'high' ? 'rgba(239,68,68,0.25)' : p === 'medium' ? 'rgba(245,158,11,0.25)' : 'rgba(124,106,240,0.25)',
-                border:     `1px solid ${p === 'high' ? 'rgba(239,68,68,0.5)' : p === 'medium' ? 'rgba(245,158,11,0.5)' : 'rgba(124,106,240,0.5)'}`,
+                background: p === 'high' ? 'rgba(239,68,68,0.25)' : p === 'medium' ? 'rgba(245,158,11,0.25)' : 'rgb(var(--accent-500) / 0.25)',
+                border:     `1px solid ${p === 'high' ? 'rgba(239,68,68,0.5)' : p === 'medium' ? 'rgba(245,158,11,0.5)' : 'rgb(var(--accent-500) / 0.5)'}`,
                 color:      p === 'high' ? '#FCA5A5' : p === 'medium' ? '#FCD34D' : '#C4B5FD',
               } : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.40)' }}>
               {p}
@@ -160,12 +151,10 @@ function TaskStep({ onNext, onSkip }) {
   );
 }
 
-// ── Step 2: Goal ──────────────────────────────────────────────
 function GoalStep({ onNext, onSkip }) {
   const [title,   setTitle]   = useState('');
   const [done,    setDone]    = useState(false);
   const [loading, setLoading] = useState(false);
-
   const submit = async () => {
     if (!title.trim()) return;
     setLoading(true);
@@ -175,7 +164,6 @@ function GoalStep({ onNext, onSkip }) {
       setTimeout(onNext, 900);
     } catch (_) { setLoading(false); }
   };
-
   return (
     <div className="flex flex-col gap-5">
       <div className="text-center">
@@ -205,13 +193,11 @@ function GoalStep({ onNext, onSkip }) {
   );
 }
 
-// ── Step 3: Habit ─────────────────────────────────────────────
 function HabitStep({ onNext, onSkip }) {
   const PRESETS = ['Exercise 💪', 'Read 📖', 'Meditate 🧘', 'Code 💻', 'Drink water 💧', 'Study 📚'];
   const [name,    setName]    = useState('');
   const [done,    setDone]    = useState(false);
   const [loading, setLoading] = useState(false);
-
   const submit = async (habitName) => {
     const n = (habitName || name).trim();
     if (!n) return;
@@ -222,7 +208,6 @@ function HabitStep({ onNext, onSkip }) {
       setTimeout(onNext, 900);
     } catch (_) { setLoading(false); }
   };
-
   return (
     <div className="flex flex-col gap-5">
       <div className="text-center">
@@ -256,7 +241,7 @@ function HabitStep({ onNext, onSkip }) {
           whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
           onClick={() => submit()} disabled={!name.trim() || loading}
           className="rounded-2xl px-5 text-sm font-semibold text-white disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 14px rgba(124,106,240,0.35)' }}>
+          style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 14px rgb(var(--accent-500) / 0.35)' }}>
           Add
         </motion.button>
       </div>
@@ -270,10 +255,8 @@ function HabitStep({ onNext, onSkip }) {
   );
 }
 
-// ── Step 4: Lumi + Shortcuts ──────────────────────────────────
 function LumiStep({ onNext }) {
   const isMac = navigator.platform?.includes('Mac');
-
   return (
     <div className="flex flex-col items-center text-center gap-5">
       <motion.div
@@ -283,15 +266,12 @@ function LumiStep({ onNext }) {
         style={{ background: 'linear-gradient(135deg,#A855F7 0%,#7C3AED 100%)', boxShadow: '0 16px 40px rgba(168,85,247,0.40)' }}>
         ✦
       </motion.div>
-
       <div>
         <h2 className="font-display text-2xl font-bold text-white mb-2">Meet Lumi + shortcuts</h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
           Lumi knows your tasks, goals, and habits. Ask her anything — and navigate Aurora instantly with keyboard shortcuts.
         </p>
       </div>
-
-      {/* Lumi examples */}
       <div className="flex flex-col gap-2 w-full">
         {[
           '"How productive was I this week?"',
@@ -305,8 +285,6 @@ function LumiStep({ onNext }) {
           </div>
         ))}
       </div>
-
-      {/* Shortcuts grid */}
       <div className="w-full rounded-2xl p-4"
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
         <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3">Quick shortcuts</p>
@@ -332,7 +310,6 @@ function LumiStep({ onNext }) {
           ))}
         </div>
       </div>
-
       <PrimaryBtn onClick={onNext}>
         Let's go <ArrowRight size={16} />
       </PrimaryBtn>
@@ -340,7 +317,6 @@ function LumiStep({ onNext }) {
   );
 }
 
-// ── Step 5: Done ──────────────────────────────────────────────
 function DoneStep({ name, onFinish }) {
   return (
     <div className="flex flex-col items-center text-center gap-6">
@@ -367,18 +343,14 @@ function DoneStep({ name, onFinish }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────
 export default function Onboarding({ user, onComplete }) {
   const [step, setStep] = useState(0);
-
   const name = user?.name?.split(' ')[0] || 'there';
   const next = () => setStep((s) => s + 1);
-
   const finish = () => {
     markOnboarded(user?.id);
     onComplete();
   };
-
   const stepContent = [
     <WelcomeStep key="welcome" name={name} onNext={next} />,
     <TaskStep    key="task"    onNext={next} onSkip={next} />,
@@ -387,10 +359,8 @@ export default function Onboarding({ user, onComplete }) {
     <LumiStep    key="lumi"    onNext={next} />,
     <DoneStep    key="done"    name={name}   onFinish={finish} />,
   ];
-
   const totalSteps = stepContent.length - 2;
   const showDots   = step > 0 && step < stepContent.length - 1;
-
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
@@ -410,8 +380,6 @@ export default function Onboarding({ user, onComplete }) {
             {stepContent[step]}
           </motion.div>
         </AnimatePresence>
-
-        {/* Progress dots */}
         {showDots && (
           <div className="flex justify-center gap-2 mt-5">
             {Array.from({ length: totalSteps }).map((_, i) => (
@@ -421,9 +389,9 @@ export default function Onboarding({ user, onComplete }) {
                   width:  i === step - 1 ? 20 : 6,
                   height: 6,
                   background: i === step - 1
-                    ? 'rgba(124,106,240,0.90)'
+                    ? 'rgb(var(--accent-500) / 0.90)'
                     : i < step - 1
-                    ? 'rgba(124,106,240,0.40)'
+                    ? 'rgb(var(--accent-500) / 0.40)'
                     : 'rgba(255,255,255,0.15)',
                 }}
               />
