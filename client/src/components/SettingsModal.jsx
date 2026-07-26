@@ -14,7 +14,6 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
 
-// ── Avatar — gradient now accent-aware instead of hardcoded purple ──
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
     return (
@@ -36,7 +35,6 @@ function Avatar({ user, size = 56, onClick }) {
   );
 }
 
-// ── Profile tab ───────────────────────────────────────────────
 function ProfileTab() {
   const { user, updateUser } = useAuth();
   const toast   = useToast();
@@ -87,7 +85,6 @@ function ProfileTab() {
             🎂 {user?.name?.split(' ')[0]} 🎉
           </motion.div>
         )}
-        {/* Avatar */}
         <div className="flex items-center gap-4">
           <div className="relative">
             <Avatar user={user} size={68} onClick={() => fileRef.current?.click()} />
@@ -114,7 +111,6 @@ function ProfileTab() {
             </div>
           </div>
         </div>
-        {/* Fields */}
         <div className="flex flex-col gap-3.5">
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.displayName')}</label>
@@ -155,7 +151,6 @@ function ProfileTab() {
   );
 }
 
-// ── Account tab ───────────────────────────────────────────────
 function AccountTab() {
   const { user, changePassword } = useAuth();
   const toast = useToast();
@@ -230,7 +225,6 @@ function AccountTab() {
   );
 }
 
-// ── Appearance tab ────────────────────────────────────────────
 function AppearanceTab() {
   const { mode, setMode } = useTheme();
   const { lang, setLang, t } = useLanguage();
@@ -279,7 +273,8 @@ function AppearanceTab() {
 function PremiumTab() {
   const toast = useToast();
   const { t, lang } = useLanguage();
-  const { accent, setAccent } = useTheme();
+  const { accent, setAccent, resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const [status,    setStatus]    = useState(null);
   const [busy,      setBusy]      = useState(false);
   const [themeBusy, setThemeBusy] = useState(false);
@@ -345,6 +340,14 @@ function PremiumTab() {
     { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD'),   live: false },
   ];
   if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
+
+  // Fixed: this button's "already premium" state was hardcoded to a dark-ink
+  // color/near-transparent-dark background, which is invisible against a dark
+  // theme background. Now flips based on resolvedTheme like everything else.
+  const backToFreeStyle = isDark
+    ? { background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', color:'rgba(255,255,255,0.70)' }
+    : { background:'rgba(30,34,51,0.05)',    border:'1px solid rgba(30,34,51,0.10)',    color:'rgba(30,34,51,0.55)' };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl p-5 text-center"
@@ -361,20 +364,21 @@ function PremiumTab() {
         <button onClick={toggle} disabled={busy}
           className={`mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40 ${status.is_premium ? '' : 'text-white'}`}
           style={status.is_premium
-            ? { background:'rgba(30,34,51,0.05)', border:'1px solid rgba(30,34,51,0.10)', color:'rgba(30,34,51,0.55)' }
+            ? backToFreeStyle
             : { background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 4px 14px rgba(255,184,77,0.35)' }}>
           {busy ? '…' : status.is_premium ? t('settings.backToFree') : t('settings.tryPremium')}
         </button>
       </div>
 
-      {/* Accent color picker */}
       <div className="rounded-2xl p-4"
         style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-ink dark:text-white">🎨 {themeSectionTitle}</p>
           {!status.is_premium && (
             <span className="text-[10px] font-bold rounded-full px-2 py-1"
-              style={{ background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
+              style={isDark
+                ? { background:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.45)' }
+                : { background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
               {themeLockedNote}
             </span>
           )}
@@ -427,7 +431,9 @@ function PremiumTab() {
       <div className="flex flex-col gap-2">
         {PERKS.map(p => (
           <div key={p.title} className="flex items-center gap-3 rounded-2xl px-4 py-3"
-            style={{ background:'rgba(255,255,255,0.45)', border:'1px solid rgba(255,255,255,0.60)' }}>
+            style={isDark
+              ? { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)' }
+              : { background:'rgba(255,255,255,0.45)', border:'1px solid rgba(255,255,255,0.60)' }}>
             <span className="text-xl shrink-0">{p.icon}</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-ink dark:text-white">{p.title}</p>
@@ -436,6 +442,8 @@ function PremiumTab() {
             <span className="text-[10px] font-bold shrink-0 rounded-full px-2 py-1"
               style={p.live
                 ? { background:'rgba(76,195,138,0.12)', color:'#2DA76E' }
+                : isDark
+                ? { background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.35)' }
                 : { background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
               {p.live ? t('settings.live') : t('settings.soon')}
             </span>
@@ -447,7 +455,6 @@ function PremiumTab() {
   );
 }
 
-// ── Feedback tab ──────────────────────────────────────────────
 function FeedbackTab() {
   const { user } = useAuth();
   const toast    = useToast();
@@ -479,7 +486,6 @@ function FeedbackTab() {
   );
 }
 
-// ── Danger tab ────────────────────────────────────────────────
 function DangerTab({ onClose }) {
   const { logout, deleteAccount } = useAuth();
   const navigate = useNavigate();
@@ -537,7 +543,6 @@ function DangerTab({ onClose }) {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { key:'profile',    label:'settings.profile',    icon:User          },
   { key:'account',    label:'settings.account',    icon:Lock          },
@@ -555,8 +560,6 @@ export default function SettingsModal({ open, onClose }) {
   const closeAndReset = () => { setTab('profile'); onClose(); };
   const navBg     = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(30,34,51,0.03)';
   const navBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(30,34,51,0.06)';
-  // These were the biggest remaining hardcoded-purple culprit — the
-  // active sidebar-tab pill in Settings. Now reads --accent-* vars.
   const activeStyle = isDark
     ? { background:'rgb(var(--accent-500) / 0.15)', color:'rgb(var(--accent-300))' }
     : { background:'rgb(var(--accent-500) / 0.10)', color:'rgb(var(--accent-600))' };
