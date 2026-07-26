@@ -550,10 +550,12 @@ Content:\n${content}`;
       }
       if (!Array.isArray(parsed) || !parsed.length) throw new Error('Empty result — try again');
       setResult({ mode, data: parsed });
-      // Fixed: exam.slides/cards/questions strings have no {n} placeholder
-      // in translations.js, so the count is built here instead of via t(key,{n}).
-      const unitLabel = mode==='slides' ? t('exam.slides') : mode==='flashcards' ? t('exam.cards') : t('exam.questions');
-      toast.success(`${parsed.length} ${unitLabel} ✓`);
+      const label = mode==='slides'
+        ? t('exam.minSlides', { n: parsed.length })
+        : mode==='flashcards'
+        ? t('exam.cards', { n: parsed.length })
+        : t('exam.questions', { n: parsed.length });
+      toast.success(`${label} ✓`);
       saveSession(mode, difficulty, parsed, uploadedFile?.name || notes.slice(0, 60));
     } catch (err) {
       toast.error(err.message || 'Generation failed. Try again.');
@@ -611,13 +613,12 @@ Content:\n${content}`;
             </div>
             <div className="rounded-3xl p-5" style={glass}>
               <div className="mb-4">
-                {/* Fixed: the count was silently disappearing because
-                    exam.questions / exam.cards / exam.minSlides strings
-                    in translations.js have no {n} placeholder to fill.
-                    Now the number is appended in code, guaranteed visible
-                    regardless of the translation string's content. */}
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
-                  {mode==='slides' ? t('exam.minSlides') : mode==='flashcards' ? t('exam.cards') : t('exam.questions')}: {count}
+                  {mode==='slides'
+                    ? t('exam.minSlides', { n: count })
+                    : mode==='flashcards'
+                    ? t('exam.cards', { n: count })
+                    : t('exam.questions', { n: count })}
                 </p>
                 <input type="range" min={5} max={30} value={count}
                   onChange={e => setCount(Number(e.target.value))}
@@ -782,10 +783,11 @@ Content:\n${content}`;
               {sessions.map(s => {
                 const m = MODES.find(x => x.key === s.mode);
                 const busy = sessionBusy === s.id;
-                // Fixed: build count label in code instead of via {n}
-                // interpolation the translation strings don't support.
-                const unitLabel = s.mode==='slides' ? t('exam.minSlides') : s.mode==='flashcards' ? t('exam.cards') : t('exam.questions');
-                const countLabel = `${s.item_count} ${unitLabel}`;
+                const countLabel = s.mode==='slides'
+                  ? t('exam.minSlides', { n: s.item_count })
+                  : s.mode==='flashcards'
+                  ? t('exam.cards', { n: s.item_count })
+                  : t('exam.questions', { n: s.item_count });
                 return (
                   <button key={s.id} onClick={() => openSession(s)} disabled={busy}
                     className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition-all hover:scale-[1.01] disabled:opacity-50"
@@ -826,8 +828,11 @@ Content:\n${content}`;
                   {MODES.find(m=>m.key===result.mode)?.label}
                 </h2>
                 <p className="text-xs text-ink/40">
-                  {/* Fixed: same {n}-less translation string issue */}
-                  {result.data.length} {result.mode==='slides' ? t('exam.minSlides') : result.mode==='flashcards' ? t('exam.cards') : t('exam.questions')} · {t(`exam.${difficulty}`)}
+                  {result.mode==='slides'
+                    ? t('exam.minSlides', { n: result.data.length })
+                    : result.mode==='flashcards'
+                    ? t('exam.cards', { n: result.data.length })
+                    : t('exam.questions', { n: result.data.length })} · {t(`exam.${difficulty}`)}
                 </p>
               </div>
             </div>

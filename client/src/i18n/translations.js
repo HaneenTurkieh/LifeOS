@@ -16,7 +16,7 @@ export const translations = {
       'nav.launchpad':  'Launchpad',
       'nav.treeshop':   'Tree Shop',
       'nav.settings':   'Settings',
-  
+
       // ── Common actions ─────────────────────────────────────
       'common.save':       'Save',
       'common.saving':     'Saving…',
@@ -37,13 +37,13 @@ export const translations = {
       'common.tomorrow':   'Tomorrow',
       'common.yesterday':  'Yesterday',
       'common.more':       'More',
-  
+
       // ── Greetings (Dashboard) ──────────────────────────────
       'greet.morning':    'Good morning',
       'greet.afternoon':  'Good afternoon',
       'greet.evening':    'Good evening',
       'greet.night':      'Good night',
-  
+
       // ── Tasks ──────────────────────────────────────────────
       'tasks.title':        'Your tasks',
       'tasks.addTask':      'Add task',
@@ -85,7 +85,7 @@ export const translations = {
       'tasks.emptyTitle':    'This is where your work lives',
       'tasks.emptyDesc':     'Tasks organized by date and priority.',
       'tasks.addFirst':      'Add your first task',
-  
+
       // ── Calendar ───────────────────────────────────────────
       'calendar.title':      'Your schedule',
       'calendar.subtitle':   'Drag tasks between days. Tap any task to edit.',
@@ -103,7 +103,7 @@ export const translations = {
       'calendar.category':      'Category',
       'calendar.titleEmpty':    'Title cannot be empty',
       'calendar.resetWarning':  'Resetting now will kill your tree',
-  
+
       // ── Flow / Focus ───────────────────────────────────────
       'flow.title':        'Enter your flow state',
       'flow.focus':        'Focus',
@@ -169,7 +169,7 @@ export const translations = {
       'flow.plantFirst':    'Plant your first tree →',
       'flow.minFocused':    '{n} min of focused work.',
       'flow.minFocusedSub': 'min focused',
-  
+
       // ── Lumi ───────────────────────────────────────────────
       'lumi.greeting':     "Hi {name}, I'm Lumi ✦",
       'lumi.subtitle':     'Your Aurora productivity assistant. I remember things between chats.',
@@ -223,7 +223,7 @@ export const translations = {
       'lumi.sugg4': 'Plan my day — I have 4 hours and high energy',
       'lumi.sugg5': 'Add a task: Review project proposal, high priority',
       'lumi.sugg6': "I'm procrastinating. Help me get started.",
-  
+
       // ── Dashboard ──────────────────────────────────────
       'dash.viewAll':         'View all',
       'dash.todaysTasks':     "Today's tasks",
@@ -259,7 +259,7 @@ export const translations = {
       'mood.okay':            'Okay',
       'mood.good':            'Good',
       'mood.great':           'Great',
-  
+
       // ── App shell & shortcuts ──────────────────────────────
       'app.shortcutsTitle': 'Keyboard shortcuts',
       'app.typingNote':     'Disabled when typing in a text field',
@@ -268,7 +268,7 @@ export const translations = {
       'app.thisPanel':      'This panel',
       'app.shortcuts':      'shortcuts',
       'app.searchTip':      'Tip: Press ⌘K to search · ? for all shortcuts',
-  
+
       // ── Goals page ─────────────────────────────────────────
       'goals.eyebrow':          'Goals & Recurring Tasks',
       'goals.bigPicture':       'The big picture',
@@ -307,7 +307,7 @@ export const translations = {
       'goals.emptyGoalsDesc':   'Goals are your big picture. Break them into milestones and Aurora tracks your progress automatically.',
       'goals.emptyRecurTitle':  'Consistency is the superpower',
       'goals.emptyRecurDesc':   'Recurring tasks repeat on your schedule. Aurora tracks your streak, completion rate, and 30 days of history.',
-  
+
       // ── Settings ───────────────────────────────────────────
       'settings.title':      'Settings',
       'settings.profile':    'Profile',
@@ -384,7 +384,7 @@ export const translations = {
       'settings.typeDelete':   'Type DELETE to confirm:',
       'settings.deleteForever':'Delete forever',
       'settings.deleting':     'Deleting…',
-  
+
       // ── Analytics ──────────────────────────────────────────
       'analytics.eyebrow':    'Analytics',
       'analytics.title':      'Your trends, at a glance',
@@ -408,7 +408,7 @@ export const translations = {
       'analytics.hours':      'Hours',
       'analytics.score':      'Score',
       'analytics.moodLabel':  'Mood',
-  
+
       // ── Launchpad ──────────────────────────────────────────
       'launch.internships':   'Internships',
       'launch.projects':      'Projects',
@@ -422,7 +422,7 @@ export const translations = {
       'launch.cvTitle':       'Your story, organized',
       'launch.cvSub':         'Collect projects, skills and certifications so your CV writes itself.',
       'launch.cvAction':      'Add',
-  
+
       // ── Tree Shop ──────────────────────────────────────────
       'shop.eyebrow':       'Tree Shop',
       'shop.title':         'Grow your forest 🌳',
@@ -450,7 +450,7 @@ export const translations = {
       'shop.rarRare':       'Rare',
       'shop.rarEpic':       'Epic',
       'shop.rarLegendary':  'Legendary',
-  
+
       // ── Login ──────────────────────────────────────────────
       'login.welcomeBack':  'Welcome back',
       'login.createAcct':   'Create account',
@@ -469,7 +469,7 @@ export const translations = {
       'login.logIn':        'Log in',
       'login.pwMismatch':   "Passwords don't match",
       'login.wentWrong':    'Something went wrong',
-  
+
       // ── Notifications ──────────────────────────────────────
       'notif.title':    'Notifications',
       'notif.markAll':  'Mark all read',
@@ -481,7 +481,7 @@ export const translations = {
       'notif.mAgo':     '{n}m ago',
       'notif.hAgo':     '{n}h ago',
       'notif.dAgo':     '{n}d ago',
-  
+
       // ── Exam Assistant ─────────────────────────────────────
       'exam.eyebrow':        'Lumi · Exam Assistant',
       'exam.title':          'Study smarter, not harder',
@@ -501,9 +501,12 @@ export const translations = {
       'exam.easy':           'Easy',
       'exam.medium':         'Medium',
       'exam.hard':           'Hard',
-      'exam.questions':      'Questions',
-      'exam.cards':          'Cards',
-      'exam.minSlides':      'Min slides',
+      // Fixed: these three had no {n} placeholder, so counts were silently
+      // dropped everywhere they were used with t(key, { n }). Now the
+      // number is baked into the template itself.
+      'exam.questions':      'Questions: {n}',
+      'exam.cards':          'Cards: {n}',
+      'exam.minSlides':      'Min slides: {n}',
       'exam.duration':       'Duration: {n} min',
       'exam.fileInfo':       'Supported file types & limits',
       'exam.maxNote':        'Max file size: {n}MB · Text extracted and sent to AI for generation',
@@ -548,7 +551,7 @@ export const translations = {
       'exam.prev':           'Previous',
       'exam.next':           'Next',
       'exam.newSession':     'New session',
-  
+
       // ── History ────────────────────────────────────────────
       'history.eyebrow':     'History',
       'history.title':       'Your timeline',
@@ -560,7 +563,7 @@ export const translations = {
       'history.nDue':        '{n} due',
       'history.nCompleted':  '{n} completed',
     },
-  
+
     ar: {
         // ── التنقّل ─────────────────────────────────────────────
         'nav.dashboard':  'الرئيسية',
@@ -575,7 +578,7 @@ export const translations = {
         'nav.launchpad':  'المنصّة',
         'nav.treeshop':   'متجر الأشجار',
         'nav.settings':   'الإعدادات',
-    
+
         // ── إجراءات عامة ────────────────────────────────────────
         'common.save':       'حفظ',
         'common.saving':     'جارٍ الحفظ…',
@@ -596,13 +599,13 @@ export const translations = {
         'common.tomorrow':   'غدًا',
         'common.yesterday':  'أمس',
         'common.more':       'المزيد',
-    
+
         // ── التحيّات ────────────────────────────────────────────
         'greet.morning':    'صباح الخير',
         'greet.afternoon':  'مساء الخير',
         'greet.evening':    'مساء الخير',
         'greet.night':      'تصبح على خير',
-    
+
         // ── المهام ──────────────────────────────────────────────
         'tasks.title':        'مهامك',
         'tasks.addTask':      'إضافة مهمة',
@@ -644,7 +647,7 @@ export const translations = {
         'tasks.emptyTitle':    'هنا تعيش أعمالك',
         'tasks.emptyDesc':     'مهام منظمة حسب التاريخ والأولوية.',
         'tasks.addFirst':      'أضف مهمتك الأولى',
-    
+
         // ── التقويم ─────────────────────────────────────────────
         'calendar.title':      'جدولك',
         'calendar.subtitle':   'اسحب المهام بين الأيام. اضغط على أي مهمة لتعديلها.',
@@ -662,7 +665,7 @@ export const translations = {
         'calendar.category':      'التصنيف',
         'calendar.titleEmpty':    'العنوان لا يمكن أن يكون فارغًا',
         'calendar.resetWarning':  'إعادة الضبط الآن ستقتل شجرتك',
-    
+
         // ── التركيز ─────────────────────────────────────────────
         'flow.title':        'ادخل في حالة التركيز',
         'flow.focus':        'تركيز',
@@ -728,7 +731,7 @@ export const translations = {
         'flow.plantFirst':    'ازرع شجرتك الأولى ←',
         'flow.minFocused':    '{n} دقيقة من العمل المركّز.',
         'flow.minFocusedSub': 'دقيقة تركيز',
-    
+
         // ── لومي ────────────────────────────────────────────────
         'lumi.greeting':     'أهلًا {name}، أنا لومي ✦',
         'lumi.subtitle':     'مساعدك الإنتاجي في أورورا. أتذكّر الأشياء بين المحادثات.',
@@ -782,7 +785,7 @@ export const translations = {
         'lumi.sugg4': 'خطّط يومي — لدي 4 ساعات وطاقة عالية',
         'lumi.sugg5': 'أضف مهمة: مراجعة اقتراح المشروع، أولوية عالية',
         'lumi.sugg6': 'أنا أماطل. ساعدني على البدء.',
-    
+
         // ── الرئيسية ────────────────────────────────────────────
         'dash.viewAll':         'عرض الكل',
         'dash.todaysTasks':     'مهام اليوم',
@@ -818,7 +821,7 @@ export const translations = {
         'mood.okay':            'مقبول',
         'mood.good':            'جيد',
         'mood.great':           'رائع',
-    
+
         // ── هيكل التطبيق والاختصارات ─────────────────────────────
         'app.shortcutsTitle': 'اختصارات لوحة المفاتيح',
         'app.typingNote':     'معطّلة أثناء الكتابة في حقل نصي',
@@ -827,7 +830,7 @@ export const translations = {
         'app.thisPanel':      'هذه اللوحة',
         'app.shortcuts':      'الاختصارات',
         'app.searchTip':      'نصيحة: اضغط ⌘K للبحث · ? لكل الاختصارات',
-    
+
         // ── صفحة الأهداف ─────────────────────────────────────────
         'goals.eyebrow':          'الأهداف والمهام المتكررة',
         'goals.bigPicture':       'الصورة الكبيرة',
@@ -866,7 +869,7 @@ export const translations = {
         'goals.emptyGoalsDesc':   'الأهداف هي صورتك الكبيرة. قسّمها إلى مراحل وستتابع أورورا تقدمك تلقائيًا.',
         'goals.emptyRecurTitle':  'الاستمرارية هي القوة الخارقة',
         'goals.emptyRecurDesc':   'المهام المتكررة تتكرر وفق جدولك. تتبّع أورورا تتابعك ونسبة إنجازك وسجل 30 يومًا.',
-    
+
         // ── الإعدادات ───────────────────────────────────────────
         'settings.title':      'الإعدادات',
         'settings.profile':    'الملف الشخصي',
@@ -943,7 +946,7 @@ export const translations = {
         'settings.typeDelete':   'اكتب DELETE للتأكيد:',
         'settings.deleteForever':'حذف نهائي',
         'settings.deleting':     'جارٍ الحذف…',
-    
+
         // ── الإحصائيات ───────────────────────────────────────────
         'analytics.eyebrow':    'الإحصائيات',
         'analytics.title':      'اتجاهاتك في لمحة',
@@ -967,7 +970,7 @@ export const translations = {
         'analytics.hours':      'ساعات',
         'analytics.score':      'النتيجة',
         'analytics.moodLabel':  'المزاج',
-    
+
         // ── المنصّة ──────────────────────────────────────────────
         'launch.internships':   'التدريبات',
         'launch.projects':      'المشاريع',
@@ -981,7 +984,7 @@ export const translations = {
         'launch.cvTitle':       'قصتك، منظمة',
         'launch.cvSub':         'اجمع المشاريع والمهارات والشهادات لتكتب سيرتك نفسها.',
         'launch.cvAction':      'إضافة',
-    
+
         // ── متجر الأشجار ─────────────────────────────────────────
         'shop.eyebrow':       'متجر الأشجار',
         'shop.title':         'أنمِ غابتك 🌳',
@@ -1009,7 +1012,7 @@ export const translations = {
         'shop.rarRare':       'نادر',
         'shop.rarEpic':       'ملحمي',
         'shop.rarLegendary':  'أسطوري',
-    
+
         // ── تسجيل الدخول ─────────────────────────────────────────
         'login.welcomeBack':  'أهلًا بعودتك',
         'login.createAcct':   'إنشاء حساب',
@@ -1028,7 +1031,7 @@ export const translations = {
         'login.logIn':        'تسجيل الدخول',
         'login.pwMismatch':   'كلمتا المرور غير متطابقتين',
         'login.wentWrong':    'حدث خطأ ما',
-    
+
         // ── الإشعارات ────────────────────────────────────────────
         'notif.title':    'الإشعارات',
         'notif.markAll':  'تحديد الكل كمقروء',
@@ -1040,7 +1043,7 @@ export const translations = {
         'notif.mAgo':     'منذ {n} دقيقة',
         'notif.hAgo':     'منذ {n} ساعة',
         'notif.dAgo':     'منذ {n} يوم',
-    
+
         // ── مساعد الامتحانات ─────────────────────────────────────
         'exam.eyebrow':        'لومي · مساعد الامتحانات',
         'exam.title':          'ادرس بذكاء، لا بجهد',
@@ -1060,9 +1063,10 @@ export const translations = {
         'exam.easy':           'سهل',
         'exam.medium':         'متوسط',
         'exam.hard':           'صعب',
-        'exam.questions':      'الأسئلة',
-        'exam.cards':          'البطاقات',
-        'exam.minSlides':      'الحد الأدنى للشرائح',
+        // Fixed: same missing-placeholder issue as the English strings.
+        'exam.questions':      'الأسئلة: {n}',
+        'exam.cards':          'البطاقات: {n}',
+        'exam.minSlides':      'الحد الأدنى للشرائح: {n}',
         'exam.duration':       'المدة: {n} دقيقة',
         'exam.fileInfo':       'أنواع الملفات المدعومة والحدود',
         'exam.maxNote':        'الحجم الأقصى: {n} م.ب · يُستخرج النص ويُرسل للذكاء الاصطناعي',
@@ -1107,7 +1111,7 @@ export const translations = {
         'exam.prev':           'السابق',
         'exam.next':           'التالي',
         'exam.newSession':     'جلسة جديدة',
-    
+
         // ── السجل ────────────────────────────────────────────────
         'history.eyebrow':     'السجل',
         'history.title':       'خطك الزمني',
