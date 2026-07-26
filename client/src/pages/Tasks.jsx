@@ -14,14 +14,11 @@ import EmptyState    from '../components/EmptyState.jsx';
 import PageLoader    from '../components/Loader.jsx';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-
-// ── Local-date helpers ────────────────────────────────────────
 function localTodayStr()   { return new Date().toLocaleDateString('en-CA'); }
 function localOffsetStr(n) {
   const d = new Date(); d.setDate(d.getDate() + n);
   return d.toLocaleDateString('en-CA');
 }
-
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -30,13 +27,11 @@ function daysUntil(deadline) {
   const target = new Date(dy, dm - 1, dd);
   return Math.ceil((target - local) / (1000 * 60 * 60 * 24));
 }
-
 function formatDate(s) {
   if (!s) return null;
   const [, mo, d] = s.split('-');
   return `${d}/${mo}`;
 }
-
 function sortByPriority(tasks) {
   return [...tasks].sort((a, b) => {
     const pa = PRIORITY_ORDER[a.priority] ?? 1;
@@ -48,13 +43,11 @@ function sortByPriority(tasks) {
     return 0;
   });
 }
-
 const emptyForm = {
   title:'', description:'', priority:'medium',
   category:'General', deadline:'', deadline_time:'',
   recurrenceType:'', customDays:[],
 };
-
 function formToRecurrence(form) {
   if (!form.recurrenceType) return null;
   if (form.recurrenceType === 'custom') {
@@ -63,7 +56,6 @@ function formToRecurrence(form) {
   }
   return form.recurrenceType;
 }
-
 function recurrenceToForm(recurrence) {
   if (!recurrence) return { recurrenceType:'', customDays:[] };
   if (['daily','weekly','monthly'].includes(recurrence))
@@ -82,18 +74,14 @@ export default function Tasks() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const toast = useToast();
   const { t, lang } = useLanguage();
-
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
-  // Locale-aware weekday letters/names (Sun..Sat)
   const dayLetter = (i) => new Date(2023, 0, 1 + i).toLocaleDateString(dateLocale, { weekday:'narrow' });
   const dayShort  = (i) => new Date(2023, 0, 1 + i).toLocaleDateString(dateLocale, { weekday:'short'  });
-
   const formatTime = (tm) => {
     if (!tm) return null;
     const [h, m] = tm.split(':').map(Number);
     return new Date(2000, 0, 1, h, m).toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
   };
-
   const recurrenceLabel = (r) => {
     if (!r) return null;
     if (r === 'daily')   return t('tasks.daily');
@@ -108,7 +96,6 @@ export default function Tasks() {
     }
     return null;
   };
-
   const RECURRENCE_OPTIONS = [
     { value:'',        label:t('tasks.never')   },
     { value:'daily',   label:t('tasks.daily')   },
@@ -116,7 +103,6 @@ export default function Tasks() {
     { value:'weekly',  label:t('tasks.weekly')  },
     { value:'monthly', label:t('tasks.monthly') },
   ];
-
   const load = useCallback(async () => {
     try {
       const data = await api.get('/tasks');
@@ -124,29 +110,23 @@ export default function Tasks() {
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
-
   useEffect(() => { load(); }, [load]);
-
   useEffect(() => {
     const handler = () => { setEditingTask(null); setForm(emptyForm); setModalOpen(true); };
     window.addEventListener('aurora:new-task', handler);
     return () => window.removeEventListener('aurora:new-task', handler);
   }, []);
-
   const today    = localTodayStr();
   const tomorrow = localOffsetStr(1);
   const in7Days  = localOffsetStr(7);
-
   const active    = tasks.filter(tk => tk.status !== 'done');
   const completed = tasks.filter(tk => tk.status === 'done');
-
   const groups = {
     today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline === today)),
     tomorrow: sortByPriority(active.filter(tk => tk.deadline === tomorrow)),
     week:     sortByPriority(active.filter(tk => tk.deadline && tk.deadline > tomorrow && tk.deadline <= in7Days)),
     later:    sortByPriority(active.filter(tk => tk.deadline && tk.deadline > in7Days)),
   };
-
   const markDone = async (task) => {
     setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status:'done', progress:100 } : tk));
     try {
@@ -164,13 +144,11 @@ export default function Tasks() {
       }
     } catch (err) { toast.error(err.message); load(); }
   };
-
   const markUndone = async (task) => {
     setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status:'todo', progress:0 } : tk));
     try { await api.put(`/tasks/${task.id}`, { status:'todo', progress:0 }); }
     catch (err) { toast.error(err.message); load(); }
   };
-
   const openCreateModal = () => { setEditingTask(null); setForm(emptyForm); setModalOpen(true); };
   const openEditModal   = (task) => {
     setEditingTask(task);
@@ -183,7 +161,6 @@ export default function Tasks() {
     });
     setModalOpen(true);
   };
-
   const submitForm = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
@@ -200,16 +177,13 @@ export default function Tasks() {
       setForm(emptyForm); setEditingTask(null); setModalOpen(false); load();
     } catch (err) { toast.error(err.message); }
   };
-
   const removeTask = async (id) => {
     setTasks(prev => prev.filter(tk => tk.id !== id));
     try { await api.del(`/tasks/${id}`); toast.success(t('tasks.deleted')); }
     catch (err) { toast.error(err.message); load(); }
   };
-
   if (loading) return <PageLoader />;
   const isEmpty = active.length === 0 && completed.length === 0;
-
   return (
     <div>
       <PageHeader
@@ -217,7 +191,6 @@ export default function Tasks() {
         subtitle={t('tasks.subtitle')}
         action={<button className="btn-primary" onClick={openCreateModal}><Plus size={16}/> {t('tasks.newTask')}</button>}
       />
-
       {isEmpty ? (
         <EmptyState icon={ListChecks} title={t('tasks.emptyTitle')}
           description={t('tasks.emptyDesc')}
@@ -229,7 +202,6 @@ export default function Tasks() {
           <TaskGroup label={t('common.tomorrow')} tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
           <TaskGroup label={t('tasks.next7')}     tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
           <TaskGroup label={t('tasks.later')}     tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
-
           {completed.length > 0 && (
             <div>
               <button onClick={() => setCompletedOpen(o=>!o)}
@@ -252,7 +224,6 @@ export default function Tasks() {
           )}
         </div>
       )}
-
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTask ? t('tasks.editTask') : t('tasks.newTask')}>
         <form onSubmit={submitForm} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder={t('tasks.taskTitle')} value={form.title}
@@ -282,11 +253,11 @@ export default function Tasks() {
                   onClick={() => setForm({...form, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[]})}
                   className="rounded-2xl px-4 py-2 text-xs font-semibold transition-all"
                   style={form.recurrenceType === opt.value ? {
-                    background:'linear-gradient(135deg,#7C6AF0,#5B47E0)', color:'white',
-                    boxShadow:'0 4px 12px rgba(124,106,240,0.30)',
+                    background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
+                    boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
                   } : {
-                    background:'rgba(124,106,240,0.08)', border:'1px solid rgba(124,106,240,0.15)',
-                    color:'rgba(124,106,240,0.65)',
+                    background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
+                    color:'rgb(var(--accent-500) / 0.65)',
                   }}>
                   {opt.label}
                 </button>
@@ -303,12 +274,12 @@ export default function Tasks() {
                         onClick={() => setForm({...form, customDays: isOn ? form.customDays.filter(x=>x!==i) : [...form.customDays, i]})}
                         className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all"
                         style={isOn ? {
-                          background:'linear-gradient(135deg,#7C6AF0,#5B47E0)',
-                          color:'white', boxShadow:'0 4px 12px rgba(124,106,240,0.35)',
+                          background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))',
+                          color:'white', boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.35)',
                         } : {
-                          background:'rgba(124,106,240,0.08)',
-                          border:'1px solid rgba(124,106,240,0.18)',
-                          color:'rgba(124,106,240,0.60)',
+                          background:'rgb(var(--accent-500) / 0.08)',
+                          border:'1px solid rgb(var(--accent-500) / 0.18)',
+                          color:'rgb(var(--accent-500) / 0.60)',
                         }}>
                         {dayLetter(i)}
                       </button>
@@ -326,7 +297,6 @@ export default function Tasks() {
     </div>
   );
 }
-
 function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, recurrenceLabel }) {
   if (!tasks.length) return null;
   return (
@@ -342,17 +312,14 @@ function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, 
     </div>
   );
 }
-
 function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel }) {
   const time  = formatTime(task.deadline_time);
   const date  = formatDate(task.deadline);
   const dl    = daysUntil(task.deadline);
   const label = recurrenceLabel(task.recurrence);
-
   const isOverdue = dl !== null && dl < 0;
   const isToday   = dl !== null && dl === 0;
   const isSoon    = dl !== null && dl > 0 && dl <= 3;
-
   return (
     <motion.div layout
       className={`group flex items-start gap-3 rounded-2xl border border-white/70 bg-white/70
@@ -364,7 +331,6 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
           ? <CheckCircle2 size={18} className="text-sage-500" />
           : <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />}
       </button>
-
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className={`text-sm font-medium text-ink dark:text-white leading-snug ${done ? 'line-through text-ink/40 dark:text-white/30' : ''}`}>
@@ -381,14 +347,11 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
             </button>
           </div>
         </div>
-
         {task.description && (
           <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5 line-clamp-1">{task.description}</p>
         )}
-
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <PriorityPill priority={task.priority} />
-
           {task.deadline && (
             <span className={`flex items-center gap-1 text-[11px] font-medium ${
               isOverdue || isToday ? 'text-coral-500'
@@ -403,16 +366,14 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
               : date}
             </span>
           )}
-
           {time && (
             <span className="flex items-center gap-1 text-[11px] text-ink/40 dark:text-white/30">
               <Clock size={10}/> {time}
             </span>
           )}
-
           {label && (
             <span className="flex items-center gap-1 text-[11px] font-semibold text-lavender-500"
-              style={{ background:'rgba(124,106,240,0.10)', borderRadius:6, padding:'1px 7px' }}>
+              style={{ background:'rgb(var(--accent-500) / 0.10)', borderRadius:6, padding:'1px 7px' }}>
               <RefreshCw size={9}/> {label}
             </span>
           )}
