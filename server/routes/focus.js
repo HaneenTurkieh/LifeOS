@@ -4,16 +4,15 @@ const { db }  = require('../db/connection');
 const { hashPassword, comparePassword } = require('../lib/auth');
 const crypto  = require('crypto');
 
-// Current week's Sunday (UTC) as YYYY-MM-DD
 function getWeekStart() {
   const now  = new Date();
-  const day  = now.getUTCDay(); // 0 = Sunday
+  const day  = now.getUTCDay();
   const diff = now.getUTCDate() - day;
   const sun  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff));
   return sun.toISOString().slice(0, 10);
 }
 function generateCode() {
-  return crypto.randomBytes(3).toString('hex').toUpperCase(); // 6-char e.g. A3F92B
+  return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 async function getEquippedTree(userId) {
   try {
@@ -24,7 +23,6 @@ async function getEquippedTree(userId) {
   } catch (_) { return 'seedling'; }
 }
 
-// ── Log a completed focus session ─────────────────────────────
 router.post('/sessions', async (req, res) => {
   try {
     const { task_name = 'Focus Session', duration_minutes } = req.body;
@@ -35,7 +33,6 @@ router.post('/sessions', async (req, res) => {
       sql:  `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start) VALUES (?, ?, ?, ?)`,
       args: [req.user.id, task_name, duration_minutes, week_start],
     });
-    // Award XP: 2 XP per 5 minutes
     const xpAmount = Math.floor(duration_minutes / 5) * 2;
     if (xpAmount > 0) {
       await db.execute({
@@ -43,7 +40,6 @@ router.post('/sessions', async (req, res) => {
         args: [req.user.id, xpAmount, `Focus: ${task_name}`],
       });
     }
-    // Plant a living tree in the user's forest 🌳 (non-fatal)
     let treePlanted = null;
     try {
       const treeKey = await getEquippedTree(req.user.id);
@@ -58,7 +54,6 @@ router.post('/sessions', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Abandon a running session — the tree dies 🥀 ──────────────
 router.post('/sessions/abandon', async (req, res) => {
   try {
     const { task_name = 'Focus Session', duration_minutes = 0 } = req.body;
@@ -72,7 +67,6 @@ router.post('/sessions/abandon', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── My forest — trees planted day by day ──────────────────────
 router.get('/forest', async (req, res) => {
   try {
     const result = await db.execute({
@@ -105,7 +99,6 @@ router.get('/forest', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── My weekly stats ───────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
     const result = await db.execute({
@@ -118,7 +111,6 @@ router.get('/stats', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Weekly leaderboard ────────────────────────────────────────
 router.get('/leaderboard', async (req, res) => {
   try {
     const result = await db.execute({
@@ -143,7 +135,6 @@ router.get('/leaderboard', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Create room ───────────────────────────────────────────────
 router.post('/rooms', async (req, res) => {
   try {
     const { name, password } = req.body;
@@ -164,7 +155,6 @@ router.post('/rooms', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Join room ─────────────────────────────────────────────────
 router.post('/rooms/join', async (req, res) => {
   try {
     const { code, password } = req.body;
@@ -184,7 +174,22 @@ router.post('/rooms/join', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Get room (polling) — host + shared timer + shared tree ────
+// ── Which room is the current user in? Powers cross-device sync — every
+//    device calls this on load to rehydrate room state, instead of relying
+//    on sessionStorage which is per-device. ──────────────────────────────
+router.get('/rooms/mine', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT r.code FROM focus_room_members m
+            JOIN focus_rooms r ON r.id = m.room_id
+            WHERE m.user_id = ? AND m.last_seen >= datetime('now', '-1 day')
+            ORDER BY m.last_seen DESC LIMIT 1`,
+      args: [req.user.id],
+    })).rows[0];
+    res.json({ code: row?.code || null });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 router.get('/rooms/:code', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
@@ -197,7 +202,6 @@ router.get('/rooms/:code', async (req, res) => {
       args: [roomRow.id],
     })).rows.map((r) => ({ ...r, focus_minutes: Number(r.focus_minutes), is_focusing: Boolean(r.is_focusing) }));
 
-    // Shared timer state (Forest-style synced pomodoro)
     let timer = null;
     let remainingSeconds = null;
     try {
@@ -217,18 +221,15 @@ router.get('/rooms/:code', async (req, res) => {
           mode:               t.mode,
         };
       }
-    } catch (_) { /* focus_room_timer may not exist yet */ }
+    } catch (_) {}
 
-    // Shared room tree — ONE tree per synced session, dies if anyone gives up
     let tree = null;
     try {
       const tr = (await db.execute({
-        sql: `SELECT tree_key, status, died_by_name FROM focus_room_tree WHERE room_id = ?`,
+        sql: `SELECT tree_key, status, died_by_name, died_reason FROM focus_room_tree WHERE room_id = ?`,
         args: [roomRow.id],
       })).rows[0];
       if (tr) {
-        // Auto-survive: if still 'alive' and the synced session has fully
-        // elapsed naturally (nobody bailed), flip it to 'completed'.
         if (tr.status === 'alive' && remainingSeconds !== null && remainingSeconds <= 0) {
           await db.execute({
             sql: `UPDATE focus_room_tree SET status = 'completed', updated_at = datetime('now') WHERE room_id = ?`,
@@ -236,15 +237,14 @@ router.get('/rooms/:code', async (req, res) => {
           });
           tr.status = 'completed';
         }
-        tree = { tree_key: tr.tree_key, status: tr.status, died_by_name: tr.died_by_name || null };
+        tree = { tree_key: tr.tree_key, status: tr.status, died_by_name: tr.died_by_name || null, died_reason: tr.died_reason || null };
       }
-    } catch (_) { /* focus_room_tree may not exist yet */ }
+    } catch (_) {}
 
     res.json({ code: roomRow.code, name: roomRow.name, host_id: Number(roomRow.host_id), members, timer, tree });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Start the shared timer (host only) — also plants the room tree ─
 router.post('/rooms/:code/timer/start', async (req, res) => {
   try {
     const { duration_minutes = 25, mode = 'focus' } = req.body;
@@ -260,16 +260,14 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
               mode = excluded.mode, running = 1`,
       args: [roomRow.id, Math.round(duration_minutes * 60), mode],
     });
-    // Plant ONE shared tree for this room's session — focus sessions only,
-    // breaks don't grow or risk a tree.
     if (mode === 'focus') {
       try {
         const treeKey = await getEquippedTree(req.user.id);
         await db.execute({
-          sql: `INSERT INTO focus_room_tree (room_id, tree_key, status, died_by_name, started_at, updated_at)
-                VALUES (?, ?, 'alive', NULL, datetime('now'), datetime('now'))
+          sql: `INSERT INTO focus_room_tree (room_id, tree_key, status, died_by_name, died_reason, started_at, updated_at)
+                VALUES (?, ?, 'alive', NULL, 'left', datetime('now'), datetime('now'))
                 ON CONFLICT(room_id) DO UPDATE SET
-                  tree_key = excluded.tree_key, status = 'alive', died_by_name = NULL,
+                  tree_key = excluded.tree_key, status = 'alive', died_by_name = NULL, died_reason = 'left',
                   started_at = datetime('now'), updated_at = datetime('now')`,
           args: [roomRow.id, treeKey],
         });
@@ -279,19 +277,47 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Stop the shared timer (host only) ─────────────────────────
+// ── Stop the shared timer (host only). Stopping EARLY (time still
+//    remaining) counts as giving up for the whole room — the tree dies,
+//    same consequence as if a member had left mid-session. Letting the
+//    timer run to completion naturally still lets the tree survive. ────
 router.post('/rooms/:code/timer/stop', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     if (Number(roomRow.host_id) !== Number(req.user.id))
       return res.status(403).json({ error: 'Only the host can stop the shared timer' });
+
+    let stoppedEarly = false;
+    try {
+      const t = (await db.execute({
+        sql: `SELECT started_at, duration_seconds, running FROM focus_room_timer WHERE room_id = ?`,
+        args: [roomRow.id],
+      })).rows[0];
+      if (t && Boolean(t.running)) {
+        const elapsed = Math.floor((Date.now() - new Date(t.started_at.replace(' ', 'T') + 'Z').getTime()) / 1000);
+        stoppedEarly = (Number(t.duration_seconds) - elapsed) > 0;
+      }
+    } catch (_) {}
+
     await db.execute({ sql: `UPDATE focus_room_timer SET running = 0 WHERE room_id = ?`, args: [roomRow.id] });
-    res.json({ ok: true });
+
+    if (stoppedEarly) {
+      try {
+        const tr = (await db.execute({ sql: `SELECT status FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id] })).rows[0];
+        if (tr && tr.status === 'alive') {
+          await db.execute({
+            sql: `UPDATE focus_room_tree SET status = 'dead', died_by_name = ?, died_reason = 'host_stopped', updated_at = datetime('now') WHERE room_id = ?`,
+            args: [req.user.name, roomRow.id],
+          });
+        }
+      } catch (_) {}
+    }
+
+    res.json({ ok: true, stoppedEarly });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Pulse (keep-alive + update focus state) ───────────────────
 router.post('/rooms/:code/pulse', async (req, res) => {
   try {
     const { is_focusing = false, add_minutes = 0 } = req.body;
@@ -307,8 +333,9 @@ router.post('/rooms/:code/pulse', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Leave room — kills the shared tree for everyone if a synced
-//    session was actively running (i.e. this member gave up) ───
+// ── Leave room — blocked entirely while a synced session is running.
+//    Only the host stopping the timer (or it finishing naturally) ends
+//    the session and unlocks leaving for everyone, including the host. ──
 router.delete('/rooms/:code/leave', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
@@ -323,30 +350,15 @@ router.delete('/rooms/:code/leave', async (req, res) => {
         const elapsed   = Math.floor((Date.now() - new Date(t.started_at.replace(' ', 'T') + 'Z').getTime()) / 1000);
         const remaining = Number(t.duration_seconds) - elapsed;
         if (remaining > 0) {
-          const tr = (await db.execute({
-            sql: `SELECT status FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id],
-          })).rows[0];
-          if (tr && tr.status === 'alive') {
-            await db.execute({
-              sql: `UPDATE focus_room_tree SET status = 'dead', died_by_name = ?, updated_at = datetime('now') WHERE room_id = ?`,
-              args: [req.user.name, roomRow.id],
-            });
-          }
+          return res.status(403).json({ error: 'Cannot leave while a session is running — wait for the host to stop it, or for it to finish.' });
         }
       }
-    } catch (_) { /* focus_room_tree may not exist yet — non-fatal */ }
+    } catch (_) {}
 
     await db.execute({ sql: `DELETE FROM focus_room_members WHERE room_id = ? AND user_id = ?`, args: [roomRow.id, req.user.id] });
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
-
-// ═══════════════════════════════════════════════════════════════
-// Premium — UI-only tier for now (no payments). Backend flag +
-// Duolingo-style streak freeze + custom accent theme presets.
-// Requires user_premium table (theme_preset column added via migration).
-// ═══════════════════════════════════════════════════════════════
-const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue'];
 
 async function getPremium(userId) {
   const row = (await db.execute({
@@ -367,8 +379,6 @@ router.post('/premium/toggle', async (req, res) => {
     const current = await getPremium(req.user.id);
     const next = current.is_premium ? 0 : 1;
     if (next === 0) {
-      // Downgrading to free resets the accent theme to the default —
-      // premium color presets shouldn't linger after losing access.
       await db.execute({
         sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset) VALUES (?, 0, 'purple')
               ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple'`,
@@ -398,7 +408,7 @@ router.post('/premium/pause', async (req, res) => {
     res.json({ ok: true, freeze_date: today });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
-// ── Change accent color preset (Premium only, server-validated) ──
+const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue'];
 router.post('/premium/theme', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);

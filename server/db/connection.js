@@ -56,11 +56,13 @@ for (const col of PROFILE_COLS) {
   }
 }
   // ── Premium theme preset column ─────────────────────────────────
-  // user_premium table itself comes from schema.sql (executed above).
-  // Free users implicitly get 'purple' via getPremium()'s fallback in
-  // focus.js even before this column existed for their row.
   if (!(await hasColumn('user_premium', 'theme_preset'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_preset TEXT DEFAULT 'purple'`);
+  }
+  // ── Room tree death reason — distinguishes "member gave up" from
+  //    "host stopped the session early" for a clearer message ──────
+  if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
+    await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }
   // ── Moods table rebuild ────────────────────────────────────────────────────
   if (!(await hasColumn('moods', 'user_id'))) {
