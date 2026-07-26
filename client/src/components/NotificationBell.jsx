@@ -9,9 +9,9 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 const TYPE_COLORS = {
   overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)'  },
   streak:   { dot: '#FFB84D', bg: 'rgba(255,184,77,0.10)'  },
-  deadline: { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.10)' },
+  deadline: { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
   mood:     { dot: '#4CC38A', bg: 'rgba(76,195,138,0.10)'  },
-  default:  { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.10)' },
+  default:  { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
 };
 
 export default function NotificationBell() {
@@ -20,7 +20,6 @@ export default function NotificationBell() {
   const { resolvedTheme } = useTheme();
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
-
   const [open,          setOpen]          = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unread,        setUnread]        = useState(0);
@@ -35,7 +34,6 @@ export default function NotificationBell() {
     return t('notif.dAgo', { n: Math.floor(h / 24) });
   };
 
-  // ── Theme-aware styles ────────────────────────────────────────
   const panelBg     = isDark ? 'rgba(18,14,35,0.95)'        : 'rgba(255,255,255,0.96)';
   const panelBorder = isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.80)';
   const dividerClr  = isDark ? 'rgba(255,255,255,0.06)'     : 'rgba(30,34,51,0.06)';
@@ -44,10 +42,10 @@ export default function NotificationBell() {
   const timeClr     = isDark ? 'text-white/30'              : 'text-ink/30';
   const clearClr    = isDark ? 'text-white/30 hover:text-coral-400' : 'text-ink/35 hover:text-coral-500';
   const bellBg      = open
-    ? 'rgba(124,106,240,0.20)'
+    ? 'rgb(var(--accent-500) / 0.20)'
     : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.60)';
   const bellBorder  = open
-    ? '1px solid rgba(124,106,240,0.40)'
+    ? '1px solid rgb(var(--accent-500) / 0.40)'
     : isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.70)';
 
   const load = useCallback(async () => {
@@ -57,13 +55,11 @@ export default function NotificationBell() {
       setUnread(data.unread || 0);
     } catch (_) {}
   }, []);
-
   useEffect(() => {
     load();
     const id = setInterval(load, 120000);
     return () => clearInterval(id);
   }, [load]);
-
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -80,7 +76,6 @@ export default function NotificationBell() {
       setUnread((u) => Math.max(0, u - 1));
     } catch (_) {}
   };
-
   const markAllRead = async () => {
     try {
       await api.patch('/notifications/read-all');
@@ -88,7 +83,6 @@ export default function NotificationBell() {
       setUnread(0);
     } catch (_) {}
   };
-
   const dismiss = async (id, e) => {
     e.stopPropagation();
     const wasUnread = !notifications.find((n) => n.id === id)?.read;
@@ -98,7 +92,6 @@ export default function NotificationBell() {
       if (wasUnread) setUnread((u) => Math.max(0, u - 1));
     } catch (_) {}
   };
-
   const clearAll = async () => {
     try {
       await Promise.all(notifications.map((n) => api.del(`/notifications/${n.id}`)));
@@ -106,7 +99,6 @@ export default function NotificationBell() {
       setUnread(0);
     } catch (_) {}
   };
-
   const handleClick = async (n) => {
     if (!n.read) await markRead(n.id);
     if (n.link) { navigate(n.link); setOpen(false); }
@@ -114,7 +106,6 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={panelRef}>
-      {/* ── Bell button ───────────────────────────────────── */}
       <motion.button
         whileHover={{ scale: 1.08, y: -2 }}
         whileTap={{ scale: 0.94 }}
@@ -152,8 +143,6 @@ export default function NotificationBell() {
           )}
         </AnimatePresence>
       </motion.button>
-
-      {/* ── Panel — insetInlineEnd anchors it INWARD in both LTR and RTL ── */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -176,7 +165,6 @@ export default function NotificationBell() {
               zIndex: 200,
             }}
           >
-            {/* Header */}
             <div
               className="flex items-center justify-between px-5 py-4"
               style={{ borderBottom: `1px solid ${dividerClr}` }}
@@ -198,8 +186,6 @@ export default function NotificationBell() {
                 </button>
               )}
             </div>
-
-            {/* List */}
             <div className="overflow-y-auto" style={{ maxHeight: 380 }}>
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -264,8 +250,6 @@ export default function NotificationBell() {
                 })
               )}
             </div>
-
-            {/* Clear all */}
             {notifications.length > 0 && (
               <div className="px-5 py-3" style={{ borderTop: `1px solid ${dividerClr}` }}>
                 <button
