@@ -11,14 +11,14 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
 const TOOL_META = {
-  create_task:             { icon: '✅', label: 'Task created',      color: '#7C6AF0' },
+  create_task:             { icon: '✅', label: 'Task created',      color: 'rgb(var(--accent-500))' },
   complete_task:           { icon: '🎉', label: 'Task completed',    color: '#4CC38A' },
   create_goal:             { icon: '🎯', label: 'Goal created',      color: '#60A5FA' },
-  list_tasks:              { icon: '📋', label: 'Tasks fetched',     color: '#7C6AF0' },
+  list_tasks:              { icon: '📋', label: 'Tasks fetched',     color: 'rgb(var(--accent-500))' },
   list_goals:              { icon: '🎯', label: 'Goals fetched',     color: '#60A5FA' },
   get_productivity_summary:{ icon: '📊', label: 'Productivity data', color: '#F59E0B' },
-  get_focus_stats:         { icon: '⏱', label: 'Focus stats',       color: '#7C6AF0' },
-  get_focus_history:       { icon: '📈', label: 'Focus history',     color: '#7C6AF0' },
+  get_focus_stats:         { icon: '⏱', label: 'Focus stats',       color: 'rgb(var(--accent-500))' },
+  get_focus_history:       { icon: '📈', label: 'Focus history',     color: 'rgb(var(--accent-500))' },
   get_habit_streaks:       { icon: '🔥', label: 'Habit streaks',     color: '#F59E0B' },
   get_mood_insights:       { icon: '💜', label: 'Mood insights',     color: '#A855F7' },
   list_upcoming_deadlines: { icon: '⏰', label: 'Deadlines',         color: '#FF7A63' },
@@ -31,7 +31,6 @@ const ACCEPTED_FILES = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
 const MAX_FILE_MB    = 25;
 const MAX_ATTACH     = 3;
 
-// ── Glass styles ──────────────────────────────────────────────
 const glassDark = {
   background:           'rgba(255,255,255,0.04)',
   border:               '1px solid rgba(255,255,255,0.08)',
@@ -46,16 +45,14 @@ const glassLight = {
   WebkitBackdropFilter: 'blur(24px)',
   boxShadow:            'inset 0 1px 0 rgba(255,255,255,0.75)',
 };
-// Always-visible accent button — works on light AND dark backgrounds
 const accentBtn = {
-  background: 'rgba(124,106,240,0.12)',
-  border:     '1px solid rgba(124,106,240,0.30)',
-  color:      '#7C6AF0',
+  background: 'rgb(var(--accent-500) / 0.12)',
+  border:     '1px solid rgb(var(--accent-500) / 0.30)',
+  color:      'rgb(var(--accent-500))',
 };
 
-// ── Sub-components ────────────────────────────────────────────
 function ActionCard({ action }) {
-  const meta = TOOL_META[action.tool] || { icon: '⚡', label: action.tool, color: '#7C6AF0' };
+  const meta = TOOL_META[action.tool] || { icon: '⚡', label: action.tool, color: 'rgb(var(--accent-500))' };
   const r    = action.result;
   return (
     <div
@@ -71,7 +68,6 @@ function ActionCard({ action }) {
     </div>
   );
 }
-
 function Message({ msg }) {
   const isLumi = msg.role === 'assistant';
   return (
@@ -83,7 +79,7 @@ function Message({ msg }) {
       {isLumi && (
         <div
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm mt-0.5"
-          style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
+          style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 12px rgb(var(--accent-500) / 0.35)' }}
         >
           ✦
         </div>
@@ -96,7 +92,7 @@ function Message({ msg }) {
               ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
               : 'rounded-tr-md text-white'
           }`}
-          style={!isLumi ? { background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 16px rgba(124,106,240,0.28)' } : {}}
+          style={!isLumi ? { background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 16px rgb(var(--accent-500) / 0.28)' } : {}}
         >
           {msg.content}
         </div>
@@ -117,13 +113,12 @@ function Message({ msg }) {
     </motion.div>
   );
 }
-
 function TypingIndicator({ mode, t }) {
   return (
     <div className="flex gap-3">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm"
-        style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)' }}
+        style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)' }}
       >✦</div>
       <div className="rounded-3xl rounded-tl-md px-4 py-3 bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 flex items-center gap-2">
         <div className="flex items-center gap-1.5">
@@ -142,7 +137,6 @@ function TypingIndicator({ mode, t }) {
     </div>
   );
 }
-
 function ConversationList({ convos, activeId, onSelect, onNew, onDelete, t }) {
   return (
     <div className="flex flex-col h-full">
@@ -184,8 +178,6 @@ function ConversationList({ convos, activeId, onSelect, onNew, onDelete, t }) {
     </div>
   );
 }
-
-// ── Panel toggle icon ─────────────────────────────────────────
 function PanelIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -194,8 +186,6 @@ function PanelIcon() {
     </svg>
   );
 }
-
-// ── Lumi settings panel ───────────────────────────────────────
 function LumiSettingsPanel({ open, onClose, isDark, t }) {
   const [settings, setSettings] = useState(null);
   const [saved,    setSaved]    = useState(false);
@@ -280,7 +270,7 @@ function LumiSettingsPanel({ open, onClose, isDark, t }) {
                           onClick={() => update(field, opt)}
                           className="rounded-xl px-2.5 py-1.5 text-[11px] font-semibold transition-all"
                           style={active
-                            ? { background:'rgba(124,106,240,0.18)', border:'1px solid rgba(124,106,240,0.45)', color:'#7C6AF0' }
+                            ? { background:'rgb(var(--accent-500) / 0.18)', border:'1px solid rgb(var(--accent-500) / 0.45)', color:'rgb(var(--accent-500))' }
                             : {
                                 background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(30,34,51,0.04)',
                                 border:     isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(30,34,51,0.07)',
@@ -305,7 +295,6 @@ function LumiSettingsPanel({ open, onClose, isDark, t }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────
 export default function AITools() {
   const { user }          = useAuth();
   const { resolvedTheme } = useTheme();
@@ -333,10 +322,10 @@ export default function AITools() {
   const [messages,       setMessages]       = useState([]);
   const [input,          setInput]          = useState('');
   const [loading,        setLoading]        = useState(false);
-  const [sidebarOpen,    setSidebarOpen]    = useState(false);   // mobile overlay
-  const [sidebarVisible, setSidebarVisible] = useState(true);    // desktop toggle
+  const [sidebarOpen,    setSidebarOpen]    = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const [mode,           setMode]           = useState('chat');
-  const [attachments,    setAttachments]    = useState([]);      // [{name, text, wordCount}]
+  const [attachments,    setAttachments]    = useState([]);
   const [attaching,      setAttaching]      = useState(false);
   const [settingsOpen,   setSettingsOpen]   = useState(false);
   const bottomRef = useRef(null);
@@ -383,7 +372,6 @@ export default function AITools() {
     setConvos((c) => c.filter((x) => x.id !== id));
   };
 
-  // ── File attachments (reuses /api/exam/extract) ─────────────
   const handleAttach = async (file) => {
     if (!file) return;
     if (attachments.length >= MAX_ATTACH) {
@@ -416,7 +404,6 @@ export default function AITools() {
   };
   const removeAttachment = (name) => setAttachments((prev) => prev.filter((a) => a.name !== name));
 
-  // ── Send ────────────────────────────────────────────────────
   const sendMessage = useCallback(async (text) => {
     const content = (text || input).trim();
     if ((!content && attachments.length === 0) || loading) return;
@@ -462,7 +449,6 @@ export default function AITools() {
 
   return (
     <div className="flex h-[calc(100vh-88px)] lg:h-[calc(100vh-64px)] gap-3">
-      {/* ── Desktop sidebar ───────────────────────────────── */}
       <AnimatePresence initial={false}>
         {sidebarVisible && (
           <motion.div
@@ -487,11 +473,8 @@ export default function AITools() {
         )}
       </AnimatePresence>
 
-      {/* ── Chat area ─────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Top bar */}
         <div className="flex items-center justify-between mb-3 h-9">
-          {/* Mobile — history + new */}
           <div className="flex items-center gap-2 lg:hidden">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -504,7 +487,6 @@ export default function AITools() {
               <Plus size={13} /> {t('common.new')}
             </button>
           </div>
-          {/* Desktop — new chat + panel toggle */}
           <div className="hidden lg:flex items-center gap-2">
             {!isFirstMessage && (
               <button
@@ -528,7 +510,6 @@ export default function AITools() {
           </div>
         </div>
 
-        {/* Welcome state */}
         <AnimatePresence>
           {isFirstMessage && (
             <motion.div
@@ -540,7 +521,7 @@ export default function AITools() {
                   animate={{ y: [0, -6, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                   className="flex h-16 w-16 items-center justify-center rounded-3xl text-white text-3xl"
-                  style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 50%,#4634B8 100%)', boxShadow: '0 12px 32px rgba(124,106,240,0.4)' }}
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 50%, rgb(var(--accent-700)) 100%)', boxShadow: '0 12px 32px rgb(var(--accent-500) / 0.4)' }}
                 >
                   ✦
                 </motion.div>
@@ -570,7 +551,6 @@ export default function AITools() {
           )}
         </AnimatePresence>
 
-        {/* Messages */}
         {!isFirstMessage && (
           <div className="flex-1 overflow-y-auto px-1 py-2 flex flex-col gap-4">
             {messages.map((msg, i) => <Message key={i} msg={msg} />)}
@@ -579,9 +559,7 @@ export default function AITools() {
           </div>
         )}
 
-        {/* ── Composer ─────────────────────────────────────── */}
         <div className="pt-3 pb-1">
-          {/* Mode pills */}
           <div className="flex items-center gap-1.5 mb-2 px-1">
             {CHAT_MODES.map(({ key, label, Icon, hint }) => {
               const active = mode === key;
@@ -592,7 +570,7 @@ export default function AITools() {
                   title={hint}
                   className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all"
                   style={active
-                    ? { background:'rgba(124,106,240,0.16)', border:'1px solid rgba(124,106,240,0.45)', color:'#7C6AF0' }
+                    ? { background:'rgb(var(--accent-500) / 0.16)', border:'1px solid rgb(var(--accent-500) / 0.45)', color:'rgb(var(--accent-500))' }
                     : {
                         background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.40)',
                         border:     isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.55)',
@@ -605,7 +583,6 @@ export default function AITools() {
             })}
           </div>
 
-          {/* Attachment chips */}
           <AnimatePresence>
             {attachments.length > 0 && (
               <motion.div
@@ -630,10 +607,8 @@ export default function AITools() {
             )}
           </AnimatePresence>
 
-          {/* Input bar */}
           <div className="relative">
             <div className="flex items-end gap-1.5 rounded-3xl p-2" style={glass}>
-              {/* Attach */}
               <input
                 ref={fileRef} type="file" accept={ACCEPTED_FILES} className="hidden"
                 onChange={(e) => handleAttach(e.target.files[0])}
@@ -650,7 +625,6 @@ export default function AITools() {
                   ? <div className="h-4 w-4 rounded-full border-2 border-lavender-300 border-t-lavender-600 animate-spin" />
                   : <Paperclip size={15} />}
               </motion.button>
-              {/* Textarea */}
               <textarea
                 ref={inputRef}
                 rows={1}
@@ -673,25 +647,23 @@ export default function AITools() {
                 }}
                 onKeyDown={handleKey}
               />
-              {/* Settings */}
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={() => setSettingsOpen((s) => !s)}
                 title={t('lumi.settingsBtn')}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl transition"
                 style={settingsOpen
-                  ? { background:'rgba(124,106,240,0.22)', border:'1px solid rgba(124,106,240,0.50)', color:'#7C6AF0' }
+                  ? { background:'rgb(var(--accent-500) / 0.22)', border:'1px solid rgb(var(--accent-500) / 0.50)', color:'rgb(var(--accent-500))' }
                   : accentBtn}
               >
                 <SlidersHorizontal size={15} />
               </motion.button>
-              {/* Send */}
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={() => sendMessage()}
                 disabled={(!input.trim() && attachments.length === 0) || loading}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
-                style={{ background: 'linear-gradient(135deg,#7C6AF0 0%,#5B47E0 100%)', boxShadow: '0 4px 12px rgba(124,106,240,0.35)' }}
+                style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 12px rgb(var(--accent-500) / 0.35)' }}
               >
                 <Send size={15} className="rtl:-scale-x-100" />
               </motion.button>
@@ -699,7 +671,6 @@ export default function AITools() {
             <LumiSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} isDark={isDark} t={t} />
           </div>
 
-          {/* Footer — disclaimer + shortcuts, same baseline */}
           <div className="flex items-center justify-between mt-2 px-2">
             <p className="text-[10px] text-ink/25 dark:text-white/20">
               {t('lumi.disclaimer')}
@@ -711,7 +682,6 @@ export default function AITools() {
         </div>
       </div>
 
-      {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
