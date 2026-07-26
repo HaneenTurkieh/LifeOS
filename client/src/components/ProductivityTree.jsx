@@ -1,11 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Signature visual: a tree that grows with the user's daily streak.
-// Stage 0 = seed ... Stage 4 = full bloom. Pure SVG, no images needed.
-// When the stage INCREASES (detected via a ref of the previous stage),
-// it plays a brief celebratory glow + particle burst instead of just
-// silently redrawing — growth should feel like an event, not a diff.
 const STAGE_LABELS = ['Planting a seed', 'First sprout', 'Sapling', 'Young tree', 'Full bloom'];
 
 function Particle({ index, total }) {
@@ -30,7 +25,6 @@ export default function ProductivityTree({ stage = 0, streak = 0 }) {
   const canopyScale = 0.35 + stage * 0.17;
   const prevStage = useRef(stage);
   const [celebrating, setCelebrating] = useState(false);
-
   useEffect(() => {
     if (stage > prevStage.current) {
       setCelebrating(true);
@@ -60,9 +54,8 @@ export default function ProductivityTree({ stage = 0, streak = 0 }) {
             </>
           )}
         </AnimatePresence>
-
         <svg width="120" height="140" viewBox="0 0 120 140" className="overflow-visible relative z-10">
-          <ellipse cx="60" cy="128" rx="38" ry="7" fill="#7C6AF0" opacity="0.08" />
+          <ellipse cx="60" cy="128" rx="38" ry="7" fill="rgb(var(--accent-500))" opacity="0.08" />
           <motion.rect
             x="55" width="10" rx="4" fill="url(#trunkGrad)"
             initial={{ height: 0, y: 124 }}
