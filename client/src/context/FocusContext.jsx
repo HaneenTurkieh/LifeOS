@@ -95,6 +95,22 @@ function playTreeDied() {
   } catch (_) {}
 }
 
+// Derive live timeLeft/isRunning/startedAt from a server timer row —
+// same math the room timer already uses. remaining_seconds is the
+// snapshot at started_at; devices compute elapsed locally.
+function computeFromServer(d) {
+  let timeLeft  = d.remaining_seconds;
+  let isRunning = false;
+  let startedAt = null;
+  if (d.running && d.started_at) {
+    const elapsed = Math.floor((Date.now() - new Date(d.started_at).getTime()) / 1000);
+    timeLeft  = Math.max(0, d.remaining_seconds - elapsed);
+    isRunning = timeLeft > 0;
+    startedAt = isRunning ? new Date(d.started_at) : null;
+  }
+  return { timeLeft, totalTime: d.duration_seconds, isRunning, startedAt };
+}
+
 export function FocusProvider({ children }) {
   const toast      = useToast();
   const { lang }   = useLanguage();
@@ -105,7 +121,7 @@ export function FocusProvider({ children }) {
   const [timeLeft,  setTimeLeft]  = useState(saved?.timeLeft  ?? 25 * 60);
   const [totalTime, setTotalTime] = useState(saved?.totalTime ?? 25 * 60);
   const [isRunning, setIsRunning] = useState(saved?.isRunning || false);
-  const [taskName,  setTaskName]  = useState(saved?.taskName  || '');
+  const [taskName,  setTaskNameRaw] = useState(saved?.taskName || '');
   const [dots,      setDots]      = useState(saved?.dots      || 0);
   const [startedAt, setStartedAt] = useState(saved?.startedAt || null);
   const [congrats,  setCongrats]  = useState(null);
@@ -127,16 +143,93 @@ export function FocusProvider({ children }) {
     return () => clearTimeout(saveTimeoutRef.current);
   }, [timeLeft]); // eslint-disable-line
 
-  const intervalRef       = useRef(null);
-  const modeRef            = useRef(mode);
-  const customMinRef       = useRef(customMin);
-  const taskRef             = useRef(taskName);
-  const roomRef             = useRef(room);
-  const prevTreeStatusRef   = useRef(null);
+  const intervalRef      = useRef(null);
+  const modeRef           = useRef(mode);
+  const customMinRef      = useRef(customMin);
+  const taskRef            = useRef(taskName);
+  const roomRef            = useRef(room);
+  const prevTreeStatusRef  = useRef(null);
   useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
   useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
   useEffect(() => { roomRef.current      = room;      }, [room]);
+
+  // ── Server-authoritative solo timer sync ───────────────────
+  const versionRef   = useRef(0);
+  const loadedRef     = useRef(false);
+  const taskDebounceRef = useRef(null);
+
+  const pushTimerState = useCallback(async (partial) => {
+    const payload = {
+      mode:              partial.mode ?? mode,
+      custom_min:        partial.custom_min ?? customMin,
+      duration_seconds:  partial.duration_seconds ?? totalTime,
+      remaining_seconds: partial.remaining_seconds ?? timeLeft,
+      started_at:        'started_at' in partial ? partial.started_at : (startedAt ? startedAt.toISOString() : null),
+      running:           'running' in partial ? partial.running : isRunning,
+      task_name:         partial.task_name ?? taskName,
+      dots:              partial.dots ?? dots,
+    };
+    try {
+      const res = await api.post('/focus/timer/sync', payload);
+      if (res?.version) versionRef.current = res.version;
+    } catch (_) {}
+  }, [mode, customMin, totalTime, timeLeft, startedAt, isRunning, taskName, dots]);
+
+  const applyServerState = useCallback((d) => {
+    const computed = computeFromServer(d);
+    setMode(d.mode);
+    setCustomMin(d.custom_min);
+    setTaskNameRaw(d.task_name || '');
+    setDots(d.dots || 0);
+    setTimeLeft(computed.timeLeft);
+    setTotalTime(computed.totalTime);
+    setIsRunning(computed.isRunning);
+    setStartedAt(computed.startedAt);
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('aurora_auth_token');
+    if (!token) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const d = await api.get('/focus/timer');
+        if (!active) return;
+        if (d.exists) {
+          versionRef.current = d.version;
+          applyServerState(d);
+        } else {
+          // No row yet for this account — create one from current
+          // (possibly sessionStorage-restored) local state.
+          pushTimerState({});
+        }
+      } catch (_) {}
+      loadedRef.current = true;
+    };
+    load();
+    const poll = setInterval(async () => {
+      try {
+        const d = await api.get('/focus/timer');
+        if (!active || !d.exists) return;
+        if (d.version !== versionRef.current) {
+          versionRef.current = d.version;
+          applyServerState(d);
+        }
+      } catch (_) {}
+    }, 5000);
+    return () => { active = false; clearInterval(poll); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced task-name sync — pushes 700ms after typing stops.
+  const setTaskName = useCallback((val) => {
+    setTaskNameRaw(val);
+    clearTimeout(taskDebounceRef.current);
+    taskDebounceRef.current = setTimeout(() => {
+      pushTimerState({ task_name: val });
+    }, 700);
+  }, [pushTimerState]);
 
   const loadData = useCallback(async () => {
     try {
@@ -146,9 +239,6 @@ export function FocusProvider({ children }) {
   }, []);
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Rehydrate room membership from the server on mount. This is what
-  //    makes room/tree/timer state actually sync across devices logged
-  //    into the same account — sessionStorage is per-device, this isn't.
   useEffect(() => {
     api.get('/focus/rooms/mine').then((d) => {
       if (d.code && !roomRef.current) {
@@ -203,8 +293,6 @@ export function FocusProvider({ children }) {
     return () => clearInterval(id);
   }, [room?.code, isRunning]); // eslint-disable-line
 
-  // Throws on failure (e.g. 403 while a session is running) so the caller
-  // (Focus.jsx) can show the server's exact reason instead of failing silently.
   const leaveRoom = useCallback(async () => {
     if (!room) return;
     await api.del(`/focus/rooms/${room.code}/leave`);
@@ -228,6 +316,7 @@ export function FocusProvider({ children }) {
         if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
         setCongrats({ quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus });
         setDots((d) => d + 1);
+        pushTimerState({ running: false, started_at: null, remaining_seconds: 0, dots: (dots || 0) + 1 });
         loadData();
       } catch (_) {
         setCongrats({ quote, xpAwarded: 0, minutes: min.focus });
@@ -238,8 +327,13 @@ export function FocusProvider({ children }) {
       setMode('focus');
       setTimeLeft(mins * 60);
       setTotalTime(mins * 60);
+      pushTimerState({
+        mode: 'focus', running: false, started_at: null,
+        remaining_seconds: mins * 60, duration_seconds: mins * 60,
+      });
     }
-  }, [loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadData, pushTimerState, dots]);
 
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
@@ -277,6 +371,10 @@ export function FocusProvider({ children }) {
     const mins = customMin[m];
     setTimeLeft(mins * 60);
     setTotalTime(mins * 60);
+    pushTimerState({
+      mode: m, running: false, started_at: null,
+      remaining_seconds: mins * 60, duration_seconds: mins * 60,
+    });
   };
   const handleModeClick = (m) => {
     if (m === mode) return;
@@ -284,8 +382,16 @@ export function FocusProvider({ children }) {
   };
   const toggleTimer = () => {
     if (timeLeft === 0) return;
-    if (!isRunning) setStartedAt(new Date());
-    setIsRunning((r) => !r);
+    if (!isRunning) {
+      const sa = new Date();
+      setStartedAt(sa);
+      setIsRunning(true);
+      pushTimerState({ running: true, started_at: sa.toISOString(), remaining_seconds: timeLeft });
+    } else {
+      setIsRunning(false);
+      setStartedAt(null);
+      pushTimerState({ running: false, started_at: null, remaining_seconds: timeLeft });
+    }
   };
   const resetTimer = () => {
     clearInterval(intervalRef.current);
@@ -294,16 +400,39 @@ export function FocusProvider({ children }) {
     const mins = customMin[mode];
     setTimeLeft(mins * 60);
     setTotalTime(mins * 60);
+    pushTimerState({
+      running: false, started_at: null,
+      remaining_seconds: mins * 60, duration_seconds: mins * 60,
+    });
   };
   const addMinute = () => {
-    if (isRunning) return; // can't extend once started — enforced here too, not just UI
-    setTimeLeft((t) => t + 60);
-    setTotalTime((t) => t + 60);
-    setCustomMin((c) => ({ ...c, [mode]: c[mode] + 1 }));
+    if (isRunning) return;
+    const newTimeLeft = timeLeft + 60;
+    const newTotal     = totalTime + 60;
+    const newCustomMin = { ...customMin, [mode]: customMin[mode] + 1 };
+    setTimeLeft(newTimeLeft);
+    setTotalTime(newTotal);
+    setCustomMin(newCustomMin);
+    pushTimerState({
+      running: false, started_at: null,
+      remaining_seconds: newTimeLeft, duration_seconds: newTotal,
+      custom_min: newCustomMin,
+    });
   };
   const setDuration = (mins) => {
-    setCustomMin((c) => ({ ...c, [mode]: mins }));
-    if (!isRunning) { setTimeLeft(mins * 60); setTotalTime(mins * 60); }
+    const newCustomMin = { ...customMin, [mode]: mins };
+    setCustomMin(newCustomMin);
+    if (!isRunning) {
+      setTimeLeft(mins * 60);
+      setTotalTime(mins * 60);
+      pushTimerState({
+        running: false, started_at: null,
+        remaining_seconds: mins * 60, duration_seconds: mins * 60,
+        custom_min: newCustomMin,
+      });
+    } else {
+      pushTimerState({ custom_min: newCustomMin });
+    }
   };
 
   return (

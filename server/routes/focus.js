@@ -23,6 +23,88 @@ async function getEquippedTree(userId) {
   } catch (_) { return 'seedling'; }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Solo focus timer — server-authoritative, syncs across every
+// device on the account. Mirrors the shared room timer's design:
+// remaining_seconds is the exact snapshot at started_at; devices
+// compute live timeLeft as remaining_seconds - elapsed while running.
+// A version counter lets pollers detect remote changes cheaply
+// without re-adopting their own just-pushed state.
+// ═══════════════════════════════════════════════════════════════
+router.get('/timer', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT * FROM focus_solo_timer WHERE user_id = ?`, args: [req.user.id],
+    })).rows[0];
+    if (!row) return res.json({ exists: false, version: 0 });
+    res.json({
+      exists:            true,
+      mode:              row.mode,
+      custom_min:        JSON.parse(row.custom_min || '{"focus":25,"short":5,"long":15}'),
+      duration_seconds:  Number(row.duration_seconds),
+      remaining_seconds: Number(row.remaining_seconds),
+      started_at:        row.started_at,
+      running:           Boolean(row.running),
+      task_name:         row.task_name || '',
+      dots:              Number(row.dots || 0),
+      version:           Number(row.version),
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+router.post('/timer/sync', async (req, res) => {
+  try {
+    const {
+      mode = 'focus', custom_min, duration_seconds, remaining_seconds,
+      started_at, running, task_name = '', dots = 0,
+    } = req.body;
+    const customMinJson = JSON.stringify(custom_min || { focus: 25, short: 5, long: 15 });
+    await db.execute({
+      sql: `INSERT INTO focus_solo_timer
+              (user_id, mode, custom_min, duration_seconds, remaining_seconds, started_at, running, task_name, dots, version, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+              mode = excluded.mode, custom_min = excluded.custom_min,
+              duration_seconds = excluded.duration_seconds, remaining_seconds = excluded.remaining_seconds,
+              started_at = excluded.started_at, running = excluded.running,
+              task_name = excluded.task_name, dots = excluded.dots,
+              version = focus_solo_timer.version + 1, updated_at = datetime('now')`,
+      args: [
+        req.user.id, mode, customMinJson,
+        Math.round(duration_seconds || 1500), Math.round(remaining_seconds || 0),
+        started_at || null, running ? 1 : 0, task_name, Math.round(dots || 0),
+      ],
+    });
+    const row = (await db.execute({
+      sql: `SELECT version FROM focus_solo_timer WHERE user_id = ?`, args: [req.user.id],
+    })).rows[0];
+    res.json({ ok: true, version: Number(row.version) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── Theme mode (light/dark/system) — synced like accent color,
+//    but not premium-gated; every account gets this. ──────────
+router.get('/theme-mode', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT theme_mode FROM user_premium WHERE user_id = ?`, args: [req.user.id],
+    })).rows[0];
+    res.json({ theme_mode: row?.theme_mode || 'system' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+router.put('/theme-mode', async (req, res) => {
+  try {
+    const { theme_mode } = req.body;
+    if (!['light', 'dark', 'system'].includes(theme_mode))
+      return res.status(400).json({ error: 'Invalid theme mode' });
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, theme_mode) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET theme_mode = excluded.theme_mode`,
+      args: [req.user.id, theme_mode],
+    });
+    res.json({ ok: true, theme_mode });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 router.post('/sessions', async (req, res) => {
   try {
     const { task_name = 'Focus Session', duration_minutes } = req.body;
@@ -174,9 +256,6 @@ router.post('/rooms/join', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Which room is the current user in? Powers cross-device sync — every
-//    device calls this on load to rehydrate room state, instead of relying
-//    on sessionStorage which is per-device. ──────────────────────────────
 router.get('/rooms/mine', async (req, res) => {
   try {
     const row = (await db.execute({
@@ -277,10 +356,6 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Stop the shared timer (host only). Stopping EARLY (time still
-//    remaining) counts as giving up for the whole room — the tree dies,
-//    same consequence as if a member had left mid-session. Letting the
-//    timer run to completion naturally still lets the tree survive. ────
 router.post('/rooms/:code/timer/stop', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
@@ -333,9 +408,6 @@ router.post('/rooms/:code/pulse', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Leave room — blocked entirely while a synced session is running.
-//    Only the host stopping the timer (or it finishing naturally) ends
-//    the session and unlocks leaving for everyone, including the host. ──
 router.delete('/rooms/:code/leave', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];

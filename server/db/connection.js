@@ -1,29 +1,22 @@
 // db/connection.js
-// Replaced better-sqlite3 (sync, local file) with @libsql/client (async, Turso cloud).
-// db         → the libsql client, imported by every route file
-// initDb()   → async startup function called once in server/index.js before app.listen()
 const { createClient } = require('@libsql/client');
 const fs   = require('fs');
 const path = require('path');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
-// ─── 1. Create the Turso client ───────────────────────────────────────────────
 const db = createClient({
   url:       process.env.TURSO_DATABASE_URL,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// ─── 2. hasColumn ─────────────────────────────────────────────────────────────
 async function hasColumn(table, column) {
   const result = await db.execute(`PRAGMA table_info(${table})`);
   return result.rows.some((c) => c.name === column);
 }
 
-// ─── 3. initDb ────────────────────────────────────────────────────────────────
 async function initDb() {
   await db.execute('PRAGMA foreign_keys = ON');
 
-  // Apply base schema
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
   const schemaWithoutEmailIndex = schema.replace(
     /CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase[^;]*;/,
@@ -31,7 +24,6 @@ async function initDb() {
   );
   await db.executeMultiple(schemaWithoutEmailIndex);
 
-  // ── Column migrations ──────────────────────────────────────────────────────
   if (!(await hasColumn('tasks', 'deadline_time'))) {
     await db.execute('ALTER TABLE tasks ADD COLUMN deadline_time TEXT');
   }
@@ -44,27 +36,27 @@ async function initDb() {
       await db.execute(`ALTER TABLE ${table} ADD COLUMN user_id INTEGER`);
     }
   }
-  // ── Recurring tasks column ─────────────────────────────────────
-if (!(await hasColumn('tasks', 'recurrence'))) {
-  await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL`);
-}
-  // ── Profile columns ────────────────────────────────────────────
-const PROFILE_COLS = ['avatar', 'gender', 'birthday', 'bio'];
-for (const col of PROFILE_COLS) {
-  if (!(await hasColumn('users', col))) {
-    await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT NULL`);
+  if (!(await hasColumn('tasks', 'recurrence'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL`);
   }
-}
-  // ── Premium theme preset column ─────────────────────────────────
+  const PROFILE_COLS = ['avatar', 'gender', 'birthday', 'bio'];
+  for (const col of PROFILE_COLS) {
+    if (!(await hasColumn('users', col))) {
+      await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT NULL`);
+    }
+  }
   if (!(await hasColumn('user_premium', 'theme_preset'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_preset TEXT DEFAULT 'purple'`);
   }
-  // ── Room tree death reason — distinguishes "member gave up" from
-  //    "host stopped the session early" for a clearer message ──────
+  // ── Theme mode (light/dark/system) — syncs across devices the same
+  // way theme_preset (accent color) already does, just not premium-gated.
+  if (!(await hasColumn('user_premium', 'theme_mode'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_mode TEXT DEFAULT 'system'`);
+  }
   if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
     await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }
-  // ── Moods table rebuild ────────────────────────────────────────────────────
+
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([
       { sql: 'ALTER TABLE moods RENAME TO moods_old' },
@@ -85,7 +77,7 @@ for (const col of PROFILE_COLS) {
       { sql: 'DROP TABLE moods_old' },
     ], 'write');
   }
-  // ── Email deduplication ────────────────────────────────────────────────────
+
   const dupResult = await db.execute(`
     SELECT LOWER(email) AS lemail, COUNT(*) AS c, GROUP_CONCAT(id) AS ids
     FROM users
@@ -108,7 +100,7 @@ for (const col of PROFILE_COLS) {
   await db.execute(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_nocase ON users(email COLLATE NOCASE)'
   );
-  // ── Focus tables ───────────────────────────────────────────────────────────
+
   await db.execute(`CREATE TABLE IF NOT EXISTS focus_sessions (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id          INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -135,7 +127,25 @@ for (const col of PROFILE_COLS) {
     is_focusing  INTEGER DEFAULT 0,
     UNIQUE(room_id, user_id)
   )`);
-  // ── Lumi AI tables ─────────────────────────────────────────────────────────
+  // ── Solo (non-room) focus timer — server-authoritative so it syncs
+  // across every device on the same account, same pattern as the
+  // shared room timer but keyed by user_id instead of room_id.
+  // remaining_seconds = the exact time-left snapshot the moment
+  // started_at was set (or, if not running, the fixed paused value).
+  await db.execute(`CREATE TABLE IF NOT EXISTS focus_solo_timer (
+    user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    mode              TEXT NOT NULL DEFAULT 'focus',
+    custom_min        TEXT NOT NULL DEFAULT '{"focus":25,"short":5,"long":15}',
+    duration_seconds  INTEGER NOT NULL DEFAULT 1500,
+    remaining_seconds INTEGER NOT NULL DEFAULT 1500,
+    started_at        TEXT,
+    running           INTEGER NOT NULL DEFAULT 0,
+    task_name         TEXT NOT NULL DEFAULT '',
+    dots              INTEGER NOT NULL DEFAULT 0,
+    version           INTEGER NOT NULL DEFAULT 0,
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   await db.execute(`CREATE TABLE IF NOT EXISTS lumi_conversations (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -159,29 +169,27 @@ for (const col of PROFILE_COLS) {
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(user_id, key)
   )`);
-  // Tree shop
-await db.execute(`CREATE TABLE IF NOT EXISTS user_trees (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  tree_key    TEXT NOT NULL,
-  unlocked_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(user_id, tree_key)
-)`);
-await db.execute(`CREATE TABLE IF NOT EXISTS user_equipped_tree (
-  user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  tree_key TEXT NOT NULL DEFAULT 'seedling'
-)`);
-// ── Notifications ──────────────────────────────────────────────
-await db.execute(`CREATE TABLE IF NOT EXISTS notifications (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  type       TEXT NOT NULL,
-  title      TEXT NOT NULL,
-  body       TEXT NOT NULL,
-  link       TEXT DEFAULT NULL,
-  read       INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
-)`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS user_trees (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    tree_key    TEXT NOT NULL,
+    unlocked_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(user_id, tree_key)
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS user_equipped_tree (
+    user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    tree_key TEXT NOT NULL DEFAULT 'seedling'
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS notifications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    type       TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    link       TEXT DEFAULT NULL,
+    read       INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
   console.log('✅ Database connected and migrations applied.');
 }
 
