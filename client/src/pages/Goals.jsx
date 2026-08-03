@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import * as Icons from 'lucide-react';
-import { Plus, Target, Trash2, CheckSquare, Square, Flame, RefreshCw } from 'lucide-react';
+import { Plus, Target, Trash2, CheckSquare, Square, Flame, RefreshCw, Pencil, X } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -14,7 +14,6 @@ import HabitHistory from '../components/HabitHistory.jsx';
 
 const ICON_CHOICES  = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
 const COLOR_CHOICES = ['#F97316','#6366F1','#06B6D4','#22C55E','#A855F7','#EC4899','#F59E0B','#14B8A6'];
-
 const emptyGoalForm  = { title: '', description: '', category: 'Personal', target_date: '', milestonesText: '' };
 const emptyRecurForm = { name: '', icon: 'Sparkles', color: '#6366F1', target_per_week: 7 };
 
@@ -41,18 +40,23 @@ export default function Goals() {
   const { t } = useLanguage();
   const dates = last30Dates();
 
+  // ── Edit-goal state (separate from create) ─────────────────
+  const [editModal,   setEditModal]   = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null); // full goal object being edited
+  const [editForm,    setEditForm]    = useState({ title: '', description: '', category: '', target_date: '' });
+  const [newMilestone, setNewMilestone] = useState('');
+  const [addingMilestone, setAddingMilestone] = useState(false);
+
   const loadGoals  = useCallback(async () => {
     try { setGoals(await api.get('/goals')); } catch (e) { toast.error(e.message); }
   }, []); // eslint-disable-line
   const loadHabits = useCallback(async () => {
     try { setHabits(await api.get('/habits')); } catch (e) { toast.error(e.message); }
   }, []); // eslint-disable-line
-
   useEffect(() => {
     Promise.all([loadGoals(), loadHabits()]).finally(() => setLoading(false));
   }, [loadGoals, loadHabits]);
 
-  // ── Goal handlers ─────────────────────────────────────
   const suggestMilestones = async () => {
     if (!goalForm.title.trim()) { toast.error(t('goals.addTitleFirst')); return; }
     setSuggesting(true);
@@ -61,7 +65,6 @@ export default function Goals() {
       setGoalForm({ ...goalForm, milestonesText: plan.map((p) => p.focus).join('\n') });
     } catch (e) { toast.error(e.message); } finally { setSuggesting(false); }
   };
-
   const createGoal = async (e) => {
     e.preventDefault();
     if (!goalForm.title.trim()) return;
@@ -72,12 +75,10 @@ export default function Goals() {
       setGoalForm(emptyGoalForm); setGoalModal(false); loadGoals();
     } catch (err) { toast.error(err.message); }
   };
-
   const toggleMilestone = async (goal, m) => {
     await api.put(`/goals/${goal.id}/milestones/${m.id}`, { done: !m.done });
     loadGoals();
   };
-
   const markComplete = async (goal) => {
     const { xpAwarded, unlocked } = await api.put(`/goals/${goal.id}`, {
       status: goal.status === 'completed' ? 'active' : 'completed',
@@ -86,10 +87,56 @@ export default function Goals() {
     unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
     loadGoals();
   };
-
   const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); };
 
-  // ── Recurring task handlers ───────────────────────────
+  // ── Edit goal: open, save fields, add milestone ─────────────
+  const openEditGoal = (goal) => {
+    setEditingGoal(goal);
+    setEditForm({
+      title: goal.title,
+      description: goal.description || '',
+      category: goal.category || 'Personal',
+      target_date: goal.target_date || '',
+    });
+    setNewMilestone('');
+    setEditModal(true);
+  };
+  const saveGoalEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm.title.trim() || !editingGoal) return;
+    try {
+      await api.put(`/goals/${editingGoal.id}`, {
+        title: editForm.title.trim(),
+        description: editForm.description,
+        category: editForm.category,
+        target_date: editForm.target_date || null,
+      });
+      toast.success(t('tasks.updated'));
+      await loadGoals();
+      // Refresh the in-modal goal object so the milestone list below
+      // stays current without closing the modal.
+      const fresh = (await api.get('/goals')).find((g) => g.id === editingGoal.id);
+      if (fresh) setEditingGoal(fresh);
+    } catch (err) { toast.error(err.message); }
+  };
+  const addMilestoneToGoal = async () => {
+    if (!newMilestone.trim() || !editingGoal) return;
+    setAddingMilestone(true);
+    try {
+      await api.post(`/goals/${editingGoal.id}/milestones`, { title: newMilestone.trim() });
+      setNewMilestone('');
+      await loadGoals();
+      const fresh = (await api.get('/goals')).find((g) => g.id === editingGoal.id);
+      if (fresh) setEditingGoal(fresh);
+    } catch (err) { toast.error(err.message); }
+    finally { setAddingMilestone(false); }
+  };
+  const closeEditModal = () => {
+    setEditModal(false);
+    setEditingGoal(null);
+    setNewMilestone('');
+  };
+
   const createRecur = async (e) => {
     e.preventDefault();
     if (!recurForm.name.trim()) return;
@@ -99,18 +146,15 @@ export default function Goals() {
       setRecurForm(emptyRecurForm); setRecurModal(false); loadHabits();
     } catch (err) { toast.error(err.message); }
   };
-
   const toggleToday = async (habit) => {
     const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, {});
     if (xpAwarded) toast.xp(xpAwarded, habit.name);
     unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
     loadHabits();
   };
-
   const removeHabit = async (id) => { await api.del(`/habits/${id}`); toast.success(t('goals.recurRemoved')); loadHabits(); };
 
   if (loading) return <PageLoader />;
-
   const TABS = [
     { key: 'goals',     label: t('goals.tabGoals'),     count: goals.length  },
     { key: 'recurring', label: t('goals.tabRecurring'), count: habits.length },
@@ -128,8 +172,6 @@ export default function Goals() {
             : <button className="btn-primary" onClick={() => setRecurModal(true)}><Plus size={16}/> {t('goals.newRecur')}</button>
         }
       />
-
-      {/* Tab switcher */}
       <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 w-fit">
         {TABS.map((tb) => (
           <button
@@ -148,8 +190,6 @@ export default function Goals() {
           </button>
         ))}
       </div>
-
-      {/* ── Goals ───────────────────────────────────────── */}
       {tab === 'goals' && (
         goals.length === 0 ? (
           <EmptyState
@@ -174,17 +214,22 @@ export default function Goals() {
                   <div className="flex items-center gap-3">
                     <ProgressRing
                       value={g.progress} size={56} strokeWidth={6}
-                      colorFrom={g.status === 'completed' ? '#4CC38A' : '#7C6AF0'}
-                      colorTo={g.status === 'completed' ? '#2DA76E' : '#5B47E0'}
+                      colorFrom={g.status === 'completed' ? '#4CC38A' : undefined}
+                      colorTo={g.status === 'completed' ? '#2DA76E' : undefined}
                     />
                     <div>
                       <p className="pill bg-lavender-100 text-lavender-700 mb-1">{g.category}</p>
                       <h3 className="font-display font-bold text-ink leading-snug">{g.title}</h3>
                     </div>
                   </div>
-                  <button onClick={() => removeGoal(g.id)} className="text-ink/25 hover:text-coral-500 transition shrink-0">
-                    <Trash2 size={15}/>
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => openEditGoal(g)} className="text-ink/25 hover:text-lavender-600 transition">
+                      <Pencil size={14}/>
+                    </button>
+                    <button onClick={() => removeGoal(g.id)} className="text-ink/25 hover:text-coral-500 transition">
+                      <Trash2 size={15}/>
+                    </button>
+                  </div>
                 </div>
                 {g.description && <p className="text-sm text-ink/50 mt-3">{g.description}</p>}
                 {g.target_date && (
@@ -227,8 +272,6 @@ export default function Goals() {
           </div>
         )
       )}
-
-      {/* ── Recurring Tasks ──────────────────────────────── */}
       {tab === 'recurring' && (
         habits.length === 0 ? (
           <EmptyState
@@ -282,7 +325,7 @@ export default function Goals() {
                     <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(18px, 1fr))' }}>
                       {dates.map((d) => (
                         <div key={d} title={d} className="aspect-square rounded-md"
-                          style={{ backgroundColor: doneDates.has(d) ? h.color : 'rgba(124,106,240,0.08)' }}
+                          style={{ backgroundColor: doneDates.has(d) ? h.color : 'rgb(var(--accent-500) / 0.08)' }}
                         />
                       ))}
                     </div>
@@ -295,7 +338,7 @@ export default function Goals() {
         )
       )}
 
-      {/* ── Goal Modal ───────────────────────────────────── */}
+      {/* ── Create goal modal ─────────────────────────────────── */}
       <Modal open={goalModal} onClose={() => setGoalModal(false)} title={t('goals.newGoal')}>
         <form onSubmit={createGoal} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder={t('goals.goalTitlePh')}
@@ -323,7 +366,70 @@ export default function Goals() {
         </form>
       </Modal>
 
-      {/* ── Recurring Task Modal ─────────────────────────── */}
+      {/* ── Edit goal modal — fields + milestone list + add-milestone ── */}
+      <Modal open={editModal} onClose={closeEditModal} title={t('tasks.editTask').replace(t('tasks.taskTitle'), '') || 'Edit goal'}>
+        {editingGoal && (
+          <div className="flex flex-col gap-4">
+            <form onSubmit={saveGoalEdit} className="flex flex-col gap-3.5">
+              <input className="input-field font-semibold" placeholder={t('goals.goalTitlePh')}
+                value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+              <textarea className="input-field resize-none" placeholder={t('goals.descPh')} rows={2}
+                value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}/>
+              <div className="grid grid-cols-2 gap-3">
+                <input className="input-field" placeholder={t('calendar.category')}
+                  value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}/>
+                <input type="date" className="input-field"
+                  value={editForm.target_date} onChange={(e) => setEditForm({ ...editForm, target_date: e.target.value })}/>
+              </div>
+              <button type="submit" className="btn-primary justify-center text-sm py-2.5">
+                {t('calendar.saveChanges')}
+              </button>
+            </form>
+
+            <div className="pt-1" style={{ borderTop: '1px solid rgba(30,34,51,0.08)' }}>
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 mt-4 mb-2 block">
+                {t('goals.milestonesLabel')}
+              </label>
+              {editingGoal.milestones?.length > 0 && (
+                <div className="flex flex-col gap-1.5 mb-3">
+                  {editingGoal.milestones.map((m) => (
+                    <div key={m.id}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5"
+                      style={{ background: 'rgba(255,255,255,0.45)' }}>
+                      {m.done
+                        ? <CheckSquare size={15} className="text-sage-500 shrink-0"/>
+                        : <Square      size={15} className="text-ink/25 shrink-0"/>}
+                      <span className={`text-sm flex-1 ${m.done ? 'text-ink/40 line-through' : 'text-ink/80'}`}>
+                        {m.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className="input-field flex-1"
+                  placeholder={t('goals.recurPh')}
+                  value={newMilestone}
+                  onChange={(e) => setNewMilestone(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMilestoneToGoal(); } }}
+                />
+                <button
+                  type="button"
+                  onClick={addMilestoneToGoal}
+                  disabled={!newMilestone.trim() || addingMilestone}
+                  className="shrink-0 rounded-2xl px-4 text-sm font-bold text-white disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))' }}
+                >
+                  {addingMilestone ? '…' : <Plus size={16}/>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Recurring task modal ─────────────────────────────── */}
       <Modal open={recurModal} onClose={() => setRecurModal(false)} title={t('goals.newRecur')}>
         <form onSubmit={createRecur} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder={t('goals.recurPh')}
