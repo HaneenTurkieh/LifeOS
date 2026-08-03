@@ -6,7 +6,6 @@ const { db }  = require('../db/connection');
 async function generateNotifications(userId) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
-
   const [tasks, habits, goals, streak, mood] = await Promise.all([
     // Overdue tasks
     db.execute({
@@ -45,17 +44,19 @@ async function generateNotifications(userId) {
     }),
   ]);
 
-  // Overdue tasks
+  // Overdue tasks — link encodes the task id so each task gets its
+  // own stable notification, deduped against ALL history (not just
+  // today) so it doesn't recreate itself daily while still overdue.
   for (const task of tasks.rows) {
     toCreate.push({
       type:  'overdue',
       title: '⚠️ Task overdue',
       body:  `"${task.title}" was due on ${task.deadline}`,
-      link:  '/tasks',
+      link:  `/tasks?task=${task.id}`,
     });
   }
 
-  // Streak at risk
+  // Streak at risk — genuinely daily, dedup stays per-day
   const streakCount = Number(streak.rows[0]?.c || 0);
   const habitsDoneToday = await db.execute({
     sql:  `SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id=hl.habit_id WHERE h.user_id=? AND hl.date=?`,
@@ -70,18 +71,19 @@ async function generateNotifications(userId) {
     });
   }
 
-  // Goal deadlines approaching
+  // Goal deadlines approaching — same per-entity, all-time dedup as
+  // overdue tasks. Link encodes the goal id.
   for (const goal of goals.rows) {
     const daysLeft = Math.ceil((new Date(goal.target_date) - new Date(today)) / (1000*60*60*24));
     toCreate.push({
       type:  'deadline',
       title: '🎯 Goal deadline approaching',
       body:  `"${goal.title}" is due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
-      link:  '/goals',
+      link:  `/goals?goal=${goal.id}`,
     });
   }
 
-  // No mood today (only after 12pm)
+  // No mood today (only after 12pm) — genuinely daily, dedup per-day
   const hour = new Date().getHours();
   if (!mood.rows[0] && hour >= 12) {
     toCreate.push({
@@ -92,15 +94,26 @@ async function generateNotifications(userId) {
     });
   }
 
-  // Avoid duplicate notifications — check what already exists today
+  // ── Dedup ──────────────────────────────────────────────────
+  // 'overdue' and 'deadline' are entity-scoped (one task/goal =
+  // one notification, checked against ALL history via the link,
+  // which now encodes the entity id) — this is what stops the same
+  // still-overdue task from generating a fresh duplicate every day.
+  // 'streak' and 'mood' stay date-scoped since they're meant to
+  // recur once per day until logged.
   const existing = await db.execute({
-    sql:  `SELECT type, title FROM notifications WHERE user_id=? AND date(created_at)=?`,
-    args: [userId, today],
+    sql:  `SELECT type, link, date(created_at) day FROM notifications WHERE user_id=?`,
+    args: [userId],
   });
-  const existingKeys = new Set(existing.rows.map(r => `${r.type}:${r.title}`));
-
+  const existingKeys = new Set(existing.rows.map((r) =>
+    (r.type === 'streak' || r.type === 'mood')
+      ? `${r.type}:${r.day}`
+      : `${r.type}:${r.link}`
+  ));
   for (const n of toCreate) {
-    const key = `${n.type}:${n.title}`;
+    const key = (n.type === 'streak' || n.type === 'mood')
+      ? `${n.type}:${today}`
+      : `${n.type}:${n.link}`;
     if (!existingKeys.has(key)) {
       await db.execute({
         sql:  `INSERT INTO notifications (user_id, type, title, body, link) VALUES (?,?,?,?,?)`,
