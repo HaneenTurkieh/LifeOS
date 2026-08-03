@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { api } from '../api/client.js';
 
 const ThemeContext = createContext(null);
 const STORAGE_KEY        = 'aurora_theme';
@@ -12,17 +13,14 @@ function getSystemPrefersDark() {
 function resolveIsDark(mode) {
   if (mode === 'dark')   return true;
   if (mode === 'light')  return false;
-  return getSystemPrefersDark(); // 'system'
+  return getSystemPrefersDark();
 }
 function applyTheme(isDark) {
-  // Runs synchronously — no flash
   document.documentElement.classList.toggle('dark', isDark);
   const meta = document.getElementById('theme-color-meta');
   if (meta) meta.setAttribute('content', isDark ? '#0c0a1a' : '#F4F6FB');
 }
 function applyAccent(preset) {
-  // Runs synchronously — same anti-flash approach as applyTheme.
-  // Default (purple) has no attribute — root CSS vars already are purple.
   if (preset && preset !== 'purple' && ACCENTS.includes(preset)) {
     document.documentElement.setAttribute('data-accent', preset);
   } else {
@@ -30,9 +28,6 @@ function applyAccent(preset) {
   }
 }
 
-// ── Apply theme + accent BEFORE first React render ─────────────
-// This runs immediately when the module is imported,
-// eliminating the white flash / wrong-color flash entirely.
 (function initTheme() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -66,7 +61,6 @@ export function ThemeProvider({ children }) {
     } catch (_) { return 'purple'; }
   });
 
-  // Apply + persist whenever mode changes
   useEffect(() => {
     const isDark = resolveIsDark(mode);
     applyTheme(isDark);
@@ -74,13 +68,11 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem(STORAGE_KEY, mode); } catch (_) {}
   }, [mode]);
 
-  // Apply + persist whenever accent changes
   useEffect(() => {
     applyAccent(accent);
     try { localStorage.setItem(ACCENT_STORAGE_KEY, accent); } catch (_) {}
   }, [accent]);
 
-  // Live-react to OS changes when mode === 'system'
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
@@ -92,14 +84,51 @@ export function ThemeProvider({ children }) {
     return () => mql.removeEventListener('change', handleChange);
   }, [mode]);
 
-  const setMode = useCallback((next) => {
-    if (MODES.includes(next)) setModeState(next);
+  // ── Server sync: light/dark mode AND accent color, both polled
+  // every 5s (matching the Pomodoro timer's cadence) so a change made
+  // on one device/tab reaches every other open one without a manual
+  // refresh. Local refs track the last-known server values so the
+  // poll only calls setState when something actually changed —
+  // avoids fighting the user's own in-flight edits.
+  const modeRef        = useRef(mode);
+  const accentRef      = useRef(accent);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { accentRef.current = accent; }, [accent]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('aurora_auth_token');
+    if (!token) return;
+    let active = true;
+
+    const pull = async () => {
+      try {
+        const d = await api.get('/focus/theme-mode');
+        if (active && d?.theme_mode && MODES.includes(d.theme_mode) && d.theme_mode !== modeRef.current) {
+          setModeState(d.theme_mode);
+        }
+      } catch (_) {}
+      try {
+        const p = await api.get('/focus/premium/status');
+        if (active && p?.theme_preset && ACCENTS.includes(p.theme_preset) && p.theme_preset !== accentRef.current) {
+          setAccentState(p.theme_preset);
+        }
+      } catch (_) {}
+    };
+
+    pull(); // once on mount
+    const id = setInterval(pull, 5000);
+    return () => { active = false; clearInterval(id); };
   }, []);
 
-  // NOTE: this does NOT gate on premium status — that's enforced by
-  // whoever calls it (SettingsModal only exposes it to premium users)
-  // and independently re-validated server-side on the /premium/theme
-  // route, so a free user can't bypass the UI to persist a preset.
+  const setMode = useCallback((next) => {
+    if (!MODES.includes(next)) return;
+    setModeState(next);
+    const token = localStorage.getItem('aurora_auth_token');
+    if (token) {
+      api.put('/focus/theme-mode', { theme_mode: next }).catch(() => {});
+    }
+  }, []);
+
   const setAccent = useCallback((next) => {
     if (ACCENTS.includes(next)) setAccentState(next);
   }, []);
