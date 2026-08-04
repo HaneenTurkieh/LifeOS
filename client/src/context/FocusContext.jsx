@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { api } from '../api/client.js';
 import { useToast } from './ToastContext.jsx';
 import { useLanguage } from './LanguageContext.jsx';
-
+import { computeFromServer } from '../utils/timerSync.mjs';
 const FocusContext = createContext(null);
 
 export const MODES = {
@@ -98,18 +98,7 @@ function playTreeDied() {
 // Derive live timeLeft/isRunning/startedAt from a server timer row —
 // same math the room timer already uses. remaining_seconds is the
 // snapshot at started_at; devices compute elapsed locally.
-function computeFromServer(d) {
-  let timeLeft  = d.remaining_seconds;
-  let isRunning = false;
-  let startedAt = null;
-  if (d.running && d.started_at) {
-    const elapsed = Math.floor((Date.now() - new Date(d.started_at).getTime()) / 1000);
-    timeLeft  = Math.max(0, d.remaining_seconds - elapsed);
-    isRunning = timeLeft > 0;
-    startedAt = isRunning ? new Date(d.started_at) : null;
-  }
-  return { timeLeft, totalTime: d.duration_seconds, isRunning, startedAt };
-}
+
 
 export function FocusProvider({ children }) {
   const toast      = useToast();
