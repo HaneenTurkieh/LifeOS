@@ -4,6 +4,7 @@ import {
   Brain, Sparkles, RotateCcw, Check, X,
   ChevronLeft, ChevronRight, Upload, FileText,
   Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
+  Download,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -43,6 +44,73 @@ function fmtSessionDate(dateStr, lang) {
   const locale = lang === 'ar' ? 'ar' : 'en-US';
   return d.toLocaleDateString(locale, { month:'short', day:'numeric' }) +
     ' · ' + d.toLocaleTimeString(locale, { hour:'numeric', minute:'2-digit' });
+}
+
+// ── Plain-text export — works for every mode, no dependencies.
+// Not a polished PDF/PPTX, but genuinely usable: openable, copyable,
+// convertible. Triggers a real browser download via Blob + object URL.
+function buildExportText(mode, data, t) {
+  const lines = [];
+  const heading = {
+    mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
+    flashcards: t('exam.flashcards'), slides: t('exam.slides'),
+  }[mode] || mode;
+  lines.push(heading);
+  lines.push('='.repeat(heading.length));
+  lines.push('');
+
+  if (mode === 'mcq' || mode === 'mixed') {
+    data.forEach((q, i) => {
+      if (mode === 'mixed' && q.type === 'blank') {
+        lines.push(`${i + 1}. ${q.sentence}`);
+        lines.push(`   ${t('exam.answer')}: ${q.answer}`);
+        if (q.hint) lines.push(`   ${t('exam.hint')}: ${q.hint}`);
+      } else {
+        lines.push(`${i + 1}. ${q.question}`);
+        (q.options || []).forEach((opt, j) => {
+          const letter = ['A','B','C','D'][j];
+          const mark = j === q.correct ? ' ✓' : '';
+          lines.push(`   ${letter}) ${opt}${mark}`);
+        });
+        if (q.explanation) lines.push(`   ${t('exam.hint')}: ${q.explanation}`);
+      }
+      lines.push('');
+    });
+  } else if (mode === 'blanks') {
+    data.forEach((q, i) => {
+      lines.push(`${i + 1}. ${q.sentence}`);
+      lines.push(`   ${t('exam.answer')}: ${q.answer}`);
+      if (q.hint) lines.push(`   ${t('exam.hint')}: ${q.hint}`);
+      lines.push('');
+    });
+  } else if (mode === 'flashcards') {
+    data.forEach((c, i) => {
+      lines.push(`${i + 1}. ${t('exam.question')}: ${c.front}`);
+      lines.push(`   ${t('exam.answer')}: ${c.back}`);
+      lines.push('');
+    });
+  } else if (mode === 'slides') {
+    data.forEach((s, i) => {
+      lines.push(`${t('exam.slide', { n: i + 1 })} — ${s.title}`);
+      (s.bullets || []).forEach((b) => lines.push(`  • ${b}`));
+      if (s.note) lines.push(`  📝 ${s.note}`);
+      lines.push('');
+    });
+  }
+  return lines.join('\n');
+}
+function downloadExport(mode, data, t) {
+  const text = buildExportText(mode, data, t);
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `aurora-${mode}-${stamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
@@ -820,7 +888,7 @@ Content:\n${content}`;
         </>
       ) : (
         <div>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <span className="text-2xl">{MODES.find(m=>m.key===result.mode)?.icon}</span>
               <div>
@@ -836,10 +904,17 @@ Content:\n${content}`;
                 </p>
               </div>
             </div>
-            <button onClick={() => { setResult(null); loadSessions(); }}
-              className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-ink/55 transition" style={glass}>
-              <RotateCcw size={14}/> {t('exam.newSession')}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => downloadExport(result.mode, result.data, t)}
+                className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-lavender-600 transition"
+                style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
+                <Download size={14}/> {t('common.save')}
+              </button>
+              <button onClick={() => { setResult(null); loadSessions(); }}
+                className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-ink/55 transition" style={glass}>
+                <RotateCcw size={14}/> {t('exam.newSession')}
+              </button>
+            </div>
           </div>
           {result.mode==='mcq'        && <MCQExam    questions={result.data} t={t}/>}
           {result.mode==='blanks'     && <FillBlanks questions={result.data} t={t}/>}
