@@ -367,7 +367,7 @@ export default function Goals() {
       </Modal>
 
       {/* ── Edit goal modal — fields + milestone list + add-milestone ── */}
-      <Modal open={editModal} onClose={closeEditModal} title={t('tasks.editTask').replace(t('tasks.taskTitle'), '') || 'Edit goal'}>
+      <Modal open={editModal} onClose={closeEditModal} title={t('goals.editGoal')}>
         {editingGoal && (
           <div className="flex flex-col gap-4">
             <form onSubmit={saveGoalEdit} className="flex flex-col gap-3.5">
