@@ -867,6 +867,16 @@ Content:\n${content}`;
   const handleExport = async (format) => {
     if (!result) return;
     setExporting(format);
+    // Arabic PDFs render via a browser screenshot (see exportPdfSnapshot)
+    // instead of instant native text — genuinely takes a few seconds.
+    // Give an explicit heads-up so it doesn't read as hung.
+    if (format === 'pdf' && containsArabic(result.data)) {
+      toast.success(
+        lang === 'ar'
+          ? '⏳ جارٍ تجهيز نسخة PDF بالعربية — قد يستغرق بضع ثوانٍ، لا تُحدّث الصفحة'
+          : '⏳ Preparing the Arabic PDF — this takes a few seconds, no need to refresh'
+      );
+    }
     try {
       if (format === 'pdf') await exportPdf(result.mode, result.data, t, lang);
       else await exportPptx(result.mode, result.data, t);
