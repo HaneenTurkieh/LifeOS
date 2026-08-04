@@ -4,7 +4,7 @@ import {
   Brain, Sparkles, RotateCcw, Check, X,
   ChevronLeft, ChevronRight, Upload, FileText,
   Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
-  Download,
+  FileDown, Presentation,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -46,71 +46,189 @@ function fmtSessionDate(dateStr, lang) {
     ' · ' + d.toLocaleTimeString(locale, { hour:'numeric', minute:'2-digit' });
 }
 
-// ── Plain-text export — works for every mode, no dependencies.
-// Not a polished PDF/PPTX, but genuinely usable: openable, copyable,
-// convertible. Triggers a real browser download via Blob + object URL.
-function buildExportText(mode, data, t) {
-  const lines = [];
+// Reads the currently active premium accent color straight from the
+// CSS custom property (set as raw "R G B" by index.css) and converts
+// it to a hex string, so exported PPTX slides match whatever theme
+// (purple/orange/pink/blue) the user has active — not hardcoded.
+function getAccentHex() {
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent-500').trim();
+    const [r, g, b] = raw.split(/\s+/).map(Number);
+    if ([r, g, b].some((n) => Number.isNaN(n))) return '7C6AF0';
+    return [r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+  } catch (_) { return '7C6AF0'; }
+}
+
+// ── PDF export (jsPDF) — Note: standard PDF fonts don't support
+// Arabic script. Arabic content will not render correctly here;
+// use the PPTX export for Arabic exams instead. ────────────────
+async function exportPdf(mode, data, t) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const marginX = 48;
+  let y = 56;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth  = doc.internal.pageSize.getWidth();
+  const maxWidth   = pageWidth - marginX * 2;
+
   const heading = {
     mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
     flashcards: t('exam.flashcards'), slides: t('exam.slides'),
   }[mode] || mode;
-  lines.push(heading);
-  lines.push('='.repeat(heading.length));
-  lines.push('');
+
+  const ensureSpace = (lines = 1, lineHeight = 16) => {
+    if (y + lines * lineHeight > pageHeight - 48) {
+      doc.addPage();
+      y = 56;
+    }
+  };
+  const writeWrapped = (text, size = 11, bold = false, indent = 0) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(String(text), maxWidth - indent);
+    ensureSpace(lines.length, size * 1.4);
+    doc.text(lines, marginX + indent, y);
+    y += lines.length * size * 1.4;
+  };
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text(heading, marginX, y);
+  y += 32;
+
+  if (mode === 'mcq' || mode === 'mixed') {
+    data.forEach((q, i) => {
+      ensureSpace(2, 18);
+      if (mode === 'mixed' && q.type === 'blank') {
+        writeWrapped(`${i + 1}. ${q.sentence}`, 12, true);
+        writeWrapped(`${t('exam.answer')}: ${q.answer}`, 10, false, 16);
+        if (q.hint) writeWrapped(`${t('exam.hint')}: ${q.hint}`, 10, false, 16);
+      } else {
+        writeWrapped(`${i + 1}. ${q.question}`, 12, true);
+        (q.options || []).forEach((opt, j) => {
+          const letter = ['A', 'B', 'C', 'D'][j];
+          const mark = j === q.correct ? '  ✓' : '';
+          writeWrapped(`${letter}) ${opt}${mark}`, 10.5, false, 16);
+        });
+        if (q.explanation) writeWrapped(`${t('exam.hint')}: ${q.explanation}`, 9.5, false, 16);
+      }
+      y += 10;
+    });
+  } else if (mode === 'blanks') {
+    data.forEach((q, i) => {
+      writeWrapped(`${i + 1}. ${q.sentence}`, 12, true);
+      writeWrapped(`${t('exam.answer')}: ${q.answer}`, 10, false, 16);
+      if (q.hint) writeWrapped(`${t('exam.hint')}: ${q.hint}`, 10, false, 16);
+      y += 10;
+    });
+  } else if (mode === 'flashcards') {
+    data.forEach((c, i) => {
+      writeWrapped(`${i + 1}. ${t('exam.question')}: ${c.front}`, 12, true);
+      writeWrapped(`${t('exam.answer')}: ${c.back}`, 10.5, false, 16);
+      y += 10;
+    });
+  } else if (mode === 'slides') {
+    data.forEach((s, i) => {
+      ensureSpace(2, 18);
+      writeWrapped(`${t('exam.slide', { n: i + 1 })} — ${s.title}`, 13, true);
+      (s.bullets || []).forEach((b) => writeWrapped(`•  ${b}`, 10.5, false, 16));
+      if (s.note) writeWrapped(`📝 ${s.note}`, 9.5, false, 16);
+      y += 12;
+    });
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  doc.save(`aurora-${mode}-${stamp}.pdf`);
+}
+
+// ── PPTX export (pptxgenjs) — real slide-per-item deck, handles
+// Arabic content correctly since PowerPoint renders the text itself
+// rather than the library rasterizing fonts. Uses the active accent
+// color for the title slide + headings. ────────────────────────
+async function exportPptx(mode, data, t) {
+  const PptxGenJS = (await import('pptxgenjs')).default;
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_16x9';
+  const accentHex = getAccentHex();
+
+  const heading = {
+    mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
+    flashcards: t('exam.flashcards'), slides: t('exam.slides'),
+  }[mode] || mode;
+
+  const titleSlide = pptx.addSlide();
+  titleSlide.background = { color: accentHex };
+  titleSlide.addText(heading, {
+    x: 0.5, y: 2.2, w: 9, h: 1.2, fontSize: 36, bold: true, color: 'FFFFFF', align: 'center',
+  });
+  titleSlide.addText('Aurora ✦', {
+    x: 0.5, y: 3.4, w: 9, h: 0.6, fontSize: 16, color: 'FFFFFF', align: 'center',
+  });
+
+  const addContentSlide = (titleText, bodyLines) => {
+    const slide = pptx.addSlide();
+    slide.addText(titleText, {
+      x: 0.4, y: 0.3, w: 9.2, h: 0.8, fontSize: 20, bold: true, color: accentHex,
+    });
+    slide.addText(
+      bodyLines.map((line) => ({
+        text: line.text,
+        options: {
+          bullet: line.bullet !== false,
+          color:  line.color || '333333',
+          bold:   !!line.bold,
+          fontSize: line.fontSize || 14,
+        },
+      })),
+      { x: 0.5, y: 1.2, w: 9, h: 5.3, valign: 'top', lineSpacingMultiple: 1.3 }
+    );
+  };
 
   if (mode === 'mcq' || mode === 'mixed') {
     data.forEach((q, i) => {
       if (mode === 'mixed' && q.type === 'blank') {
-        lines.push(`${i + 1}. ${q.sentence}`);
-        lines.push(`   ${t('exam.answer')}: ${q.answer}`);
-        if (q.hint) lines.push(`   ${t('exam.hint')}: ${q.hint}`);
+        addContentSlide(`${i + 1}. ${t('exam.blanks')}`, [
+          { text: q.sentence, bullet: false, fontSize: 16 },
+          { text: `${t('exam.answer')}: ${q.answer}`, color: '2DA76E', bold: true },
+          ...(q.hint ? [{ text: `${t('exam.hint')}: ${q.hint}` }] : []),
+        ]);
       } else {
-        lines.push(`${i + 1}. ${q.question}`);
-        (q.options || []).forEach((opt, j) => {
-          const letter = ['A','B','C','D'][j];
-          const mark = j === q.correct ? ' ✓' : '';
-          lines.push(`   ${letter}) ${opt}${mark}`);
-        });
-        if (q.explanation) lines.push(`   ${t('exam.hint')}: ${q.explanation}`);
+        addContentSlide(`${i + 1}. ${q.question}`, [
+          ...q.options.map((opt, j) => ({
+            text:  `${['A', 'B', 'C', 'D'][j]}) ${opt}`,
+            color: j === q.correct ? '2DA76E' : '333333',
+            bold:  j === q.correct,
+          })),
+          ...(q.explanation ? [{ text: `💡 ${q.explanation}`, fontSize: 12 }] : []),
+        ]);
       }
-      lines.push('');
     });
   } else if (mode === 'blanks') {
     data.forEach((q, i) => {
-      lines.push(`${i + 1}. ${q.sentence}`);
-      lines.push(`   ${t('exam.answer')}: ${q.answer}`);
-      if (q.hint) lines.push(`   ${t('exam.hint')}: ${q.hint}`);
-      lines.push('');
+      addContentSlide(`${i + 1}. ${t('exam.blanks')}`, [
+        { text: q.sentence, bullet: false, fontSize: 16 },
+        { text: `${t('exam.answer')}: ${q.answer}`, color: '2DA76E', bold: true },
+        ...(q.hint ? [{ text: `${t('exam.hint')}: ${q.hint}` }] : []),
+      ]);
     });
   } else if (mode === 'flashcards') {
     data.forEach((c, i) => {
-      lines.push(`${i + 1}. ${t('exam.question')}: ${c.front}`);
-      lines.push(`   ${t('exam.answer')}: ${c.back}`);
-      lines.push('');
+      addContentSlide(`${i + 1}. ${t('exam.question')}`, [
+        { text: c.front, bullet: false, fontSize: 18, bold: true },
+        { text: `${t('exam.answer')}: ${c.back}`, color: '2DA76E' },
+      ]);
     });
   } else if (mode === 'slides') {
     data.forEach((s, i) => {
-      lines.push(`${t('exam.slide', { n: i + 1 })} — ${s.title}`);
-      (s.bullets || []).forEach((b) => lines.push(`  • ${b}`));
-      if (s.note) lines.push(`  📝 ${s.note}`);
-      lines.push('');
+      addContentSlide(s.title, [
+        ...(s.bullets || []).map((b) => ({ text: b })),
+        ...(s.note ? [{ text: `📝 ${s.note}`, fontSize: 12 }] : []),
+      ]);
     });
   }
-  return lines.join('\n');
-}
-function downloadExport(mode, data, t) {
-  const text = buildExportText(mode, data, t);
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
+
   const stamp = new Date().toISOString().slice(0, 10);
-  a.href = url;
-  a.download = `aurora-${mode}-${stamp}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await pptx.writeFile({ fileName: `aurora-${mode}-${stamp}.pptx` });
 }
 
 function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
@@ -482,6 +600,7 @@ export default function ExamAssistant() {
   const [showFileInfo,  setShowFileInfo]  = useState(false);
   const [sessions,      setSessions]      = useState([]);
   const [sessionBusy,   setSessionBusy]   = useState(null);
+  const [exporting,     setExporting]     = useState(null); // 'pdf' | 'pptx' | null
   const fileRef = useRef(null);
 
   const BASE_URL = window.location.hostname === 'localhost'
@@ -631,6 +750,25 @@ Content:\n${content}`;
       setLoading(false);
     }
   };
+
+  const handleExport = async (format) => {
+    if (!result) return;
+    setExporting(format);
+    try {
+      if (format === 'pdf') await exportPdf(result.mode, result.data, t);
+      else await exportPptx(result.mode, result.data, t);
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        lang === 'ar'
+          ? 'فشل التصدير — تأكد من تثبيت الحزم المطلوبة (jspdf, pptxgenjs)'
+          : 'Export failed — make sure jspdf and pptxgenjs are installed (npm install jspdf pptxgenjs)'
+      );
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const wordCount  = (extractedText || notes).split(/\s+/).filter(Boolean).length;
   const hasContent = !!(extractedText || notes.trim());
 
@@ -905,10 +1043,21 @@ Content:\n${content}`;
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => downloadExport(result.mode, result.data, t)}
-                className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-lavender-600 transition"
+              <button onClick={() => handleExport('pdf')} disabled={!!exporting}
+                className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-lavender-600 transition disabled:opacity-50"
                 style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
-                <Download size={14}/> {t('common.save')}
+                {exporting === 'pdf'
+                  ? <div className="h-4 w-4 rounded-full border-2 border-lavender-300 border-t-lavender-600 animate-spin"/>
+                  : <FileDown size={14}/>}
+                PDF
+              </button>
+              <button onClick={() => handleExport('pptx')} disabled={!!exporting}
+                className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-lavender-600 transition disabled:opacity-50"
+                style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
+                {exporting === 'pptx'
+                  ? <div className="h-4 w-4 rounded-full border-2 border-lavender-300 border-t-lavender-600 animate-spin"/>
+                  : <Presentation size={14}/>}
+                PPTX
               </button>
               <button onClick={() => { setResult(null); loadSessions(); }}
                 className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-ink/55 transition" style={glass}>
