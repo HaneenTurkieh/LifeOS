@@ -344,13 +344,20 @@ function DoneStep({ name, onFinish }) {
 }
 
 export default function Onboarding({ user, onComplete }) {
-  const [step, setStep] = useState(0);
+  const [step, setStep]       = useState(0);
+  const [closing, setClosing] = useState(false);
   const name = user?.name?.split(' ')[0] || 'there';
   const next = () => setStep((s) => s + 1);
+
+  // "Refold" — instead of dismissing instantly, fold the card back
+  // shut (mirror of the entrance fold) and only unmount once that
+  // animation has actually finished playing.
   const finish = () => {
     markOnboarded(user?.id);
-    onComplete();
+    setClosing(true);
+    setTimeout(onComplete, 620);
   };
+
   const stepContent = [
     <WelcomeStep key="welcome" name={name} onNext={next} />,
     <TaskStep    key="task"    onNext={next} onSkip={next} />,
@@ -360,47 +367,72 @@ export default function Onboarding({ user, onComplete }) {
     <DoneStep    key="done"    name={name}   onFinish={finish} />,
   ];
   const totalSteps = stepContent.length - 2;
-  const showDots   = step > 0 && step < stepContent.length - 1;
-  // Only step 0 (the welcome card) gets the paper-fold-in treatment —
-  // it's the "right after registering" moment. Every other step keeps
-  // the existing simple slide/spring transition, unchanged.
-  const isWelcome = step === 0;
+  const showDots   = step > 0 && step < stepContent.length - 1 && !closing;
+  const isWelcome  = step === 0;
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
       style={{ background: 'rgba(7,11,20,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
     >
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm" style={{ perspective: 1200 }}>
         <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={isWelcome
-              ? { opacity: 0, scaleY: 0.06, y: -48, rotateX: -55 }
-              : { opacity: 0, y: 24, scale: 0.97 }}
-            animate={isWelcome
-              ? { opacity: 1, scaleY: 1, y: 0, rotateX: 0 }
-              : { opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -16, scale: 0.97 }}
-            transition={isWelcome
-              ? {
-                  opacity: { duration: 0.35 },
-                  y:       { duration: 0.65, ease: [0.16, 1, 0.3, 1] },
-                  rotateX: { duration: 0.65, ease: [0.16, 1, 0.3, 1] },
-                  scaleY:  { type: 'spring', stiffness: 210, damping: 15, delay: 0.05 },
-                }
-              : { type: 'spring', stiffness: 340, damping: 28 }}
-            className="p-8"
-            style={{ ...card, transformOrigin: 'top center', transformPerspective: 900 }}
-          >
+          {closing ? (
+            // Refold-and-dismiss — mirrors the fold-in entrance in
+            // reverse: the current (final) card collapses flat and
+            // fades, like a letter being folded shut. No blur on
+            // this outer layer, same Safari-safety reason as below.
             <motion.div
-              initial={isWelcome ? { opacity: 0 } : false}
-              animate={{ opacity: 1 }}
-              transition={isWelcome ? { delay: 0.4, duration: 0.35 } : {}}
+              key="closing"
+              initial={{ opacity: 1, rotateX: 0, scaleY: 1 }}
+              animate={{ opacity: 0, rotateX: 70, scaleY: 0.05 }}
+              transition={{ duration: 0.6, ease: [0.7, 0, 0.84, 0] }}
+              style={{ transformOrigin: 'top center', transformStyle: 'preserve-3d' }}
             >
-              {stepContent[step]}
+              <div className="p-8" style={card}>
+                {stepContent[step]}
+              </div>
             </motion.div>
-          </motion.div>
+          ) : (
+            <motion.div
+              key={step}
+              // Step 0: rich unfold-in (fold + rise). Steps 1-4:
+              // a page-turn flap (rotateY) between each "feature."
+              initial={ isWelcome
+                ? { opacity: 0, rotateX: -75, y: -60, scaleY: 0.08 }
+                : { opacity: 0, rotateY: 90 } }
+              animate={ isWelcome
+                ? { opacity: 1, rotateX: 0, y: 0, scaleY: 1 }
+                : { opacity: 1, rotateY: 0 } }
+              exit={{ opacity: 0, rotateY: -90 }}
+              transition={ isWelcome
+                ? {
+                    opacity: { duration: 0.3 },
+                    y:       { duration: 0.7, ease: [0.16, 1, 0.3, 1] },
+                    rotateX: { duration: 0.7, ease: [0.16, 1, 0.3, 1] },
+                    scaleY:  { type: 'spring', stiffness: 180, damping: 14, delay: 0.08 },
+                  }
+                : { type: 'spring', stiffness: 260, damping: 22 } }
+              style={{
+                transformOrigin: isWelcome ? 'top center' : 'left center',
+                transformStyle:  'preserve-3d',
+              }}
+            >
+              {/* Inner layer holds all blur/glass styling — kept
+                  separate from the 3D-transformed outer layer, since
+                  Safari silently flattens 3D transforms on any
+                  element that also has backdrop-filter. */}
+              <motion.div
+                className="p-8"
+                style={card}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: isWelcome ? 0.45 : 0.15, duration: 0.3 }}
+              >
+                {stepContent[step]}
+              </motion.div>
+            </motion.div>
+          )}
         </AnimatePresence>
         {showDots && (
           <div className="flex justify-center gap-2 mt-5">
