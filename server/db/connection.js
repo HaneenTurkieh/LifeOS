@@ -48,8 +48,6 @@ async function initDb() {
   if (!(await hasColumn('user_premium', 'theme_preset'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_preset TEXT DEFAULT 'purple'`);
   }
-  // ── Theme mode (light/dark/system) — syncs across devices the same
-  // way theme_preset (accent color) already does, just not premium-gated.
   if (!(await hasColumn('user_premium', 'theme_mode'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_mode TEXT DEFAULT 'system'`);
   }
@@ -127,11 +125,6 @@ async function initDb() {
     is_focusing  INTEGER DEFAULT 0,
     UNIQUE(room_id, user_id)
   )`);
-  // ── Solo (non-room) focus timer — server-authoritative so it syncs
-  // across every device on the same account, same pattern as the
-  // shared room timer but keyed by user_id instead of room_id.
-  // remaining_seconds = the exact time-left snapshot the moment
-  // started_at was set (or, if not running, the fixed paused value).
   await db.execute(`CREATE TABLE IF NOT EXISTS focus_solo_timer (
     user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     mode              TEXT NOT NULL DEFAULT 'focus',
@@ -190,6 +183,41 @@ async function initDb() {
     read       INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
+  // ── Notification dedup hardening ────────────────────────────
+  // The previous "check if it exists, then insert" logic had a real
+  // race condition: if generateNotifications() ran twice at nearly
+  // the same moment (multiple tabs open, the bell polling, a page
+  // load — all hitting GET /notifications close together), every one
+  // of those overlapping calls could see "nothing exists yet" before
+  // any of them finished inserting, so several would all insert their
+  // own copy. That's how the 8-duplicate bug happened. Fixed with a
+  // real UNIQUE constraint + INSERT...ON CONFLICT DO NOTHING, which
+  // is atomic at the database level and immune to this race no matter
+  // how many requests overlap.
+  if (!(await hasColumn('notifications', 'dedupe_key'))) {
+    await db.execute(`ALTER TABLE notifications ADD COLUMN dedupe_key TEXT`);
+  }
+  {
+    const { buildDedupeKey } = require('../lib/notificationDedupe');
+    const toBackfill = await db.execute(
+      `SELECT id, type, link, date(created_at) day FROM notifications WHERE dedupe_key IS NULL`
+    );
+    for (const row of toBackfill.rows) {
+      const key = buildDedupeKey(row.type, row.link, row.day);
+      await db.execute({ sql: `UPDATE notifications SET dedupe_key = ? WHERE id = ?`, args: [key, row.id] });
+    }
+    await db.execute(`
+      DELETE FROM notifications
+      WHERE id NOT IN (
+        SELECT MIN(id) FROM notifications GROUP BY user_id, dedupe_key
+      )
+    `);
+    await db.execute(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_user_dedupe ON notifications(user_id, dedupe_key)`
+    );
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 
