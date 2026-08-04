@@ -361,6 +361,11 @@ export default function Onboarding({ user, onComplete }) {
   ];
   const totalSteps = stepContent.length - 2;
   const showDots   = step > 0 && step < stepContent.length - 1;
+  // Only step 0 (the welcome card) gets the paper-fold-in treatment —
+  // it's the "right after registering" moment. Every other step keeps
+  // the existing simple slide/spring transition, unchanged.
+  const isWelcome = step === 0;
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
@@ -370,14 +375,31 @@ export default function Onboarding({ user, onComplete }) {
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
-            initial={{ opacity: 0, y: 24,  scale: 0.97 }}
-            animate={{ opacity: 1, y: 0,   scale: 1    }}
-            exit={{    opacity: 0, y: -16, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+            initial={isWelcome
+              ? { opacity: 0, scaleY: 0.06, y: -48, rotateX: -55 }
+              : { opacity: 0, y: 24, scale: 0.97 }}
+            animate={isWelcome
+              ? { opacity: 1, scaleY: 1, y: 0, rotateX: 0 }
+              : { opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.97 }}
+            transition={isWelcome
+              ? {
+                  opacity: { duration: 0.35 },
+                  y:       { duration: 0.65, ease: [0.16, 1, 0.3, 1] },
+                  rotateX: { duration: 0.65, ease: [0.16, 1, 0.3, 1] },
+                  scaleY:  { type: 'spring', stiffness: 210, damping: 15, delay: 0.05 },
+                }
+              : { type: 'spring', stiffness: 340, damping: 28 }}
             className="p-8"
-            style={card}
+            style={{ ...card, transformOrigin: 'top center', transformPerspective: 900 }}
           >
-            {stepContent[step]}
+            <motion.div
+              initial={isWelcome ? { opacity: 0 } : false}
+              animate={{ opacity: 1 }}
+              transition={isWelcome ? { delay: 0.4, duration: 0.35 } : {}}
+            >
+              {stepContent[step]}
+            </motion.div>
           </motion.div>
         </AnimatePresence>
         {showDots && (

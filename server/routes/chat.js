@@ -4,10 +4,7 @@ const { db }  = require('../db/connection');
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
-// ── Lumi settings ──────────────────────────────────────────────
-// Per-user personality settings, stored in lumi_settings table.
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
-
 const TONE_PROMPTS = {
   friendly:     'Tone: warm, casual, and supportive — like a close friend who has your back.',
   professional: 'Tone: polished, precise, and businesslike. No slang. Get straight to the point.',
@@ -15,19 +12,16 @@ const TONE_PROMPTS = {
   calm:         'Tone: gentle, soothing, and unhurried. Never pressure. Create a sense of ease.',
   playful:      'Tone: witty and light. Sprinkle in humor and personality, but stay genuinely helpful.',
 };
-
 const LENGTH_PROMPTS = {
   short:    'Response length: VERY short — 1-3 sentences max unless the user explicitly asks for detail.',
   balanced: 'Response length: concise but complete. A few sentences, more only when the topic needs it.',
   detailed: 'Response length: thorough. Explain reasoning, give context, structure longer answers clearly.',
 };
-
 const EMOJI_PROMPTS = {
   none: 'Emoji: never use emoji.',
   some: 'Emoji: use sparingly — one where it adds warmth, never more than a couple per message.',
   lots: 'Emoji: use freely and expressively — make messages lively.',
 };
-
 async function getSettings(userId) {
   try {
     const row = (await db.execute({
@@ -40,10 +34,6 @@ async function getSettings(userId) {
   }
 }
 
-// ── Modes ──────────────────────────────────────────────────────
-// 'chat'   → normal Lumi with Aurora tools (default)
-// 'think'  → extended thinking enabled for hard reasoning
-// 'search' → Anthropic web_search server tool added for live info
 const MODE_PROMPTS = {
   chat:   '',
   think:  `MODE — DEEP THINKING: The user chose deep-reasoning mode. Think carefully and
@@ -54,7 +44,6 @@ current, real information before answering. Synthesize what you find, mention yo
 by name, and clearly separate facts from your own suggestions. Never invent search results.`,
 };
 
-// ── Tool definitions ───────────────────────────────────────────
 const TOOLS = [
   {
     name: 'create_task',
@@ -208,16 +197,12 @@ const TOOLS = [
     },
   },
 ];
-
-// Anthropic-hosted web search tool — executed server-side by the
-// API itself, so it needs no case in executeTool().
 const WEB_SEARCH_TOOL = {
   type:     'web_search_20250305',
   name:     'web_search',
   max_uses: 4,
 };
 
-// ── Tool execution ─────────────────────────────────────────────
 async function executeTool(name, input, userId) {
   switch (name) {
     case 'create_task': {
@@ -233,7 +218,6 @@ async function executeTool(name, input, userId) {
       });
       return { success: true, task_id: Number(res.lastInsertRowid), title: input.title, priority: input.priority||'medium' };
     }
-
     case 'list_tasks': {
       const status = input.status || 'all';
       const limit  = input.limit  || 15;
@@ -244,7 +228,6 @@ async function executeTool(name, input, userId) {
       const res = await db.execute({ sql, args });
       return { tasks: res.rows };
     }
-
     case 'complete_task': {
       let id = input.task_id;
       if (!id && input.task_title) {
@@ -266,7 +249,6 @@ async function executeTool(name, input, userId) {
       });
       return { success: true, title: task.rows[0]?.title || 'Task', message: 'Marked as complete ✓' };
     }
-
     case 'create_goal': {
       const res = await db.execute({
         sql:  `INSERT INTO goals (user_id,title,description,category,target_date) VALUES (?,?,?,?,?)`,
@@ -283,7 +265,6 @@ async function executeTool(name, input, userId) {
       }
       return { success: true, goal_id: goalId, title: input.title, milestones: input.milestones?.length || 0 };
     }
-
     case 'list_goals': {
       const status = input.status || 'all';
       let sql  = `SELECT id,title,category,status,target_date FROM goals WHERE user_id=?`;
@@ -293,7 +274,6 @@ async function executeTool(name, input, userId) {
       const res = await db.execute({ sql, args });
       return { goals: res.rows };
     }
-
     case 'get_productivity_summary': {
       const period = input.period || 'week';
       const filter = period === 'today'
@@ -315,7 +295,6 @@ async function executeTool(name, input, userId) {
         focus_minutes:   Number(f.rows[0].total),
       };
     }
-
     case 'get_focus_stats': {
       const res = await db.execute({
         sql:  `SELECT COALESCE(SUM(duration_minutes),0) total, COUNT(*) sessions FROM focus_sessions WHERE user_id=?`,
@@ -323,7 +302,6 @@ async function executeTool(name, input, userId) {
       });
       return { total_minutes: Number(res.rows[0].total), total_sessions: Number(res.rows[0].sessions) };
     }
-
     case 'get_focus_history': {
       const period = input.period || 'month';
       const filter = period === 'week'
@@ -390,7 +368,6 @@ async function executeTool(name, input, userId) {
           : `You focus best on ${bestDay?.day || 'weekdays'}, typically around ${formatHour(bestHour?.hour)}. You've logged ${Math.round(Number(s.total_minutes)/60*10)/10} hours of deep work this ${period}.`,
       };
     }
-
     case 'generate_daily_plan': {
       const tasks = await db.execute({
         sql:  `SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 10`,
@@ -407,7 +384,6 @@ async function executeTool(name, input, userId) {
       }));
       return { available_hours: hours, energy, plan };
     }
-
     case 'get_habit_streaks': {
       const today = new Date().toISOString().slice(0, 10);
       const habits = await db.execute({
@@ -440,7 +416,6 @@ async function executeTool(name, input, userId) {
           : `Great — all habits logged today! Your best streak is ${rows[0]?.streak || 0} days.`,
       };
     }
-
     case 'get_mood_insights': {
       const period = input.period || 'week';
       const filter = period === 'week' ? `date('now','-7 days')` : `date('now','-30 days')`;
@@ -477,7 +452,6 @@ async function executeTool(name, input, userId) {
           : `Your average mood this ${period} is ${avgVal}/5 (${moodLabels[Math.round(avgVal)] || ''}). You've logged ${avg.rows[0].count} days.`,
       };
     }
-
     case 'list_upcoming_deadlines': {
       const days   = input.days || 7;
       const result = await db.execute({
@@ -503,7 +477,6 @@ async function executeTool(name, input, userId) {
           : `You have ${tasks.length} task${tasks.length > 1 ? 's' : ''} due in the next ${days} days. ${tasks.filter(t => t.urgency === 'urgent').length} are urgent.`,
       };
     }
-
     case 'get_xp_progress': {
       const TREES = [
         { key:'seedling',       name:'Seedling',       cost:0    },
@@ -538,7 +511,6 @@ async function executeTool(name, input, userId) {
           : `You have ${totalXp} XP and have unlocked all trees! You're legendary. 🌟`,
       };
     }
-
     case 'save_memory': {
       await db.execute({
         sql:  `INSERT INTO lumi_memory (user_id, key, value, updated_at) VALUES (?, ?, ?, datetime('now'))
@@ -547,7 +519,6 @@ async function executeTool(name, input, userId) {
       });
       return { success: true, key: input.key, value: input.value };
     }
-
     case 'forget_memory': {
       await db.execute({
         sql:  `DELETE FROM lumi_memory WHERE user_id=? AND key=?`,
@@ -555,32 +526,24 @@ async function executeTool(name, input, userId) {
       });
       return { success: true, deleted: input.key };
     }
-
     default:
       return { error: `Unknown tool: ${name}` };
   }
 }
 
-// ── Auto-title ─────────────────────────────────────────────────
 async function generateTitle(firstUserMessage) {
   const words = firstUserMessage.split(' ').slice(0, 6).join(' ');
   return words.length > 40 ? words.slice(0, 40) + '…' : words;
 }
 
-// ── System prompt ──────────────────────────────────────────────
 async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) {
   try {
     const today = new Date().toISOString().slice(0, 10);
-
-    // Each query is individually fault-tolerant: if one fails (e.g. a
-    // column missing in production), it logs and returns empty rows
-    // instead of nuking the ENTIRE prompt down to the generic fallback.
     const q = (sql, args) =>
       db.execute({ sql, args }).catch((e) => {
         console.error('[lumi prompt] query failed (non-fatal):', e.message, '—', sql.slice(0, 60));
         return { rows: [] };
       });
-
     const [tasks, goals, habits, mood, focus, xp, memories] = await Promise.all([
       q(`SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, [userId]),
       q(`SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, [userId]),
@@ -590,16 +553,11 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
       q(`SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, [userId]),
       q(`SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, [userId]),
     ]);
-
-    // Profile: try the full select; if gender/birthday/bio columns
-    // don't exist yet, fall back to the guaranteed name + email.
     let profile = await q(`SELECT name, email, gender, birthday, bio FROM users WHERE id=?`, [userId]);
     if (!profile.rows.length) {
       profile = await q(`SELECT name, email FROM users WHERE id=?`, [userId]);
     }
-
     const settings = await getSettings(userId);
-
     const taskList   = tasks.rows.map(t => `• ${t.title} [${t.priority}${t.deadline ? ` · due ${t.deadline}` : ''}]`).join('\n') || 'None';
     const goalList   = goals.rows.map(g => `• ${g.title} [${g.status}]`).join('\n') || 'None';
     const habitList  = habits.rows.map(h => `• ${h.name} (${h.streak}d streak)`).join('\n') || 'None';
@@ -607,7 +565,6 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
       ? memories.rows.map(m => `• ${m.key}: ${m.value}`).join('\n')
       : 'None yet';
 
-    // ── Profile ────────────────────────────────────────────────
     const p          = profile.rows[0] || {};
     const profileAge = p.birthday
       ? new Date().getFullYear() - Number(p.birthday.split('-')[0])
@@ -619,64 +576,80 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
       p.bio      ? `Bio: "${p.bio}"`                : null,
     ].filter(Boolean).join('\n') || 'Not provided';
 
-    // ── Developer recognition ──────────────────────────────────
-    const isDeveloper = (p.email || '').toLowerCase() === 'haneenturkieh@hotmail.com';
-    const developerNote = isDeveloper
-      ? `\nSPECIAL NOTE: You are talking to Haneen Turkieh, the developer who built Aurora from scratch.
-She is a passionate 19-year-old developer from Palestine, studying in the Computer Science
-Apprenticeship Program (CAP) at An-Najah National University in Nablus. Occasionally
-acknowledge her achievement of building this — it's genuinely impressive. Don't overdo it;
-a natural mention here and there.\n`
-      : '';
-
-    // ── Mood personality ───────────────────────────────────────
+    // Note: dashboard-logged mood only reflects what the user tapped
+    // earlier today — it says nothing about how they feel THIS message.
+    // Kept as light context only; real-time emotional cues in the
+    // conversation itself take priority (see EMOTIONAL SUPPORT below).
     const moodValue = mood.rows[0] ? Number(mood.rows[0].mood) : null;
     const moodLabel = moodValue
       ? ['','Rough (1/5)','Meh (2/5)','Okay (3/5)','Good (4/5)','Great (5/5)'][moodValue]
       : 'Not logged yet';
     const moodPersonality = moodValue === null ? ''
       : moodValue <= 2
-      ? `MOOD ALERT: User is having a rough day (${moodLabel}).
-— Open with genuine empathy. Acknowledge feelings first.
-— Suggest only 1-2 small, achievable things. Never overwhelm.
-— Be warm and human — not a productivity robot.
-— If stressed, suggest a short break or Flow session.`
+      ? `MOOD CONTEXT: User logged today as ${moodLabel} earlier. Keep this in mind, but don't
+assume it still applies — read the actual conversation for how they're doing right now.`
       : moodValue === 3
-      ? `MOOD CONTEXT: Feeling okay today (${moodLabel}). Balanced, steady tone.`
-      : `MOOD CONTEXT: Feeling great today (${moodLabel})!
-— Match their energy. Be upbeat and enthusiastic.
-— Suggest ambitious actions, celebrate wins.`;
+      ? `MOOD CONTEXT: Logged today as ${moodLabel}. Balanced, steady tone.`
+      : `MOOD CONTEXT: Logged today as ${moodLabel}. Feel free to match upbeat energy if the
+conversation is in that register too.`;
 
-    // ── Personality from settings ──────────────────────────────
     const personality = [
       TONE_PROMPTS[settings.tone]              || TONE_PROMPTS.friendly,
       LENGTH_PROMPTS[settings.response_length] || LENGTH_PROMPTS.balanced,
       EMOJI_PROMPTS[settings.emoji_level]      || EMOJI_PROMPTS.some,
     ].join('\n');
-
     const attachmentNote = hasAttachments
       ? `\nATTACHED FILES: The user attached file content to their message (marked with 📎).
 Read it fully. When asked to summarize, cover all key points faithfully — don't skip
 sections. When asked questions about it, quote or reference specific parts.\n`
       : '';
 
-      return `You are Lumi ✦, the intelligent productivity assistant built into Aurora — a personal life OS.
-      Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
-      LANGUAGE: If the user writes to you in Arabic, respond in Palestinian colloquial Arabic
-      (اللهجة الفلسطينية) — not Egyptian, not Gulf, not formal Modern Standard Arabic (فصحى).
-      Use everyday Palestinian vocabulary, expressions, and sentence rhythm, the way someone
-      from Nablus/the West Bank would actually text a friend. If the user writes in English,
-      respond in English as normal.
-      ABOUT AURORA (public — share with any user who asks):
+    return `You are Lumi ✦, the intelligent productivity assistant built into Aurora — a personal life OS.
+Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
+
+LANGUAGE: If the user writes to you in Arabic, respond in Palestinian colloquial Arabic
+(اللهجة الفلسطينية) — not Egyptian, not Gulf, not formal Modern Standard Arabic (فصحى).
+Use everyday Palestinian vocabulary, expressions, and sentence rhythm, the way someone
+from Nablus/the West Bank would actually text a friend. If the user writes in English,
+respond in English as normal.
+
+ABOUT AURORA (public — share with any user who asks):
 Aurora was designed and built entirely from scratch by Haneen Turkieh, a passionate
 19-year-old developer from Palestine, studying in the Computer Science Apprenticeship
 Program (CAP) at An-Najah National University in Nablus. If a user asks who made Aurora,
 who Haneen Turkieh is, or anything about the app's creator — tell them proudly.
 
-USER PROFILE (always use this to personalise your tone and suggestions):
+CONVERSATIONAL STYLE — READ THIS FIRST:
+Lumi is a warm, natural conversational partner before it is a productivity tool —
+the same kind of presence a good general assistant like ChatGPT or Gemini is. Aurora's
+tools exist to help when they're useful, not a script every conversation gets funneled
+back into. If the user is chatting, venting, thinking out loud, asking something
+unrelated to Aurora, or just talking — be a genuine conversational partner first.
+Do not steer the conversation back to tasks, exams, goals, or any Aurora feature
+unless the user actually asks for that, or it's obviously what they want.
+
+EMOTIONAL SUPPORT — THIS OVERRIDES "BE CONCISE" AND "USE TOOLS":
+If the user expresses sadness, stress, anxiety, frustration, loneliness, or any
+difficult emotion — in THIS message, regardless of what mood they logged earlier
+today or didn't log at all — your first priority is to be present with them, the
+way a caring friend would be. Concretely:
+- Acknowledge how they're feeling in your own words. Don't rush past it into logistics.
+- If it's unclear what's going on, ask — don't assume you already know why.
+- Do NOT pivot to tasks, exams, productivity, or any Aurora feature unless they ask
+  for that, or clearly want a distraction and say so themselves.
+- Do NOT diagnose, label, or assume a clinical condition.
+- Stay with them for as long as the conversation needs before circling back to
+  anything app-related.
+- If they seem to be in real distress, gently encourage talking to someone they
+  trust or a professional — without sounding clinical or like a canned script.
+A person who is upset does not want to be redirected to a study tool. Being genuinely
+supportive matters more here than being brief or action-oriented.
+
+USER PROFILE (use to personalise tone and suggestions):
 ${profileContext}
-${developerNote}
-PERSONALITY SETTINGS (chosen by the user — always follow these):
+
+PERSONALITY SETTINGS (chosen by the user — always follow these, except where
+EMOTIONAL SUPPORT above takes priority):
 ${personality}
 
 WHAT YOU REMEMBER ABOUT THIS USER:
@@ -689,15 +662,16 @@ Goals:
 ${goalList}
 Habits & streaks:
 ${habitList}
-Today's mood: ${moodLabel}
+${moodPersonality}
 Focus time this week: ${Number(focus.rows[0]?.w||0)} minutes
 Total XP earned: ${Number(xp.rows[0]?.t||0)}
 
-${moodPersonality}
 ${MODE_PROMPTS[mode] || ''}
 ${attachmentNote}
+
 TOOLS AVAILABLE:
-You have access to powerful tools. Use them proactively:
+Use these when they're genuinely relevant to what the user is asking for —
+not as a default reflex:
 - create_task / list_tasks / complete_task — task management
 - create_goal / list_goals — goal tracking
 - get_productivity_summary — weekly/monthly overview
@@ -710,24 +684,25 @@ You have access to powerful tools. Use them proactively:
 - save_memory / forget_memory — remember important facts
 
 INSTRUCTIONS:
-- You are concise, warm, and action-oriented. Never verbose.
-- ALWAYS use the user's name (${p.name || 'there'}) naturally in conversation.
+- Be a real conversational partner first — warm, natural, present. Concise second.
+- Match the emotional register of what the user brings. A heartfelt message doesn't
+  get a clipped, task-oriented reply.
+- Use the user's name (${p.name || 'there'}) naturally, not in every message.
 - Use profile info (gender, age, bio) to personalise — adjust pronouns, references, tone.
-- When asked to take an action — use the tool immediately. Don't ask for confirmation first.
+- When the user clearly asks for an action, use the tool immediately — don't ask for
+  confirmation first. But don't reach for a tool just because one exists.
 - Use save_memory proactively whenever the user shares something worth remembering.
 - Reference memory naturally — don't announce that you remember, just use it.
-- After any tool action, confirm briefly in 1-2 sentences then ask what's next.
-- Keep responses short and punchy unless the user asks for detail.
-- Never fabricate numbers — always fetch data with tools.
-- If mood is 1-2, lead with empathy before anything else.
-- If mood is 4-5, match their energy and be ambitious.`;
+- After a tool action, confirm briefly then ask what's next.
+- Keep everyday responses short and punchy — except emotional-support conversations,
+  which take as much space as the person needs.
+- Never fabricate numbers — always fetch data with tools.`;
   } catch (err) {
     console.error('[lumi prompt] TOTAL failure — using generic fallback:', err.message);
-    return `You are Lumi ✦, Aurora's productivity assistant. Be concise, warm, and helpful. Today is ${new Date().toLocaleDateString()}.`;
+    return `You are Lumi ✦, Aurora's productivity assistant. Be warm, conversational, and genuinely present with the user first — helpful with Aurora's tools second. Today is ${new Date().toLocaleDateString()}.`;
   }
 }
 
-// ── GET conversations ──────────────────────────────────────────
 router.get('/conversations', async (req, res) => {
   try {
     const result = await db.execute({
@@ -738,7 +713,6 @@ router.get('/conversations', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── GET messages for a conversation ───────────────────────────
 router.get('/conversations/:id', async (req, res) => {
   try {
     const conv = await db.execute({
@@ -761,7 +735,6 @@ router.get('/conversations/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── DELETE a conversation ──────────────────────────────────────
 router.delete('/conversations/:id', async (req, res) => {
   try {
     await db.execute({
@@ -772,7 +745,6 @@ router.delete('/conversations/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── GET memory ─────────────────────────────────────────────────
 router.get('/memory', async (req, res) => {
   try {
     const result = await db.execute({
@@ -783,7 +755,6 @@ router.get('/memory', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── DELETE a memory entry ──────────────────────────────────────
 router.delete('/memory/:key', async (req, res) => {
   try {
     await db.execute({
@@ -794,18 +765,15 @@ router.delete('/memory/:key', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── GET /settings — Lumi personality settings ─────────────────
 router.get('/settings', async (req, res) => {
   res.json(await getSettings(req.user.id));
 });
 
-// ── PUT /settings — update Lumi personality settings ──────────
 router.put('/settings', async (req, res) => {
   try {
     const tone   = Object.keys(TONE_PROMPTS).includes(req.body.tone)              ? req.body.tone            : DEFAULT_SETTINGS.tone;
     const length = Object.keys(LENGTH_PROMPTS).includes(req.body.response_length) ? req.body.response_length : DEFAULT_SETTINGS.response_length;
     const emoji  = Object.keys(EMOJI_PROMPTS).includes(req.body.emoji_level)      ? req.body.emoji_level     : DEFAULT_SETTINGS.emoji_level;
-
     await db.execute({
       sql: `INSERT INTO lumi_settings (user_id, tone, response_length, emoji_level, updated_at)
             VALUES (?, ?, ?, ?, datetime('now'))
@@ -814,7 +782,6 @@ router.put('/settings', async (req, res) => {
               emoji_level=excluded.emoji_level, updated_at=datetime('now')`,
       args: [req.user.id, tone, length, emoji],
     });
-
     res.json({ tone, response_length: length, emoji_level: emoji });
   } catch (err) {
     console.error('PUT /chat/settings error:', err);
@@ -822,30 +789,15 @@ router.put('/settings', async (req, res) => {
   }
 });
 
-// ── POST — send message ────────────────────────────────────────
-// Body: {
-//   messages:        [{role, content}, ...]        (required)
-//   conversation_id: number | null
-//   mode:            'chat' | 'think' | 'search'   (default 'chat')
-//   attachments:     [{name, text}, ...]           (optional — extracted file text;
-//                     frontend gets this from POST /api/exam/extract, which already
-//                     handles PDF/PPTX/DOCX/TXT/images)
-// }
-const MAX_ATTACHMENT_CHARS = 25000; // per file — keeps Haiku's context healthy
-
+const MAX_ATTACHMENT_CHARS = 25000;
 router.post('/', async (req, res) => {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
-
   const { messages, conversation_id, mode = 'chat', attachments = [] } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
-
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     const system = await buildSystemPrompt(req.user.id, mode, hasAttachments);
-
-    // Inject attachment text into the last user message so Lumi can
-    // read it, without the frontend having to concatenate anything.
     let currentMessages = messages.map(m => ({ ...m }));
     if (hasAttachments) {
       for (let i = currentMessages.length - 1; i >= 0; i--) {
@@ -858,8 +810,6 @@ router.post('/', async (req, res) => {
         }
       }
     }
-
-    // Mode-specific request options
     const tools = mode === 'search' ? [...TOOLS, WEB_SEARCH_TOOL] : TOOLS;
     const requestBase = {
       model:      MODEL,
@@ -868,13 +818,10 @@ router.post('/', async (req, res) => {
       max_tokens: mode === 'think' ? 6000 : hasAttachments ? 3000 : 1024,
     };
     if (mode === 'think') {
-      // Extended thinking — Lumi reasons privately before answering
       requestBase.thinking = { type: 'enabled', budget_tokens: 4000 };
     }
-
     let finalText = '';
     const actions = [];
-
     for (let i = 0; i < 6; i++) {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method:  'POST',
@@ -883,41 +830,27 @@ router.post('/', async (req, res) => {
       });
       const data = await r.json();
       if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
-
-      // Note: web_search is a server tool — the API runs it itself and its
-      // results arrive inside data.content automatically. Only our custom
-      // tools (type 'tool_use') need local execution here.
       const toolUses = data.content.filter(c => c.type === 'tool_use');
       if (!toolUses.length) {
         finalText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
         break;
       }
-
       const toolResults = [];
       for (const tu of toolUses) {
         const result = await executeTool(tu.name, tu.input, req.user.id);
         actions.push({ tool: tu.name, input: tu.input, result });
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
       }
-
-      // Pass the full assistant content back (including any thinking
-      // blocks — required when extended thinking is enabled).
       currentMessages = [
         ...currentMessages,
         { role: 'assistant', content: data.content },
         { role: 'user',      content: toolResults },
       ];
     }
-
     const responseText = finalText || "Done! Let me know if you need anything else.";
-
-    // ── Persist ────────────────────────────────────────────────
-    // Stored messages keep the user's original text plus a small
-    // 📎 note — not the full attachment dump — so history stays light.
     const attachmentSuffix = hasAttachments
       ? `\n\n📎 ${attachments.map(a => a.name || 'file').join(', ')}`
       : '';
-
     let convId = conversation_id;
     if (!convId) {
       const firstMsg   = messages.find(m => m.role === 'user')?.content || 'New conversation';
@@ -948,12 +881,10 @@ router.post('/', async (req, res) => {
         args: [convId],
       });
     }
-
     await db.execute({
       sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, 'assistant', ?, ?)`,
       args: [convId, responseText, JSON.stringify(actions)],
     });
-
     res.json({ text: responseText, actions, conversation_id: convId, mode });
   } catch (err) {
     console.error('Lumi error:', err);

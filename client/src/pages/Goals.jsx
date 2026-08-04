@@ -40,9 +40,8 @@ export default function Goals() {
   const { t } = useLanguage();
   const dates = last30Dates();
 
-  // ── Edit-goal state (separate from create) ─────────────────
   const [editModal,   setEditModal]   = useState(false);
-  const [editingGoal, setEditingGoal] = useState(null); // full goal object being edited
+  const [editingGoal, setEditingGoal] = useState(null);
   const [editForm,    setEditForm]    = useState({ title: '', description: '', category: '', target_date: '' });
   const [newMilestone, setNewMilestone] = useState('');
   const [addingMilestone, setAddingMilestone] = useState(false);
@@ -89,7 +88,6 @@ export default function Goals() {
   };
   const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); };
 
-  // ── Edit goal: open, save fields, add milestone ─────────────
   const openEditGoal = (goal) => {
     setEditingGoal(goal);
     setEditForm({
@@ -113,8 +111,6 @@ export default function Goals() {
       });
       toast.success(t('tasks.updated'));
       await loadGoals();
-      // Refresh the in-modal goal object so the milestone list below
-      // stays current without closing the modal.
       const fresh = (await api.get('/goals')).find((g) => g.id === editingGoal.id);
       if (fresh) setEditingGoal(fresh);
     } catch (err) { toast.error(err.message); }
@@ -337,8 +333,6 @@ export default function Goals() {
           </>
         )
       )}
-
-      {/* ── Create goal modal ─────────────────────────────────── */}
       <Modal open={goalModal} onClose={() => setGoalModal(false)} title={t('goals.newGoal')}>
         <form onSubmit={createGoal} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder={t('goals.goalTitlePh')}
@@ -365,8 +359,8 @@ export default function Goals() {
           <button type="submit" className="btn-primary justify-center mt-1">{t('goals.createGoal')}</button>
         </form>
       </Modal>
-
-      {/* ── Edit goal modal — fields + milestone list + add-milestone ── */}
+      {/* Fixed: title now uses the real goals.editGoal translation
+          key instead of the earlier string-replace workaround. */}
       <Modal open={editModal} onClose={closeEditModal} title={t('goals.editGoal')}>
         {editingGoal && (
           <div className="flex flex-col gap-4">
@@ -385,7 +379,6 @@ export default function Goals() {
                 {t('calendar.saveChanges')}
               </button>
             </form>
-
             <div className="pt-1" style={{ borderTop: '1px solid rgba(30,34,51,0.08)' }}>
               <label className="text-xs font-bold uppercase tracking-widest text-ink/40 mt-4 mb-2 block">
                 {t('goals.milestonesLabel')}
@@ -428,8 +421,6 @@ export default function Goals() {
           </div>
         )}
       </Modal>
-
-      {/* ── Recurring task modal ─────────────────────────────── */}
       <Modal open={recurModal} onClose={() => setRecurModal(false)} title={t('goals.newRecur')}>
         <form onSubmit={createRecur} className="flex flex-col gap-3.5">
           <input className="input-field" placeholder={t('goals.recurPh')}
