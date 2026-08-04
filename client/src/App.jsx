@@ -15,7 +15,6 @@ import { useToast }      from './context/ToastContext.jsx';
 import { useTheme }      from './context/ThemeContext.jsx';
 import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
-
 import Login          from './pages/Login.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword  from './pages/ResetPassword.jsx';
@@ -31,6 +30,10 @@ import TreeShop       from './pages/TreeShop.jsx';
 import ExamAssistant  from './pages/ExamAssistant.jsx';
 import Calendar       from './pages/Calendar.jsx';
 import NotFound       from './pages/NotFound.jsx';
+// Onboarding was fully built but never actually mounted anywhere in
+// the app — that's why it "skipped entirely" rather than just showing
+// without the fold animation. Wired in below, in AppShell.
+import Onboarding, { isOnboarded } from './pages/Onboarding.jsx';
 
 // ── Shortcuts modal ───────────────────────────────────────────
 function ShortcutsModal({ onClose }) {
@@ -38,7 +41,6 @@ function ShortcutsModal({ onClose }) {
   const { t } = useLanguage();
   const isDark = resolvedTheme === 'dark';
   const isMac  = navigator.platform?.includes('Mac');
-
   const SHORTCUTS = [
     { key: 'D',                      desc: t('nav.dashboard') },
     { key: 'T',                      desc: t('nav.tasks')     },
@@ -51,7 +53,6 @@ function ShortcutsModal({ onClose }) {
     { key: '?',                      desc: t('app.thisPanel') },
     { key: 'ESC',                    desc: t('common.close')  },
   ];
-
   const panelBg     = isDark ? 'rgba(18,14,35,0.97)'              : 'rgba(255,255,255,0.97)';
   const panelBorder = isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.80)';
   const titleClr    = isDark ? 'text-white'                       : 'text-ink';
@@ -62,7 +63,6 @@ function ShortcutsModal({ onClose }) {
   const kbdBorder   = isDark ? 'rgba(255,255,255,0.12)'           : 'rgba(30,34,51,0.10)';
   const kbdClr      = isDark ? 'text-white/45'                    : 'text-ink/50';
   const noteClr     = isDark ? 'text-white/25'                    : 'text-ink/30';
-
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -144,11 +144,20 @@ function AppShell() {
   const { resolvedTheme } = useTheme();
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
-
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-
+  const [showOnboarding, setShowOnboarding] = useState(false);
   useTaskReminders();
+
+  // ── Onboarding gate ────────────────────────────────────────
+  // Checks once user.id is actually populated (not on the very first
+  // render where it may still be undefined right after registration —
+  // that race is what caused onboarding to silently never trigger).
+  useEffect(() => {
+    if (user?.id && !isOnboarded(user.id)) {
+      setShowOnboarding(true);
+    }
+  }, [user?.id]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {
@@ -251,7 +260,6 @@ function AppShell() {
       </main>
       <MobileNav />
       <FocusBar />
-
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
       <div
         className="fixed top-4 end-4 z-50 flex items-center"
@@ -275,7 +283,6 @@ function AppShell() {
         <div style={{ width: 1, height: 18, background: divClr, flexShrink: 0 }} />
         <NotificationBell />
       </div>
-
       {/* Shortcuts hint — also flips side in RTL */}
       <button
         onClick={() => setShortcutsOpen(true)}
@@ -284,10 +291,14 @@ function AppShell() {
       >
         <kbd>?</kbd> {t('app.shortcuts')}
       </button>
-
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <AnimatePresence>
         {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showOnboarding && (
+          <Onboarding user={user} onComplete={() => setShowOnboarding(false)} />
+        )}
       </AnimatePresence>
     </div>
   );
