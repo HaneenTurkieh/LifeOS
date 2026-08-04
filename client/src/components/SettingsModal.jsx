@@ -8,7 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
 import { useAuth }   from '../context/AuthContext.jsx';
-import { useTheme }  from '../context/ThemeContext.jsx';
+import { useTheme, FONT_SCALES } from '../context/ThemeContext.jsx';
 import { useToast }  from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import Modal         from './Modal.jsx';
@@ -226,7 +226,7 @@ function AccountTab() {
 }
 
 function AppearanceTab() {
-  const { mode, setMode } = useTheme();
+  const { mode, setMode, fontScale, setFontScale } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const THEMES = [
     { key:'light',  label:t('settings.light'),  icon:'☀️', desc:t('settings.lightDesc')  },
@@ -265,6 +265,24 @@ function AppearanceTab() {
           {lang===l.key && <Check size={16} className="text-lavender-500 shrink-0"/>}
         </button>
       ))}
+      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 mt-3 block">
+        {lang === 'ar' ? 'حجم الخط' : 'Text Size'}
+      </label>
+      <div className="rounded-2xl px-4 py-4" style={{ background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.65)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <span style={{ fontSize: '0.75rem' }} className="text-ink/50 dark:text-white/40 font-semibold">A</span>
+          <span style={{ fontSize: '1.375rem' }} className="text-ink dark:text-white font-semibold">A</span>
+        </div>
+        <input
+          type="range" min="0" max="4" step="1"
+          value={Object.keys(FONT_SCALES).indexOf(fontScale)}
+          onChange={(e) => setFontScale(Object.keys(FONT_SCALES)[Number(e.target.value)])}
+          className="w-full accent-lavender-600"
+        />
+        <p className="text-center text-xs text-ink/40 dark:text-white/30 mt-2 font-semibold">
+          {FONT_SCALES[fontScale].label}
+        </p>
+      </div>
     </div>
   );
 }
@@ -278,7 +296,6 @@ function PremiumTab() {
   const [status,    setStatus]    = useState(null);
   const [busy,      setBusy]      = useState(false);
   const [themeBusy, setThemeBusy] = useState(false);
-
   const load = useCallback(() => {
     api.get('/focus/premium/status')
       .then((d) => {
@@ -288,7 +305,6 @@ function PremiumTab() {
       .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple' }));
   }, [setAccent]);
   useEffect(() => { load(); }, [load]);
-
   const toggle = async () => {
     setBusy(true);
     try {
@@ -308,7 +324,6 @@ function PremiumTab() {
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
-
   const THEME_PRESETS = [
     { key: 'purple', label: lang === 'ar' ? 'بنفسجي' : 'Purple', swatch: 'linear-gradient(135deg,#7C6AF0,#5B47E0)' },
     { key: 'orange', label: lang === 'ar' ? 'برتقالي' : 'Orange', swatch: 'linear-gradient(135deg,#FF8A42,#E85D04)' },
@@ -317,7 +332,6 @@ function PremiumTab() {
   ];
   const themeSectionTitle = lang === 'ar' ? 'لون التطبيق' : 'App color';
   const themeLockedNote   = lang === 'ar' ? 'ميزة بريميوم' : 'Premium feature';
-
   const changeTheme = async (preset) => {
     if (!status?.is_premium || themeBusy || preset === accent) return;
     setThemeBusy(true);
@@ -331,23 +345,17 @@ function PremiumTab() {
       toast.error(err.message);
     } finally { setThemeBusy(false); }
   };
-
   const today       = new Date().toISOString().slice(0, 10);
   const frozenToday = status?.freeze_date === today;
   const PERKS = [
     { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD'), live: true },
     { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD'), live: true },
-    { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD'),   live: false },
+    { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD'),   live: true },
   ];
   if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
-
-  // Fixed: this button's "already premium" state was hardcoded to a dark-ink
-  // color/near-transparent-dark background, which is invisible against a dark
-  // theme background. Now flips based on resolvedTheme like everything else.
   const backToFreeStyle = isDark
     ? { background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', color:'rgba(255,255,255,0.70)' }
     : { background:'rgba(30,34,51,0.05)',    border:'1px solid rgba(30,34,51,0.10)',    color:'rgba(30,34,51,0.55)' };
-
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl p-5 text-center"
@@ -369,7 +377,6 @@ function PremiumTab() {
           {busy ? '…' : status.is_premium ? t('settings.backToFree') : t('settings.tryPremium')}
         </button>
       </div>
-
       <div className="rounded-2xl p-4"
         style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
         <div className="flex items-center justify-between mb-3">
@@ -408,7 +415,6 @@ function PremiumTab() {
           })}
         </div>
       </div>
-
       <div className="rounded-2xl p-4"
         style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.18)' }}>
         <div className="flex items-start gap-3">

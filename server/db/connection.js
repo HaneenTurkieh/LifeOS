@@ -51,6 +51,9 @@ async function initDb() {
   if (!(await hasColumn('user_premium', 'theme_mode'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_mode TEXT DEFAULT 'system'`);
   }
+  if (!(await hasColumn('user_premium', 'font_scale'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN font_scale TEXT DEFAULT 'default'`);
+  }
   if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
     await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }

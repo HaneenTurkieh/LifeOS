@@ -4,8 +4,19 @@ import { api } from '../api/client.js';
 const ThemeContext = createContext(null);
 const STORAGE_KEY        = 'aurora_theme';
 const ACCENT_STORAGE_KEY = 'aurora_accent';
+const FONT_STORAGE_KEY   = 'aurora_font_scale';
 const MODES   = ['light', 'dark', 'system'];
 export const ACCENTS = ['purple', 'orange', 'pink', 'blue'];
+// Percentages applied to the root font-size — every rem-based size in
+// the app (which is nearly all of Tailwind's defaults) scales together
+// proportionally, same mechanism iOS Text Size uses.
+export const FONT_SCALES = {
+  small:   { label: 'Small',        pct: 87.5  },
+  default: { label: 'Default',      pct: 100   },
+  large:   { label: 'Large',        pct: 112.5 },
+  xlarge:  { label: 'Extra Large',  pct: 125   },
+  xxlarge: { label: 'XX Large',     pct: 137.5 },
+};
 
 function getSystemPrefersDark() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -27,6 +38,10 @@ function applyAccent(preset) {
     document.documentElement.removeAttribute('data-accent');
   }
 }
+function applyFontScale(key) {
+  const pct = FONT_SCALES[key]?.pct ?? 100;
+  document.documentElement.style.fontSize = `${pct}%`;
+}
 
 (function initTheme() {
   try {
@@ -41,6 +56,12 @@ function applyAccent(preset) {
     applyAccent(ACCENTS.includes(storedAccent) ? storedAccent : 'purple');
   } catch (_) {
     applyAccent('purple');
+  }
+  try {
+    const storedFont = localStorage.getItem(FONT_STORAGE_KEY);
+    applyFontScale(FONT_SCALES[storedFont] ? storedFont : 'default');
+  } catch (_) {
+    applyFontScale('default');
   }
 })();
 
@@ -60,6 +81,12 @@ export function ThemeProvider({ children }) {
       return ACCENTS.includes(stored) ? stored : 'purple';
     } catch (_) { return 'purple'; }
   });
+  const [fontScale, setFontScaleState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(FONT_STORAGE_KEY);
+      return FONT_SCALES[stored] ? stored : 'default';
+    } catch (_) { return 'default'; }
+  });
 
   useEffect(() => {
     const isDark = resolveIsDark(mode);
@@ -74,6 +101,11 @@ export function ThemeProvider({ children }) {
   }, [accent]);
 
   useEffect(() => {
+    applyFontScale(fontScale);
+    try { localStorage.setItem(FONT_STORAGE_KEY, fontScale); } catch (_) {}
+  }, [fontScale]);
+
+  useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
       if (mode !== 'system') return;
@@ -84,16 +116,12 @@ export function ThemeProvider({ children }) {
     return () => mql.removeEventListener('change', handleChange);
   }, [mode]);
 
-  // ── Server sync: light/dark mode AND accent color, both polled
-  // every 5s (matching the Pomodoro timer's cadence) so a change made
-  // on one device/tab reaches every other open one without a manual
-  // refresh. Local refs track the last-known server values so the
-  // poll only calls setState when something actually changed —
-  // avoids fighting the user's own in-flight edits.
-  const modeRef        = useRef(mode);
-  const accentRef      = useRef(accent);
+  const modeRef      = useRef(mode);
+  const accentRef     = useRef(accent);
+  const fontScaleRef  = useRef(fontScale);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { accentRef.current = accent; }, [accent]);
+  useEffect(() => { fontScaleRef.current = fontScale; }, [fontScale]);
 
   useEffect(() => {
     const token = localStorage.getItem('aurora_auth_token');
@@ -113,9 +141,15 @@ export function ThemeProvider({ children }) {
           setAccentState(p.theme_preset);
         }
       } catch (_) {}
+      try {
+        const f = await api.get('/focus/font-scale');
+        if (active && f?.font_scale && FONT_SCALES[f.font_scale] && f.font_scale !== fontScaleRef.current) {
+          setFontScaleState(f.font_scale);
+        }
+      } catch (_) {}
     };
 
-    pull(); // once on mount
+    pull();
     const id = setInterval(pull, 5000);
     return () => { active = false; clearInterval(id); };
   }, []);
@@ -124,17 +158,22 @@ export function ThemeProvider({ children }) {
     if (!MODES.includes(next)) return;
     setModeState(next);
     const token = localStorage.getItem('aurora_auth_token');
-    if (token) {
-      api.put('/focus/theme-mode', { theme_mode: next }).catch(() => {});
-    }
+    if (token) api.put('/focus/theme-mode', { theme_mode: next }).catch(() => {});
   }, []);
 
   const setAccent = useCallback((next) => {
     if (ACCENTS.includes(next)) setAccentState(next);
   }, []);
 
+  const setFontScale = useCallback((next) => {
+    if (!FONT_SCALES[next]) return;
+    setFontScaleState(next);
+    const token = localStorage.getItem('aurora_auth_token');
+    if (token) api.put('/focus/font-scale', { font_scale: next }).catch(() => {});
+  }, []);
+
   return (
-    <ThemeContext.Provider value={{ mode, setMode, resolvedTheme, accent, setAccent }}>
+    <ThemeContext.Provider value={{ mode, setMode, resolvedTheme, accent, setAccent, fontScale, setFontScale }}>
       {children}
     </ThemeContext.Provider>
   );
