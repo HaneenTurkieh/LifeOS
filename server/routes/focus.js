@@ -104,7 +104,28 @@ router.put('/theme-mode', async (req, res) => {
     res.json({ ok: true, theme_mode });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
-
+const FONT_SCALES = ['small', 'default', 'large', 'xlarge', 'xxlarge'];
+router.get('/font-scale', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT font_scale FROM user_premium WHERE user_id = ?`, args: [req.user.id],
+    })).rows[0];
+    res.json({ font_scale: row?.font_scale || 'default' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+router.put('/font-scale', async (req, res) => {
+  try {
+    const { font_scale } = req.body;
+    if (!FONT_SCALES.includes(font_scale))
+      return res.status(400).json({ error: 'Invalid font scale' });
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, font_scale) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET font_scale = excluded.font_scale`,
+      args: [req.user.id, font_scale],
+    });
+    res.json({ ok: true, font_scale });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
 router.post('/sessions', async (req, res) => {
   try {
     const { task_name = 'Focus Session', duration_minutes } = req.body;
