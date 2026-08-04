@@ -576,10 +576,6 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
       p.bio      ? `Bio: "${p.bio}"`                : null,
     ].filter(Boolean).join('\n') || 'Not provided';
 
-    // Note: dashboard-logged mood only reflects what the user tapped
-    // earlier today — it says nothing about how they feel THIS message.
-    // Kept as light context only; real-time emotional cues in the
-    // conversation itself take priority (see EMOTIONAL SUPPORT below).
     const moodValue = mood.rows[0] ? Number(mood.rows[0].mood) : null;
     const moodLabel = moodValue
       ? ['','Rough (1/5)','Meh (2/5)','Okay (3/5)','Good (4/5)','Great (5/5)'][moodValue]
@@ -790,6 +786,15 @@ router.put('/settings', async (req, res) => {
 });
 
 const MAX_ATTACHMENT_CHARS = 25000;
+
+// Numeric/statistical claim detector — deliberately narrow. Only fires
+// on digits paired with a stat-like unit (%, percent, million, billion,
+// thousand), not on bare numbers or bare years, which produced false
+// positives like "step 3" or "chapter 2020". Only checked in plain
+// 'chat' mode — 'search' mode is already web-grounded, 'think' mode is
+// for reasoning, not factual lookup.
+const STAT_CLAIM_RE = /\d[\d,.]*\s?(%|percent|million|billion|thousand)\b/i;
+
 router.post('/', async (req, res) => {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
@@ -848,6 +853,11 @@ router.post('/', async (req, res) => {
       ];
     }
     const responseText = finalText || "Done! Let me know if you need anything else.";
+
+    // Only relevant for plain chat — search mode is already grounded,
+    // think mode isn't for factual lookup.
+    const suggestSearch = mode === 'chat' && STAT_CLAIM_RE.test(responseText);
+
     const attachmentSuffix = hasAttachments
       ? `\n\n📎 ${attachments.map(a => a.name || 'file').join(', ')}`
       : '';
@@ -885,7 +895,7 @@ router.post('/', async (req, res) => {
       sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, 'assistant', ?, ?)`,
       args: [convId, responseText, JSON.stringify(actions)],
     });
-    res.json({ text: responseText, actions, conversation_id: convId, mode });
+    res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch });
   } catch (err) {
     console.error('Lumi error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });

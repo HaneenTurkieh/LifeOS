@@ -109,6 +109,12 @@ function Message({ msg }) {
           </div>
         )}
         {isLumi && msg.actions?.map((a, i) => <ActionCard key={i} action={a} />)}
+        {isLumi && msg.suggestSearch && (
+          <p className="text-[11px] text-ink/35 dark:text-white/25 mt-1 px-1">
+            💡 For guaranteed up-to-date numbers on this, try{' '}
+            <span className="font-semibold text-lavender-500">Deep Search</span> instead of regular chat.
+          </p>
+        )}
       </div>
     </motion.div>
   );
@@ -426,7 +432,7 @@ export default function AITools() {
         mode,
         attachments:     sendAttachments.map(({ name, text }) => ({ name, text })),
       });
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.text, actions: res.actions || [] }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: res.text, actions: res.actions || [], suggestSearch: res.suggestSearch }]);
       if (!activeConvId) {
         setActiveConvId(res.conversation_id);
         loadConvos();
