@@ -3,6 +3,8 @@ const router  = express.Router();
 const { db }  = require('../db/connection');
 const { buildDedupeKey } = require('../lib/notificationDedupe');
 
+const MOOD_CHECKPOINTS = [12, 15, 18, 21];
+
 async function generateNotifications(userId) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
@@ -72,13 +74,19 @@ async function generateNotifications(userId) {
     });
   }
 
+  // Mood check-ins at fixed times (12:00 / 15:00 / 18:00 / 21:00).
+  // currentCheckpoint = the latest checkpoint the clock has reached —
+  // encoded into the link so each checkpoint gets its own dedupe key
+  // (see notificationDedupe.js) and can fire independently through
+  // the day, instead of stopping forever after the first one.
   const hour = new Date().getHours();
-  if (!mood.rows[0] && hour >= 12) {
+  const currentCheckpoint = [...MOOD_CHECKPOINTS].reverse().find((h) => hour >= h);
+  if (!mood.rows[0] && currentCheckpoint) {
     toCreate.push({
       type:  'mood',
       title: '😊 How are you feeling?',
       body:  'You haven\'t logged your mood today. It only takes a second.',
-      link:  '/',
+      link:  `/?moodcheck=${currentCheckpoint}`,
     });
   }
 
