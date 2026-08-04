@@ -46,10 +46,6 @@ function fmtSessionDate(dateStr, lang) {
     ' · ' + d.toLocaleTimeString(locale, { hour:'numeric', minute:'2-digit' });
 }
 
-// Reads the currently active premium accent color straight from the
-// CSS custom property (set as raw "R G B" by index.css) and converts
-// it to a hex string, so exported PPTX slides match whatever theme
-// (purple/orange/pink/blue) the user has active — not hardcoded.
 function getAccentHex() {
   try {
     const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent-500').trim();
@@ -59,10 +55,19 @@ function getAccentHex() {
   } catch (_) { return '7C6AF0'; }
 }
 
-// ── PDF export (jsPDF) — Note: standard PDF fonts don't support
-// Arabic script. Arabic content will not render correctly here;
-// use the PPTX export for Arabic exams instead. ────────────────
-async function exportPdf(mode, data, t) {
+// Detects Arabic script anywhere in the generated content so the PDF
+// exporter can automatically pick the correct rendering strategy —
+// no user choice needed, no silent breakage either way.
+function containsArabic(data) {
+  try { return /[\u0600-\u06FF]/.test(JSON.stringify(data)); }
+  catch (_) { return false; }
+}
+
+// ── PDF export, English/Latin path (jsPDF native text) ─────────
+// Real selectable/searchable text, small file size. Only used when
+// the content contains no Arabic — jsPDF's built-in fonts don't
+// shape Arabic letterforms correctly (see snapshot path below).
+async function exportPdfText(mode, data, t) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const marginX = 48;
@@ -141,10 +146,118 @@ async function exportPdf(mode, data, t) {
   doc.save(`aurora-${mode}-${stamp}.pdf`);
 }
 
-// ── PPTX export (pptxgenjs) — real slide-per-item deck, handles
-// Arabic content correctly since PowerPoint renders the text itself
-// rather than the library rasterizing fonts. Uses the active accent
-// color for the title slide + headings. ────────────────────────
+// ── PDF export, Arabic path (html2canvas snapshot) ──────────────
+// Renders content off-screen using the browser's own text engine
+// (which already shapes Arabic correctly — visible in every screenshot
+// in this app), captures it as an image, and slices that image across
+// PDF pages. Guarantees visually correct Arabic at the cost of the
+// text being an image (not selectable/searchable) — the honest
+// tradeoff for not having a font-shaping pipeline available.
+async function exportPdfSnapshot(mode, data, t, isRtl) {
+  const html2canvas = (await import('html2canvas')).default;
+  const { jsPDF } = await import('jspdf');
+
+  const heading = {
+    mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
+    flashcards: t('exam.flashcards'), slides: t('exam.slides'),
+  }[mode] || mode;
+
+  const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rows = [];
+  rows.push(`<h1 style="font-size:26px;font-weight:800;margin:0 0 24px;color:#1E2233;">${esc(heading)}</h1>`);
+
+  const block = (num, main, extras = []) => `
+    <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #eee;">
+      <p style="font-size:15px;font-weight:700;margin:0 0 8px;color:#1E2233;">${num}. ${esc(main)}</p>
+      ${extras.map((e) => `<p style="font-size:13px;margin:2px 0;color:${e.color || '#444'};${e.bold ? 'font-weight:700;' : ''}padding-inline-start:20px;">${esc(e.text)}</p>`).join('')}
+    </div>`;
+
+  if (mode === 'mcq' || mode === 'mixed') {
+    data.forEach((q, i) => {
+      if (mode === 'mixed' && q.type === 'blank') {
+        rows.push(block(i + 1, q.sentence, [
+          { text: `${t('exam.answer')}: ${q.answer}`, color: '#2DA76E', bold: true },
+          ...(q.hint ? [{ text: `${t('exam.hint')}: ${q.hint}` }] : []),
+        ]));
+      } else {
+        rows.push(block(i + 1, q.question, [
+          ...q.options.map((opt, j) => ({
+            text: `${['A','B','C','D'][j]}) ${opt}`,
+            color: j === q.correct ? '#2DA76E' : '#444',
+            bold: j === q.correct,
+          })),
+          ...(q.explanation ? [{ text: `💡 ${q.explanation}` }] : []),
+        ]));
+      }
+    });
+  } else if (mode === 'blanks') {
+    data.forEach((q, i) => rows.push(block(i + 1, q.sentence, [
+      { text: `${t('exam.answer')}: ${q.answer}`, color: '#2DA76E', bold: true },
+      ...(q.hint ? [{ text: `${t('exam.hint')}: ${q.hint}` }] : []),
+    ])));
+  } else if (mode === 'flashcards') {
+    data.forEach((c, i) => rows.push(block(i + 1, c.front, [
+      { text: `${t('exam.answer')}: ${c.back}`, color: '#2DA76E' },
+    ])));
+  } else if (mode === 'slides') {
+    data.forEach((s, i) => rows.push(block(i + 1, s.title, [
+      ...(s.bullets || []).map((b) => ({ text: `•  ${b}` })),
+      ...(s.note ? [{ text: `📝 ${s.note}` }] : []),
+    ])));
+  }
+
+  const container = document.createElement('div');
+  container.dir = isRtl ? 'rtl' : 'ltr';
+  container.style.cssText = `
+    position:fixed; top:0; left:-99999px; width:780px;
+    background:#ffffff; color:#1E2233; padding:48px;
+    font-family:'Segoe UI', Tahoma, Arial, sans-serif;
+    text-align:${isRtl ? 'right' : 'left'};
+  `;
+  container.innerHTML = rows.join('');
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff' });
+    document.body.removeChild(container);
+
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pageWidth  = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgData   = canvas.toDataURL('image/png');
+    const imgWidth  = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      position -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    pdf.save(`aurora-${mode}-${stamp}.pdf`);
+  } catch (err) {
+    if (container.parentNode) document.body.removeChild(container);
+    throw err;
+  }
+}
+
+// Dispatcher — auto-detects Arabic content and routes to the correct
+// export path. Nothing for the user to choose; it just works either way.
+async function exportPdf(mode, data, t, lang) {
+  const arabic = containsArabic(data);
+  if (arabic) await exportPdfSnapshot(mode, data, t, true);
+  else await exportPdfText(mode, data, t);
+}
+
+// ── PPTX export (pptxgenjs) — real slide-per-item deck. No Arabic
+// limitation here: PowerPoint shapes the text itself at render time,
+// so this path works correctly for both languages already. ─────
 async function exportPptx(mode, data, t) {
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
@@ -600,7 +713,7 @@ export default function ExamAssistant() {
   const [showFileInfo,  setShowFileInfo]  = useState(false);
   const [sessions,      setSessions]      = useState([]);
   const [sessionBusy,   setSessionBusy]   = useState(null);
-  const [exporting,     setExporting]     = useState(null); // 'pdf' | 'pptx' | null
+  const [exporting,     setExporting]     = useState(null);
   const fileRef = useRef(null);
 
   const BASE_URL = window.location.hostname === 'localhost'
@@ -755,14 +868,14 @@ Content:\n${content}`;
     if (!result) return;
     setExporting(format);
     try {
-      if (format === 'pdf') await exportPdf(result.mode, result.data, t);
+      if (format === 'pdf') await exportPdf(result.mode, result.data, t, lang);
       else await exportPptx(result.mode, result.data, t);
     } catch (err) {
       console.error(err);
       toast.error(
         lang === 'ar'
-          ? 'فشل التصدير — تأكد من تثبيت الحزم المطلوبة (jspdf, pptxgenjs)'
-          : 'Export failed — make sure jspdf and pptxgenjs are installed (npm install jspdf pptxgenjs)'
+          ? 'فشل التصدير — تأكد من تثبيت الحزم المطلوبة (jspdf, pptxgenjs, html2canvas)'
+          : 'Export failed — make sure jspdf, pptxgenjs, and html2canvas are installed'
       );
     } finally {
       setExporting(null);
