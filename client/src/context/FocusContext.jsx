@@ -115,6 +115,7 @@ export function FocusProvider({ children }) {
   const [dots,      setDots]      = useState(saved?.dots      || 0);
   const [startedAt, setStartedAt] = useState(saved?.startedAt || null);
   const [congrats,  setCongrats]  = useState(null);
+  const [died,      setDied]      = useState(null);
   const [stats,     setStats]     = useState(null);
   const [board,     setBoard]     = useState([]);
   const [room,      setRoom]      = useState(null);
@@ -350,6 +351,36 @@ export function FocusProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadData, pushTimerState, dots]);
 
+  // ── Kill the tree: shared by the explicit Reset button and the
+  // pause-grace timeout below, so there's exactly one place that talks
+  // to the abandon endpoint and shows the outcome.
+  const killTree = useCallback(async (elapsedMin, reason) => {
+    const t   = taskRef.current;
+    const tid = taskIdRef.current;
+    try {
+      await api.post('/focus/sessions/abandon', {
+        task_name: t.trim() || 'Focus Session',
+        duration_minutes: elapsedMin,
+        task_id: tid || null,
+      });
+      playTreeDied();
+      setDied({ minutes: elapsedMin, reason });
+    } catch (_) {
+      toast.error(lang === 'ar' ? 'تعذّر حفظ الجلسة — تحقّق من اتصالك' : "Couldn't save this session — check your connection");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+
+  // ── Pause is a 60s grace period, not a free pass. If you pause a
+  // focus session with at least a minute already logged and don't
+  // resume within 60s, the tree dies — same outcome as hitting Reset,
+  // just with a warning window first instead of being instant.
+  const pauseGraceTimeoutRef = useRef(null);
+  const clearPauseGrace = useCallback(() => {
+    clearTimeout(pauseGraceTimeoutRef.current);
+    pauseGraceTimeoutRef.current = null;
+  }, []);
+
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
     const wallStart   = Date.now();
@@ -379,6 +410,7 @@ export function FocusProvider({ children }) {
   }, [isRunning, timeLeft, mode]);
 
   const switchMode = (m) => {
+    clearPauseGrace();
     clearInterval(intervalRef.current);
     setIsRunning(false);
     setStartedAt(null);
@@ -398,6 +430,8 @@ export function FocusProvider({ children }) {
   const toggleTimer = () => {
     if (timeLeft === 0) return;
     if (!isRunning) {
+      // Resuming within the grace window — call it off, tree's safe.
+      clearPauseGrace();
       const sa = new Date();
       setStartedAt(sa);
       setIsRunning(true);
@@ -406,9 +440,40 @@ export function FocusProvider({ children }) {
       setIsRunning(false);
       setStartedAt(null);
       pushTimerState({ running: false, started_at: null, remaining_seconds: timeLeft });
+
+      const elapsedMin = Math.floor((totalTime - timeLeft) / 60);
+      if (mode === 'focus' && elapsedMin >= 1) {
+        toast.error(lang === 'ar'
+          ? '⏸ أوقفت الجلسة مؤقتًا — استأنف خلال 60 ثانية وإلا ماتت شجرتك 🥀'
+          : "⏸ Paused — resume within 60s or your tree dies 🥀");
+        clearPauseGrace();
+        pauseGraceTimeoutRef.current = setTimeout(() => {
+          pauseGraceTimeoutRef.current = null;
+          killTree(elapsedMin, 'pause');
+          const mins = customMinRef.current[modeRef.current];
+          clearInterval(intervalRef.current);
+          setIsRunning(false);
+          setStartedAt(null);
+          setTimeLeft(mins * 60);
+          setTotalTime(mins * 60);
+          pushTimerState({
+            running: false, started_at: null,
+            remaining_seconds: mins * 60, duration_seconds: mins * 60,
+          });
+        }, 60000);
+      }
     }
   };
+  // The explicit "give up" button — kills the tree immediately if at
+  // least a minute of focus is already logged, whether the timer was
+  // still running or sitting in its pause-grace window (that just
+  // short-circuits the wait instead of skipping the consequence).
   const resetTimer = () => {
+    const elapsedMin = Math.floor((totalTime - timeLeft) / 60);
+    clearPauseGrace();
+    if (mode === 'focus' && elapsedMin >= 1) {
+      killTree(elapsedMin, 'reset');
+    }
     clearInterval(intervalRef.current);
     setIsRunning(false);
     setStartedAt(null);
@@ -453,8 +518,8 @@ export function FocusProvider({ children }) {
   return (
     <FocusContext.Provider value={{
       mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots,
-      startedAt, congrats, stats, board, room, roomTree,
-      setTaskName, setTask, clearTask, setRoom, setCongrats, leaveRoom,
+      startedAt, congrats, died, stats, board, room, roomTree,
+      setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
       toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,
       loadData,
     }}>
