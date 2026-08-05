@@ -10,8 +10,8 @@ export function setToken(token) {
 }
 
 async function request(path, options = {}) {
-  const token = getToken();
-  const res   = await fetch(`${BASE}${path}`, {
+  const token   = getToken();
+  const doFetch = () => fetch(`${BASE}${path}`, {
     // Safari is more aggressive than Chrome about heuristically caching
     // GET JSON responses when the server doesn't send explicit
     // Cache-Control headers — force every request to hit the network so
@@ -23,6 +23,21 @@ async function request(path, options = {}) {
     },
     ...options,
   });
+
+  let res;
+  try {
+    res = await doFetch();
+  } catch (networkErr) {
+    // Render's free tier sleeps after ~15 min idle. The very first
+    // request to a sleeping instance can be rejected outright before
+    // any CORS headers are attached — Safari surfaces this as "Fetch
+    // API cannot load ... due to access control checks" instead of a
+    // plain network error, which made it look like a browser bug when
+    // it was really the backend still waking up. One retry after a
+    // short delay almost always succeeds once it's awake.
+    await new Promise((r) => setTimeout(r, 2500));
+    res = await doFetch();
+  }
 
   if (res.status === 401) {
     setToken(null);
