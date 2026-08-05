@@ -57,6 +57,21 @@ async function initDb() {
   if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
     await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }
+  // ── Link Flow focus sessions to real tasks, so time can be logged
+  //    against a specific task (e.g. "Studying CA") instead of just a
+  //    free-text label, and the task can be marked done once finished.
+  if (!(await hasColumn('tasks', 'time_spent_minutes'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN time_spent_minutes INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!(await hasColumn('focus_sessions', 'task_id'))) {
+    await db.execute(`ALTER TABLE focus_sessions ADD COLUMN task_id INTEGER DEFAULT NULL`);
+  }
+  if (!(await hasColumn('focus_solo_timer', 'task_id'))) {
+    await db.execute(`ALTER TABLE focus_solo_timer ADD COLUMN task_id INTEGER DEFAULT NULL`);
+  }
+  if (!(await hasColumn('planted_trees', 'task_id'))) {
+    await db.execute(`ALTER TABLE planted_trees ADD COLUMN task_id INTEGER DEFAULT NULL`);
+  }
 
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([
