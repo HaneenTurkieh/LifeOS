@@ -176,6 +176,9 @@ export default function Flow() {
   const [roomForm,  setRoomForm]  = useState({ tab: 'join', name: '', code: '', password: '' });
   const [forest,    setForest]    = useState(null);
   const [liveRoom,  setLiveRoom]  = useState(null);
+  // Persistent "your tree died" confirmation — mirrors the congrats modal
+  // on success, so quitting early is announced just as clearly as finishing.
+  const [treeDied,  setTreeDied]  = useState(null);
   const lastTimerStartRef = useRef(null);
   const isRunningRef      = useRef(isRunning);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
@@ -249,8 +252,14 @@ export default function Flow() {
           task_id: taskId || null,
         });
         toast.error(t('flow.treeDied'));
-        if (forest) loadForest();
-      } catch (_) {}
+        setTreeDied({ minutes: elapsedMin });
+        loadForest(); // always refresh, not just when the tab was already visited
+      } catch (err) {
+        // Surface the failure instead of dying silently — previously a
+        // failed abandon call (network hiccup, stale token, etc.) left
+        // the user thinking their tree died when nothing was ever saved.
+        toast.error(lang === 'ar' ? 'تعذّر حفظ الجلسة — تحقّق من اتصالك' : "Couldn't save this session — check your connection");
+      }
     }
     resetTimer();
   };
@@ -1021,6 +1030,39 @@ export default function Flow() {
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 onClick={() => setCongrats(null)} className="btn-primary w-full justify-center text-base">
                 {t('flow.keepGoing')}
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {treeDied && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-center justify-center px-4"
+            style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', background: 'rgba(30,34,51,0.25)' }}
+            onClick={() => setTreeDied(null)}>
+            <motion.div
+              initial={{ scale: 0.82, y: 32 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.88, y: 20 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+              className="w-full max-w-md p-8 text-center rounded-3xl" style={cardGlass}
+              onClick={(e) => e.stopPropagation()}>
+              <motion.div
+                animate={{ rotate: [0, -6, 6, -3, 0], y: [0, 3, 0] }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="text-6xl mb-4">{DEAD_EMOJI}</motion.div>
+              <h2 className="font-display text-2xl font-bold text-ink dark:text-white mb-1">{t('flow.treeDiedTitle')}</h2>
+              <p className="text-ink/50 dark:text-white/40 mb-4">{t('flow.diedAfterMin', { n: treeDied.minutes })}</p>
+              <div className="rounded-2xl px-5 py-4 mb-6 text-start"
+                style={{ background: 'rgba(255,122,99,0.10)', border: '1px solid rgba(255,122,99,0.22)' }}>
+                <p className="text-sm font-medium text-ink dark:text-white leading-relaxed">{t('flow.treeDied')}</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                onClick={() => setTreeDied(null)}
+                className="w-full justify-center text-base rounded-2xl py-3 font-bold text-white"
+                style={{ background: 'linear-gradient(135deg,#FF7A63,#E85D50)', boxShadow: '0 6px 20px rgba(255,122,99,0.35)' }}>
+                {t('flow.tryAgain')}
               </motion.button>
             </motion.div>
           </motion.div>

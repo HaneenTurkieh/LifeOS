@@ -175,6 +175,9 @@ export const translations = {
       'flow.noTasksMatch':  'No tasks match your search.',
       'flow.timeSpentSoFar':'{n} min logged on this task so far',
       'flow.markDone':      'Mark done',
+      'flow.treeDiedTitle': 'Your Tree Died 💔',
+      'flow.diedAfterMin':  '{n} min of focus before you quit.',
+      'flow.tryAgain':      'Try again',
   
       // ── Lumi ───────────────────────────────────────────────
       'lumi.greeting':     "Hi {name}, I'm Lumi ✦",
@@ -741,6 +744,9 @@ export const translations = {
       'flow.noTasksMatch':  'لا توجد مهام مطابقة لبحثك.',
       'flow.timeSpentSoFar':'{n} دقيقة مسجّلة على هذه المهمة حتى الآن',
       'flow.markDone':      'إنجاز المهمة',
+      'flow.treeDiedTitle': 'ماتت شجرتك 💔',
+      'flow.diedAfterMin':  '{n} دقيقة من التركيز قبل أن تستسلم.',
+      'flow.tryAgain':      'حاول مجددًا',
   
       // ── لومي ────────────────────────────────────────────────
       'lumi.greeting':     'أهلًا {name}، أنا لومي ✦',
