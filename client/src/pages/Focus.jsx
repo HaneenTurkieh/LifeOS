@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, RotateCcw, Plus, LogOut, Lock } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, LogOut, Lock, Target, X, Search, CheckCircle2 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useFocus, MODES } from '../context/FocusContext.jsx';
-import PageHeader  from '../components/PageHeader.jsx';
-import Modal       from '../components/Modal.jsx';
-import EmptyState  from '../components/EmptyState.jsx';
+import PageHeader   from '../components/PageHeader.jsx';
+import Modal        from '../components/Modal.jsx';
+import EmptyState   from '../components/EmptyState.jsx';
+import PriorityPill from '../components/PriorityPill.jsx';
 
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
 const CX = 140, CY = 140, R = 108;
@@ -125,10 +126,43 @@ export default function Flow() {
 
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
-    taskName, dots, startedAt, congrats, stats, board, room, roomTree,
-    setTaskName, setRoom, setCongrats, leaveRoom,
+    taskName, taskId, dots, startedAt, congrats, stats, board, room, roomTree,
+    setTaskName, setTask, clearTask, setRoom, setCongrats, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
   } = useFocus();
+
+  // ── Link the timer to a real task instead of a free-text label ──
+  const [openTasks,      setOpenTasks]      = useState([]);
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+  const [taskSearch,     setTaskSearch]     = useState('');
+
+  const loadOpenTasks = () => {
+    api.get('/tasks')
+      .then((list) => setOpenTasks((list || []).filter((tk) => tk.status !== 'done')))
+      .catch(() => {});
+  };
+  useEffect(() => { loadOpenTasks(); }, []);
+  useEffect(() => { if (taskPickerOpen) loadOpenTasks(); }, [taskPickerOpen]);
+
+  const filteredTasks = openTasks.filter((tk) =>
+    tk.title.toLowerCase().includes(taskSearch.trim().toLowerCase())
+  );
+
+  const handlePickTask = (tk) => {
+    setTask({ id: tk.id, title: tk.title });
+    setTaskPickerOpen(false);
+    setTaskSearch('');
+  };
+
+  const handleMarkTaskDone = async (tk) => {
+    try {
+      await api.put(`/tasks/${tk.id}`, { status: 'done' });
+      toast.success(lang === 'ar' ? `أُنجزت "${tk.title}" ✅` : `Marked "${tk.title}" as done ✅`);
+      setOpenTasks((list) => list.filter((x) => x.id !== tk.id));
+      clearTask();
+      setCongrats((c) => c ? { ...c, task: null } : c);
+    } catch (err) { toast.error(err.message); }
+  };
 
   const [equippedTree, setEquippedTree] = useState('seedling');
   useEffect(() => {
@@ -212,6 +246,7 @@ export default function Flow() {
         await api.post('/focus/sessions/abandon', {
           task_name: taskName || 'Focus Session',
           duration_minutes: elapsedMin,
+          task_id: taskId || null,
         });
         toast.error(t('flow.treeDied'));
         if (forest) loadForest();
@@ -435,13 +470,36 @@ export default function Flow() {
               )}
             </AnimatePresence>
 
-            <input
-              className="text-center text-sm font-medium bg-transparent outline-none w-full max-w-xs mt-4 mb-8 pb-2 text-ink dark:text-white placeholder:text-ink/30 dark:placeholder:text-white/25"
-              style={{ borderBottom: `1px solid ${modeColor}33` }}
-              placeholder={t('flow.workingOn')}
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-            />
+            <div className="w-full max-w-xs mt-4 mb-8">
+              {taskId ? (
+                <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2" style={lg({ color: modeColor, active: true })}>
+                  <Target size={13} style={{ color: modeColor }} className="shrink-0" />
+                  <span className="flex-1 min-w-0 truncate text-sm font-semibold text-ink dark:text-white">{taskName}</span>
+                  <button type="button" onClick={clearTask} disabled={isRunning}
+                    title={isRunning ? (lang === 'ar' ? 'لا يمكن الإلغاء أثناء العمل' : "Can't unlink while running") : (lang === 'ar' ? 'إلغاء الربط' : 'Unlink task')}
+                    className="shrink-0 text-ink/35 dark:text-white/30 hover:text-coral-500 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    className="flex-1 min-w-0 text-center text-sm font-medium bg-transparent outline-none pb-2 text-ink dark:text-white placeholder:text-ink/30 dark:placeholder:text-white/25"
+                    style={{ borderBottom: `1px solid ${modeColor}33` }}
+                    placeholder={t('flow.workingOn')}
+                    value={taskName}
+                    onChange={(e) => setTaskName(e.target.value)}
+                  />
+                  <motion.button type="button" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
+                    onClick={() => setTaskPickerOpen(true)}
+                    title={t('flow.pickTask')}
+                    className="mb-2 shrink-0 flex h-8 w-8 items-center justify-center rounded-xl"
+                    style={lg()}>
+                    <Target size={14} style={{ color: modeColor }} />
+                  </motion.button>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-5">
               <motion.button whileHover={{ scale: 1.08, y: -1 }} whileTap={{ scale: 0.94 }}
@@ -871,6 +929,41 @@ export default function Flow() {
         </form>
       </Modal>
 
+      <Modal open={taskPickerOpen} onClose={() => setTaskPickerOpen(false)} title={t('flow.pickTask')}>
+        <div className="relative mb-4">
+          <Search size={15} className="absolute top-1/2 -translate-y-1/2 left-3.5 rtl:left-auto rtl:right-3.5 text-ink/30 dark:text-white/30" />
+          <input
+            autoFocus
+            className="input-field ps-9"
+            placeholder={t('flow.searchTasks')}
+            value={taskSearch}
+            onChange={(e) => setTaskSearch(e.target.value)}
+          />
+        </div>
+        {filteredTasks.length === 0 ? (
+          <p className="text-sm text-center py-8 text-ink/40 dark:text-white/30">
+            {openTasks.length === 0 ? t('flow.noOpenTasks') : t('flow.noTasksMatch')}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+            {filteredTasks.map((tk) => (
+              <button key={tk.id} type="button" onClick={() => handlePickTask(tk)}
+                className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start hover:bg-ink/5 dark:hover:bg-white/5 transition" style={lg()}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink dark:text-white truncate">{tk.title}</p>
+                  {Number(tk.time_spent_minutes) > 0 && (
+                    <p className="text-xs text-ink/40 dark:text-white/30 mt-0.5">
+                      {t('flow.timeSpentSoFar', { n: Number(tk.time_spent_minutes) })}
+                    </p>
+                  )}
+                </div>
+                <PriorityPill priority={tk.priority} />
+              </button>
+            ))}
+          </div>
+        )}
+      </Modal>
+
       <AnimatePresence>
         {congrats && (
           <motion.div
@@ -903,6 +996,23 @@ export default function Flow() {
                   style={lg({ color: modeColor, active: true })}>
                   ✨ +{congrats.xpAwarded} XP
                 </span>
+              )}
+              {congrats.task && (
+                <div className="rounded-2xl px-5 py-4 mb-4 text-start flex items-center gap-3" style={lg({ color: modeColor, active: true })}>
+                  <Target size={16} style={{ color: modeColor }} className="shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-ink dark:text-white truncate">{congrats.task.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: muted(0.45) }}>
+                      {t('flow.timeSpentSoFar', { n: congrats.task.time_spent_minutes })}
+                    </p>
+                  </div>
+                  <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                    onClick={() => handleMarkTaskDone(congrats.task)}
+                    className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                    style={{ background: 'linear-gradient(135deg,#4CC38A,#2FA36B)', boxShadow: '0 4px 14px rgba(76,195,138,0.35)' }}>
+                    <CheckCircle2 size={13} /> {t('flow.markDone')}
+                  </motion.button>
+                </div>
               )}
               <div className="rounded-2xl px-5 py-4 mb-6 text-start" style={lg()}>
                 <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">"{congrats.quote.text}"</p>

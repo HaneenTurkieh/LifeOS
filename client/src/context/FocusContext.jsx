@@ -111,6 +111,7 @@ export function FocusProvider({ children }) {
   const [totalTime, setTotalTime] = useState(saved?.totalTime ?? 25 * 60);
   const [isRunning, setIsRunning] = useState(saved?.isRunning || false);
   const [taskName,  setTaskNameRaw] = useState(saved?.taskName || '');
+  const [taskId,    setTaskIdRaw] = useState(saved?.taskId ?? null);
   const [dots,      setDots]      = useState(saved?.dots      || 0);
   const [startedAt, setStartedAt] = useState(saved?.startedAt || null);
   const [congrats,  setCongrats]  = useState(null);
@@ -121,13 +122,13 @@ export function FocusProvider({ children }) {
 
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
-    saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
-  }, [mode, customMin, isRunning, taskName, dots]); // eslint-disable-line
+    saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots, startedAt });
+  }, [mode, customMin, isRunning, taskName, taskId, dots]); // eslint-disable-line
 
   useEffect(() => {
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, dots, startedAt });
+      saveState({ mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots, startedAt });
     }, isRunning ? 5000 : 0);
     return () => clearTimeout(saveTimeoutRef.current);
   }, [timeLeft]); // eslint-disable-line
@@ -136,11 +137,13 @@ export function FocusProvider({ children }) {
   const modeRef           = useRef(mode);
   const customMinRef      = useRef(customMin);
   const taskRef            = useRef(taskName);
+  const taskIdRef          = useRef(taskId);
   const roomRef            = useRef(room);
   const prevTreeStatusRef  = useRef(null);
   useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
   useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
+  useEffect(() => { taskIdRef.current    = taskId;    }, [taskId]);
   useEffect(() => { roomRef.current      = room;      }, [room]);
 
   // ── Server-authoritative solo timer sync ───────────────────
@@ -157,19 +160,21 @@ export function FocusProvider({ children }) {
       started_at:        'started_at' in partial ? partial.started_at : (startedAt ? startedAt.toISOString() : null),
       running:           'running' in partial ? partial.running : isRunning,
       task_name:         partial.task_name ?? taskName,
+      task_id:           'task_id' in partial ? partial.task_id : taskId,
       dots:              partial.dots ?? dots,
     };
     try {
       const res = await api.post('/focus/timer/sync', payload);
       if (res?.version) versionRef.current = res.version;
     } catch (_) {}
-  }, [mode, customMin, totalTime, timeLeft, startedAt, isRunning, taskName, dots]);
+  }, [mode, customMin, totalTime, timeLeft, startedAt, isRunning, taskName, taskId, dots]);
 
   const applyServerState = useCallback((d) => {
     const computed = computeFromServer(d);
     setMode(d.mode);
     setCustomMin(d.custom_min);
     setTaskNameRaw(d.task_name || '');
+    setTaskIdRaw(d.task_id ?? null);
     setDots(d.dots || 0);
     setTimeLeft(computed.timeLeft);
     setTotalTime(computed.totalTime);
@@ -212,12 +217,32 @@ export function FocusProvider({ children }) {
   }, []);
 
   // Debounced task-name sync — pushes 700ms after typing stops.
+  // (Used only for the free-text "custom focus" label, i.e. when no
+  // real task is linked — see setTask/clearTask below.)
   const setTaskName = useCallback((val) => {
     setTaskNameRaw(val);
     clearTimeout(taskDebounceRef.current);
     taskDebounceRef.current = setTimeout(() => {
       pushTimerState({ task_name: val });
     }, 700);
+  }, [pushTimerState]);
+
+  // Link the timer to a real task from the Tasks board — its title
+  // becomes the session label and its id is stamped onto the focus
+  // session/tree so completed minutes accumulate on the task itself.
+  const setTask = useCallback((task) => {
+    clearTimeout(taskDebounceRef.current);
+    setTaskNameRaw(task.title);
+    setTaskIdRaw(task.id);
+    pushTimerState({ task_name: task.title, task_id: task.id });
+  }, [pushTimerState]);
+
+  // Unlink from a task and go back to a blank, freely-typed label.
+  const clearTask = useCallback(() => {
+    clearTimeout(taskDebounceRef.current);
+    setTaskNameRaw('');
+    setTaskIdRaw(null);
+    pushTimerState({ task_name: '', task_id: null });
   }, [pushTimerState]);
 
   const loadData = useCallback(async () => {
@@ -294,21 +319,22 @@ export function FocusProvider({ children }) {
     const m   = modeRef.current;
     const min = customMinRef.current;
     const t   = taskRef.current;
+    const tid = taskIdRef.current;
     const r   = roomRef.current;
     if (m === 'focus') {
       playDone();
       const quote = randQuote();
       try {
         const res = await api.post('/focus/sessions', {
-          task_name: t.trim() || 'Flow Session', duration_minutes: min.focus,
+          task_name: t.trim() || 'Flow Session', duration_minutes: min.focus, task_id: tid || null,
         });
         if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
-        setCongrats({ quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus });
+        setCongrats({ quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus, task: res.task || null });
         setDots((d) => d + 1);
         pushTimerState({ running: false, started_at: null, remaining_seconds: 0, dots: (dots || 0) + 1 });
         loadData();
       } catch (_) {
-        setCongrats({ quote, xpAwarded: 0, minutes: min.focus });
+        setCongrats({ quote, xpAwarded: 0, minutes: min.focus, task: null });
       }
     } else {
       playBreakEnd();
@@ -426,9 +452,9 @@ export function FocusProvider({ children }) {
 
   return (
     <FocusContext.Provider value={{
-      mode, customMin, timeLeft, totalTime, isRunning, taskName, dots,
+      mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots,
       startedAt, congrats, stats, board, room, roomTree,
-      setTaskName, setRoom, setCongrats, leaveRoom,
+      setTaskName, setTask, clearTask, setRoom, setCongrats, leaveRoom,
       toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,
       loadData,
     }}>

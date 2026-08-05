@@ -46,6 +46,7 @@ router.get('/timer', async (req, res) => {
       started_at:        row.started_at,
       running:           Boolean(row.running),
       task_name:         row.task_name || '',
+      task_id:           row.task_id != null ? Number(row.task_id) : null,
       dots:              Number(row.dots || 0),
       version:           Number(row.version),
     });
@@ -55,23 +56,24 @@ router.post('/timer/sync', async (req, res) => {
   try {
     const {
       mode = 'focus', custom_min, duration_seconds, remaining_seconds,
-      started_at, running, task_name = '', dots = 0,
+      started_at, running, task_name = '', task_id = null, dots = 0,
     } = req.body;
     const customMinJson = JSON.stringify(custom_min || { focus: 25, short: 5, long: 15 });
     await db.execute({
       sql: `INSERT INTO focus_solo_timer
-              (user_id, mode, custom_min, duration_seconds, remaining_seconds, started_at, running, task_name, dots, version, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+              (user_id, mode, custom_min, duration_seconds, remaining_seconds, started_at, running, task_name, task_id, dots, version, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
             ON CONFLICT(user_id) DO UPDATE SET
               mode = excluded.mode, custom_min = excluded.custom_min,
               duration_seconds = excluded.duration_seconds, remaining_seconds = excluded.remaining_seconds,
               started_at = excluded.started_at, running = excluded.running,
-              task_name = excluded.task_name, dots = excluded.dots,
+              task_name = excluded.task_name, task_id = excluded.task_id, dots = excluded.dots,
               version = focus_solo_timer.version + 1, updated_at = datetime('now')`,
       args: [
         req.user.id, mode, customMinJson,
         Math.round(duration_seconds || 1500), Math.round(remaining_seconds || 0),
-        started_at || null, running ? 1 : 0, task_name, Math.round(dots || 0),
+        started_at || null, running ? 1 : 0, task_name,
+        task_id != null ? Number(task_id) : null, Math.round(dots || 0),
       ],
     });
     const row = (await db.execute({
@@ -126,15 +128,38 @@ router.put('/font-scale', async (req, res) => {
     res.json({ ok: true, font_scale });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
+// Links a focus session to a real task (if task_id is given): verifies
+// ownership, adds the minutes to the task's running time total, and
+// returns the fresh task row so the client can show "Xm total on this
+// task" and offer a one-tap "mark as done" in the completion modal.
+async function logMinutesOnTask(userId, taskId, minutes) {
+  if (!taskId || minutes <= 0) return null;
+  const id = Number(taskId);
+  if (!Number.isFinite(id)) return null;
+  const existing = (await db.execute({
+    sql: `SELECT id FROM tasks WHERE id = ? AND user_id = ?`, args: [id, userId],
+  })).rows[0];
+  if (!existing) return null; // not this user's task — ignore silently
+  await db.execute({
+    sql:  `UPDATE tasks SET time_spent_minutes = COALESCE(time_spent_minutes, 0) + ? WHERE id = ? AND user_id = ?`,
+    args: [Math.max(0, Math.floor(minutes)), id, userId],
+  });
+  const row = (await db.execute({
+    sql: `SELECT id, title, status, progress, time_spent_minutes FROM tasks WHERE id = ? AND user_id = ?`,
+    args: [id, userId],
+  })).rows[0];
+  return row ? { ...row, time_spent_minutes: Number(row.time_spent_minutes) } : null;
+}
+
 router.post('/sessions', async (req, res) => {
   try {
-    const { task_name = 'Focus Session', duration_minutes } = req.body;
+    const { task_name = 'Focus Session', duration_minutes, task_id = null } = req.body;
     if (!duration_minutes || duration_minutes < 1)
       return res.status(400).json({ error: 'Invalid duration' });
     const week_start = getWeekStart();
     await db.execute({
-      sql:  `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start) VALUES (?, ?, ?, ?)`,
-      args: [req.user.id, task_name, duration_minutes, week_start],
+      sql:  `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start, task_id) VALUES (?, ?, ?, ?, ?)`,
+      args: [req.user.id, task_name, duration_minutes, week_start, task_id != null ? Number(task_id) : null],
     });
     const xpAmount = Math.floor(duration_minutes / 5) * 2;
     if (xpAmount > 0) {
@@ -147,26 +172,34 @@ router.post('/sessions', async (req, res) => {
     try {
       const treeKey = await getEquippedTree(req.user.id);
       await db.execute({
-        sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
-               VALUES (?, ?, 'alive', ?, ?)`,
-        args: [req.user.id, treeKey, task_name, duration_minutes],
+        sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
+               VALUES (?, ?, 'alive', ?, ?, ?)`,
+        args: [req.user.id, treeKey, task_name, duration_minutes, task_id != null ? Number(task_id) : null],
       });
       treePlanted = treeKey;
     } catch (e) { console.error('plant tree failed (non-fatal):', e.message); }
-    res.json({ ok: true, xpAwarded: xpAmount, treePlanted });
+
+    let task = null;
+    try { task = await logMinutesOnTask(req.user.id, task_id, duration_minutes); }
+    catch (e) { console.error('logMinutesOnTask failed (non-fatal):', e.message); }
+
+    res.json({ ok: true, xpAwarded: xpAmount, treePlanted, task });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
 router.post('/sessions/abandon', async (req, res) => {
   try {
-    const { task_name = 'Focus Session', duration_minutes = 0 } = req.body;
+    const { task_name = 'Focus Session', duration_minutes = 0, task_id = null } = req.body;
     const treeKey = await getEquippedTree(req.user.id);
     await db.execute({
-      sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
-             VALUES (?, ?, 'dead', ?, ?)`,
-      args: [req.user.id, treeKey, task_name, Math.max(0, Math.floor(duration_minutes))],
+      sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
+             VALUES (?, ?, 'dead', ?, ?, ?)`,
+      args: [req.user.id, treeKey, task_name, Math.max(0, Math.floor(duration_minutes)), task_id != null ? Number(task_id) : null],
     });
-    res.json({ ok: true, treeDied: treeKey });
+    let task = null;
+    try { task = await logMinutesOnTask(req.user.id, task_id, duration_minutes); }
+    catch (e) { console.error('logMinutesOnTask failed (non-fatal):', e.message); }
+    res.json({ ok: true, treeDied: treeKey, task });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 

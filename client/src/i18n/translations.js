@@ -169,6 +169,12 @@ export const translations = {
       'flow.plantFirst':    'Plant your first tree →',
       'flow.minFocused':    '{n} min of focused work.',
       'flow.minFocusedSub': 'min focused',
+      'flow.pickTask':      'Pick a task',
+      'flow.searchTasks':   'Search your tasks…',
+      'flow.noOpenTasks':   'No open tasks — add one from the Tasks board first.',
+      'flow.noTasksMatch':  'No tasks match your search.',
+      'flow.timeSpentSoFar':'{n} min logged on this task so far',
+      'flow.markDone':      'Mark done',
   
       // ── Lumi ───────────────────────────────────────────────
       'lumi.greeting':     "Hi {name}, I'm Lumi ✦",
@@ -729,6 +735,12 @@ export const translations = {
       'flow.plantFirst':    'ازرع شجرتك الأولى ←',
       'flow.minFocused':    '{n} دقيقة من العمل المركّز.',
       'flow.minFocusedSub': 'دقيقة تركيز',
+      'flow.pickTask':      'اختر مهمة',
+      'flow.searchTasks':   'ابحث في مهامّك…',
+      'flow.noOpenTasks':   'لا توجد مهام مفتوحة — أضِف واحدة من لوحة المهام أولًا.',
+      'flow.noTasksMatch':  'لا توجد مهام مطابقة لبحثك.',
+      'flow.timeSpentSoFar':'{n} دقيقة مسجّلة على هذه المهمة حتى الآن',
+      'flow.markDone':      'إنجاز المهمة',
   
       // ── لومي ────────────────────────────────────────────────
       'lumi.greeting':     'أهلًا {name}، أنا لومي ✦',
