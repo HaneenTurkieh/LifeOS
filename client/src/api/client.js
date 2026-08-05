@@ -12,6 +12,11 @@ export function setToken(token) {
 async function request(path, options = {}) {
   const token = getToken();
   const res   = await fetch(`${BASE}${path}`, {
+    // Safari is more aggressive than Chrome about heuristically caching
+    // GET JSON responses when the server doesn't send explicit
+    // Cache-Control headers — force every request to hit the network so
+    // things like /focus/forest never render a stale snapshot.
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
