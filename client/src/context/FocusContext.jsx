@@ -326,7 +326,15 @@ export function FocusProvider({ children }) {
     const pulse = () => api.post(`/focus/rooms/${room.code}/pulse`, { is_focusing: isRunning }).catch(() => {});
     pulse();
     const id = setInterval(pulse, 30000);
-    return () => clearInterval(id);
+    // Mobile browsers throttle/suspend background-tab timers, so a
+    // phone/tablet that gets locked or backgrounded stops pulsing and
+    // silently ages out of the "who's here" list (it's filtered by
+    // last_seen, not actually removed). Firing a pulse the moment the
+    // tab comes back to the foreground closes that gap immediately
+    // instead of waiting up to 30s for the next scheduled one.
+    const onVisible = () => { if (document.visibilityState === 'visible') pulse(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [room?.code, isRunning]); // eslint-disable-line
 
   const leaveRoom = useCallback(async () => {
