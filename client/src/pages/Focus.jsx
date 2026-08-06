@@ -178,6 +178,7 @@ export default function Flow() {
   const [forest,    setForest]    = useState(null);
   const [liveRoom,  setLiveRoom]  = useState(null);
   const lastTimerStartRef = useRef(null);
+  const seededRef         = useRef(false); // true once this device has polled the room at least once
   const isRunningRef      = useRef(isRunning);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
 
@@ -191,15 +192,27 @@ export default function Flow() {
   useEffect(() => {
     if (!room) { setLiveRoom(null); return; }
     let active = true;
+    // Fresh mount (page load, or switching to a different room) — the
+    // very first poll must only record a baseline, never auto-join.
+    // Without this, opening the app on a second device while a group
+    // session is already in progress looked like "if (new started_at)
+    // → toggleTimer()", which stamps a brand-new started_at for the
+    // account-wide personal timer and clobbers whatever was already
+    // ticking down there (that's what reset the in-progress session on
+    // the other device instead of just picking it up).
+    seededRef.current = false;
+    lastTimerStartRef.current = null;
     const poll = async () => {
       try {
         const d = await api.get(`/focus/rooms/${room.code}`);
         if (!active) return;
         setLiveRoom(d);
         const tm = d.timer;
+        const isFirstPoll = !seededRef.current;
+        seededRef.current = true;
         if (tm?.running && tm.started_at && lastTimerStartRef.current !== tm.started_at) {
           lastTimerStartRef.current = tm.started_at;
-          if (!isRunningRef.current && tm.remaining_seconds > 20) {
+          if (!isFirstPoll && !isRunningRef.current && tm.remaining_seconds > 20) {
             const mins = Math.max(1, Math.round(tm.duration_seconds / 60));
             if (mode !== 'focus') handleModeClick('focus');
             setDuration(mins);
@@ -473,6 +486,11 @@ export default function Flow() {
                 <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2" style={lg({ color: modeColor, active: true })}>
                   <Target size={13} style={{ color: modeColor }} className="shrink-0" />
                   <span className="flex-1 min-w-0 truncate text-sm font-semibold text-ink dark:text-white">{taskName}</span>
+                  {elapsedFocusMin > 0 && (
+                    <span className="shrink-0 text-xs font-bold tabular-nums" style={{ color: modeColor }}>
+                      {t('flow.elapsedThisSession', { n: elapsedFocusMin })}
+                    </span>
+                  )}
                   <button type="button" onClick={clearTask} disabled={isRunning}
                     title={isRunning ? (lang === 'ar' ? 'لا يمكن الإلغاء أثناء العمل' : "Can't unlink while running") : (lang === 'ar' ? 'إلغاء الربط' : 'Unlink task')}
                     className="shrink-0 text-ink/35 dark:text-white/30 hover:text-coral-500 disabled:opacity-30 disabled:cursor-not-allowed transition">

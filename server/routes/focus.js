@@ -356,7 +356,7 @@ router.get('/rooms/:code', async (req, res) => {
     const members = (await db.execute({
       sql:  `SELECT user_id, display_name, focus_minutes, is_focusing
              FROM focus_room_members
-             WHERE room_id = ? AND last_seen >= datetime('now', '-2 minutes')
+             WHERE room_id = ? AND last_seen >= datetime('now', '-5 minutes')
              ORDER BY focus_minutes DESC`,
       args: [roomRow.id],
     })).rows.map((r) => ({ ...r, focus_minutes: Number(r.focus_minutes), is_focusing: Boolean(r.is_focusing) }));
