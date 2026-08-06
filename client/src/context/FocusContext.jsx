@@ -282,8 +282,10 @@ export function FocusProvider({ children }) {
   const loadMyRooms = useCallback(async () => {
     try {
       const d = await api.get('/focus/rooms/mine-list');
-      setMyRooms(d.rooms || []);
-    } catch (_) {}
+      const rooms = d.rooms || [];
+      setMyRooms(rooms);
+      return rooms;
+    } catch (_) { return []; }
   }, []);
   useEffect(() => { loadMyRooms(); }, [loadMyRooms]);
 
@@ -354,10 +356,22 @@ export function FocusProvider({ children }) {
   const leaveRoom = useCallback(async () => {
     if (!room) return;
     await api.del(`/focus/rooms/${room.code}/leave`);
-    setRoom(null);
     setRoomTree(null);
     prevTreeStatusRef.current = null;
-    loadMyRooms();
+    // Leaving deletes membership in *this* room only — the others are
+    // untouched server-side. But dropping `room` straight to null here
+    // made it look like every room had disappeared, since the room
+    // switcher only showed up once you had 2+ rooms and there was
+    // nothing else on screen to point back at the ones you still
+    // belong to. Auto-switch to the next most-recently-active one
+    // instead, and only fall back to the empty state if that was
+    // genuinely your last room.
+    const remaining = await loadMyRooms();
+    if (remaining.length > 0) {
+      setRoom({ code: remaining[0].code, name: remaining[0].name, members: [] });
+    } else {
+      setRoom(null);
+    }
   }, [room, loadMyRooms]);
 
   const handleComplete = useCallback(async () => {

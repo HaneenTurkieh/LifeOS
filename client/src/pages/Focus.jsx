@@ -619,7 +619,7 @@ export default function Flow() {
                   </div>
                 </div>
 
-                {myRooms.length > 1 && (
+                {myRooms.length > 0 && (
                   <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                     {myRooms.map((r) => (
                       <button key={r.code} type="button" onClick={() => switchRoom(r.code)}
@@ -706,7 +706,7 @@ export default function Flow() {
 
       {tab === 'room' && (
         <div className="max-w-2xl">
-          {myRooms.length > 1 && (
+          {myRooms.length > 0 && (
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <span className="text-[10px] font-bold uppercase tracking-widest me-1" style={{ color: muted(0.35) }}>
                 {t('flow.myRooms')}
