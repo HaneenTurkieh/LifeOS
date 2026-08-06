@@ -353,10 +353,19 @@ router.get('/rooms/:code', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
+    // Membership is only ever changed by an explicit DELETE from the
+    // /leave route below — being idle, backgrounded, or offline for a
+    // while must never make someone disappear from this list. The old
+    // "last_seen >= -N minutes" filter here didn't remove anyone from
+    // the room either, but it did hide them from view, which looked and
+    // felt exactly like being kicked out. is_focusing already reflects
+    // real-time activity (it only stays true while a pulse says they're
+    // actively running a timer), so that alone is enough to show who's
+    // active right now without dropping anyone from the roster.
     const members = (await db.execute({
       sql:  `SELECT user_id, display_name, focus_minutes, is_focusing
              FROM focus_room_members
-             WHERE room_id = ? AND last_seen >= datetime('now', '-5 minutes')
+             WHERE room_id = ?
              ORDER BY focus_minutes DESC`,
       args: [roomRow.id],
     })).rows.map((r) => ({ ...r, focus_minutes: Number(r.focus_minutes), is_focusing: Boolean(r.is_focusing) }));
