@@ -255,6 +255,20 @@ export function FocusProvider({ children }) {
   }, []);
   useEffect(() => { loadData(); }, [loadData]);
 
+  // The weekly stats/leaderboard genuinely zero out server-side once the
+  // week rolls over (each session is bucketed by its week_start, and the
+  // query only ever sums the current one) — but loadData() above only
+  // ran once, on mount. A tab left open across the boundary (very normal
+  // on desktop) would keep showing last week's numbers until something
+  // else happened to call loadData() again. Revalidate on refocus, plus
+  // a periodic backstop for tabs that just sit open for days.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') loadData(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const iv = setInterval(loadData, 5 * 60 * 1000);
+    return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(iv); };
+  }, [loadData]);
+
   useEffect(() => {
     api.get('/focus/rooms/mine').then((d) => {
       if (d.code && !roomRef.current) {
