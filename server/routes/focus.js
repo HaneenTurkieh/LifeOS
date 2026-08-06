@@ -23,6 +23,72 @@ async function getEquippedTree(userId) {
   } catch (_) { return 'seedling'; }
 }
 
+// A member's personal timer normally self-reports its own completion
+// (via the pulse call below, which is how they land on the site-wide
+// weekly leaderboard). But that only fires if their own device is still
+// open when the countdown hits zero — a backgrounded/closed tab never
+// gets the chance, so they'd silently miss out on minutes, XP, and a
+// planted tree despite genuinely finishing the room's session.
+//
+// This is the fallback: called opportunistically from any room
+// endpoint, it checks whether the room's shared timer has naturally run
+// out (not stopped early — that path already kills the shared tree and
+// shouldn't also hand out rewards) and, for anyone still marked
+// `is_focusing` who hasn't already self-reported for *this* session
+// (tracked via credited_started_at), credits them exactly the same way
+// a normal solo completion would.
+async function reconcileRoomSession(roomId) {
+  try {
+    const t = (await db.execute({
+      sql: `SELECT started_at, duration_seconds, mode, running FROM focus_room_timer WHERE room_id = ?`,
+      args: [roomId],
+    })).rows[0];
+    if (!t || t.mode !== 'focus' || !Number(t.running)) return;
+
+    const elapsed   = Math.floor((Date.now() - new Date(t.started_at.replace(' ', 'T') + 'Z').getTime()) / 1000);
+    const remaining = Number(t.duration_seconds) - elapsed;
+    if (remaining > 0) return; // still in progress — nothing to reconcile yet
+
+    const durationMinutes = Math.round(Number(t.duration_seconds) / 60);
+    if (durationMinutes < 1) return;
+
+    const stragglers = (await db.execute({
+      sql: `SELECT user_id FROM focus_room_members
+            WHERE room_id = ? AND is_focusing = 1
+              AND (credited_started_at IS NULL OR credited_started_at != ?)`,
+      args: [roomId, t.started_at],
+    })).rows;
+
+    for (const m of stragglers) {
+      try {
+        await db.execute({
+          sql:  `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start, task_id) VALUES (?, ?, ?, ?, NULL)`,
+          args: [m.user_id, 'Room session', durationMinutes, getWeekStart()],
+        });
+        const xpAmount = Math.floor(durationMinutes / 5) * 2;
+        if (xpAmount > 0) {
+          await db.execute({
+            sql:  `INSERT INTO xp_log (user_id, amount, reason) VALUES (?, ?, ?)`,
+            args: [m.user_id, xpAmount, 'Focus: Room session'],
+          });
+        }
+        const treeKey = await getEquippedTree(m.user_id);
+        await db.execute({
+          sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
+                 VALUES (?, ?, 'alive', 'Room session', ?)`,
+          args: [m.user_id, treeKey, durationMinutes],
+        });
+        await db.execute({
+          sql:  `UPDATE focus_room_members
+                 SET is_focusing = 0, focus_minutes = focus_minutes + ?, credited_started_at = ?
+                 WHERE room_id = ? AND user_id = ?`,
+          args: [durationMinutes, t.started_at, roomId, m.user_id],
+        });
+      } catch (e) { console.error('reconcileRoomSession: member credit failed (non-fatal):', m.user_id, e.message); }
+    }
+  } catch (e) { console.error('reconcileRoomSession failed (non-fatal):', e.message); }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Solo focus timer — server-authoritative, syncs across every
 // device on the account. Mirrors the shared room timer's design:
@@ -353,6 +419,7 @@ router.get('/rooms/:code', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
+    await reconcileRoomSession(roomRow.id); // catch anyone whose room session just finished but never self-reported
     // Membership is only ever changed by an explicit DELETE from the
     // /leave route below — being idle, backgrounded, or offline for a
     // while must never make someone disappear from this list. The old
@@ -420,6 +487,7 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     if (Number(roomRow.host_id) !== Number(req.user.id))
       return res.status(403).json({ error: 'Only the host can start the shared timer' });
+    await reconcileRoomSession(roomRow.id); // sweep the previous session before this row gets overwritten
     await db.execute({
       sql: `INSERT INTO focus_room_timer (room_id, started_at, duration_seconds, mode, running)
             VALUES (?, datetime('now'), ?, ?, 1)
@@ -487,12 +555,30 @@ router.post('/rooms/:code/pulse', async (req, res) => {
     const { is_focusing = false, add_minutes = 0 } = req.body;
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
-    await db.execute({
-      sql:  `UPDATE focus_room_members
-             SET last_seen = datetime('now'), is_focusing = ?, focus_minutes = focus_minutes + ?
-             WHERE room_id = ? AND user_id = ?`,
-      args: [is_focusing ? 1 : 0, add_minutes, roomRow.id, req.user.id],
-    });
+
+    if (add_minutes > 0) {
+      // This member's own device just self-reported a completed
+      // session (already logged to /focus/sessions on their end) —
+      // stamp which room-timer session that credit belongs to so
+      // reconcileRoomSession never re-credits them for the same one.
+      const t = (await db.execute({
+        sql: `SELECT started_at FROM focus_room_timer WHERE room_id = ?`, args: [roomRow.id],
+      })).rows[0];
+      await db.execute({
+        sql:  `UPDATE focus_room_members
+               SET last_seen = datetime('now'), is_focusing = ?, focus_minutes = focus_minutes + ?, credited_started_at = ?
+               WHERE room_id = ? AND user_id = ?`,
+        args: [is_focusing ? 1 : 0, add_minutes, t?.started_at || null, roomRow.id, req.user.id],
+      });
+    } else {
+      await db.execute({
+        sql:  `UPDATE focus_room_members
+               SET last_seen = datetime('now'), is_focusing = ?
+               WHERE room_id = ? AND user_id = ?`,
+        args: [is_focusing ? 1 : 0, roomRow.id, req.user.id],
+      });
+    }
+    await reconcileRoomSession(roomRow.id); // catch any other member whose session ended without self-reporting
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
