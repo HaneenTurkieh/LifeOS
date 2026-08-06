@@ -365,7 +365,13 @@ router.post('/rooms/join', async (req, res) => {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     const valid = await comparePassword(password, roomRow.password_hash);
-    if (!valid)   return res.status(401).json({ error: 'Incorrect password' });
+    // 401 is reserved for "your login session is invalid" — the client's
+    // global fetch wrapper treats ANY 401 from ANY endpoint as exactly
+    // that, clears the account's auth token, and forces a full re-login.
+    // A wrong ROOM password is a completely different kind of failure
+    // (nothing wrong with her account) — 403 makes that distinction so
+    // mistyping a room password no longer logs her out of the whole app.
+    if (!valid)   return res.status(403).json({ error: 'Incorrect password' });
     await db.execute({
       sql:  `INSERT INTO focus_room_members (room_id, user_id, display_name, last_seen)
              VALUES (?, ?, ?, datetime('now'))
