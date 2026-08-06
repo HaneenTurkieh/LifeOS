@@ -72,6 +72,15 @@ async function initDb() {
   if (!(await hasColumn('planted_trees', 'task_id'))) {
     await db.execute(`ALTER TABLE planted_trees ADD COLUMN task_id INTEGER DEFAULT NULL`);
   }
+  // Room-synced sessions used to only reach the site-wide weekly
+  // leaderboard if the member's own device was still open when their
+  // personal timer crossed zero — if their tab was backgrounded/closed,
+  // that report never fired. credited_started_at lets the server credit
+  // members itself once a room session naturally finishes, without
+  // double-counting anyone whose device *did* self-report normally.
+  if (!(await hasColumn('focus_room_members', 'credited_started_at'))) {
+    await db.execute(`ALTER TABLE focus_room_members ADD COLUMN credited_started_at TEXT DEFAULT NULL`);
+  }
 
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([
