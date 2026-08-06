@@ -323,6 +323,32 @@ router.get('/rooms/mine', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
+// Every room the user has ever created or joined — the DB never enforced
+// "one room at a time" (only UNIQUE(room_id, user_id) to stop duplicate
+// membership in the *same* room), that was purely a client-side limit
+// where a single `room` variable got overwritten. This backs a room
+// switcher so members can belong to more than one and pick which is
+// active without leaving the others.
+router.get('/rooms/mine-list', async (req, res) => {
+  try {
+    const rows = (await db.execute({
+      sql: `SELECT r.code, r.name, r.host_id, m.last_seen
+            FROM focus_room_members m
+            JOIN focus_rooms r ON r.id = m.room_id
+            WHERE m.user_id = ?
+            ORDER BY m.last_seen DESC
+            LIMIT 20`,
+      args: [req.user.id],
+    })).rows;
+    res.json({
+      rooms: rows.map((r) => ({
+        code: r.code, name: r.name,
+        isHost: Number(r.host_id) === Number(req.user.id),
+      })),
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 router.get('/rooms/:code', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];

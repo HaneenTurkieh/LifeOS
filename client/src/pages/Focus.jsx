@@ -127,6 +127,7 @@ export default function Flow() {
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
     taskName, taskId, dots, startedAt, congrats, died, stats, board, room, roomTree,
+    myRooms, switchRoom, loadMyRooms,
     setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
   } = useFocus();
@@ -255,9 +256,13 @@ export default function Flow() {
         setRoom({ code: res.code, name: res.name, members: [] });
         toast.success(t('flow.joined', { name: res.name }));
       }
+      // Membership isn't exclusive anymore — creating or joining a room
+      // doesn't replace the others you already belong to, it just makes
+      // this one active. Refresh the switcher list so it shows up there.
+      loadMyRooms();
       setRoomModal(false);
       setRoomForm({ tab: 'join', name: '', code: '', password: '' });
-      setTab('timer');
+      setTab('room');
     } catch (err) { toast.error(err.message); }
   };
 
@@ -578,17 +583,35 @@ export default function Flow() {
                       {t('flow.code')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                     </p>
                   </div>
-                  {sessionLive ? (
-                    <div title={lang === 'ar' ? 'لا يمكن المغادرة أثناء الجلسة' : 'Cannot leave during a session'}
-                      className="text-ink/20 dark:text-white/15 cursor-not-allowed">
-                      <Lock size={14} />
-                    </div>
-                  ) : (
-                    <button onClick={handleLeaveRoom} className="text-ink/30 dark:text-white/25 hover:text-coral-500 dark:hover:text-coral-400 transition">
-                      <LogOut size={15} className="rtl:rotate-180" />
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <button type="button" onClick={() => setRoomModal(true)} title={t('flow.newOrJoinRoom')}
+                      className="text-ink/30 dark:text-white/25 hover:text-ink/60 dark:hover:text-white/50 transition">
+                      <Plus size={15} />
                     </button>
-                  )}
+                    {sessionLive ? (
+                      <div title={lang === 'ar' ? 'لا يمكن المغادرة أثناء الجلسة' : 'Cannot leave during a session'}
+                        className="text-ink/20 dark:text-white/15 cursor-not-allowed">
+                        <Lock size={14} />
+                      </div>
+                    ) : (
+                      <button onClick={handleLeaveRoom} className="text-ink/30 dark:text-white/25 hover:text-coral-500 dark:hover:text-coral-400 transition">
+                        <LogOut size={15} className="rtl:rotate-180" />
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {myRooms.length > 1 && (
+                  <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                    {myRooms.map((r) => (
+                      <button key={r.code} type="button" onClick={() => switchRoom(r.code)}
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-semibold truncate max-w-[7rem] transition"
+                        style={room.code === r.code ? lg({ color: modeColor, active: true }) : lg()}>
+                        {r.isHost && '👑 '}{r.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {roomTree && (
                   <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-3"
@@ -665,6 +688,25 @@ export default function Flow() {
 
       {tab === 'room' && (
         <div className="max-w-2xl">
+          {myRooms.length > 1 && (
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-widest me-1" style={{ color: muted(0.35) }}>
+                {t('flow.myRooms')}
+              </span>
+              {myRooms.map((r) => (
+                <button key={r.code} type="button" onClick={() => switchRoom(r.code)}
+                  className="rounded-xl px-3 py-1.5 text-xs font-semibold truncate max-w-[10rem] transition"
+                  style={room?.code === r.code ? lg({ color: modeColor, active: true }) : lg()}>
+                  {r.isHost && '👑 '}{r.name}
+                </button>
+              ))}
+              <button type="button" onClick={() => setRoomModal(true)}
+                className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold" style={lg()}>
+                <Plus size={12} /> {t('flow.newRoom')}
+              </button>
+            </div>
+          )}
+
           {room ? (
             <div className="rounded-3xl p-7" style={cardGlass}>
               <div className="flex items-start justify-between mb-6">
@@ -674,17 +716,23 @@ export default function Flow() {
                     {t('flow.shareCode')}: <span className="font-mono font-bold tracking-[0.2em]" style={{ color: modeColor, direction: 'ltr', display: 'inline-block' }}>{displayRoom.code}</span>
                   </p>
                 </div>
-                {sessionLive ? (
-                  <div className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink/30 dark:text-white/25 cursor-not-allowed" style={lg()}
-                    title={lang === 'ar' ? 'لا يمكن المغادرة أثناء الجلسة — انتظر أن يوقفها المضيف' : 'Cannot leave while a session is running — wait for the host to stop it'}>
-                    <Lock size={14} /> {t('flow.leave')}
-                  </div>
-                ) : (
-                  <button onClick={handleLeaveRoom}
-                    className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink dark:text-white" style={lg()}>
-                    <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={() => setRoomModal(true)} title={t('flow.newOrJoinRoom')}
+                    className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-3.5 py-2 text-ink dark:text-white" style={lg()}>
+                    <Plus size={14} />
                   </button>
-                )}
+                  {sessionLive ? (
+                    <div className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink/30 dark:text-white/25 cursor-not-allowed" style={lg()}
+                      title={lang === 'ar' ? 'لا يمكن المغادرة أثناء الجلسة — انتظر أن يوقفها المضيف' : 'Cannot leave while a session is running — wait for the host to stop it'}>
+                      <Lock size={14} /> {t('flow.leave')}
+                    </div>
+                  ) : (
+                    <button onClick={handleLeaveRoom}
+                      className="flex items-center gap-2 text-sm font-semibold rounded-2xl px-4 py-2 text-ink dark:text-white" style={lg()}>
+                      <LogOut size={14} className="rtl:rotate-180" /> {t('flow.leave')}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {roomTree && (
