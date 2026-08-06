@@ -120,6 +120,7 @@ export function FocusProvider({ children }) {
   const [board,     setBoard]     = useState([]);
   const [room,      setRoom]      = useState(null);
   const [roomTree,  setRoomTree]  = useState(null);
+  const [myRooms,   setMyRooms]   = useState([]); // every room the user's created/joined
 
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
@@ -262,6 +263,26 @@ export function FocusProvider({ children }) {
     }).catch(() => {});
   }, []); // eslint-disable-line
 
+  // The full list backing the room switcher — separate from the single
+  // "which room am I looking at right now" `room` state above.
+  const loadMyRooms = useCallback(async () => {
+    try {
+      const d = await api.get('/focus/rooms/mine-list');
+      setMyRooms(d.rooms || []);
+    } catch (_) {}
+  }, []);
+  useEffect(() => { loadMyRooms(); }, [loadMyRooms]);
+
+  // Switch which room is active/synced without leaving the others —
+  // just points `room` at a different code; the polling effect below
+  // (keyed on room.code) fetches that room's live data automatically.
+  const switchRoom = useCallback((code) => {
+    if (room?.code === code) return;
+    setRoom({ code, name: '', members: [] });
+    setRoomTree(null);
+    prevTreeStatusRef.current = null;
+  }, [room]);
+
   useEffect(() => {
     if (!room) { setRoomTree(null); prevTreeStatusRef.current = null; return; }
     const poll = async () => {
@@ -314,7 +335,8 @@ export function FocusProvider({ children }) {
     setRoom(null);
     setRoomTree(null);
     prevTreeStatusRef.current = null;
-  }, [room]);
+    loadMyRooms();
+  }, [room, loadMyRooms]);
 
   const handleComplete = useCallback(async () => {
     const m   = modeRef.current;
@@ -518,8 +540,9 @@ export function FocusProvider({ children }) {
   return (
     <FocusContext.Provider value={{
       mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots,
-      startedAt, congrats, died, stats, board, room, roomTree,
+      startedAt, congrats, died, stats, board, room, roomTree, myRooms,
       setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
+      switchRoom, loadMyRooms,
       toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,
       loadData,
     }}>
