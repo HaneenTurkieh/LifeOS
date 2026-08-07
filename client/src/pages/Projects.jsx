@@ -61,7 +61,10 @@ export default function Projects({ openTrigger = 0 }) {
     if (openTrigger > 0) { setForm(emptyForm); setModalOpen(true); }
   }, [openTrigger]); // eslint-disable-line
 
-  const tasksFor = (project) => allTasks.filter((t) => t.category === project.title);
+  const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+  const tasksFor = (project) => allTasks
+    .filter((t) => t.category === project.title)
+    .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
 
   const toggleProjectTask = async (task) => {
     const newStatus = task.status === 'done' ? 'todo' : 'done';
