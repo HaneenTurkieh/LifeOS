@@ -98,7 +98,11 @@ export default function Calendar() {
   const getTasksForDay = (cell) => {
     if (!cell.currentMonth) return [];
     const ds = toDateStr(year, month, cell.day);
-    return tasks.filter(tk => tk.deadline === ds && tk.status !== 'done');
+    // Completed tasks stay on the day they belong to (Apple Calendar-style)
+    // instead of vanishing — sorted so open tasks lead and done ones trail.
+    return tasks
+      .filter(tk => tk.deadline === ds)
+      .sort((a, b) => (a.status === 'done') - (b.status === 'done'));
   };
 
   const moveTask = async (task, dateStr) => {
@@ -362,22 +366,23 @@ export default function Calendar() {
                       {cellTasks.slice(0, 3).map(task => {
                         const colors     = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
                         const isDragging = draggedId === task.id;
+                        const isDone     = task.status === 'done';
                         return (
                           <div
                             key={task.id}
-                            draggable
-                            onDragStart={e => onDragStart(e, task)}
+                            draggable={!isDone}
+                            onDragStart={e => !isDone && onDragStart(e, task)}
                             onDragEnd={onDragEnd}
                             onClick={e => openTaskPanel(e, task)}
-                            onTouchStart={e => onTouchStart(e, task)}
+                            onTouchStart={e => !isDone && onTouchStart(e, task)}
                             onTouchMove={onTouchMove}
                             onTouchEnd={onTouchEnd}
                             onTouchCancel={onTouchCancel}
-                            className="truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-tight cursor-grab active:cursor-grabbing transition-all select-none"
+                            className={`truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-tight transition-all select-none flex items-center gap-1 ${isDone ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
                             style={{
-                              background:   isDark ? colors.dark : colors.bg,
-                              color:        colors.text,
-                              opacity:      isDragging ? 0.40 : 1,
+                              background:   isDone ? 'rgba(76,195,138,0.08)' : isDark ? colors.dark : colors.bg,
+                              color:        isDone ? (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(30,34,51,0.40)') : colors.text,
+                              opacity:      isDragging ? 0.40 : isDone ? 0.75 : 1,
                               transform:    isDragging ? 'scale(0.95)' : 'scale(1)',
                               touchAction:  'none',
                               WebkitUserSelect: 'none',
@@ -385,7 +390,8 @@ export default function Calendar() {
                             }}
                             title={task.title}
                           >
-                            {task.title}
+                            {isDone && <Check size={9} className="text-sage-500 shrink-0"/>}
+                            <span className={`truncate ${isDone ? 'line-through' : ''}`}>{task.title}</span>
                           </div>
                         );
                       })}
