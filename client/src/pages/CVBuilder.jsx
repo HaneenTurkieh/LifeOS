@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X, Download } from 'lucide-react';
+import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X, Download, Briefcase, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -10,11 +10,23 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 import CVExportModal from '../components/CVExportModal.jsx';
 
+// Experience and Education come first — they're what a resume actually
+// leads with. Projects/Skills/Certifications round it out below.
 const TABS = [
-  { key: 'projects',       label: 'Projects',       icon: FolderGit2 },
-  { key: 'skills',         label: 'Skills',         icon: Lightbulb  },
-  { key: 'certifications', label: 'Certifications', icon: Award      },
+  { key: 'experience',     label: 'Experience',     icon: Briefcase     },
+  { key: 'education',      label: 'Education',      icon: GraduationCap },
+  { key: 'projects',       label: 'Projects',       icon: FolderGit2    },
+  { key: 'skills',         label: 'Skills',         icon: Lightbulb     },
+  { key: 'certifications', label: 'Certifications', icon: Award         },
 ];
+
+const TAB_SINGULAR = {
+  experience:     'experience',
+  education:      'education entry',
+  projects:       'project',
+  skills:         'skill',
+  certifications: 'certification',
+};
 
 const LEVEL_STYLES = {
   beginner:     'bg-ink/5 text-ink/50',
@@ -23,32 +35,44 @@ const LEVEL_STYLES = {
 };
 
 const FORMS = {
+  experience:     { role: '', company: '', location: '', start_date: '', end_date: '', is_current: false, description: '' },
+  education:      { school: '', degree: '', field: '', start_date: '', end_date: '', description: '' },
   projects:       { title: '', description: '', tech: '', link: '' },
   skills:         { name: '', level: 'intermediate', category: 'technical' },
   certifications: { title: '', issuer: '', date: '', link: '' },
 };
 
+const EMPTY_PROFILE = { cv_summary: '', cv_headline: '', cv_phone: '', cv_location: '' };
+
 export default function CVBuilder({ openTrigger = 0 }) {
   const { user } = useAuth();
   const toast    = useToast();
 
-  const [tab,         setTab]         = useState('projects');
-  const [data,        setData]        = useState({ projects: [], skills: [], certifications: [] });
+  const [tab,         setTab]         = useState('experience');
+  const [data,        setData]        = useState({ experience: [], education: [], projects: [], skills: [], certifications: [] });
+  const [profile,     setProfile]     = useState(EMPTY_PROFILE);
+  const [profileDraft, setProfileDraft] = useState(EMPTY_PROFILE);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [modalOpen,   setModalOpen]   = useState(false);
-  const [form,        setForm]        = useState(FORMS.projects);
+  const [form,        setForm]        = useState(FORMS.experience);
   const [reviewing,   setReviewing]   = useState(false);
   const [review,      setReview]      = useState(null);
   const [showExport,  setShowExport]  = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [projects, skills, certifications] = await Promise.all([
+      const [experience, education, projects, skills, certifications, prof] = await Promise.all([
+        api.get('/cv/experience'),
+        api.get('/cv/education'),
         api.get('/cv/projects'),
         api.get('/cv/skills'),
         api.get('/cv/certifications'),
+        api.get('/cv/profile'),
       ]);
-      setData({ projects, skills, certifications });
+      setData({ experience, education, projects, skills, certifications });
+      setProfile(prof || EMPTY_PROFILE);
+      setProfileDraft(prof || EMPTY_PROFILE);
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
@@ -68,7 +92,10 @@ export default function CVBuilder({ openTrigger = 0 }) {
   const createItem = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/cv/${tab}`, form);
+      // SQLite has no real boolean type — is_current is stored as
+      // 0/1 like every other flag in this app, not a JS true/false.
+      const payload = tab === 'experience' ? { ...form, is_current: form.is_current ? 1 : 0 } : form;
+      await api.post(`/cv/${tab}`, payload);
       toast.success('Added to your CV');
       setModalOpen(false);
       load();
@@ -81,15 +108,35 @@ export default function CVBuilder({ openTrigger = 0 }) {
     load();
   };
 
+  const profileDirty = JSON.stringify(profile) !== JSON.stringify(profileDraft);
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await api.put('/cv/profile', profileDraft);
+      setProfile(profileDraft);
+      toast.success('Profile saved');
+    } catch (err) { toast.error(err.message); }
+    finally { setSavingProfile(false); }
+  };
+
   const reviewCV = async () => {
-    const total = data.projects.length + data.skills.length + data.certifications.length;
+    const total = data.experience.length + data.education.length + data.projects.length + data.skills.length + data.certifications.length;
     if (total < 3) {
-      toast.error('Add at least a few projects, skills, or certifications first.');
+      toast.error('Add at least a few experience, education, or project entries first.');
       return;
     }
     setReviewing(true);
     try {
       const cvSummary = `
+SUMMARY:
+${profile.cv_summary || 'None'}
+
+EXPERIENCE (${data.experience.length}):
+${data.experience.map((x) => `• ${x.role} at ${x.company || 'N/A'}${x.description ? ` — ${x.description}` : ''}`).join('\n') || 'None'}
+
+EDUCATION (${data.education.length}):
+${data.education.map((ed) => `• ${ed.degree || ''} ${ed.field ? `in ${ed.field}` : ''} — ${ed.school}`.trim()).join('\n') || 'None'}
+
 PROJECTS (${data.projects.length}):
 ${data.projects.map((p) => `• ${p.title}${p.tech ? ` [${p.tech}]` : ''}${p.description ? ` — ${p.description}` : ''}`).join('\n') || 'None'}
 
@@ -120,10 +167,41 @@ ${cvSummary}`,
 
   if (loading) return <PageLoader />;
 
-  const hasContent = data.projects.length + data.skills.length + data.certifications.length > 0;
+  const hasContent =
+    data.experience.length + data.education.length + data.projects.length + data.skills.length + data.certifications.length > 0 ||
+    Boolean(profile.cv_summary || profile.cv_headline);
 
   return (
     <div>
+      {/* ── Profile: headline, contact, summary — the part every real
+           resume leads with but nothing else here captures ────── */}
+      <GlassCard className="p-5 mb-6">
+        <div className="flex items-center justify-between mb-3.5">
+          <p className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/25">Profile & Summary</p>
+          {profileDirty && (
+            <button onClick={saveProfile} disabled={savingProfile}
+              className="btn-primary text-xs px-3.5 py-1.5 disabled:opacity-50">
+              {savingProfile ? 'Saving…' : 'Save'}
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <input className="input-field" placeholder="Headline, e.g. Financial Analyst"
+            value={profileDraft.cv_headline}
+            onChange={(e) => setProfileDraft({ ...profileDraft, cv_headline: e.target.value })} />
+          <input className="input-field" placeholder="Location, e.g. Ramallah, Palestine"
+            value={profileDraft.cv_location}
+            onChange={(e) => setProfileDraft({ ...profileDraft, cv_location: e.target.value })} />
+          <input className="input-field sm:col-span-2" placeholder="Phone (optional)"
+            value={profileDraft.cv_phone}
+            onChange={(e) => setProfileDraft({ ...profileDraft, cv_phone: e.target.value })} />
+        </div>
+        <textarea className="input-field" rows={3}
+          placeholder="Professional summary — 2-3 sentences on who you are and what you bring."
+          value={profileDraft.cv_summary}
+          onChange={(e) => setProfileDraft({ ...profileDraft, cv_summary: e.target.value })} />
+      </GlassCard>
+
       {/* ── Top bar: tabs + action buttons ──────────────────── */}
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <div className="flex gap-2">
@@ -217,6 +295,68 @@ ${cvSummary}`,
         )}
       </AnimatePresence>
 
+      {/* ── Experience ───────────────────────────────────────── */}
+      {tab === 'experience' && (
+        data.experience.length === 0 ? (
+          <EmptyState icon={Briefcase} title="No experience yet"
+            description="Add a role you've worked to show your career history." />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {data.experience.map((x, i) => (
+              <GlassCard key={x.id} delay={i * 0.04} className="p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-display font-bold text-ink dark:text-white">{x.role}</h3>
+                    <p className="text-sm text-ink/50 dark:text-white/40">
+                      {x.company}{x.location && ` · ${x.location}`}
+                    </p>
+                    <p className="text-xs text-ink/35 dark:text-white/30 mt-0.5">
+                      {x.start_date || '—'} – {x.is_current ? 'Present' : (x.end_date || '—')}
+                    </p>
+                  </div>
+                  <button onClick={() => removeItem('experience', x.id)}
+                    className="text-ink/25 hover:text-coral-500 transition shrink-0">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                {x.description && <p className="text-sm text-ink/60 dark:text-white/50 mt-2 whitespace-pre-line">{x.description}</p>}
+              </GlassCard>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* ── Education ────────────────────────────────────────── */}
+      {tab === 'education' && (
+        data.education.length === 0 ? (
+          <EmptyState icon={GraduationCap} title="No education yet"
+            description="Add your degrees or coursework." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.education.map((ed, i) => (
+              <GlassCard key={ed.id} delay={i * 0.04} className="p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-display font-bold text-ink dark:text-white">{ed.school}</h3>
+                    <p className="text-sm text-ink/50 dark:text-white/40">
+                      {ed.degree}{ed.field && ` · ${ed.field}`}
+                    </p>
+                    <p className="text-xs text-ink/35 dark:text-white/30 mt-0.5">
+                      {ed.start_date || '—'} – {ed.end_date || 'Present'}
+                    </p>
+                  </div>
+                  <button onClick={() => removeItem('education', ed.id)}
+                    className="text-ink/25 hover:text-coral-500 transition shrink-0">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                {ed.description && <p className="text-sm text-ink/60 dark:text-white/50 mt-2">{ed.description}</p>}
+              </GlassCard>
+            ))}
+          </div>
+        )
+      )}
+
       {/* ── Projects ─────────────────────────────────────────── */}
       {tab === 'projects' && (
         data.projects.length === 0 ? (
@@ -293,8 +433,54 @@ ${cvSummary}`,
       )}
 
       {/* ── Add item modal ───────────────────────────────────── */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={`Add ${tab.slice(0, -1)}`}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={`Add ${TAB_SINGULAR[tab]}`}>
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
+          {tab === 'experience' && (
+            <>
+              <input className="input-field" placeholder="Job title"
+                value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                autoFocus required />
+              <input className="input-field" placeholder="Company"
+                value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
+              <input className="input-field" placeholder="Location (optional)"
+                value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              <div className="grid grid-cols-2 gap-3">
+                <input className="input-field" placeholder="Start (e.g. Jan 2023)"
+                  value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+                <input className="input-field" placeholder="End (e.g. Mar 2025)"
+                  value={form.end_date} disabled={form.is_current}
+                  onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-ink/60 dark:text-white/50 -mt-1">
+                <input type="checkbox" checked={form.is_current}
+                  onChange={(e) => setForm({ ...form, is_current: e.target.checked, end_date: e.target.checked ? '' : form.end_date })} />
+                I currently work here
+              </label>
+              <textarea className="input-field" placeholder="What did you do? (bullet points work great)" rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </>
+          )}
+          {tab === 'education' && (
+            <>
+              <input className="input-field" placeholder="School / University"
+                value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })}
+                autoFocus required />
+              <input className="input-field" placeholder="Degree, e.g. Bachelor of Science"
+                value={form.degree} onChange={(e) => setForm({ ...form, degree: e.target.value })} />
+              <input className="input-field" placeholder="Field of study (optional)"
+                value={form.field} onChange={(e) => setForm({ ...form, field: e.target.value })} />
+              <div className="grid grid-cols-2 gap-3">
+                <input className="input-field" placeholder="Start (e.g. 2021)"
+                  value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+                <input className="input-field" placeholder="End (e.g. 2025)"
+                  value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+              </div>
+              <textarea className="input-field" placeholder="Notes (optional) — honors, relevant coursework, GPA" rows={2}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </>
+          )}
           {tab === 'projects' && (
             <>
               <input className="input-field" placeholder="Project title"
@@ -354,7 +540,9 @@ ${cvSummary}`,
         {showExport && (
           <CVExportModal
             data={data}
+            profile={profile}
             userName={user?.name || ''}
+            userEmail={user?.email || ''}
             onClose={() => setShowExport(false)}
           />
         )}

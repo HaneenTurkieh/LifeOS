@@ -45,6 +45,40 @@ async function initDb() {
       await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT NULL`);
     }
   }
+  // ── CV Builder was missing every section that actually makes a CV a
+  //    CV — no professional summary, no work experience, no education.
+  //    Only projects/skills/certifications existed, so exported CVs were
+  //    structurally sparse next to a real resume. cv_summary/cv_headline
+  //    /cv_phone/cv_location live on users (one row per person, same
+  //    pattern as the PROFILE_COLS above); experience and education get
+  //    their own tables since they're repeatable lists.
+  const CV_PROFILE_COLS = ['cv_summary', 'cv_headline', 'cv_phone', 'cv_location'];
+  for (const col of CV_PROFILE_COLS) {
+    if (!(await hasColumn('users', col))) {
+      await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT ''`);
+    }
+  }
+  await db.execute(`CREATE TABLE IF NOT EXISTS cv_experience (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        TEXT NOT NULL,
+    company     TEXT DEFAULT '',
+    location    TEXT DEFAULT '',
+    start_date  TEXT DEFAULT '',
+    end_date    TEXT DEFAULT '',
+    is_current  INTEGER NOT NULL DEFAULT 0,
+    description TEXT DEFAULT ''
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS cv_education (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    school      TEXT NOT NULL,
+    degree      TEXT DEFAULT '',
+    field       TEXT DEFAULT '',
+    start_date  TEXT DEFAULT '',
+    end_date    TEXT DEFAULT '',
+    description TEXT DEFAULT ''
+  )`);
   if (!(await hasColumn('user_premium', 'theme_preset'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN theme_preset TEXT DEFAULT 'purple'`);
   }
