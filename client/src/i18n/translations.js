@@ -85,6 +85,7 @@ export const translations = {
       'tasks.emptyTitle':    'This is where your work lives',
       'tasks.emptyDesc':     'Tasks organized by date and priority.',
       'tasks.addFirst':      'Add your first task',
+      'tasks.completedOn':   'Completed {date}',
   
       // ── Calendar ───────────────────────────────────────────
       'calendar.title':      'Your schedule',
@@ -692,6 +693,7 @@ export const translations = {
       'tasks.emptyTitle':    'هنا تعيش أعمالك',
       'tasks.emptyDesc':     'مهام منظمة حسب التاريخ والأولوية.',
       'tasks.addFirst':      'أضف مهمتك الأولى',
+      'tasks.completedOn':   'أُنجزت {date}',
   
       // ── التقويم ─────────────────────────────────────────────
       'calendar.title':      'جدولك',
