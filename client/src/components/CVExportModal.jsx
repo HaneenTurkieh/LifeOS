@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Printer, FileText } from 'lucide-react';
-import htmlDocx from 'html-docx-js/dist/html-docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 
 const LEVEL_DOTS = { beginner: 1, intermediate: 2, advanced: 3 };
 
@@ -22,6 +22,109 @@ function dateRange(start, end, isCurrent) {
   const from = start || '';
   const to   = isCurrent ? 'Present' : (end || '');
   return [from, to].filter(Boolean).join(' – ');
+}
+
+// ── Word (.docx) generator ──────────────────────────────────────
+// The preview templates are raw HTML/CSS (including a two-column
+// flex sidebar for Modern), which Word's format has no equivalent
+// for. Rather than trying to convert that HTML, this builds a real
+// Word document natively — same content, one clean single-column
+// layout, editable and safe for any ATS regardless of which preview
+// template is selected.
+const SKILL_LEVEL_LABEL = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+
+function docxHeading(text) {
+  return new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 280, after: 120 } });
+}
+function docxBody(text, opts = {}) {
+  return new Paragraph({ children: [new TextRun({ text, size: 22, ...opts })], spacing: { after: 80 } });
+}
+
+function buildDocxSections(userName, userEmail, profile, data) {
+  const { experience, education, projects, skills, certifications } = data;
+  const children = [];
+
+  children.push(new Paragraph({
+    children: [new TextRun({ text: userName || 'Your Name', bold: true, size: 34 })],
+    spacing: { after: 60 },
+  }));
+  if (profile.cv_headline) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: profile.cv_headline, bold: true, size: 22, color: '4B5563' })],
+      spacing: { after: 60 },
+    }));
+  }
+  const contact = contactLine(userEmail, profile);
+  if (contact) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: contact, size: 20, color: '6B7280' })],
+      spacing: { after: 200 },
+    }));
+  }
+
+  if (profile.cv_summary) {
+    children.push(docxHeading('Professional Summary'));
+    children.push(docxBody(profile.cv_summary));
+  }
+
+  if (experience.length) {
+    children.push(docxHeading('Experience'));
+    experience.forEach((x) => {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: [x.role, x.company].filter(Boolean).join(' · '), bold: true, size: 23 })],
+        spacing: { before: 140 },
+      }));
+      const meta = [dateRange(x.start_date, x.end_date, x.is_current), x.location].filter(Boolean).join('  ·  ');
+      if (meta) children.push(docxBody(meta, { italics: true, color: '6B7280', size: 20 }));
+      (x.description || '').split('\n').filter(Boolean).forEach((line) => children.push(docxBody(line)));
+    });
+  }
+
+  if (education.length) {
+    children.push(docxHeading('Education'));
+    education.forEach((ed) => {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: ed.school || '', bold: true, size: 23 })],
+        spacing: { before: 140 },
+      }));
+      const meta = [
+        [ed.degree, ed.field].filter(Boolean).join(', '),
+        dateRange(ed.start_date, ed.end_date),
+      ].filter(Boolean).join('  ·  ');
+      if (meta) children.push(docxBody(meta, { italics: true, color: '6B7280', size: 20 }));
+      if (ed.description) children.push(docxBody(ed.description));
+    });
+  }
+
+  if (projects.length) {
+    children.push(docxHeading('Projects'));
+    projects.forEach((p) => {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: p.title || '', bold: true, size: 23 })],
+        spacing: { before: 140 },
+      }));
+      if (p.tech) children.push(docxBody(p.tech, { italics: true, color: '6B7280', size: 20 }));
+      if (p.description) children.push(docxBody(p.description));
+      if (p.link) children.push(docxBody(p.link, { color: '6B7280', size: 20 }));
+    });
+  }
+
+  if (skills.length) {
+    children.push(docxHeading('Skills'));
+    children.push(docxBody(
+      skills.map((s) => `${s.name} (${SKILL_LEVEL_LABEL[s.level] || 'Beginner'})`).join('   ·   ')
+    ));
+  }
+
+  if (certifications.length) {
+    children.push(docxHeading('Certifications'));
+    certifications.forEach((c) => {
+      const line = [c.title, c.issuer].filter(Boolean).join(' — ') + (c.date ? `  (${c.date})` : '');
+      children.push(docxBody(line));
+    });
+  }
+
+  return children;
 }
 
 // ── HTML generators ───────────────────────────────────────────
@@ -354,12 +457,15 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
 
   // "Save as PDF" only ever produces a flattened, non-editable file —
   // there was no way to get something you (or a recruiter) could
-  // actually open and tweak afterward. html-docx-js converts the same
-  // template HTML straight into a real .docx, no server round-trip.
-  const handleDownloadDocx = () => {
-    const content  = BUILDERS[template](userName, userEmail, profile, fullData);
-    const fullHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${userName} — CV</title></head><body>${content}</body></html>`;
-    const blob = htmlDocx.asBlob(fullHtml);
+  // actually open and tweak afterward. This builds a real .docx
+  // natively (docx.js), no server round-trip, no HTML-to-Word
+  // conversion — so it's the same clean, single-column layout no
+  // matter which preview template is selected.
+  const handleDownloadDocx = async () => {
+    const doc = new Document({
+      sections: [{ properties: {}, children: buildDocxSections(userName, userEmail, profile, fullData) }],
+    });
+    const blob = await Packer.toBlob(doc);
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
@@ -432,7 +538,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
         </div>
         {template === 'modern' && (
           <div className="px-6 py-2 text-[11px] text-ink/40 border-b border-ink/5 shrink-0">
-            Heads up: some ATS résumé scanners misread two-column layouts regardless of colour, and the Word download may collapse the sidebar into a single column. Minimal is still the safest bet for large-company applications and for editing in Word.
+            Heads up: some ATS résumé scanners misread two-column layouts regardless of colour. Minimal is still the safest bet for large-company applications. (The Word download below is always a clean single-column document, independent of the template you preview here.)
           </div>
         )}
 
