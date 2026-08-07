@@ -330,8 +330,8 @@ function PremiumTab() {
   };
   const periodLabel = (months, lang2) => {
     if (months === 1)  return lang2 === 'ar' ? 'شهريًا' : '/ month';
-    if (months === 4)  return lang2 === 'ar' ? 'كل فصل دراسي' : '/ semester';
-    return lang2 === 'ar' ? 'سنويًا' : '/ year';
+    if (months === 4)  return lang2 === 'ar' ? 'كل فصل دراسي (4 أشهر)' : '/ semester (4 months)';
+    return lang2 === 'ar' ? `سنويًا (${months} شهرًا)` : `/ year (${months} months)`;
   };
   const monthlyEq = (plan) => Math.round((plan.price / plan.months) * 10) / 10;
   const pause = async () => {
@@ -366,10 +366,13 @@ function PremiumTab() {
   };
   const today       = new Date().toISOString().slice(0, 10);
   const frozenToday = status?.freeze_date === today;
+  // Badge next to each perk reflects the viewer's own access (is_premium),
+  // not just "this feature is built" — otherwise a free user sees "LIVE"
+  // on things they can't actually use yet, which reads as a bug.
   const PERKS = [
-    { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD'), live: true },
-    { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD'), live: true },
-    { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD'),   live: true },
+    { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD') },
+    { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD') },
+    { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD')   },
   ];
   if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
   const backToFreeStyle = isDark
@@ -427,6 +430,9 @@ function PremiumTab() {
                     {plan.price} <span className="text-xs font-semibold text-ink/40 dark:text-white/35">{plan.currency}</span>
                   </p>
                   <p className="text-[11px] text-ink/40 dark:text-white/30 text-center">{periodLabel(plan.months, lang)}</p>
+                  <p className="text-[10px] font-semibold text-ink/35 dark:text-white/25 text-center mt-0.5">
+                    {t('settings.durationMonths', { n: plan.months })}
+                  </p>
                   {plan.months > 1 && (
                     <p className="text-[10px] text-ink/30 dark:text-white/25 text-center mt-0.5">
                       {t('settings.perMonthEq', { n: monthlyEq(plan) })}
@@ -512,12 +518,12 @@ function PremiumTab() {
               <p className="text-[11px] text-ink/40 dark:text-white/30">{p.desc}</p>
             </div>
             <span className="text-[10px] font-bold shrink-0 rounded-full px-2 py-1"
-              style={p.live
+              style={status.is_premium
                 ? { background:'rgba(76,195,138,0.12)', color:'#2DA76E' }
                 : isDark
                 ? { background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.35)' }
                 : { background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
-              {p.live ? t('settings.live') : t('settings.soon')}
+              {status.is_premium ? t('settings.live') : t('settings.premiumOnly')}
             </span>
           </div>
         ))}
