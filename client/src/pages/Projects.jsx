@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Trash2, FolderKanban, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
-import GlassCard  from '../components/GlassCard.jsx';
-import Modal      from '../components/Modal.jsx';
-import EmptyState from '../components/EmptyState.jsx';
-import PageLoader from '../components/Loader.jsx';
+import GlassCard    from '../components/GlassCard.jsx';
+import Modal        from '../components/Modal.jsx';
+import EmptyState   from '../components/EmptyState.jsx';
+import PageLoader   from '../components/Loader.jsx';
+import PriorityPill from '../components/PriorityPill.jsx';
 
 const STAGES = [
   { key: 'idea',        title: 'Idea',        accent: 'bg-ink/20',       progress: 10  },
@@ -27,6 +28,13 @@ export default function Projects({ openTrigger = 0 }) {
   const [creating,   setCreating]   = useState(false);
   const [contextFor, setContextFor] = useState(null);   // project waiting on the "tell Lumi more" step
   const [extraNote,  setExtraNote]  = useState('');
+  // Tasks generated for a project (or added to it any other way) only
+  // ever showed up on the separate Tasks page, disconnected from the
+  // project itself. Loading the full task list here and grouping it by
+  // category (== project title) lets each project card show — and
+  // check off — its own tasks in place, same tick-to-complete pattern
+  // as Goals' milestones.
+  const [allTasks,   setAllTasks]   = useState([]);
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -35,11 +43,31 @@ export default function Projects({ openTrigger = 0 }) {
     finally { setLoading(false); }
   }, []); // eslint-disable-line
 
-  useEffect(() => { load(); }, [load]);
+  const loadTasks = useCallback(async () => {
+    try { setAllTasks(await api.get('/tasks')); }
+    catch (_) {}
+  }, []);
+
+  useEffect(() => { load(); loadTasks(); }, [load, loadTasks]);
 
   useEffect(() => {
     if (openTrigger > 0) { setForm(emptyForm); setModalOpen(true); }
   }, [openTrigger]); // eslint-disable-line
+
+  const tasksFor = (project) => allTasks.filter((t) => t.category === project.title);
+
+  const toggleProjectTask = async (task) => {
+    const newStatus = task.status === 'done' ? 'todo' : 'done';
+    // Optimistic update — the checkbox should flip immediately, not
+    // after a round trip.
+    setAllTasks((list) => list.map((t) => t.id === task.id ? { ...t, status: newStatus } : t));
+    try {
+      await api.put(`/tasks/${task.id}`, { status: newStatus });
+    } catch (err) {
+      toast.error(err.message);
+      loadTasks(); // revert to server truth if the update failed
+    }
+  };
 
   const createItem = async (e) => {
     e.preventDefault();
@@ -125,8 +153,9 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
           status:   'todo',
         })
       ));
-      toast.success(`${breakdown.tasks.length} tasks added to your task list!`);
+      toast.success(`${breakdown.tasks.length} tasks added — you'll see them right on this project's card.`);
       setBreakdown(null);
+      loadTasks();
     } catch (err) { toast.error(err.message); }
     finally { setCreating(false); }
   };
@@ -216,6 +245,40 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
                   </button>
                 ))}
               </div>
+
+              {/* Tasks tied to this project — tick them off right here,
+                  same pattern as Goals' milestones, instead of having
+                  to jump to the separate Tasks page to find them. */}
+              {tasksFor(item).length > 0 && (
+                <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(30,34,51,0.06)' }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-ink/25 dark:text-white/20">
+                      Tasks
+                    </p>
+                    <p className="text-[10px] text-ink/30 dark:text-white/25">
+                      {tasksFor(item).filter((t) => t.status === 'done').length}/{tasksFor(item).length} done
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {tasksFor(item).map((t) => (
+                      <button key={t.id} onClick={() => toggleProjectTask(t)}
+                        className="flex items-center gap-2.5 text-start rounded-xl px-2 py-1.5 hover:bg-ink/[0.03] dark:hover:bg-white/[0.04] transition">
+                        {t.status === 'done'
+                          ? <CheckSquare size={16} className="text-sage-500 shrink-0" />
+                          : <Square size={16} className="text-ink/25 dark:text-white/20 shrink-0" />}
+                        <span className={`flex-1 min-w-0 truncate text-sm ${
+                          t.status === 'done'
+                            ? 'text-ink/35 dark:text-white/30 line-through'
+                            : 'text-ink/75 dark:text-white/65'
+                        }`}>
+                          {t.title}
+                        </span>
+                        <PriorityPill priority={t.priority} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </GlassCard>
           ))}
         </div>
