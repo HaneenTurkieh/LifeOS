@@ -26,6 +26,36 @@ export default function History() {
     if (diffDays === 1) return t('common.tomorrow');
     return d.toLocaleDateString(dateLocale, { weekday: 'long', month: 'short', day: 'numeric' });
   };
+  const formatShort = (dateStr) =>
+    new Date(dateStr + 'T00:00:00').toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+
+  // A run of empty days (no completions, no habits, nothing due) carries
+  // zero information one-by-one — six identical "Nothing tracked" cards
+  // in a row is just scroll fatigue. Collapse consecutive empty days
+  // (never crossing Today, and never mixing past with future) into a
+  // single compact strip, and keep full cards only where something
+  // actually happened or is due.
+  const buildBlocks = (days) => {
+    const blocks = [];
+    let run = [];
+    const isEmptyDay = (d) => d.tasksCompleted.length + d.habitsCompleted.length === 0 && d.tasksDue.length === 0;
+    const flush = () => {
+      if (run.length === 1) blocks.push({ type: 'day', day: run[0] });
+      else if (run.length > 1) blocks.push({ type: 'group', days: run });
+      run = [];
+    };
+    for (const day of days) {
+      if (isEmptyDay(day) && !day.isToday) {
+        if (run.length && run[run.length - 1].isFuture !== day.isFuture) flush();
+        run.push(day);
+      } else {
+        flush();
+        blocks.push({ type: 'day', day });
+      }
+    }
+    flush();
+    return blocks;
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -60,7 +90,35 @@ export default function History() {
         <EmptyState icon={Clock} title={t('history.emptyTitle')} message={t('history.emptyDesc')} />
       ) : (
         <div className="flex flex-col gap-3">
-          {orderedDays.map((day, i) => {
+          {buildBlocks(orderedDays).map((block, i) => {
+            if (block.type === 'group') {
+              const isFuture = block.days[0].isFuture;
+              const start = block.days[block.days.length - 1].date;
+              const end   = block.days[0].date;
+              return (
+                <div
+                  key={`group-${start}-${end}`}
+                  className="flex items-center gap-3 rounded-2xl px-5 py-3"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px dashed rgba(255,255,255,0.14)',
+                  }}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isFuture ? 'bg-sun-500/50' : 'bg-sage-500/50'}`} />
+                  <p className="text-xs font-medium text-ink/40 dark:text-white/35">
+                    {formatShort(start)} – {formatShort(end)}
+                  </p>
+                  <span className="h-1 w-1 rounded-full bg-ink/15 dark:bg-white/15 shrink-0" />
+                  <p className="text-xs text-ink/35 dark:text-white/30">
+                    {isFuture
+                      ? t('history.groupNothingDue', { n: block.days.length })
+                      : t('history.groupNothingTracked', { n: block.days.length })}
+                  </p>
+                </div>
+              );
+            }
+
+            const day = block.day;
             const totalDone = day.tasksCompleted.length + day.habitsCompleted.length;
             const isEmpty = totalDone === 0 && day.tasksDue.length === 0;
             return (
@@ -87,7 +145,9 @@ export default function History() {
                 </div>
 
                 {isEmpty ? (
-                  <p className="text-xs text-ink/35 dark:text-white/30 ps-4">{t('history.nothing')}</p>
+                  <p className="text-xs text-ink/35 dark:text-white/30 ps-4">
+                    {day.isFuture ? t('history.nothingDue') : t('history.nothing')}
+                  </p>
                 ) : (
                   <div className="flex flex-col gap-1.5 ps-4">
                     {day.tasksCompleted.map((tk) => (
