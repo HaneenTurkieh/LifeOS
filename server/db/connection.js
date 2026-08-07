@@ -234,6 +234,19 @@ async function initDb() {
     user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     tree_key TEXT NOT NULL DEFAULT 'seedling'
   )`);
+  // One user-designed tree per account — shape + colors + a name they
+  // picked themselves, unlocked once for 1000 XP. Free to re-customize
+  // afterward (editing isn't re-selling the same slot, it's the whole
+  // point of it being "yours").
+  await db.execute(`CREATE TABLE IF NOT EXISTS user_mystic_tree (
+    user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    shape_key   TEXT NOT NULL,
+    color_hex   TEXT NOT NULL,
+    glow_hex    TEXT NOT NULL,
+    custom_name TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+  )`);
   await db.execute(`CREATE TABLE IF NOT EXISTS notifications (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,

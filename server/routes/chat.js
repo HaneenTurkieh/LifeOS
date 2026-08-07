@@ -496,8 +496,12 @@ async function executeTool(name, input, userId) {
       const totalXp       = Number(xp.rows[0]?.total || 0);
       const equippedTree  = equipped.rows[0]?.tree_key || 'seedling';
       const unlockedKeys  = new Set(unlocked.rows.map(r => r.tree_key));
+      // equippedTree can also be 'mystic' (the user-designed tree, not
+      // part of this fixed list) — findIndex returns -1 there, which
+      // would wrongly point "next tree" back at Seedling, so only chase
+      // the ladder when they're actually on it.
       const currentIdx    = TREES.findIndex(t => t.key === equippedTree);
-      const nextTree      = TREES[currentIdx + 1] || null;
+      const nextTree      = currentIdx >= 0 ? (TREES[currentIdx + 1] || null) : null;
       const level         = Math.floor(totalXp / 100) + 1;
       return {
         total_xp:       totalXp,
