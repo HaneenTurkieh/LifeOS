@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square } from 'lucide-react';
+import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square, Pencil, ChevronDown } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import GlassCard    from '../components/GlassCard.jsx';
@@ -35,6 +35,12 @@ export default function Projects({ openTrigger = 0 }) {
   // check off — its own tasks in place, same tick-to-complete pattern
   // as Goals' milestones.
   const [allTasks,   setAllTasks]   = useState([]);
+  // Task lists get long once a project has several stages worth of AI
+  // breakdowns, and doubly so with multiple project cards on the page —
+  // let each card's task list be collapsed independently.
+  const [collapsedProjects, setCollapsedProjects] = useState(() => new Set());
+  const [editingProjectTask, setEditingProjectTask] = useState(null); // task being edited
+  const [taskEditForm, setTaskEditForm] = useState({ title: '', description: '', priority: 'medium' });
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -66,6 +72,47 @@ export default function Projects({ openTrigger = 0 }) {
     } catch (err) {
       toast.error(err.message);
       loadTasks(); // revert to server truth if the update failed
+    }
+  };
+
+  const toggleTasksCollapsed = (projectId) => {
+    setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      next.has(projectId) ? next.delete(projectId) : next.add(projectId);
+      return next;
+    });
+  };
+
+  const openEditProjectTask = (task) => {
+    setEditingProjectTask(task);
+    setTaskEditForm({
+      title: task.title || '',
+      description: task.description || '',
+      priority: (task.priority || 'medium').toLowerCase(),
+    });
+  };
+
+  const saveProjectTaskEdit = async (e) => {
+    e.preventDefault();
+    if (!taskEditForm.title.trim()) return;
+    try {
+      await api.put(`/tasks/${editingProjectTask.id}`, taskEditForm);
+      setAllTasks((list) => list.map((t) =>
+        t.id === editingProjectTask.id ? { ...t, ...taskEditForm } : t
+      ));
+      toast.success('Task updated');
+      setEditingProjectTask(null);
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deleteProjectTask = async (task) => {
+    setAllTasks((list) => list.filter((t) => t.id !== task.id)); // optimistic
+    try {
+      await api.del(`/tasks/${task.id}`);
+      toast.success('Task deleted');
+    } catch (err) {
+      toast.error(err.message);
+      loadTasks(); // revert if it failed server-side
     }
   };
 
@@ -252,32 +299,56 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
                   to jump to the separate Tasks page to find them. */}
               {tasksFor(item).length > 0 && (
                 <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(30,34,51,0.06)' }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-ink/25 dark:text-white/20">
-                      Tasks
-                    </p>
-                    <p className="text-[10px] text-ink/30 dark:text-white/25">
+                  <button
+                    onClick={() => toggleTasksCollapsed(item.id)}
+                    className="flex items-center justify-between w-full mb-1.5 group"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <ChevronDown
+                        size={12}
+                        className={`text-ink/30 dark:text-white/25 transition-transform ${
+                          collapsedProjects.has(item.id) ? '-rotate-90' : ''
+                        }`}
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-ink/25 dark:text-white/20 group-hover:text-ink/40">
+                        Tasks
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-ink/30 dark:text-white/25">
                       {tasksFor(item).filter((t) => t.status === 'done').length}/{tasksFor(item).length} done
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {tasksFor(item).map((t) => (
-                      <button key={t.id} onClick={() => toggleProjectTask(t)}
-                        className="flex items-center gap-2.5 text-start rounded-xl px-2 py-1.5 hover:bg-ink/[0.03] dark:hover:bg-white/[0.04] transition">
-                        {t.status === 'done'
-                          ? <CheckSquare size={16} className="text-sage-500 shrink-0" />
-                          : <Square size={16} className="text-ink/25 dark:text-white/20 shrink-0" />}
-                        <span className={`flex-1 min-w-0 truncate text-sm ${
-                          t.status === 'done'
-                            ? 'text-ink/35 dark:text-white/30 line-through'
-                            : 'text-ink/75 dark:text-white/65'
-                        }`}>
-                          {t.title}
-                        </span>
-                        <PriorityPill priority={t.priority} />
-                      </button>
-                    ))}
-                  </div>
+                    </span>
+                  </button>
+                  {!collapsedProjects.has(item.id) && (
+                    <div className="flex flex-col gap-1">
+                      {tasksFor(item).map((t) => (
+                        <div key={t.id}
+                          className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 hover:bg-ink/[0.03] dark:hover:bg-white/[0.04] transition group">
+                          <button onClick={() => toggleProjectTask(t)}
+                            className="flex items-center gap-2.5 text-start flex-1 min-w-0">
+                            {t.status === 'done'
+                              ? <CheckSquare size={16} className="text-sage-500 shrink-0" />
+                              : <Square size={16} className="text-ink/25 dark:text-white/20 shrink-0" />}
+                            <span className={`flex-1 min-w-0 truncate text-sm ${
+                              t.status === 'done'
+                                ? 'text-ink/35 dark:text-white/30 line-through'
+                                : 'text-ink/75 dark:text-white/65'
+                            }`}>
+                              {t.title}
+                            </span>
+                          </button>
+                          <PriorityPill priority={t.priority} />
+                          <button onClick={() => openEditProjectTask(t)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-lavender-600 dark:text-white/25 dark:hover:text-lavender-400 p-1">
+                            <Pencil size={12} />
+                          </button>
+                          <button onClick={() => deleteProjectTask(t)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400 p-1">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </GlassCard>
@@ -347,6 +418,30 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
               {creating ? 'Adding tasks…' : `Add ${breakdown.tasks.length} tasks to my list ✓`}
             </button>
           </div>
+        )}
+      </Modal>
+
+      {/* ── Edit project task modal ─────────────────────────── */}
+      <Modal
+        open={!!editingProjectTask}
+        onClose={() => setEditingProjectTask(null)}
+        title="Edit task"
+      >
+        {editingProjectTask && (
+          <form onSubmit={saveProjectTaskEdit} className="flex flex-col gap-3.5">
+            <input className="input-field" placeholder="Task title" value={taskEditForm.title}
+              onChange={(e) => setTaskEditForm({ ...taskEditForm, title: e.target.value })} autoFocus required />
+            <textarea className="input-field" placeholder="Description (optional)" rows={2}
+              value={taskEditForm.description}
+              onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })} />
+            <select className="input-field" value={taskEditForm.priority}
+              onChange={(e) => setTaskEditForm({ ...taskEditForm, priority: e.target.value })}>
+              <option value="high">High priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="low">Low priority</option>
+            </select>
+            <button type="submit" className="btn-primary justify-center mt-1">Save changes</button>
+          </form>
         )}
       </Modal>
 
