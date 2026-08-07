@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square, Pencil, ChevronDown } from 'lucide-react';
+import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square, Pencil, ChevronDown, Plus } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import GlassCard    from '../components/GlassCard.jsx';
@@ -42,6 +42,11 @@ export default function Projects({ openTrigger = 0 }) {
   const [collapsedProjects, setCollapsedProjects] = useState(() => new Set());
   const [editingProjectTask, setEditingProjectTask] = useState(null); // task being edited
   const [taskEditForm, setTaskEditForm] = useState({ title: '', description: '', priority: 'medium' });
+  // "Break into tasks" (AI) was the only way to put a task on a project
+  // card — there was no manual add button at all, so a project with a
+  // couple of quick manual to-dos, or none yet, had nowhere for them to go.
+  const [addingTaskFor, setAddingTaskFor] = useState(null); // project object
+  const [newTaskForm,   setNewTaskForm]   = useState({ title: '', description: '', priority: 'medium' });
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -121,6 +126,27 @@ export default function Projects({ openTrigger = 0 }) {
       toast.error(err.message);
       loadTasks(); // revert if it failed server-side
     }
+  };
+
+  const openAddProjectTask = (project) => {
+    setAddingTaskFor(project);
+    setNewTaskForm({ title: '', description: '', priority: 'medium' });
+  };
+
+  const createProjectTask = async (e) => {
+    e.preventDefault();
+    if (!newTaskForm.title.trim()) return;
+    try {
+      const created = await api.post('/tasks', {
+        ...newTaskForm,
+        title: newTaskForm.title.trim(),
+        category: addingTaskFor.title,
+        project_id: addingTaskFor.id,
+      });
+      setAllTasks((list) => [...list, created]);
+      toast.success('Task added');
+      setAddingTaskFor(null);
+    } catch (err) { toast.error(err.message); }
   };
 
   const createItem = async (e) => {
@@ -304,28 +330,40 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
 
               {/* Tasks tied to this project — tick them off right here,
                   same pattern as Goals' milestones, instead of having
-                  to jump to the separate Tasks page to find them. */}
-              {tasksFor(item).length > 0 && (
-                <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(30,34,51,0.06)' }}>
+                  to jump to the separate Tasks page to find them. Always
+                  shown (not just once tasks exist) so there's somewhere
+                  to hit "Add task" even on a fresh project. */}
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(30,34,51,0.06)' }}>
+                <div className="flex items-center justify-between mb-1.5">
                   <button
                     onClick={() => toggleTasksCollapsed(item.id)}
-                    className="flex items-center justify-between w-full mb-1.5 group"
+                    className="flex items-center gap-1.5 group"
                   >
-                    <span className="flex items-center gap-1.5">
-                      <ChevronDown
-                        size={12}
-                        className={`text-ink/30 dark:text-white/25 transition-transform duration-300 ease-in-out ${
-                          collapsedProjects.has(item.id) ? '-rotate-90' : ''
-                        }`}
-                      />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-ink/25 dark:text-white/20 group-hover:text-ink/40">
-                        Tasks
+                    <ChevronDown
+                      size={12}
+                      className={`text-ink/30 dark:text-white/25 transition-transform duration-300 ease-in-out ${
+                        collapsedProjects.has(item.id) ? '-rotate-90' : ''
+                      }`}
+                    />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-ink/25 dark:text-white/20 group-hover:text-ink/40">
+                      Tasks
+                    </span>
+                    {tasksFor(item).length > 0 && (
+                      <span className="text-[10px] text-ink/30 dark:text-white/25">
+                        {tasksFor(item).filter((t) => t.status === 'done').length}/{tasksFor(item).length} done
                       </span>
-                    </span>
-                    <span className="text-[10px] text-ink/30 dark:text-white/25">
-                      {tasksFor(item).filter((t) => t.status === 'done').length}/{tasksFor(item).length} done
-                    </span>
+                    )}
                   </button>
+                  <button
+                    onClick={() => openAddProjectTask(item)}
+                    className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-lavender-500 dark:text-lavender-300 hover:text-lavender-600 transition"
+                  >
+                    <Plus size={12} /> Add task
+                  </button>
+                </div>
+                {tasksFor(item).length === 0 ? (
+                  <p className="text-xs text-ink/30 dark:text-white/25 py-1">No tasks yet.</p>
+                ) : (
                   <AnimatePresence initial={false}>
                     {!collapsedProjects.has(item.id) && (
                       <motion.div
@@ -368,8 +406,8 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </div>
-              )}
+                )}
+              </div>
             </GlassCard>
           ))}
         </div>
@@ -460,6 +498,30 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
               <option value="low">Low priority</option>
             </select>
             <button type="submit" className="btn-primary justify-center mt-1">Save changes</button>
+          </form>
+        )}
+      </Modal>
+
+      {/* ── Add task to project modal ───────────────────────── */}
+      <Modal
+        open={!!addingTaskFor}
+        onClose={() => setAddingTaskFor(null)}
+        title={addingTaskFor ? `Add task to "${addingTaskFor.title}"` : 'Add task'}
+      >
+        {addingTaskFor && (
+          <form onSubmit={createProjectTask} className="flex flex-col gap-3.5">
+            <input className="input-field" placeholder="Task title" value={newTaskForm.title}
+              onChange={(e) => setNewTaskForm({ ...newTaskForm, title: e.target.value })} autoFocus required />
+            <textarea className="input-field" placeholder="Description (optional)" rows={2}
+              value={newTaskForm.description}
+              onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })} />
+            <select className="input-field" value={newTaskForm.priority}
+              onChange={(e) => setNewTaskForm({ ...newTaskForm, priority: e.target.value })}>
+              <option value="high">High priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="low">Low priority</option>
+            </select>
+            <button type="submit" className="btn-primary justify-center mt-1">Add task</button>
           </form>
         )}
       </Modal>
