@@ -107,6 +107,15 @@ async function initDb() {
   if (!(await hasColumn('tasks', 'time_spent_minutes'))) {
     await db.execute(`ALTER TABLE tasks ADD COLUMN time_spent_minutes INTEGER NOT NULL DEFAULT 0`);
   }
+  // completed_at gets cleared back to NULL whenever a task is un-done
+  // (it only ever reflects the *current* done state), so it can't be
+  // used to tell whether XP was already paid out for a task. This
+  // column is a one-way flag: set once, on the very first completion,
+  // and never cleared — used to stop toggling done → undone → done
+  // from farming +20 XP over and over on the same task.
+  if (!(await hasColumn('tasks', 'first_completed_at'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN first_completed_at TEXT DEFAULT NULL`);
+  }
   if (!(await hasColumn('focus_sessions', 'task_id'))) {
     await db.execute(`ALTER TABLE focus_sessions ADD COLUMN task_id INTEGER DEFAULT NULL`);
   }

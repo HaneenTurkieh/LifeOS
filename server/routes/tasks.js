@@ -138,17 +138,24 @@ router.put('/:id', async (req, res) => {
     updates.completed_at = isNowDone
       ? (existing.completed_at || new Date().toISOString())
       : null;
+    // Unlike completed_at, this is never cleared — it's the permanent
+    // record of "has this task ever paid out XP", so undoing and
+    // re-doing the same task can't be used to farm XP repeatedly.
+    const alreadyEarnedXp = Boolean(existing.first_completed_at);
+    updates.first_completed_at = isNowDone
+      ? (existing.first_completed_at || new Date().toISOString())
+      : (existing.first_completed_at || null);
 
     await db.execute({
       sql:  `UPDATE tasks
              SET title=?, description=?, priority=?, category=?,
                  deadline=?, deadline_time=?, recurrence=?,
-                 status=?, progress=?, position=?, completed_at=?
+                 status=?, progress=?, position=?, completed_at=?, first_completed_at=?
              WHERE id = ? AND user_id = ?`,
       args: [
         updates.title, updates.description ?? '', updates.priority, updates.category,
         updates.deadline ?? null, updates.deadline_time ?? null, updates.recurrence ?? null,
-        updates.status, updates.progress, updates.position, updates.completed_at,
+        updates.status, updates.progress, updates.position, updates.completed_at, updates.first_completed_at,
         req.params.id, req.user.id,
       ],
     });
@@ -158,15 +165,20 @@ router.put('/:id', async (req, res) => {
 
     if (!wasDone && isNowDone) {
       // Gamification must never break a task save
-      try {
-        await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
-        xpAwarded = 20;
-      } catch (e) {
-        console.error('addXp failed (non-fatal):', e.message);
+      if (!alreadyEarnedXp) {
+        try {
+          await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
+          xpAwarded = 20;
+        } catch (e) {
+          console.error('addXp failed (non-fatal):', e.message);
+        }
       }
 
       // ── Auto-create next occurrence ──────────────────────────
-      if (updates.recurrence) {
+      // Gated behind !alreadyEarnedXp too — otherwise toggling a
+      // recurring task done/undone/done would spawn a duplicate
+      // "next occurrence" row every time, not just XP.
+      if (updates.recurrence && !alreadyEarnedXp) {
         const nextDeadline = nextRecurrenceDate(updates.recurrence, updates.deadline);
 
         const maxPos = await db.execute({
