@@ -171,8 +171,11 @@ export default function Projects({ openTrigger = 0 }) {
                 <span className="text-[10px] text-ink/30 dark:text-white/25">{item.progress}%</span>
               </div>
 
-              {/* Stage buttons */}
-              <div className="flex flex-wrap gap-2 mt-3">
+              {/* Stage buttons — click any to move this project along the pipeline */}
+              <p className="text-[10px] font-bold uppercase tracking-widest text-ink/25 dark:text-white/20 mt-4 mb-1.5">
+                Move to stage
+              </p>
+              <div className="flex flex-wrap gap-2">
                 {STAGES.map((s) => (
                   <button key={s.key} onClick={() => setStage(item, s.key)}
                     className={`flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition ${
@@ -234,13 +237,21 @@ export default function Projects({ openTrigger = 0 }) {
           <textarea className="input-field" placeholder="Description (optional)" rows={2}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          <select className="input-field" value={form.stage}
-            onChange={(e) => {
-              const s = STAGES.find((s) => s.key === e.target.value);
-              setForm({ ...form, stage: e.target.value, progress: s.progress });
-            }}>
-            {STAGES.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
-          </select>
+          <div>
+            <label className="block text-xs font-semibold text-ink/50 dark:text-white/40 mb-1.5">
+              Where is this project right now?
+            </label>
+            <select className="input-field" value={form.stage}
+              onChange={(e) => {
+                const s = STAGES.find((s) => s.key === e.target.value);
+                setForm({ ...form, stage: e.target.value, progress: s.progress });
+              }}>
+              {STAGES.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
+            </select>
+            <p className="text-xs text-ink/35 dark:text-white/30 mt-1.5">
+              Just its starting point — you can move it through the pipeline anytime from its card.
+            </p>
+          </div>
           <button type="submit" className="btn-primary justify-center mt-1">Add project</button>
         </form>
       </Modal>
