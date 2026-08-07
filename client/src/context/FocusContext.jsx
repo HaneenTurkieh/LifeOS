@@ -469,11 +469,20 @@ export function FocusProvider({ children }) {
           setTaskTimeSpent(Number(res.task.time_spent_minutes) || 0);
         }
         setDots((d) => d + 1);
-        pushTimerState({ running: false, started_at: null, remaining_seconds: 0, dots: (dots || 0) + 1 });
         loadData();
       } catch (_) {
         setCongrats({ quote, xpAwarded: 0, minutes: min.focus, task: null });
       }
+      // Whether the session banked successfully or not, the countdown
+      // itself is done — reset it back to the focus default so the
+      // timer is ready to go again instead of sitting at 00:00.
+      setTimeLeft(min.focus * 60);
+      setTotalTime(min.focus * 60);
+      pushTimerState({
+        mode: 'focus', running: false, started_at: null,
+        remaining_seconds: min.focus * 60, duration_seconds: min.focus * 60,
+        dots: (dots || 0) + 1,
+      });
     } else {
       playBreakEnd();
       const mins = customMinRef.current.focus;
