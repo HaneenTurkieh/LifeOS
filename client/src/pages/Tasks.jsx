@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Plus, Trash2, Pencil, Calendar, Clock, ListChecks,
@@ -82,13 +82,13 @@ export default function Tasks() {
     const [h, m] = tm.split(':').map(Number);
     return new Date(2000, 0, 1, h, m).toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
   };
-  const formatCompletedAt = (iso) => {
+  // Rows sit under a per-day header now, so each one only needs to show
+  // its own time — repeating the date on every row would be redundant.
+  const formatCompletedTime = (iso) => {
     if (!iso) return null;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
-    const dateStr = d.toLocaleDateString(dateLocale, { day:'numeric', month:'short' });
-    const timeStr = d.toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
-    return `${dateStr}, ${timeStr}`;
+    return d.toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
   };
   const recurrenceLabel = (r) => {
     if (!r) return null;
@@ -139,6 +139,33 @@ export default function Tasks() {
     week:     sortByPriority(active.filter(tk => tk.deadline && tk.deadline > tomorrow && tk.deadline <= in7Days)),
     later:    sortByPriority(active.filter(tk => tk.deadline && tk.deadline > in7Days)),
   };
+  const yesterday = localOffsetStr(-1);
+  // Group completed tasks by the day they were finished — a flat list
+  // of 50 done tasks is unscannable, but "Today / Yesterday / Aug 3 /
+  // Jul 30 ..." clusters read the way Messages or Photos group by day.
+  const completedGroups = useMemo(() => {
+    const buckets = new Map();
+    for (const tk of completed) {
+      const key = tk.completed_at ? tk.completed_at.slice(0, 10) : 'unknown';
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(tk);
+    }
+    const labelFor = (key) => {
+      if (key === today)     return t('common.today');
+      if (key === yesterday) return t('common.yesterday');
+      if (key === 'unknown') return t('tasks.earlier');
+      const d = new Date(`${key}T00:00:00`);
+      const sameYear = d.getFullYear() === new Date().getFullYear();
+      return d.toLocaleDateString(dateLocale, sameYear ? { day:'numeric', month:'short' } : { day:'numeric', month:'short', year:'numeric' });
+    };
+    return [...buckets.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, list]) => ({
+        key,
+        label: labelFor(key),
+        tasks: list.sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || '')),
+      }));
+  }, [completed, today, yesterday, dateLocale, t]);
   const markDone = async (task) => {
     setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status:'done', progress:100 } : tk));
     try {
@@ -224,9 +251,18 @@ export default function Tasks() {
               <AnimatePresence>
                 {completedOpen && (
                   <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} className="overflow-hidden">
-                    <div className="flex flex-col gap-1">
-                      {[...completed].sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || '')).map(task => (
-                        <TaskCard key={task.id} task={task} onDelete={removeTask} onMarkUndone={markUndone} done t={t} formatCompletedAt={formatCompletedAt} />
+                    <div className="flex flex-col gap-4">
+                      {completedGroups.map(group => (
+                        <div key={group.key}>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-ink/30 dark:text-white/25 mb-1.5 px-1">
+                            {group.label}
+                          </p>
+                          <div className="flex flex-col gap-1">
+                            {group.tasks.map(task => (
+                              <TaskCard key={task.id} task={task} onDelete={removeTask} onMarkUndone={markUndone} done t={t} formatCompletedTime={formatCompletedTime} />
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </motion.div>
@@ -324,12 +360,13 @@ function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, 
     </div>
   );
 }
-function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel, formatCompletedAt }) {
+function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel, formatCompletedTime }) {
   // Completed tasks get a deliberately quiet, compact treatment —
   // no priority pill, no "Overdue" alarm (misleading once it's done),
-  // no recurrence badge. Just what got done and roughly when.
+  // no recurrence badge. Just what got done and, since it's already
+  // grouped under a day header, just the time it happened.
   if (done) {
-    const completedLabel = formatCompletedAt?.(task.completed_at);
+    const timeLabel = formatCompletedTime?.(task.completed_at);
     return (
       <motion.div layout
         className="group flex items-center gap-2.5 rounded-xl px-3 py-2 transition
@@ -341,10 +378,8 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
         <p className="flex-1 min-w-0 truncate text-[13px] text-ink/40 dark:text-white/30 line-through">
           {task.title}
         </p>
-        {completedLabel && (
-          <span className="shrink-0 text-[10px] text-ink/30 dark:text-white/25">
-            {t('tasks.completedOn', { date: completedLabel })}
-          </span>
+        {timeLabel && (
+          <span className="shrink-0 text-[10px] text-ink/30 dark:text-white/25">{timeLabel}</span>
         )}
         <button onClick={() => onDelete(task.id)}
           className="shrink-0 opacity-0 group-hover:opacity-100 text-ink/25 dark:text-white/20 hover:text-coral-500 transition">

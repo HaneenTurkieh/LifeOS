@@ -36,6 +36,7 @@ export const translations = {
       'common.today':      'Today',
       'common.tomorrow':   'Tomorrow',
       'common.yesterday':  'Yesterday',
+      'common.yesterday':  'Yesterday',
       'common.more':       'More',
   
       // ── Greetings (Dashboard) ──────────────────────────────
@@ -86,6 +87,7 @@ export const translations = {
       'tasks.emptyDesc':     'Tasks organized by date and priority.',
       'tasks.addFirst':      'Add your first task',
       'tasks.completedOn':   'Completed {date}',
+      'tasks.earlier':       'Earlier',
   
       // ── Calendar ───────────────────────────────────────────
       'calendar.title':      'Your schedule',
@@ -644,6 +646,7 @@ export const translations = {
       'common.today':      'اليوم',
       'common.tomorrow':   'غدًا',
       'common.yesterday':  'أمس',
+      'common.yesterday':  'أمس',
       'common.more':       'المزيد',
   
       // ── التحيّات ────────────────────────────────────────────
@@ -694,6 +697,7 @@ export const translations = {
       'tasks.emptyDesc':     'مهام منظمة حسب التاريخ والأولوية.',
       'tasks.addFirst':      'أضف مهمتك الأولى',
       'tasks.completedOn':   'أُنجزت {date}',
+      'tasks.earlier':       'سابقًا',
   
       // ── التقويم ─────────────────────────────────────────────
       'calendar.title':      'جدولك',
