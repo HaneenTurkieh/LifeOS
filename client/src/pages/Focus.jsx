@@ -134,7 +134,7 @@ export default function Flow() {
 
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
-    taskName, taskId, dots, startedAt, congrats, died, stats, board, spotlights, room, roomTree,
+    taskName, taskId, taskTimeSpent, dots, startedAt, congrats, died, stats, board, spotlights, room, roomTree,
     myRooms, switchRoom, loadMyRooms,
     setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
@@ -158,7 +158,7 @@ export default function Flow() {
   );
 
   const handlePickTask = (tk) => {
-    setTask({ id: tk.id, title: tk.title });
+    setTask({ id: tk.id, title: tk.title, time_spent_minutes: tk.time_spent_minutes });
     setTaskPickerOpen(false);
     setTaskSearch('');
   };
@@ -328,6 +328,10 @@ export default function Flow() {
   // this is no longer scoped to "only while running".
   const elapsedFocusMin = mode === 'focus' ? Math.floor((totalTime - timeLeft) / 60) : 0;
   const treeAtRisk      = mode === 'focus' && elapsedFocusMin >= 1;
+  // Cumulative — minutes already logged on this task from past
+  // sessions, plus whatever's elapsed in the one running right now, so
+  // the badge doesn't drop back to 0 just because the timer restarted.
+  const taskTotalMin    = (taskTimeSpent || 0) + elapsedFocusMin;
   const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const dashOffset = CIRC * (1 - progress);
   const modeColor  = mode === 'focus' ? (ACCENT_HEX[accent] || ACCENT_HEX.purple) : MODES[mode].color;
@@ -494,9 +498,9 @@ export default function Flow() {
                 <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2" style={lg({ color: modeColor, active: true })}>
                   <Target size={13} style={{ color: modeColor }} className="shrink-0" />
                   <span className="flex-1 min-w-0 truncate text-sm font-semibold text-ink dark:text-white">{taskName}</span>
-                  {elapsedFocusMin > 0 && (
+                  {taskTotalMin > 0 && (
                     <span className="shrink-0 text-xs font-bold tabular-nums" style={{ color: modeColor }}>
-                      {t('flow.elapsedThisSession', { n: elapsedFocusMin })}
+                      {t('flow.elapsedThisSession', { n: taskTotalMin })}
                     </span>
                   )}
                   <button type="button" onClick={clearTask} disabled={isRunning}

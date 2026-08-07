@@ -176,6 +176,12 @@ export function FocusProvider({ children }) {
   const [isRunning, setIsRunning] = useState(saved?.isRunning || false);
   const [taskName,  setTaskNameRaw] = useState(saved?.taskName || '');
   const [taskId,    setTaskIdRaw] = useState(saved?.taskId ?? null);
+  // Minutes already logged on the linked task *before* this session —
+  // so the on-screen total is cumulative (previous sessions + this run)
+  // instead of resetting to 0 every time the timer restarts. Not part
+  // of the timer-sync payload; it's just a display convenience that
+  // refreshes whenever a task is (re)picked or a session completes.
+  const [taskTimeSpent, setTaskTimeSpent] = useState(0);
   const [dots,      setDots]      = useState(saved?.dots      || 0);
   const [startedAt, setStartedAt] = useState(saved?.startedAt || null);
   const [congrats,  setCongrats]  = useState(null);
@@ -301,6 +307,7 @@ export function FocusProvider({ children }) {
     clearTimeout(taskDebounceRef.current);
     setTaskNameRaw(task.title);
     setTaskIdRaw(task.id);
+    setTaskTimeSpent(Number(task.time_spent_minutes) || 0);
     pushTimerState({ task_name: task.title, task_id: task.id });
   }, [pushTimerState]);
 
@@ -309,6 +316,7 @@ export function FocusProvider({ children }) {
     clearTimeout(taskDebounceRef.current);
     setTaskNameRaw('');
     setTaskIdRaw(null);
+    setTaskTimeSpent(0);
     pushTimerState({ task_name: '', task_id: null });
   }, [pushTimerState]);
 
@@ -454,6 +462,12 @@ export function FocusProvider({ children }) {
         });
         if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
         setCongrats({ quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus, task: res.task || null });
+        // Session just banked its minutes onto the task server-side —
+        // carry the fresh cumulative total forward so a second session
+        // on the same task keeps adding up instead of resetting.
+        if (res.task && res.task.id === tid) {
+          setTaskTimeSpent(Number(res.task.time_spent_minutes) || 0);
+        }
         setDots((d) => d + 1);
         pushTimerState({ running: false, started_at: null, remaining_seconds: 0, dots: (dots || 0) + 1 });
         loadData();
@@ -640,7 +654,7 @@ export function FocusProvider({ children }) {
 
   return (
     <FocusContext.Provider value={{
-      mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots,
+      mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, taskTimeSpent, dots,
       startedAt, congrats, died, stats, board, spotlights, room, roomTree, myRooms,
       setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
       switchRoom, loadMyRooms,
