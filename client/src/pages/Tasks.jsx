@@ -122,7 +122,11 @@ export default function Tasks() {
   const active    = tasks.filter(tk => tk.status !== 'done');
   const completed = tasks.filter(tk => tk.status === 'done');
   const groups = {
-    today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline === today)),
+    // "Today" also catches overdue tasks (deadline before today) — before
+    // this they matched none of the four buckets (not === today, not
+    // === tomorrow, not > tomorrow) and silently vanished from the page
+    // entirely, even though they were still active.
+    today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline <= today)),
     tomorrow: sortByPriority(active.filter(tk => tk.deadline === tomorrow)),
     week:     sortByPriority(active.filter(tk => tk.deadline && tk.deadline > tomorrow && tk.deadline <= in7Days)),
     later:    sortByPriority(active.filter(tk => tk.deadline && tk.deadline > in7Days)),
