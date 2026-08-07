@@ -48,14 +48,20 @@ export default function CVBuilder({ openTrigger = 0 }) {
   const { user } = useAuth();
   const toast    = useToast();
 
-  const [tab,         setTab]         = useState('experience');
+  // Experience/Education lead the tab order (that's resume convention),
+  // but defaulting the *selected* tab to Experience meant the header's
+  // "+" button dropped straight into a required Job title form the
+  // instant you opened this page — a bad first touch for anyone who
+  // doesn't have formal work history yet, students especially. Land on
+  // Projects instead, which is the lowest-friction starting point.
+  const [tab,         setTab]         = useState('projects');
   const [data,        setData]        = useState({ experience: [], education: [], projects: [], skills: [], certifications: [] });
   const [profile,     setProfile]     = useState(EMPTY_PROFILE);
   const [profileDraft, setProfileDraft] = useState(EMPTY_PROFILE);
   const [savingProfile, setSavingProfile] = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [modalOpen,   setModalOpen]   = useState(false);
-  const [form,        setForm]        = useState(FORMS.experience);
+  const [form,        setForm]        = useState(FORMS.projects);
   const [reviewing,   setReviewing]   = useState(false);
   const [review,      setReview]      = useState(null);
   const [showExport,  setShowExport]  = useState(false);
