@@ -82,6 +82,14 @@ export default function Tasks() {
     const [h, m] = tm.split(':').map(Number);
     return new Date(2000, 0, 1, h, m).toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
   };
+  const formatCompletedAt = (iso) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const dateStr = d.toLocaleDateString(dateLocale, { day:'numeric', month:'short' });
+    const timeStr = d.toLocaleTimeString(dateLocale, { hour:'numeric', minute:'2-digit' });
+    return `${dateStr}, ${timeStr}`;
+  };
   const recurrenceLabel = (r) => {
     if (!r) return null;
     if (r === 'daily')   return t('tasks.daily');
@@ -216,9 +224,9 @@ export default function Tasks() {
               <AnimatePresence>
                 {completedOpen && (
                   <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} className="overflow-hidden">
-                    <div className="flex flex-col gap-2">
-                      {sortByPriority(completed).map(task => (
-                        <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={removeTask} onMarkUndone={markUndone} done t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+                    <div className="flex flex-col gap-1">
+                      {[...completed].sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || '')).map(task => (
+                        <TaskCard key={task.id} task={task} onDelete={removeTask} onMarkUndone={markUndone} done t={t} formatCompletedAt={formatCompletedAt} />
                       ))}
                     </div>
                   </motion.div>
@@ -316,7 +324,36 @@ function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, 
     </div>
   );
 }
-function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel }) {
+function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel, formatCompletedAt }) {
+  // Completed tasks get a deliberately quiet, compact treatment —
+  // no priority pill, no "Overdue" alarm (misleading once it's done),
+  // no recurrence badge. Just what got done and roughly when.
+  if (done) {
+    const completedLabel = formatCompletedAt?.(task.completed_at);
+    return (
+      <motion.div layout
+        className="group flex items-center gap-2.5 rounded-xl px-3 py-2 transition
+                   bg-sage-500/[0.05] hover:bg-sage-500/[0.09] dark:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+      >
+        <button onClick={() => onMarkUndone(task)} className="shrink-0 transition">
+          <CheckCircle2 size={15} className="text-sage-500" />
+        </button>
+        <p className="flex-1 min-w-0 truncate text-[13px] text-ink/40 dark:text-white/30 line-through">
+          {task.title}
+        </p>
+        {completedLabel && (
+          <span className="shrink-0 text-[10px] text-ink/30 dark:text-white/25">
+            {t('tasks.completedOn', { date: completedLabel })}
+          </span>
+        )}
+        <button onClick={() => onDelete(task.id)}
+          className="shrink-0 opacity-0 group-hover:opacity-100 text-ink/25 dark:text-white/20 hover:text-coral-500 transition">
+          <Trash2 size={12}/>
+        </button>
+      </motion.div>
+    );
+  }
+
   const time  = formatTime(task.deadline_time);
   const date  = formatDate(task.deadline);
   const dl    = daysUntil(task.deadline);
@@ -326,26 +363,22 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
   const isSoon    = dl !== null && dl > 0 && dl <= 3;
   return (
     <motion.div layout
-      className={`group flex items-start gap-3 rounded-2xl border border-white/70 bg-white/70
+      className="group flex items-start gap-3 rounded-2xl border border-white/70 bg-white/70
                   dark:border-white/10 dark:bg-white/[0.04] p-3.5 shadow-sm transition
-                  hover:bg-white/90 dark:hover:bg-white/[0.07] ${done ? 'opacity-50' : ''}`}
+                  hover:bg-white/90 dark:hover:bg-white/[0.07]"
     >
-      <button onClick={() => done ? onMarkUndone(task) : onMarkDone(task)} className="mt-0.5 shrink-0 transition">
-        {done
-          ? <CheckCircle2 size={18} className="text-sage-500" />
-          : <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />}
+      <button onClick={() => onMarkDone(task)} className="mt-0.5 shrink-0 transition">
+        <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm font-medium text-ink dark:text-white leading-snug ${done ? 'line-through text-ink/40 dark:text-white/30' : ''}`}>
+          <p className="text-sm font-medium text-ink dark:text-white leading-snug">
             {task.title}
           </p>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-            {!done && (
-              <button onClick={() => onEdit(task)} className="text-ink/30 dark:text-white/25 hover:text-lavender-600 transition">
-                <Pencil size={14}/>
-              </button>
-            )}
+            <button onClick={() => onEdit(task)} className="text-ink/30 dark:text-white/25 hover:text-lavender-600 transition">
+              <Pencil size={14}/>
+            </button>
             <button onClick={() => onDelete(task.id)} className="text-ink/30 dark:text-white/25 hover:text-coral-500 transition">
               <Trash2 size={14}/>
             </button>
