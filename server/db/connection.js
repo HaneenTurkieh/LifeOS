@@ -88,6 +88,16 @@ async function initDb() {
   if (!(await hasColumn('user_premium', 'font_scale'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN font_scale TEXT DEFAULT 'default'`);
   }
+  // Real billing isn't wired up yet (payment gateway still pending), so
+  // "going premium" today means submitting a plan request that emails
+  // the dev directly — plan/requested_at just record what was asked
+  // for, not a paid, auto-renewing subscription.
+  if (!(await hasColumn('user_premium', 'plan'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN plan TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('user_premium', 'requested_at'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN requested_at TEXT DEFAULT NULL`);
+  }
   if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
     await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }

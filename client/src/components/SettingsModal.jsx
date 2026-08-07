@@ -293,16 +293,19 @@ function PremiumTab() {
   const { t, lang } = useLanguage();
   const { accent, setAccent, resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
-  const [status,    setStatus]    = useState(null);
-  const [busy,      setBusy]      = useState(false);
-  const [themeBusy, setThemeBusy] = useState(false);
+  const [status,     setStatus]     = useState(null);
+  const [plans,      setPlans]      = useState([]);
+  const [busy,       setBusy]       = useState(false);
+  const [requesting, setRequesting] = useState(null); // plan key currently being requested
+  const [themeBusy,  setThemeBusy]  = useState(false);
   const load = useCallback(() => {
     api.get('/focus/premium/status')
       .then((d) => {
         setStatus(d);
         if (d.theme_preset) setAccent(d.theme_preset);
       })
-      .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple' }));
+      .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple', plan:null }));
+    api.get('/focus/premium/plans').then((d) => setPlans(d.plans || [])).catch(() => setPlans([]));
   }, [setAccent]);
   useEffect(() => { load(); }, [load]);
   const toggle = async () => {
@@ -315,6 +318,22 @@ function PremiumTab() {
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
+  const requestPlan = async (planKey) => {
+    setRequesting(planKey);
+    try {
+      const next = await api.post('/focus/premium/request', { plan_key: planKey });
+      setStatus(next);
+      if (next.theme_preset) setAccent(next.theme_preset);
+      toast.success(t('settings.planRequested'));
+    } catch (err) { toast.error(err.message); }
+    finally { setRequesting(null); }
+  };
+  const periodLabel = (months, lang2) => {
+    if (months === 1)  return lang2 === 'ar' ? 'شهريًا' : '/ month';
+    if (months === 4)  return lang2 === 'ar' ? 'كل فصل دراسي' : '/ semester';
+    return lang2 === 'ar' ? 'سنويًا' : '/ year';
+  };
+  const monthlyEq = (plan) => Math.round((plan.price / plan.months) * 10) / 10;
   const pause = async () => {
     setBusy(true);
     try {
@@ -369,14 +388,61 @@ function PremiumTab() {
         <p className="text-xs text-ink/45 dark:text-white/35 mt-1">
           {status.is_premium ? t('settings.premiumDesc') : t('settings.freeDesc')}
         </p>
-        <button onClick={toggle} disabled={busy}
-          className={`mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40 ${status.is_premium ? '' : 'text-white'}`}
-          style={status.is_premium
-            ? backToFreeStyle
-            : { background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 4px 14px rgba(255,184,77,0.35)' }}>
-          {busy ? '…' : status.is_premium ? t('settings.backToFree') : t('settings.tryPremium')}
-        </button>
+        {status.is_premium && status.plan && (
+          <p className="text-[11px] font-bold mt-2 text-sun-500">
+            {t('settings.yourPlan')}: {plans.find(p => p.key === status.plan)?.name || status.plan}
+          </p>
+        )}
+        {status.is_premium && (
+          <button onClick={toggle} disabled={busy}
+            className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40"
+            style={backToFreeStyle}>
+            {busy ? '…' : t('settings.backToFree')}
+          </button>
+        )}
       </div>
+
+      {!status.is_premium && plans.length > 0 && (
+        <div className="flex flex-col gap-2.5">
+          <p className="text-sm font-semibold text-ink dark:text-white px-1">👑 {t('settings.choosePlan')}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {plans.map((plan) => {
+              const isPending = requesting === plan.key;
+              const badgeLabel = plan.badge === 'popular' ? t('settings.mostPopular')
+                                : plan.badge === 'value'   ? t('settings.bestValue')
+                                : null;
+              return (
+                <div key={plan.key} className="relative rounded-2xl p-4 flex flex-col"
+                  style={plan.badge
+                    ? { background:'linear-gradient(135deg,rgba(255,184,77,0.12),rgb(var(--accent-500) / 0.08))', border:'1px solid rgba(255,184,77,0.35)' }
+                    : { background:'rgb(var(--accent-500) / 0.05)', border:'1px solid rgb(var(--accent-500) / 0.12)' }}>
+                  {badgeLabel && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-bold rounded-full px-2.5 py-1 whitespace-nowrap text-white"
+                      style={{ background: plan.badge === 'popular' ? 'linear-gradient(135deg,#FFB84D,#E8940A)' : 'linear-gradient(135deg,#2DA76E,#1E8A57)' }}>
+                      {badgeLabel}
+                    </span>
+                  )}
+                  <p className="text-xs font-bold text-ink/60 dark:text-white/50 text-center mt-1">{plan.name}</p>
+                  <p className="text-2xl font-display font-bold text-ink dark:text-white text-center mt-1">
+                    {plan.price} <span className="text-xs font-semibold text-ink/40 dark:text-white/35">{plan.currency}</span>
+                  </p>
+                  <p className="text-[11px] text-ink/40 dark:text-white/30 text-center">{periodLabel(plan.months, lang)}</p>
+                  {plan.months > 1 && (
+                    <p className="text-[10px] text-ink/30 dark:text-white/25 text-center mt-0.5">
+                      {t('settings.perMonthEq', { n: monthlyEq(plan) })}
+                    </p>
+                  )}
+                  <button onClick={() => requestPlan(plan.key)} disabled={requesting !== null}
+                    className="mt-3 w-full rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-40"
+                    style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
+                    {isPending ? t('settings.requesting') : t('settings.requestPlan')}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="rounded-2xl p-4"
         style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
         <div className="flex items-center justify-between mb-3">
