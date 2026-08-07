@@ -48,6 +48,23 @@ function feedbackEmailHtml({ userEmail, message }) {
   </div>`;
 }
 
+function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel }) {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#FFB84D,#7C6AF0);color:#fff;font-size:22px;line-height:48px;text-align:center;">👑</div>
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New Premium request</h2>
+    <p style="color:#5A5F73;font-size:13px;text-align:center;margin:0 0 20px;">
+      From: <strong>${userName || 'A user'}</strong> (${userEmail || 'not provided'})
+    </p>
+    <div style="background:#F4F3FF;border:1px solid #EBE8FF;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:1.6;text-align:center;">
+      Wants the <strong>${planLabel}</strong> plan — ${priceLabel}.<br/>
+      No payment has been collected yet — reach out to arrange it.
+    </div>
+  </div>`;
+}
+
 // ── Path 1: Brevo transactional HTTP API ──────────────────────
 async function sendViaBrevoApi({ to, subject, html }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -150,4 +167,18 @@ async function sendFeedbackEmail({ userEmail, message }) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendFeedbackEmail };
+// ── Public: premium plan request — there's no payment gateway wired
+// up yet (blocked on confirming Arab Bank's merchant terms), so
+// "going premium" today means this: a request lands in the dev's
+// inbox and the account gets flagged premium right away, same
+// bootstrap approach used before any real billing exists. ──────
+async function sendPremiumRequestEmail({ userEmail, userName, planLabel, priceLabel }) {
+  await dispatch({
+    to: 'haneenturkieh@hotmail.com',
+    label: 'premium request',
+    subject: `Premium request: ${planLabel}`,
+    html: premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel }),
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail };

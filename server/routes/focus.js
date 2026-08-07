@@ -653,14 +653,30 @@ router.delete('/rooms/:code/leave', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
+// ── Plan catalogue ──────────────────────────────────────────────
+// Semester is the headline (students budget in semesters, not
+// years), with monthly as a low-commitment entry point and annual
+// as the max-savings option — each tier's discount grows with the
+// length of commitment so the pricing reads as consistent, not
+// arbitrary. No gateway is wired up yet, so "buying" a plan today
+// is a request that emails the dev — see POST /premium/request.
+const PLANS = [
+  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 10, currency: 'NIS', discountPct: 0,  badge: null },
+  { key: 'semester', name: 'Semester', months: 4,  price: 34, currency: 'NIS', discountPct: 15, badge: 'popular' },
+  { key: 'annual',   name: 'Annual',   months: 12, price: 96, currency: 'NIS', discountPct: 20, badge: 'value' },
+];
+router.get('/premium/plans', (req, res) => res.json({ plans: PLANS }));
+
 async function getPremium(userId) {
   const row = (await db.execute({
-    sql: `SELECT is_premium, freeze_date, theme_preset FROM user_premium WHERE user_id = ?`, args: [userId],
+    sql: `SELECT is_premium, freeze_date, theme_preset, plan, requested_at FROM user_premium WHERE user_id = ?`, args: [userId],
   })).rows[0];
   return {
     is_premium:   Boolean(row?.is_premium),
     freeze_date:  row?.freeze_date || null,
     theme_preset: row?.theme_preset || 'purple',
+    plan:         row?.plan || null,
+    requested_at: row?.requested_at || null,
   };
 }
 router.get('/premium/status', async (req, res) => {
@@ -673,8 +689,8 @@ router.post('/premium/toggle', async (req, res) => {
     const next = current.is_premium ? 0 : 1;
     if (next === 0) {
       await db.execute({
-        sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset) VALUES (?, 0, 'purple')
-              ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple'`,
+        sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, plan) VALUES (?, 0, 'purple', NULL)
+              ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple', plan = NULL`,
         args: [req.user.id],
       });
     } else {
@@ -684,6 +700,38 @@ router.post('/premium/toggle', async (req, res) => {
         args: [req.user.id, next],
       });
     }
+    res.json(await getPremium(req.user.id));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+// ── POST /premium/request — pick a plan, email the dev ──────────
+// Grants premium immediately (same bootstrap trust model as the old
+// free toggle) but records which plan was actually requested, so
+// there's a real record to follow up on once a payment method exists.
+router.post('/premium/request', async (req, res) => {
+  const { plan_key } = req.body;
+  const plan = PLANS.find(p => p.key === plan_key);
+  if (!plan) return res.status(400).json({ error: 'Unknown plan' });
+
+  try {
+    const now = new Date().toISOString();
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, is_premium, plan, requested_at) VALUES (?, 1, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET is_premium = 1, plan = excluded.plan, requested_at = excluded.requested_at`,
+      args: [req.user.id, plan.key, now],
+    });
+
+    try {
+      const { sendPremiumRequestEmail } = require('../lib/email');
+      await sendPremiumRequestEmail({
+        userEmail:  req.user.email,
+        userName:   req.user.name,
+        planLabel:  plan.name,
+        priceLabel: `${plan.price} ${plan.currency} / ${plan.months === 1 ? 'month' : plan.months === 4 ? 'semester' : 'year'}`,
+      });
+    } catch (e) {
+      console.error('sendPremiumRequestEmail failed (non-fatal):', e.message);
+    }
+
     res.json(await getPremium(req.user.id));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
