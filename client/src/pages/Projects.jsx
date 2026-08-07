@@ -25,6 +25,8 @@ export default function Projects({ openTrigger = 0 }) {
   const [breakdown,  setBreakdown]  = useState(null);  // { project, tasks }
   const [breaking,   setBreaking]   = useState(null);  // project id being broken down
   const [creating,   setCreating]   = useState(false);
+  const [contextFor, setContextFor] = useState(null);   // project waiting on the "tell Lumi more" step
+  const [extraNote,  setExtraNote]  = useState('');
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -61,17 +63,18 @@ export default function Projects({ openTrigger = 0 }) {
   };
 
   // ── AI: break project into tasks ─────────────────────────────
-  const breakIntoTasks = async (project) => {
+  // Stage + existing-task titles ground the AI in roughly where a
+  // project stands, but a 5-stage label is still a coarse guess — it
+  // can't know what's actually built, what's broken, or what you
+  // specifically want out of this round. Rather than trying to make it
+  // interrogate you turn-by-turn (which would need a real chat thread,
+  // not this one-shot generator), extraNote is an optional freeform box
+  // you fill in first — "auth is done, focus on the payments flow" —
+  // so you can hand it whatever specific context actually matters
+  // instead of it guessing from a stage name alone.
+  const breakIntoTasks = async (project, extraNote = '') => {
     setBreaking(project.id);
     try {
-      // The prompt used to only get the title + description, so it
-      // treated every project as starting from zero every single time —
-      // a project already 60% through Development got the same "build
-      // the whole thing" breakdown as a brand-new Idea, and running it
-      // twice just regenerated the same generic scaffolding tasks. Give
-      // it the project's actual stage and whatever tasks already exist
-      // for it, so what comes back is grounded in where the project
-      // really is instead of generic dashboard-app boilerplate.
       const stageLabel = STAGES.find((s) => s.key === project.stage)?.title || project.stage;
       let existingTitles = [];
       try {
@@ -88,6 +91,7 @@ export default function Projects({ openTrigger = 0 }) {
 
 Current stage: ${stageLabel} (${project.progress}% complete).
 ${existingTitles.length ? `Tasks already planned or done for this project — do NOT repeat any of these, only suggest new next steps:\n${existingTitles.map((t) => `- ${t}`).join('\n')}` : "No tasks exist for this project yet."}
+${extraNote.trim() ? `\nAdditional context from the person building it — treat this as the most reliable signal of what's actually needed:\n${extraNote.trim()}` : ''}
 
 The tasks must fit where the project actually is right now. Idea/Design stage: focus on planning, scoping, and design tasks — not building. Development stage: focus on building the remaining pieces. Testing stage: focus on QA, bug-fixing, and polish. Deployment stage: focus on launch, release, and ops tasks. Do not suggest core build-from-scratch work for a project that's already past that stage.
 
@@ -156,7 +160,7 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
                 <div className="flex items-center gap-2 shrink-0">
                   {/* AI breakdown button */}
                   <button
-                    onClick={() => breakIntoTasks(item)}
+                    onClick={() => { setExtraNote(''); setContextFor(item); }}
                     disabled={breaking === item.id}
                     className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50"
                     style={{
@@ -216,6 +220,35 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
           ))}
         </div>
       )}
+
+      {/* ── Optional context before generating ──────────────── */}
+      <Modal
+        open={!!contextFor}
+        onClose={() => setContextFor(null)}
+        title={`Anything Lumi should know about "${contextFor?.title}"?`}
+      >
+        {contextFor && (
+          <div className="flex flex-col gap-3.5">
+            <p className="text-sm text-ink/50 dark:text-white/40">
+              Stage and existing tasks are used automatically. This is optional — add anything specific that matters right now, e.g. "auth and the dashboard are done, focus on the payments flow" or "this is a school report, not code."
+            </p>
+            <textarea
+              className="input-field"
+              rows={3}
+              placeholder="Optional context (leave blank to skip)"
+              value={extraNote}
+              onChange={(e) => setExtraNote(e.target.value)}
+              autoFocus
+            />
+            <button
+              className="btn-primary justify-center mt-1"
+              onClick={() => { const p = contextFor; setContextFor(null); breakIntoTasks(p, extraNote); }}
+            >
+              <Sparkles size={14} /> Generate tasks
+            </button>
+          </div>
+        )}
+      </Modal>
 
       {/* ── AI Breakdown modal ──────────────────────────────── */}
       <Modal
