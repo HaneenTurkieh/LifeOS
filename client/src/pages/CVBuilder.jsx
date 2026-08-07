@@ -165,6 +165,7 @@ Be direct and specific. No fluff. Here's the CV:
 
 ${cvSummary}`,
         }],
+        no_history: true, // internal tool call, not a real Lumi conversation — keep it out of the chat history
       });
       setReview(res.text);
     } catch (_) { toast.error('Could not generate review. Try again.'); }

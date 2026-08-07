@@ -798,7 +798,14 @@ const STAT_CLAIM_RE = /\d[\d,.]*\s?(%|percent|million|billion|thousand)\b/i;
 router.post('/', async (req, res) => {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
-  const { messages, conversation_id, mode = 'chat', attachments = [] } = req.body;
+  // no_history: true is for behind-the-scenes uses of this same endpoint
+  // that were never meant to be a real conversation with Lumi — the
+  // Projects "Break into tasks" breakdown and the CV Builder review both
+  // reuse /chat for the model call, but were saving a brand-new
+  // lumi_conversations row every time, cluttering the visible chat
+  // history with raw internal prompts. Everything still runs exactly
+  // the same; only the DB writes at the bottom get skipped.
+  const { messages, conversation_id, mode = 'chat', attachments = [], no_history = false } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -862,39 +869,41 @@ router.post('/', async (req, res) => {
       ? `\n\n📎 ${attachments.map(a => a.name || 'file').join(', ')}`
       : '';
     let convId = conversation_id;
-    if (!convId) {
-      const firstMsg   = messages.find(m => m.role === 'user')?.content || 'New conversation';
-      const title      = await generateTitle(firstMsg);
-      const convResult = await db.execute({
-        sql:  `INSERT INTO lumi_conversations (user_id, title) VALUES (?, ?)`,
-        args: [req.user.id, title],
-      });
-      convId = Number(convResult.lastInsertRowid);
-      for (let i = 0; i < messages.length; i++) {
-        const msg    = messages[i];
-        const isLastUser = msg.role === 'user' && i === messages.length - 1;
-        await db.execute({
-          sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
-          args: [convId, msg.role, msg.content + (isLastUser ? attachmentSuffix : '')],
+    if (!no_history) {
+      if (!convId) {
+        const firstMsg   = messages.find(m => m.role === 'user')?.content || 'New conversation';
+        const title      = await generateTitle(firstMsg);
+        const convResult = await db.execute({
+          sql:  `INSERT INTO lumi_conversations (user_id, title) VALUES (?, ?)`,
+          args: [req.user.id, title],
         });
-      }
-    } else {
-      const lastUser = [...messages].reverse().find(m => m.role === 'user');
-      if (lastUser) {
+        convId = Number(convResult.lastInsertRowid);
+        for (let i = 0; i < messages.length; i++) {
+          const msg    = messages[i];
+          const isLastUser = msg.role === 'user' && i === messages.length - 1;
+          await db.execute({
+            sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
+            args: [convId, msg.role, msg.content + (isLastUser ? attachmentSuffix : '')],
+          });
+        }
+      } else {
+        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+        if (lastUser) {
+          await db.execute({
+            sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
+            args: [convId, 'user', lastUser.content + attachmentSuffix],
+          });
+        }
         await db.execute({
-          sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
-          args: [convId, 'user', lastUser.content + attachmentSuffix],
+          sql:  `UPDATE lumi_conversations SET updated_at=datetime('now') WHERE id=?`,
+          args: [convId],
         });
       }
       await db.execute({
-        sql:  `UPDATE lumi_conversations SET updated_at=datetime('now') WHERE id=?`,
-        args: [convId],
+        sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, 'assistant', ?, ?)`,
+        args: [convId, responseText, JSON.stringify(actions)],
       });
     }
-    await db.execute({
-      sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, 'assistant', ?, ?)`,
-      args: [convId, responseText, JSON.stringify(actions)],
-    });
     res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch });
   } catch (err) {
     console.error('Lumi error:', err);
