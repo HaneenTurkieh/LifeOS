@@ -482,6 +482,10 @@ export const translations = {
       'shop.mysticSave':    'Create my tree',
       'shop.mysticSaveEdit':'Save changes',
       'shop.mysticSaving':  'Saving…',
+      'shop.mysticSlotReady': 'A new slot is ready!',
+      'shop.mysticProgress': '{designed}/{unlocked} designed',
+      'shop.mysticXpToNext': '{n} XP to next slot',
+      'shop.mysticNoneYet': 'Earn {n} more XP to unlock your first Mystic Tree slot.',
 
       // ── Login ──────────────────────────────────────────────
       'login.welcomeBack':  'Welcome back',
@@ -1076,6 +1080,10 @@ export const translations = {
       'shop.mysticSave':    'أنشئ شجرتي',
       'shop.mysticSaveEdit':'حفظ التغييرات',
       'shop.mysticSaving':  'جارٍ الحفظ…',
+      'shop.mysticSlotReady': 'مكان جديد جاهز!',
+      'shop.mysticProgress': '{designed}/{unlocked} مصمَّمة',
+      'shop.mysticXpToNext': '{n} نقطة حتى المكان التالي',
+      'shop.mysticNoneYet': 'اكسب {n} نقطة إضافية لفتح أول مكان لشجرتك الغامضة.',
 
       // ── تسجيل الدخول ─────────────────────────────────────────
       'login.welcomeBack':  'أهلًا بعودتك',

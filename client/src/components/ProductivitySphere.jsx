@@ -13,7 +13,7 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
     cherry_blossom: '🌸', bamboo: '🎋', palm: '🌴',
     pine:           '🌲', crystal: '✨', mystic: '🔮',
   };
-  const treeEmoji = equippedTree ? (TREE_EMOJIS[equippedTree] || '🌱') : '🌱';
+  const treeEmoji = !equippedTree ? '🌱' : equippedTree.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱');
 
   // SVG <linearGradient> stops can't read CSS custom properties reliably
   // across browsers the way inline styles can, so each accent preset
