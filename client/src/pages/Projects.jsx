@@ -64,10 +64,34 @@ export default function Projects({ openTrigger = 0 }) {
   const breakIntoTasks = async (project) => {
     setBreaking(project.id);
     try {
+      // The prompt used to only get the title + description, so it
+      // treated every project as starting from zero every single time —
+      // a project already 60% through Development got the same "build
+      // the whole thing" breakdown as a brand-new Idea, and running it
+      // twice just regenerated the same generic scaffolding tasks. Give
+      // it the project's actual stage and whatever tasks already exist
+      // for it, so what comes back is grounded in where the project
+      // really is instead of generic dashboard-app boilerplate.
+      const stageLabel = STAGES.find((s) => s.key === project.stage)?.title || project.stage;
+      let existingTitles = [];
+      try {
+        const allTasks = await api.get('/tasks');
+        existingTitles = (allTasks || [])
+          .filter((t) => t.category === project.title)
+          .map((t) => `${t.title}${t.status === 'done' ? ' (done)' : ''}`);
+      } catch (_) {}
+
       const res = await api.post('/chat', {
         messages: [{
           role:    'user',
-          content: `Break the project "${project.title}"${project.description ? ` (${project.description})` : ''} into 5-7 concrete, actionable development tasks. Return ONLY a JSON array of objects with keys: title (string), priority (high/medium/low). No explanation, just the JSON array.`,
+          content: `Break the project "${project.title}"${project.description ? ` (${project.description})` : ''} into 5-7 concrete, actionable tasks.
+
+Current stage: ${stageLabel} (${project.progress}% complete).
+${existingTitles.length ? `Tasks already planned or done for this project — do NOT repeat any of these, only suggest new next steps:\n${existingTitles.map((t) => `- ${t}`).join('\n')}` : "No tasks exist for this project yet."}
+
+The tasks must fit where the project actually is right now. Idea/Design stage: focus on planning, scoping, and design tasks — not building. Development stage: focus on building the remaining pieces. Testing stage: focus on QA, bug-fixing, and polish. Deployment stage: focus on launch, release, and ops tasks. Do not suggest core build-from-scratch work for a project that's already past that stage.
+
+Return ONLY a JSON array of objects with keys: title (string), priority (high/medium/low). No explanation, just the JSON array.`,
         }],
       });
       let tasks = [];
