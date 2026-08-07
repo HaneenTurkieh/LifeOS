@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square, Pencil, ChevronDown } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -306,7 +307,7 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
                     <span className="flex items-center gap-1.5">
                       <ChevronDown
                         size={12}
-                        className={`text-ink/30 dark:text-white/25 transition-transform ${
+                        className={`text-ink/30 dark:text-white/25 transition-transform duration-300 ease-in-out ${
                           collapsedProjects.has(item.id) ? '-rotate-90' : ''
                         }`}
                       />
@@ -318,37 +319,48 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
                       {tasksFor(item).filter((t) => t.status === 'done').length}/{tasksFor(item).length} done
                     </span>
                   </button>
-                  {!collapsedProjects.has(item.id) && (
-                    <div className="flex flex-col gap-1">
-                      {tasksFor(item).map((t) => (
-                        <div key={t.id}
-                          className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 hover:bg-ink/[0.03] dark:hover:bg-white/[0.04] transition group">
-                          <button onClick={() => toggleProjectTask(t)}
-                            className="flex items-center gap-2.5 text-start flex-1 min-w-0">
-                            {t.status === 'done'
-                              ? <CheckSquare size={16} className="text-sage-500 shrink-0" />
-                              : <Square size={16} className="text-ink/25 dark:text-white/20 shrink-0" />}
-                            <span className={`flex-1 min-w-0 truncate text-sm ${
-                              t.status === 'done'
-                                ? 'text-ink/35 dark:text-white/30 line-through'
-                                : 'text-ink/75 dark:text-white/65'
-                            }`}>
-                              {t.title}
-                            </span>
-                          </button>
-                          <PriorityPill priority={t.priority} />
-                          <button onClick={() => openEditProjectTask(t)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-lavender-600 dark:text-white/25 dark:hover:text-lavender-400 p-1">
-                            <Pencil size={12} />
-                          </button>
-                          <button onClick={() => deleteProjectTask(t)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400 p-1">
-                            <Trash2 size={12} />
-                          </button>
+                  <AnimatePresence initial={false}>
+                    {!collapsedProjects.has(item.id) && (
+                      <motion.div
+                        key="tasks"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div className="flex flex-col gap-1 pt-0.5">
+                          {tasksFor(item).map((t) => (
+                            <div key={t.id}
+                              className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 hover:bg-ink/[0.03] dark:hover:bg-white/[0.04] transition group">
+                              <button onClick={() => toggleProjectTask(t)}
+                                className="flex items-center gap-2.5 text-start flex-1 min-w-0">
+                                {t.status === 'done'
+                                  ? <CheckSquare size={16} className="text-sage-500 shrink-0" />
+                                  : <Square size={16} className="text-ink/25 dark:text-white/20 shrink-0" />}
+                                <span className={`flex-1 min-w-0 truncate text-sm ${
+                                  t.status === 'done'
+                                    ? 'text-ink/35 dark:text-white/30 line-through'
+                                    : 'text-ink/75 dark:text-white/65'
+                                }`}>
+                                  {t.title}
+                                </span>
+                              </button>
+                              <PriorityPill priority={t.priority} />
+                              <button onClick={() => openEditProjectTask(t)}
+                                className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-lavender-600 dark:text-white/25 dark:hover:text-lavender-400 p-1">
+                                <Pencil size={12} />
+                              </button>
+                              <button onClick={() => deleteProjectTask(t)}
+                                className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400 p-1">
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </GlassCard>
