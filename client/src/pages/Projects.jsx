@@ -51,7 +51,10 @@ export default function Projects({ openTrigger = 0 }) {
   }, []); // eslint-disable-line
 
   const loadTasks = useCallback(async () => {
-    try { setAllTasks(await api.get('/tasks')); }
+    // scope=all — project-generated tasks are excluded from the default
+    // /tasks response (they don't belong on the general Tasks page or
+    // Dashboard), but this page needs them to populate each card.
+    try { setAllTasks(await api.get('/tasks?scope=all')); }
     catch (_) {}
   }, []);
 
@@ -63,7 +66,7 @@ export default function Projects({ openTrigger = 0 }) {
 
   const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
   const tasksFor = (project) => allTasks
-    .filter((t) => t.category === project.title)
+    .filter((t) => t.project_id === project.id)
     .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
 
   const toggleProjectTask = async (task) => {
@@ -157,9 +160,9 @@ export default function Projects({ openTrigger = 0 }) {
       const stageLabel = STAGES.find((s) => s.key === project.stage)?.title || project.stage;
       let existingTitles = [];
       try {
-        const allTasks = await api.get('/tasks');
-        existingTitles = (allTasks || [])
-          .filter((t) => t.category === project.title)
+        const allProjectTasks = await api.get('/tasks?scope=all');
+        existingTitles = (allProjectTasks || [])
+          .filter((t) => t.project_id === project.id)
           .map((t) => `${t.title}${t.status === 'done' ? ' (done)' : ''}`);
       } catch (_) {}
 
@@ -199,10 +202,11 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
     try {
       await Promise.all(breakdown.tasks.map((t) =>
         api.post('/tasks', {
-          title:    t.title,
-          priority: t.priority || 'medium',
-          category: breakdown.project.title,
-          status:   'todo',
+          title:      t.title,
+          priority:   t.priority || 'medium',
+          category:   breakdown.project.title,
+          status:     'todo',
+          project_id: breakdown.project.id,
         })
       ));
       toast.success(`${breakdown.tasks.length} tasks added — you'll see them right on this project's card.`);
