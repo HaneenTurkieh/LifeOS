@@ -11,7 +11,7 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
   const TREE_EMOJIS = {
     seedling:       '🌱', sprout: '🌿', oak: '🌳',
     cherry_blossom: '🌸', bamboo: '🎋', palm: '🌴',
-    pine:           '🌲', crystal: '✨',
+    pine:           '🌲', crystal: '✨', mystic: '🔮',
   };
   const treeEmoji = equippedTree ? (TREE_EMOJIS[equippedTree] || '🌱') : '🌱';
 

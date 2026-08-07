@@ -47,7 +47,7 @@ const cardGlass = {
 const TREE_EMOJIS = {
   seedling:       '🌱', sprout: '🌿',  oak:  '🌳',
   cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
-  pine:           '🌲', crystal: '✨',
+  pine:           '🌲', crystal: '✨', mystic: '🔮',
 };
 const DEAD_EMOJI = '🥀';
 
@@ -126,7 +126,7 @@ export default function Flow() {
 
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
-    taskName, taskId, dots, startedAt, congrats, died, stats, board, room, roomTree,
+    taskName, taskId, dots, startedAt, congrats, died, stats, board, spotlights, room, roomTree,
     myRooms, switchRoom, loadMyRooms,
     setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
@@ -921,7 +921,33 @@ export default function Flow() {
               }
             />
           ) : (
-            <div className="rounded-3xl p-7" style={cardGlass}>
+            <>
+              {spotlights && (spotlights.star || spotlights.consistent || spotlights.longest) && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  {spotlights.star && (
+                    <div className="rounded-2xl px-4 py-3" style={lg({ color: modeColor, active: true })}>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-ink/40 dark:text-white/35 mb-1">🌟 {t('flow.weekStar')}</p>
+                      <p className="text-sm font-semibold text-ink dark:text-white truncate">{spotlights.star.name}</p>
+                      <p className="text-xs text-ink/40 dark:text-white/30">{Math.floor(spotlights.star.total_minutes / 60)}h {spotlights.star.total_minutes % 60}m</p>
+                    </div>
+                  )}
+                  {spotlights.consistent && (
+                    <div className="rounded-2xl px-4 py-3" style={lg()}>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-ink/40 dark:text-white/35 mb-1">🔥 {t('flow.mostConsistent')}</p>
+                      <p className="text-sm font-semibold text-ink dark:text-white truncate">{spotlights.consistent.name}</p>
+                      <p className="text-xs text-ink/40 dark:text-white/30">{t('flow.sessionsCount', { n: spotlights.consistent.session_count })}</p>
+                    </div>
+                  )}
+                  {spotlights.longest && (
+                    <div className="rounded-2xl px-4 py-3" style={lg()}>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-ink/40 dark:text-white/35 mb-1">⏱ {t('flow.longestSession')}</p>
+                      <p className="text-sm font-semibold text-ink dark:text-white truncate">{spotlights.longest.name}</p>
+                      <p className="text-xs text-ink/40 dark:text-white/30">{spotlights.longest.duration_minutes}m</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="rounded-3xl p-7" style={cardGlass}>
               <div className="flex items-start justify-between mb-1">
                 <h2 className="font-display font-bold text-ink dark:text-white">{t('flow.weeklyRank')}</h2>
                 <span className="text-xs text-ink/35 dark:text-white/30">{t('flow.resetsSunday')}</span>
@@ -953,7 +979,8 @@ export default function Flow() {
                   );
                 })}
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}

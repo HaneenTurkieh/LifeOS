@@ -182,6 +182,7 @@ export function FocusProvider({ children }) {
   const [died,      setDied]      = useState(null);
   const [stats,     setStats]     = useState(null);
   const [board,     setBoard]     = useState([]);
+  const [spotlights, setSpotlights] = useState(null); // this week's star / most consistent / longest session
   const [room,      setRoom]      = useState(null);
   const [roomTree,  setRoomTree]  = useState(null);
   const [myRooms,   setMyRooms]   = useState([]); // every room the user's created/joined
@@ -314,7 +315,7 @@ export function FocusProvider({ children }) {
   const loadData = useCallback(async () => {
     try {
       const [s, l] = await Promise.all([api.get('/focus/stats'), api.get('/focus/leaderboard')]);
-      setStats(s); setBoard(l.leaderboard || []);
+      setStats(s); setBoard(l.leaderboard || []); setSpotlights(l.spotlights || null);
     } catch (_) {}
   }, []);
   useEffect(() => { loadData(); }, [loadData]);
@@ -640,7 +641,7 @@ export function FocusProvider({ children }) {
   return (
     <FocusContext.Provider value={{
       mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, dots,
-      startedAt, congrats, died, stats, board, room, roomTree, myRooms,
+      startedAt, congrats, died, stats, board, spotlights, room, roomTree, myRooms,
       setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
       switchRoom, loadMyRooms,
       toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,

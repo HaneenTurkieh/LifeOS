@@ -315,25 +315,65 @@ router.get('/stats', async (req, res) => {
 
 router.get('/leaderboard', async (req, res) => {
   try {
-    const result = await db.execute({
-      sql: `SELECT u.id, u.name,
-                   COALESCE(SUM(fs.duration_minutes), 0) total_minutes,
-                   COUNT(fs.id) session_count
-            FROM users u
-            LEFT JOIN focus_sessions fs ON fs.user_id = u.id AND fs.week_start = ?
-            GROUP BY u.id, u.name
-            HAVING total_minutes > 0
-            ORDER BY total_minutes DESC
-            LIMIT 20`,
-      args: [getWeekStart()],
-    });
-    const leaderboard = result.rows.map((r, i) => ({
+    const weekStart = getWeekStart();
+    const [boardResult, consistentResult, longestResult] = await Promise.all([
+      db.execute({
+        sql: `SELECT u.id, u.name,
+                     COALESCE(SUM(fs.duration_minutes), 0) total_minutes,
+                     COUNT(fs.id) session_count
+              FROM users u
+              LEFT JOIN focus_sessions fs ON fs.user_id = u.id AND fs.week_start = ?
+              GROUP BY u.id, u.name
+              HAVING total_minutes > 0
+              ORDER BY total_minutes DESC
+              LIMIT 20`,
+        args: [weekStart],
+      }),
+      // Most sessions this week — a separate spotlight from raw total
+      // minutes, so someone who shows up every day in short bursts gets
+      // recognized too, not just whoever logged the most total time.
+      db.execute({
+        sql: `SELECT u.id, u.name, COUNT(fs.id) session_count
+              FROM focus_sessions fs JOIN users u ON u.id = fs.user_id
+              WHERE fs.week_start = ?
+              GROUP BY u.id, u.name
+              ORDER BY session_count DESC
+              LIMIT 1`,
+        args: [weekStart],
+      }),
+      // Longest single sitting this week.
+      db.execute({
+        sql: `SELECT u.id, u.name, fs.duration_minutes
+              FROM focus_sessions fs JOIN users u ON u.id = fs.user_id
+              WHERE fs.week_start = ?
+              ORDER BY fs.duration_minutes DESC
+              LIMIT 1`,
+        args: [weekStart],
+      }),
+    ]);
+
+    const leaderboard = boardResult.rows.map((r, i) => ({
       ...r,
       rank:          i + 1,
       total_minutes: Number(r.total_minutes),
       session_count: Number(r.session_count),
     }));
-    res.json({ week_start: getWeekStart(), leaderboard });
+
+    // Multiple categories rather than one crowned "winner" — keeps this
+    // encouraging for more than just whoever has the most total minutes.
+    const spotlights = {
+      star: leaderboard[0]
+        ? { id: leaderboard[0].id, name: leaderboard[0].name, total_minutes: leaderboard[0].total_minutes }
+        : null,
+      consistent: consistentResult.rows[0]
+        ? { id: consistentResult.rows[0].id, name: consistentResult.rows[0].name, session_count: Number(consistentResult.rows[0].session_count) }
+        : null,
+      longest: longestResult.rows[0]
+        ? { id: longestResult.rows[0].id, name: longestResult.rows[0].name, duration_minutes: Number(longestResult.rows[0].duration_minutes) }
+        : null,
+    };
+
+    res.json({ week_start: weekStart, leaderboard, spotlights });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
