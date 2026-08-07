@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine } from 'lucide-react';
+import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2 } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -104,6 +104,13 @@ export default function Dashboard() {
       const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
       if (xpAwarded) toast.xp(xpAwarded, task.title);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g,' ')));
+      load();
+    } catch (e) { toast.error(e.message); }
+  };
+  const deleteTask = async (task) => {
+    try {
+      await api.del(`/tasks/${task.id}`);
+      toast.success(t('tasks.deleted') || 'Deleted');
       load();
     } catch (e) { toast.error(e.message); }
   };
@@ -268,6 +275,10 @@ export default function Dashboard() {
                         task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
                                                      'bg-lavender-100 text-lavender-600'
                       }`}>{t(`tasks.${task.priority}`)}</span>
+                      <button onClick={() => deleteTask(task)}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400 p-1">
+                        <Trash2 size={14} />
+                      </button>
                     </motion.div>
                   );
                 })}
