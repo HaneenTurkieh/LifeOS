@@ -120,35 +120,38 @@ function buildModern(userName, userEmail, profile, data) {
 
   return `
 <div style="font-family:'Inter',-apple-system,sans-serif;font-size:13px;line-height:1.65;display:flex;min-height:100vh">
-  <!-- Sidebar -->
-  <div style="width:220px;min-width:220px;background:${accent};padding:48px 28px;color:white;flex-shrink:0">
+  <!-- Sidebar — light tint + a coloured edge, not a solid colour block.
+       Full saturated backgrounds are exactly what makes ATS parsers and
+       black-and-white printing/scanning choke, so the accent here is
+       restrained to text, the border, and small fills only. -->
+  <div style="width:220px;min-width:220px;background:${accent}0A;border-right:3px solid ${accent};padding:48px 24px;color:#111827;flex-shrink:0">
     <!-- Avatar circle -->
-    <div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin-bottom:16px">
+    <div style="width:64px;height:64px;border-radius:50%;background:${accent}1A;border:1.5px solid ${accent}44;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:${accent};margin-bottom:16px">
       ${(userName||'?')[0].toUpperCase()}
     </div>
-    <div style="font-size:18px;font-weight:700;line-height:1.2;margin-bottom:4px">${userName||'Your Name'}</div>
-    ${profile.cv_headline ? `<div style="font-size:12px;opacity:0.85;font-weight:600;margin-bottom:8px">${profile.cv_headline}</div>` : ''}
-    <div style="font-size:10.5px;opacity:0.65;margin-bottom:32px;line-height:1.6">${[userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).join('<br/>')}</div>
+    <div style="font-size:17px;font-weight:700;line-height:1.2;margin-bottom:4px;color:#111827">${userName||'Your Name'}</div>
+    ${profile.cv_headline ? `<div style="font-size:11.5px;font-weight:600;margin-bottom:8px;color:${accent}">${profile.cv_headline}</div>` : ''}
+    <div style="font-size:10.5px;color:#6B7280;margin-bottom:32px;line-height:1.6">${[userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).join('<br/>')}</div>
 
     ${skills.length ? `
     <div style="margin-bottom:28px">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;opacity:.55;margin-bottom:12px">Skills</div>
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#9CA3AF;margin-bottom:12px">Skills</div>
       ${skills.map(s=>`
       <div style="margin-bottom:10px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:4px">${s.name}</div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#111827">${s.name}</div>
         <div style="display:flex;gap:3px">
-          ${[1,2,3].map(d=>`<div style="flex:1;height:3px;border-radius:2px;background:${d<=(LD[s.level]||1)?'white':'rgba(255,255,255,0.25)'}"></div>`).join('')}
+          ${[1,2,3].map(d=>`<div style="flex:1;height:3px;border-radius:2px;background:${d<=(LD[s.level]||1)?accent:'#E5E7EB'}"></div>`).join('')}
         </div>
       </div>`).join('')}
     </div>` : ''}
 
     ${certifications.length ? `
     <div>
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;opacity:.55;margin-bottom:12px">Certifications</div>
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#9CA3AF;margin-bottom:12px">Certifications</div>
       ${certifications.map(c=>`
       <div style="margin-bottom:10px">
-        <div style="font-size:12px;font-weight:600">${c.title}</div>
-        <div style="font-size:11px;opacity:.65">${c.issuer}${c.date?` · ${c.date}`:''}</div>
+        <div style="font-size:12px;font-weight:600;color:#111827">${c.title}</div>
+        <div style="font-size:11px;color:#6B7280">${c.issuer}${c.date?` · ${c.date}`:''}</div>
       </div>`).join('')}
     </div>` : ''}
   </div>
@@ -405,7 +408,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
         </div>
         {template === 'modern' && (
           <div className="px-6 py-2 text-[11px] text-ink/40 border-b border-ink/5 shrink-0">
-            Heads up: some ATS résumé scanners misread two-column, colour-block layouts. Minimal is the safest bet for large-company applications.
+            Heads up: some ATS résumé scanners misread two-column layouts regardless of colour. Minimal is still the safest bet for large-company applications.
           </div>
         )}
 
