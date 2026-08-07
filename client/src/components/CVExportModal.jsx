@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, FileText } from 'lucide-react';
+import htmlDocx from 'html-docx-js/dist/html-docx';
 
 const LEVEL_DOTS = { beginner: 1, intermediate: 2, advanced: 3 };
 
@@ -351,6 +352,24 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
     setTimeout(() => win.print(), 400);
   };
 
+  // "Save as PDF" only ever produces a flattened, non-editable file —
+  // there was no way to get something you (or a recruiter) could
+  // actually open and tweak afterward. html-docx-js converts the same
+  // template HTML straight into a real .docx, no server round-trip.
+  const handleDownloadDocx = () => {
+    const content  = BUILDERS[template](userName, userEmail, profile, fullData);
+    const fullHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${userName} — CV</title></head><body>${content}</body></html>`;
+    const blob = htmlDocx.asBlob(fullHtml);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${userName || 'CV'} - CV.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const previewHtml = BUILDERS[template](userName, userEmail, profile, fullData);
 
   return (
@@ -375,6 +394,11 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
               className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-white"
               style={{ background: 'linear-gradient(135deg,#111827,#374151)', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
               <Printer size={14} /> Save as PDF
+            </button>
+            <button onClick={handleDownloadDocx}
+              className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-ink"
+              style={{ background: 'rgba(17,24,39,0.06)' }}>
+              <FileText size={14} /> Download Word
             </button>
             <button onClick={onClose}
               className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 hover:text-ink/70 transition">
@@ -408,7 +432,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
         </div>
         {template === 'modern' && (
           <div className="px-6 py-2 text-[11px] text-ink/40 border-b border-ink/5 shrink-0">
-            Heads up: some ATS résumé scanners misread two-column layouts regardless of colour. Minimal is still the safest bet for large-company applications.
+            Heads up: some ATS résumé scanners misread two-column layouts regardless of colour, and the Word download may collapse the sidebar into a single column. Minimal is still the safest bet for large-company applications and for editing in Word.
           </div>
         )}
 
