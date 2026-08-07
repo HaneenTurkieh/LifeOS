@@ -50,6 +50,14 @@ const TREE_EMOJIS = {
   pine:           '🌲', crystal: '✨', mystic: '🔮',
 };
 const DEAD_EMOJI = '🥀';
+// Mystic trees are keyed 'mystic:<id>' (one design per unlocked slot),
+// so they never match TREE_EMOJIS by exact key — catch the prefix
+// before falling back to a generic seedling.
+function treeEmoji(key) {
+  if (!key) return '🌱';
+  if (key.startsWith('mystic')) return '🔮';
+  return TREE_EMOJIS[key] || '🌱';
+}
 
 const xpFor = (min) => Math.floor(min / 5) * 2;
 const MODE_LABEL_KEYS = { focus: 'flow.focus', short: 'flow.shortBreak', long: 'flow.longBreak' };
@@ -96,7 +104,7 @@ function LandPlot({ trees, t }) {
               }}
               title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
             >
-              {tr.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[tr.tree_key] || '🌳')}
+              {tr.status === 'dead' ? DEAD_EMOJI : (treeEmoji(tr.tree_key))}
             </motion.div>
           );
         })
@@ -438,7 +446,7 @@ export default function Flow() {
                   className="text-4xl mb-1 select-none"
                   style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
                 >
-                  {TREE_EMOJIS[equippedTree] || '🌱'}
+                  {treeEmoji(equippedTree)}
                 </motion.div>
                 <span
                   className="font-display tabular-nums leading-none text-ink dark:text-white"
@@ -635,7 +643,7 @@ export default function Flow() {
                   <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-3"
                     style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
                     <span className="text-lg shrink-0">
-                      {roomTree.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[roomTree.tree_key] || '🌱')}
+                      {roomTree.status === 'dead' ? DEAD_EMOJI : (treeEmoji(roomTree.tree_key))}
                     </span>
                     <span className="text-[11px] font-semibold leading-snug" style={{ color: treeStatusColor() }}>
                       {treeStatusLabel()}
@@ -757,7 +765,7 @@ export default function Flow() {
                 <div className="flex items-center gap-2.5 rounded-2xl px-5 py-3 mb-4"
                   style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
                   <span className="text-xl shrink-0">
-                    {roomTree.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[roomTree.tree_key] || '🌱')}
+                    {roomTree.status === 'dead' ? DEAD_EMOJI : (treeEmoji(roomTree.tree_key))}
                   </span>
                   <span className="text-xs font-semibold leading-snug" style={{ color: treeStatusColor() }}>
                     {treeStatusLabel()}
@@ -895,7 +903,7 @@ export default function Flow() {
                             ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
                             : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
                         >
-                          {tr.status === 'dead' ? DEAD_EMOJI : (TREE_EMOJIS[tr.tree_key] || '🌳')}
+                          {tr.status === 'dead' ? DEAD_EMOJI : (treeEmoji(tr.tree_key))}
                         </motion.div>
                       ))}
                     </div>
@@ -1068,11 +1076,11 @@ export default function Flow() {
                 className="text-6xl mb-4">🎉</motion.div>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <motion.span animate={{ rotate: [-10, 10, -10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  {TREE_EMOJIS[equippedTree] || '🌱'}
+                  {treeEmoji(equippedTree)}
                 </motion.span>
                 <h2 className="font-display text-2xl font-bold text-ink dark:text-white">{t('flow.complete')}</h2>
                 <motion.span animate={{ rotate: [10, -10, 10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  {TREE_EMOJIS[equippedTree] || '🌱'}
+                  {treeEmoji(equippedTree)}
                 </motion.span>
               </div>
               <p className="text-ink/50 dark:text-white/40 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>

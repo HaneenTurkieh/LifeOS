@@ -262,19 +262,58 @@ async function initDb() {
     user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     tree_key TEXT NOT NULL DEFAULT 'seedling'
   )`);
-  // One user-designed tree per account — shape + colors + a name they
-  // picked themselves, unlocked once for 1000 XP. Free to re-customize
-  // afterward (editing isn't re-selling the same slot, it's the whole
-  // point of it being "yours").
-  await db.execute(`CREATE TABLE IF NOT EXISTS user_mystic_tree (
-    user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    shape_key   TEXT NOT NULL,
-    color_hex   TEXT NOT NULL,
-    glow_hex    TEXT NOT NULL,
-    custom_name TEXT NOT NULL,
-    created_at  TEXT DEFAULT (datetime('now')),
-    updated_at  TEXT DEFAULT (datetime('now'))
-  )`);
+  // User-designed trees — shape + colors + a name they picked
+  // themselves. A new design slot unlocks every 1000 XP earned
+  // (lifetime, not current balance), so this is one row per slot, not
+  // one per account. Originally shipped as a single-row-per-user table
+  // (a one-time 1000 XP purchase); migrate any existing design into
+  // the new multi-row shape before recreating it.
+  const mysticTableInfo = await db.execute(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='user_mystic_tree'`
+  );
+  if (mysticTableInfo.rows.length > 0 && !(await hasColumn('user_mystic_tree', 'id'))) {
+    await db.execute(`ALTER TABLE user_mystic_tree RENAME TO user_mystic_tree_old`);
+    await db.execute(`CREATE TABLE user_mystic_tree (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      shape_key   TEXT NOT NULL,
+      color_hex   TEXT NOT NULL,
+      glow_hex    TEXT NOT NULL,
+      custom_name TEXT NOT NULL,
+      created_at  TEXT DEFAULT (datetime('now')),
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )`);
+    await db.execute(`
+      INSERT INTO user_mystic_tree (user_id, shape_key, color_hex, glow_hex, custom_name, created_at, updated_at)
+      SELECT user_id, shape_key, color_hex, glow_hex, custom_name, created_at, updated_at FROM user_mystic_tree_old
+    `);
+    await db.execute(`DROP TABLE user_mystic_tree_old`);
+  } else {
+    await db.execute(`CREATE TABLE IF NOT EXISTS user_mystic_tree (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      shape_key   TEXT NOT NULL,
+      color_hex   TEXT NOT NULL,
+      glow_hex    TEXT NOT NULL,
+      custom_name TEXT NOT NULL,
+      created_at  TEXT DEFAULT (datetime('now')),
+      updated_at  TEXT DEFAULT (datetime('now'))
+    )`);
+  }
+  // Any account still equipped on the old bare 'mystic' key (from
+  // before this became multi-tree) now points at nothing specific —
+  // point it at their first design, if they have one, since the new
+  // equip key format is 'mystic:<id>'.
+  await db.execute(`
+    UPDATE user_equipped_tree
+    SET tree_key = 'mystic:' || (
+      SELECT id FROM user_mystic_tree umt
+      WHERE umt.user_id = user_equipped_tree.user_id
+      ORDER BY umt.created_at ASC LIMIT 1
+    )
+    WHERE tree_key = 'mystic'
+      AND EXISTS (SELECT 1 FROM user_mystic_tree umt WHERE umt.user_id = user_equipped_tree.user_id)
+  `);
   await db.execute(`CREATE TABLE IF NOT EXISTS notifications (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,

@@ -373,14 +373,16 @@ export default function Dashboard() {
                 className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shrink-0"
                 style={{ background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))', border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)' }}
               >
-                {equippedTree === 'mystic' ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱')}
+                {equippedTree?.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱')}
               </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="font-display font-bold text-ink dark:text-white text-sm">
-                  {equippedTree === 'mystic' ? (treeData?.mystic?.config?.custom_name || 'Mystic Tree') : (TREE_NAMES[equippedTree] || 'Seedling')}
+                  {equippedTree?.startsWith('mystic')
+                    ? (treeData?.mystic?.trees?.find((mt) => `mystic:${mt.id}` === equippedTree)?.custom_name || 'Mystic Tree')
+                    : (TREE_NAMES[equippedTree] || 'Seedling')}
                 </p>
                 <p className="text-[11px] text-ink/40 dark:text-white/30 mt-0.5">
-                  {equippedTree === 'mystic' ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
+                  {equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
                 </p>
                 {nextTree && (
                   <div className="mt-2">
