@@ -11,17 +11,64 @@ const TEMPLATES = [
   { key: 'academic', label: 'Academic', desc: 'Serif, traditional layout' },
 ];
 
+// ── Shared helpers ─────────────────────────────────────────────
+// Building a "contact line" (email · phone · location) is the same
+// three-way join across all three templates, so it lives here once.
+function contactLine(userEmail, profile) {
+  return [userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).join('  ·  ');
+}
+function dateRange(start, end, isCurrent) {
+  const from = start || '';
+  const to   = isCurrent ? 'Present' : (end || '');
+  return [from, to].filter(Boolean).join(' – ');
+}
+
 // ── HTML generators ───────────────────────────────────────────
-function buildMinimal(userName, data) {
-  const { projects, skills, certifications } = data;
+function buildMinimal(userName, userEmail, profile, data) {
+  const { experience, education, projects, skills, certifications } = data;
   const LD = LEVEL_DOTS;
 
   return `
 <div style="padding:56px 64px;max-width:794px;margin:0 auto;font-family:'Inter',-apple-system,sans-serif;color:#111827;font-size:13px;line-height:1.65">
-  <div style="margin-bottom:36px;padding-bottom:20px;border-bottom:2px solid #111827">
+  <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #111827">
     <div style="font-size:26px;font-weight:700;letter-spacing:-0.5px">${userName || 'Your Name'}</div>
-    <div style="font-size:12px;color:#6B7280;margin-top:4px">${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
+    ${profile.cv_headline ? `<div style="font-size:14px;color:#374151;margin-top:3px;font-weight:600">${profile.cv_headline}</div>` : ''}
+    <div style="font-size:11.5px;color:#6B7280;margin-top:6px">${contactLine(userEmail, profile)}</div>
   </div>
+
+  ${profile.cv_summary ? `
+  <div style="margin-bottom:28px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#6B7280;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #E5E7EB">Professional Summary</div>
+    <div style="font-size:12.5px;color:#374151">${profile.cv_summary}</div>
+  </div>` : ''}
+
+  ${experience.length ? `
+  <div style="margin-bottom:28px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#6B7280;margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid #E5E7EB">Experience</div>
+    ${experience.map(x=>`
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
+        <div style="font-weight:600;font-size:13.5px">${x.role}${x.company?` · ${x.company}`:''}</div>
+        <div style="font-size:11px;color:#9CA3AF">${dateRange(x.start_date, x.end_date, x.is_current)}</div>
+      </div>
+      ${x.location?`<div style="font-size:11px;color:#9CA3AF;margin-top:1px">${x.location}</div>`:''}
+      ${x.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px;white-space:pre-line">${x.description}</div>`:''}
+    </div>`).join('')}
+  </div>` : ''}
+
+  ${education.length ? `
+  <div style="margin-bottom:28px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#6B7280;margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid #E5E7EB">Education</div>
+    ${education.map(ed=>`
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
+        <div style="font-weight:600;font-size:13.5px">${ed.school}</div>
+        <div style="font-size:11px;color:#9CA3AF">${dateRange(ed.start_date, ed.end_date)}</div>
+      </div>
+      ${ed.degree||ed.field?`<div style="font-size:12px;color:#6B7280;margin-top:1px">${[ed.degree,ed.field].filter(Boolean).join(', ')}</div>`:''}
+      ${ed.description?`<div style="font-size:12px;color:#4B5563;margin-top:3px">${ed.description}</div>`:''}
+    </div>`).join('')}
+  </div>` : ''}
 
   ${projects.length ? `
   <div style="margin-bottom:28px">
@@ -66,8 +113,8 @@ function buildMinimal(userName, data) {
 </div>`;
 }
 
-function buildModern(userName, data) {
-  const { projects, skills, certifications } = data;
+function buildModern(userName, userEmail, profile, data) {
+  const { experience, education, projects, skills, certifications } = data;
   const accent = '#7C6AF0';
   const LD = LEVEL_DOTS;
 
@@ -80,7 +127,8 @@ function buildModern(userName, data) {
       ${(userName||'?')[0].toUpperCase()}
     </div>
     <div style="font-size:18px;font-weight:700;line-height:1.2;margin-bottom:4px">${userName||'Your Name'}</div>
-    <div style="font-size:11px;opacity:0.65;margin-bottom:32px">${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
+    ${profile.cv_headline ? `<div style="font-size:12px;opacity:0.85;font-weight:600;margin-bottom:8px">${profile.cv_headline}</div>` : ''}
+    <div style="font-size:10.5px;opacity:0.65;margin-bottom:32px;line-height:1.6">${[userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).join('<br/>')}</div>
 
     ${skills.length ? `
     <div style="margin-bottom:28px">
@@ -107,6 +155,40 @@ function buildModern(userName, data) {
 
   <!-- Main -->
   <div style="flex:1;padding:48px 44px;background:white;color:#111827">
+    ${profile.cv_summary ? `
+    <div style="margin-bottom:32px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:${accent};margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid ${accent}">Summary</div>
+      <div style="font-size:12.5px;color:#374151">${profile.cv_summary}</div>
+    </div>` : ''}
+
+    ${experience.length ? `
+    <div style="margin-bottom:32px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:${accent};margin-bottom:16px;padding-bottom:6px;border-bottom:2px solid ${accent}">Experience</div>
+      ${experience.map(x=>`
+      <div style="margin-bottom:18px;padding-left:12px;border-left:3px solid #EDE9FE">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:14px;color:#111827">${x.role}</div>
+          <div style="font-size:11px;color:#9CA3AF">${dateRange(x.start_date, x.end_date, x.is_current)}</div>
+        </div>
+        <div style="font-size:11.5px;font-weight:600;color:${accent};margin:2px 0">${[x.company, x.location].filter(Boolean).join(' · ')}</div>
+        ${x.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px;white-space:pre-line">${x.description}</div>`:''}
+      </div>`).join('')}
+    </div>` : ''}
+
+    ${education.length ? `
+    <div style="margin-bottom:32px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:${accent};margin-bottom:16px;padding-bottom:6px;border-bottom:2px solid ${accent}">Education</div>
+      ${education.map(ed=>`
+      <div style="margin-bottom:16px;padding-left:12px;border-left:3px solid #EDE9FE">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:14px;color:#111827">${ed.school}</div>
+          <div style="font-size:11px;color:#9CA3AF">${dateRange(ed.start_date, ed.end_date)}</div>
+        </div>
+        ${ed.degree||ed.field?`<div style="font-size:11.5px;font-weight:600;color:${accent};margin:2px 0">${[ed.degree,ed.field].filter(Boolean).join(', ')}</div>`:''}
+        ${ed.description?`<div style="font-size:12px;color:#4B5563;margin-top:3px">${ed.description}</div>`:''}
+      </div>`).join('')}
+    </div>` : ''}
+
     ${projects.length ? `
     <div style="margin-bottom:36px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:${accent};margin-bottom:16px;padding-bottom:6px;border-bottom:2px solid ${accent}">Projects</div>
@@ -119,7 +201,7 @@ function buildModern(userName, data) {
       </div>`).join('')}
     </div>` : ''}
 
-    ${!projects.length && !skills.length && !certifications.length ? `
+    ${!profile.cv_summary && !experience.length && !education.length && !projects.length && !skills.length && !certifications.length ? `
     <div style="text-align:center;padding:60px 0;color:#9CA3AF">
       <div style="font-size:32px;margin-bottom:12px">📄</div>
       <div style="font-weight:600;color:#6B7280">Your CV will appear here</div>
@@ -130,8 +212,8 @@ function buildModern(userName, data) {
 </div>`;
 }
 
-function buildAcademic(userName, data) {
-  const { projects, skills, certifications } = data;
+function buildAcademic(userName, userEmail, profile, data) {
+  const { experience, education, projects, skills, certifications } = data;
   const LD = LEVEL_DOTS;
 
   return `
@@ -139,10 +221,45 @@ function buildAcademic(userName, data) {
   <!-- Header — centred -->
   <div style="text-align:center;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #1a1a1a">
     <div style="font-size:30px;font-weight:700;letter-spacing:1px;text-transform:uppercase">${userName||'Your Name'}</div>
-    <div style="font-size:11px;color:#555;margin-top:6px;letter-spacing:2px;text-transform:uppercase">
-      ${new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'})}
+    ${profile.cv_headline ? `<div style="font-size:13px;color:#333;margin-top:8px;font-style:italic">${profile.cv_headline}</div>` : ''}
+    <div style="font-size:11px;color:#555;margin-top:8px;letter-spacing:1px">
+      ${contactLine(userEmail, profile)}
     </div>
   </div>
+
+  ${profile.cv_summary ? `
+  <div style="margin-bottom:32px">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#1a1a1a;text-align:center;margin-bottom:16px">Summary</div>
+    <div style="font-size:13px;color:#333;text-align:justify">${profile.cv_summary}</div>
+  </div>` : ''}
+
+  ${education.length ? `
+  <div style="margin-bottom:32px">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#1a1a1a;text-align:center;margin-bottom:20px">Education</div>
+    ${education.map(ed=>`
+    <div style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div style="font-weight:700;font-size:14px;font-style:italic">${ed.school}</div>
+        <div style="font-size:11px;color:#555">${dateRange(ed.start_date, ed.end_date)}</div>
+      </div>
+      ${ed.degree||ed.field?`<div style="font-size:12.5px;color:#555;margin-top:2px">${[ed.degree,ed.field].filter(Boolean).join(', ')}</div>`:''}
+      ${ed.description?`<div style="font-size:12.5px;color:#333;margin-top:4px;text-align:justify">${ed.description}</div>`:''}
+    </div>`).join('')}
+  </div>` : ''}
+
+  ${experience.length ? `
+  <div style="margin-bottom:32px">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#1a1a1a;text-align:center;margin-bottom:20px">Experience</div>
+    ${experience.map(x=>`
+    <div style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div style="font-weight:700;font-size:14px;font-style:italic">${x.role}${x.company?`, ${x.company}`:''}</div>
+        <div style="font-size:11px;color:#555">${dateRange(x.start_date, x.end_date, x.is_current)}</div>
+      </div>
+      ${x.location?`<div style="font-size:11px;color:#777;margin-top:2px">${x.location}</div>`:''}
+      ${x.description?`<div style="font-size:13px;color:#333;margin-top:4px;text-align:justify;white-space:pre-line">${x.description}</div>`:''}
+    </div>`).join('')}
+  </div>` : ''}
 
   ${projects.length ? `
   <div style="margin-bottom:32px">
@@ -183,7 +300,7 @@ function buildAcademic(userName, data) {
     </div>`).join('')}
   </div>` : ''}
 
-  ${!projects.length && !skills.length && !certifications.length ? `
+  ${!profile.cv_summary && !experience.length && !education.length && !projects.length && !skills.length && !certifications.length ? `
   <div style="text-align:center;padding:60px 0;color:#9CA3AF">
     <div style="font-size:32px;margin-bottom:12px">📄</div>
     <div style="font-weight:600;color:#6B7280">Your CV will appear here</div>
@@ -201,13 +318,17 @@ const PRINT_FONTS = {
   academic: `@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');`,
 };
 
+const EMPTY_PROFILE = { cv_summary: '', cv_headline: '', cv_phone: '', cv_location: '' };
+
 // ── Component ─────────────────────────────────────────────────
-export default function CVExportModal({ data, userName, onClose }) {
+export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName, userEmail = '', onClose }) {
   const [template, setTemplate] = useState('minimal');
   const printRef = useRef(null);
 
+  const fullData = { experience: [], education: [], projects: [], skills: [], certifications: [], ...data };
+
   const handlePrint = () => {
-    const content = BUILDERS[template](userName, data);
+    const content = BUILDERS[template](userName, userEmail, profile, fullData);
     const win     = window.open('', '_blank');
     win.document.write(`<!DOCTYPE html>
 <html>
@@ -227,7 +348,7 @@ export default function CVExportModal({ data, userName, onClose }) {
     setTimeout(() => win.print(), 400);
   };
 
-  const previewHtml = BUILDERS[template](userName, data);
+  const previewHtml = BUILDERS[template](userName, userEmail, profile, fullData);
 
   return (
     <motion.div
@@ -282,6 +403,11 @@ export default function CVExportModal({ data, userName, onClose }) {
             </button>
           ))}
         </div>
+        {template === 'modern' && (
+          <div className="px-6 py-2 text-[11px] text-ink/40 border-b border-ink/5 shrink-0">
+            Heads up: some ATS résumé scanners misread two-column, colour-block layouts. Minimal is the safest bet for large-company applications.
+          </div>
+        )}
 
         {/* Preview */}
         <div className="overflow-y-auto flex-1 bg-gray-50">
