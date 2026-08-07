@@ -12,6 +12,7 @@ export const MODES = {
 };
 
 const QUOTES = [
+  // ── Focus & productivity ──
   { text: 'The secret of getting ahead is getting started.',                          author: 'Mark Twain' },
   { text: 'Focus is the art of knowing what to ignore.',                              author: 'Unknown' },
   { text: 'Deep work is the ability to focus without distraction on a cognitively demanding task.', author: 'Cal Newport' },
@@ -24,6 +25,69 @@ const QUOTES = [
   { text: 'Concentration is the root of all the higher abilities in man.',            author: 'Bruce Lee' },
   { text: "It's not that I'm so smart, it's just that I stay with problems longer.", author: 'Einstein' },
   { text: 'Productivity is never an accident.',                                        author: 'Paul J. Meyer' },
+  { text: 'The key to success is to focus our conscious mind on things we desire, not things we fear.', author: 'Brian Tracy' },
+  { text: 'Amateurs sit and wait for inspiration, the rest of us just get up and go to work.', author: 'Stephen King' },
+  { text: 'The way to get started is to quit talking and begin doing.',               author: 'Walt Disney' },
+
+  // ── Discipline & habits ──
+  { text: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', author: 'Will Durant' },
+  { text: 'Motivation is what gets you started. Habit is what keeps you going.',       author: 'Jim Ryun' },
+  { text: 'The pain of discipline weighs ounces, the pain of regret weighs tons.',     author: 'Jim Rohn' },
+  { text: "You don't have to be great to start, but you have to start to be great.",   author: 'Zig Ziglar' },
+  { text: 'Well begun is half done.',                                                  author: 'Aristotle' },
+  { text: 'A year from now you may wish you had started today.',                      author: 'Karen Lamb' },
+  { text: 'Do the hard jobs first. The easy jobs will take care of themselves.',       author: 'Dale Carnegie' },
+  { text: "Don't stop when you're tired. Stop when you're done.",                     author: 'Unknown' },
+  { text: 'Wake up with determination. Go to bed with satisfaction.',                 author: 'Unknown' },
+  { text: 'Little by little, one travels far.',                                        author: 'J.R.R. Tolkien' },
+  { text: 'Success is the sum of small efforts, repeated day in and day out.',        author: 'Robert Collier' },
+
+  // ── Resilience & grit ──
+  { text: 'It always seems impossible until it is done.',                             author: 'Nelson Mandela' },
+  { text: 'Success is not final, failure is not fatal: it is the courage to continue that counts.', author: 'Winston Churchill' },
+  { text: "I have not failed. I've just found 10,000 ways that won't work.",           author: 'Thomas Edison' },
+  { text: 'Genius is one percent inspiration and ninety-nine percent perspiration.',   author: 'Thomas Edison' },
+  { text: 'Fall seven times, stand up eight.',                                         author: 'Japanese Proverb' },
+  { text: 'It does not matter how slowly you go as long as you do not stop.',         author: 'Confucius' },
+  { text: 'You may be disappointed if you fail, but you are doomed if you do not try.', author: 'Beverly Sills' },
+  { text: 'Difficult roads often lead to beautiful destinations.',                    author: 'Unknown' },
+  { text: 'Perseverance is not a long race; it is many short races one after another.', author: 'Walter Elliot' },
+  { text: "Don't wait for opportunity. Create it.",                                    author: 'Unknown' },
+  { text: 'Great things never come from comfort zones.',                              author: 'Unknown' },
+  { text: 'Push yourself, because no one else is going to do it for you.',            author: 'Unknown' },
+
+  // ── Learning & study ──
+  { text: 'Study without desire spoils the memory, and it retains nothing that it takes in.', author: 'Leonardo da Vinci' },
+  { text: 'Learning never exhausts the mind.',                                        author: 'Leonardo da Vinci' },
+  { text: 'An investment in knowledge pays the best interest.',                       author: 'Benjamin Franklin' },
+  { text: 'The beautiful thing about learning is that no one can take it away from you.', author: 'B.B. King' },
+  { text: 'Education is the most powerful weapon which you can use to change the world.', author: 'Nelson Mandela' },
+  { text: 'Anyone who stops learning is old, whether at twenty or eighty.',           author: 'Henry Ford' },
+  { text: 'The expert in anything was once a beginner.',                              author: 'Unknown' },
+  { text: 'Study while others are sleeping; work while others are loafing.',          author: 'William Arthur Ward' },
+  { text: 'I am always doing that which I cannot do, in order that I may learn how to do it.', author: 'Pablo Picasso' },
+
+  // ── Growth & self-belief ──
+  { text: 'Believe you can and you are halfway there.',                               author: 'Theodore Roosevelt' },
+  { text: 'What lies behind us and what lies before us are tiny matters compared to what lies within us.', author: 'Ralph Waldo Emerson' },
+  { text: 'The only person you are destined to become is the person you decide to be.', author: 'Ralph Waldo Emerson' },
+  { text: 'Everything you have ever wanted is on the other side of fear.',            author: 'George Addair' },
+  { text: 'Believe in yourself and all that you are. Know that there is something inside you that is greater than any obstacle.', author: 'Christian D. Larson' },
+  { text: 'Start where you are. Use what you have. Do what you can.',                 author: 'Arthur Ashe' },
+  { text: 'Your limitation — it is only your imagination.',                           author: 'Unknown' },
+  { text: 'Dream it. Wish it. Do it.',                                                 author: 'Unknown' },
+  { text: 'The harder you work for something, the greater you will feel when you achieve it.', author: 'Unknown' },
+  { text: 'Set your goals high, and do not stop till you get there.',                 author: 'Bo Jackson' },
+
+  // ── Time, action & opportunity ──
+  { text: 'The journey of a thousand miles begins with a single step.',               author: 'Lao Tzu' },
+  { text: 'Great things are done by a series of small things brought together.',      author: 'Vincent van Gogh' },
+  { text: 'Do something today that your future self will thank you for.',             author: 'Sean Patrick Flanery' },
+  { text: 'The future depends on what you do today.',                                 author: 'Mahatma Gandhi' },
+  { text: 'The only limit to our realization of tomorrow is our doubts of today.',    author: 'Franklin D. Roosevelt' },
+  { text: 'Opportunities do not happen. You create them.',                            author: 'Chris Grosser' },
+  { text: 'I find that the harder I work, the more luck I seem to have.',             author: 'Thomas Jefferson' },
+  { text: 'The difference between ordinary and extraordinary is that little extra.',  author: 'Jimmy Johnson' },
 ];
 export const randQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
 
