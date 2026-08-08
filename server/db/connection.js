@@ -147,6 +147,31 @@ async function initDb() {
         WHERE p.user_id = tasks.user_id AND p.title = tasks.category
       )
   `);
+  // Second pass: some project tasks were generated more than once (e.g.
+  // "Break into tasks" run again before the project_id column existed,
+  // then again after) — same title, but one copy never got a category
+  // that matched the project title exactly, so the pass above missed
+  // it. If an untagged task shares its exact title with a sibling task
+  // that IS already tagged to a project, it's almost certainly the same
+  // generated item — inherit that project_id instead of leaving it to
+  // leak onto the general Tasks page and Dashboard.
+  await db.execute(`
+    UPDATE tasks
+    SET project_id = (
+      SELECT t2.project_id FROM tasks t2
+      WHERE t2.user_id = tasks.user_id
+        AND t2.title = tasks.title
+        AND t2.project_id IS NOT NULL
+      LIMIT 1
+    )
+    WHERE project_id IS NULL
+      AND EXISTS (
+        SELECT 1 FROM tasks t2
+        WHERE t2.user_id = tasks.user_id
+          AND t2.title = tasks.title
+          AND t2.project_id IS NOT NULL
+      )
+  `);
   if (!(await hasColumn('focus_solo_timer', 'task_id'))) {
     await db.execute(`ALTER TABLE focus_solo_timer ADD COLUMN task_id INTEGER DEFAULT NULL`);
   }
