@@ -24,7 +24,13 @@ export function ToastProvider({ children }) {
   const push = useCallback((toast) => {
     const id = Math.random().toString(36).slice(2);
     setToasts((t) => [...t, { id, ...toast }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), toast.duration || 3200);
+    // Longer messages (e.g. real API error text) need more than the
+    // default 3.2s to actually read, especially now that they wrap
+    // instead of getting cut off — scale duration with length, capped
+    // so it never lingers forever.
+    const textLen  = (toast.title?.length || 0) + (toast.message?.length || 0);
+    const duration = toast.duration || Math.min(3200 + textLen * 40, 8000);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), duration);
   }, []);
 
   const value = {
@@ -49,14 +55,14 @@ export function ToastProvider({ children }) {
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 40, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                className="glass-card pointer-events-auto flex items-center gap-3 px-4 py-3 min-w-[220px] max-w-xs"
+                className="glass-card pointer-events-auto flex items-start gap-3 px-4 py-3 min-w-[220px] max-w-sm"
               >
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${STYLES[t.type]} text-white shadow-sm`}>
                   <Icon size={18} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink truncate">{t.title}</p>
-                  {t.message && <p className="text-xs text-ink/60 truncate">{t.message}</p>}
+                  <p className="text-sm font-semibold text-ink leading-snug break-words">{t.title}</p>
+                  {t.message && <p className="text-xs text-ink/60 mt-0.5 leading-relaxed break-words">{t.message}</p>}
                 </div>
               </motion.div>
             );
