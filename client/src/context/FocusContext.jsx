@@ -456,33 +456,58 @@ export function FocusProvider({ children }) {
     if (m === 'focus') {
       playDone();
       const quote = randQuote();
+      let sessionCounted = false;
       try {
         const res = await api.post('/focus/sessions', {
           task_name: t.trim() || 'Flow Session', duration_minutes: min.focus, task_id: tid || null,
         });
         if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
-        setCongrats({ quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus, task: res.task || null });
         // Session just banked its minutes onto the task server-side —
         // carry the fresh cumulative total forward so a second session
         // on the same task keeps adding up instead of resetting.
         if (res.task && res.task.id === tid) {
           setTaskTimeSpent(Number(res.task.time_spent_minutes) || 0);
         }
-        setDots((d) => d + 1);
+        sessionCounted = true;
         loadData();
+
+        // Forest-style auto cycle: every 4th completed focus session in a
+        // row earns a long break, otherwise it's a short one — same
+        // rhythm as classic Pomodoro apps. dots never resets, so this is
+        // every 4th session lifetime, matching the dot streak shown in
+        // the UI. The break itself is only *set up*, not auto-started
+        // (running: false), matching how this handoff already worked
+        // for break→focus below.
+        const newDots   = (dots || 0) + 1;
+        const nextBreak = newDots % 4 === 0 ? 'long' : 'short';
+        const breakMins = customMinRef.current[nextBreak];
+        setDots(newDots);
+        setCongrats({
+          quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus, task: res.task || null,
+          nextBreak: { type: nextBreak, minutes: breakMins },
+        });
+        setMode(nextBreak);
+        setTimeLeft(breakMins * 60);
+        setTotalTime(breakMins * 60);
+        pushTimerState({
+          mode: nextBreak, running: false, started_at: null,
+          remaining_seconds: breakMins * 60, duration_seconds: breakMins * 60,
+          dots: newDots,
+        });
       } catch (_) {
-        setCongrats({ quote, xpAwarded: 0, minutes: min.focus, task: null });
+        setCongrats({ quote, xpAwarded: 0, minutes: min.focus, task: null, nextBreak: null });
       }
-      // Whether the session banked successfully or not, the countdown
-      // itself is done — reset it back to the focus default so the
-      // timer is ready to go again instead of sitting at 00:00.
-      setTimeLeft(min.focus * 60);
-      setTotalTime(min.focus * 60);
-      pushTimerState({
-        mode: 'focus', running: false, started_at: null,
-        remaining_seconds: min.focus * 60, duration_seconds: min.focus * 60,
-        dots: (dots || 0) + 1,
-      });
+      if (!sessionCounted) {
+        // Save failed — the countdown is still done, so at least reset
+        // it back to the focus default instead of sitting at 00:00.
+        // Don't touch the break cycle since this session didn't count.
+        setTimeLeft(min.focus * 60);
+        setTotalTime(min.focus * 60);
+        pushTimerState({
+          mode: 'focus', running: false, started_at: null,
+          remaining_seconds: min.focus * 60, duration_seconds: min.focus * 60,
+        });
+      }
     } else {
       playBreakEnd();
       const mins = customMinRef.current.focus;

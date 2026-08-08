@@ -1112,10 +1112,17 @@ export default function Flow() {
                   </motion.button>
                 </div>
               )}
-              <div className="rounded-2xl px-5 py-4 mb-6 text-start" style={lg()}>
+              <div className="rounded-2xl px-5 py-4 mb-4 text-start" style={lg()}>
                 <p className="text-sm font-medium text-ink dark:text-white italic leading-relaxed">"{congrats.quote.text}"</p>
                 <p className="text-xs text-ink/40 dark:text-white/30 mt-2">— {congrats.quote.author}</p>
               </div>
+              {congrats.nextBreak && (
+                <p className="text-xs font-semibold mb-4" style={{ color: modeColor }}>
+                  {congrats.nextBreak.type === 'long'
+                    ? t('flow.nextLongBreak', { n: congrats.nextBreak.minutes })
+                    : t('flow.nextShortBreak', { n: congrats.nextBreak.minutes })}
+                </p>
+              )}
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 onClick={() => setCongrats(null)} className="btn-primary w-full justify-center text-base">
                 {t('flow.keepGoing')}
