@@ -537,15 +537,18 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
                 border:     '1px solid rgba(30,34,51,0.07)',
               }}
             >
-              <span className={`text-xs font-bold ${template === t.key ? 'text-lavender-700' : 'text-ink/60'}`}>
+              <span
+                className={`text-xs font-bold ${template === t.key ? 'text-lavender-700' : ''}`}
+                style={template === t.key ? {} : { color: 'rgba(30,34,51,0.60)' }}
+              >
                 {t.label}
               </span>
-              <span className="text-[10px] text-ink/35">{t.desc}</span>
+              <span className="text-[10px]" style={{ color: 'rgba(30,34,51,0.35)' }}>{t.desc}</span>
             </button>
           ))}
         </div>
         {template === 'modern' && (
-          <div className="px-6 py-2 text-[11px] text-ink/40 border-b border-ink/5 shrink-0">
+          <div className="px-6 py-2 text-[11px] border-b border-ink/5 shrink-0" style={{ color: 'rgba(30,34,51,0.40)' }}>
             Heads up: some ATS résumé scanners misread two-column layouts regardless of colour. Minimal is still the safest bet for large-company applications. (The Word download below is always a clean single-column document, independent of the template you preview here.)
           </div>
         )}
