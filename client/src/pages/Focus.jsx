@@ -11,7 +11,7 @@ import PageHeader   from '../components/PageHeader.jsx';
 import Modal        from '../components/Modal.jsx';
 import EmptyState   from '../components/EmptyState.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
-import { localDateStr } from '../utils/birthday.js';
+import { localDateStr, isTodayBirthday } from '../utils/birthday.js';
 
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
 const CX = 140, CY = 140, R = 108;
@@ -123,6 +123,7 @@ export default function Flow() {
   const { t, lang } = useLanguage();
   const { resolvedTheme, accent } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const isBirthday = isTodayBirthday(user?.birthday);
   const muted = (a) => (isDark ? `rgba(255,255,255,${a})` : `rgba(30,34,51,${a})`);
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
   const fmtTime = (d) => d.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
@@ -465,7 +466,7 @@ export default function Flow() {
                   className="text-4xl mb-1 select-none"
                   style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
                 >
-                  {treeEmoji(equippedTree)}
+                  {treeEmoji(isBirthday ? 'christmas' : equippedTree)}
                 </motion.div>
                 <span
                   className="font-display tabular-nums leading-none text-ink dark:text-white"

@@ -279,7 +279,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <ProductivitySphere score={productivityScore} equippedTree={equippedTree} />
+                <ProductivitySphere score={productivityScore} equippedTree={isBirthday ? 'christmas' : equippedTree} />
                 <button onClick={() => navigate('/trees')}
                   className="flex items-center gap-1 text-xs text-ink/35 dark:text-white/30 hover:text-lavender-500 transition">
                   <TreePine size={11} /> {t('dash.changeTree')}
@@ -463,16 +463,20 @@ export default function Dashboard() {
                 className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shrink-0"
                 style={{ background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))', border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)' }}
               >
-                {equippedTree?.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱')}
+                {isBirthday ? '🎄' : (equippedTree?.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱'))}
               </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="font-display font-bold text-ink dark:text-white text-sm">
-                  {equippedTree?.startsWith('mystic')
+                  {isBirthday
+                    ? TREE_NAMES.christmas
+                    : equippedTree?.startsWith('mystic')
                     ? (treeData?.mystic?.trees?.find((mt) => `mystic:${mt.id}` === equippedTree)?.custom_name || 'Mystic Tree')
                     : (TREE_NAMES[equippedTree] || 'Seedling')}
                 </p>
                 <p className="text-[11px] text-ink/40 dark:text-white/30 mt-0.5">
-                  {equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
+                  {isBirthday
+                    ? TREE_DESC.christmas
+                    : equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
                 </p>
                 {nextTree && (
                   <div className="mt-2">

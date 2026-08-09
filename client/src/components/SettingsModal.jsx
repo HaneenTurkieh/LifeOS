@@ -75,7 +75,12 @@ function ProfileTab() {
       if (gender !== (user?.gender || '') && (gender === 'male' || gender === 'female')) {
         const preset = gender === 'male' ? 'blue' : 'pink';
         setAccent(preset);
-        api.post('/focus/premium/theme', { theme_preset: preset }).catch(() => {});
+        // Not /focus/premium/theme — that route is gated behind
+        // is_premium, which would silently no-op for free accounts:
+        // the color would flash on then get reverted a few seconds
+        // later by ThemeContext's own periodic status poll reading
+        // back the theme_preset that never actually got saved.
+        api.post('/focus/premium/gender-theme', { theme_preset: preset }).catch(() => {});
       }
       toast.success(t('settings.profileSaved'));
     }

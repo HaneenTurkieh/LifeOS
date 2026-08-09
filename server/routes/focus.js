@@ -895,4 +895,30 @@ router.post('/premium/theme', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
+// ── POST /premium/gender-theme ──────────────────────────────────
+// The free, non-Premium sibling of the route above — sets a sensible
+// default accent (blue/pink) the moment someone sets their gender in
+// Settings. Deliberately its own route rather than reusing
+// /premium/theme: that one is gated behind is_premium (it's the paid
+// customization picker), and gating this too meant setting your
+// gender only ever *looked* like it worked — the client's optimistic
+// setAccent() would flash the color, then the periodic
+// /premium/status poll would silently revert it a few seconds later
+// once it read back the theme_preset that never actually got saved.
+// Deliberately restricted to just blue/pink so it can't be used as a
+// backdoor to the full paid palette.
+router.post('/premium/gender-theme', async (req, res) => {
+  try {
+    const { theme_preset } = req.body;
+    if (theme_preset !== 'blue' && theme_preset !== 'pink')
+      return res.status(400).json({ error: 'Invalid theme preset' });
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, theme_preset) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET theme_preset = excluded.theme_preset`,
+      args: [req.user.id, theme_preset],
+    });
+    res.json({ ok: true, theme_preset });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 module.exports = router;
