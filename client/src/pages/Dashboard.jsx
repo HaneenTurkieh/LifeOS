@@ -17,11 +17,13 @@ const TREE_EMOJIS = {
   seedling:'🌱', sprout:'🌿', oak:'🌳',
   cherry_blossom:'🌸', coral:'🪸', bamboo:'🎋', cactus:'🌵',
   palm:'🌴', water:'💧', maple:'🍁', pine:'🌲', flamingo:'🦩', money:'💰', crystal:'✨',
+  christmas:'🎄',
 };
 const TREE_NAMES = {
   seedling:'Seedling', sprout:'Sprout', oak:'Oak',
   cherry_blossom:'Cherry Blossom', coral:'Coral Tree', bamboo:'Bamboo', cactus:'Cactus',
   palm:'Palm', water:'Water Tree', maple:'Maple', pine:'Pine', flamingo:'Flamingo Tree', money:'Money Tree', crystal:'Crystal Tree',
+  christmas:'Birthday Tree',
 };
 const TREE_DESC = {
   seedling:'Every journey starts here.',
@@ -38,6 +40,7 @@ const TREE_DESC = {
   flamingo:'Rare, pink, impossible to miss.',
   money:'Grows richer the more you tend it.',
   crystal:'Legendary. For the dedicated.',
+  christmas:'One day a year, just for you. Not for sale — a birthday gift from Aurora.',
 };
 const NEXT_TREE = {
   seedling:       { key:'sprout',         name:'Sprout',        cost:100  },

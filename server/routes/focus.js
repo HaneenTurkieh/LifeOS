@@ -5,6 +5,7 @@ const { hashPassword, comparePassword } = require('../lib/auth');
 const { getPremium } = require('../lib/premium');
 const { getLevelInfo } = require('../lib/gamification');
 const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
+const { isTodayBirthday } = require('../lib/birthday');
 const crypto  = require('crypto');
 
 function getWeekStart() {
@@ -24,6 +25,22 @@ async function getEquippedTree(userId) {
     })).rows[0];
     return row?.tree_key || 'seedling';
   } catch (_) { return 'seedling'; }
+}
+
+// Birthday tree — exclusive to the day itself, not something anyone
+// can buy or equip from the shop. Whatever's actually equipped gets
+// swapped out for a Christmas tree just for today's sessions, then
+// reverts on its own the moment the date rolls over — nothing to
+// remember to switch back. Used everywhere a tree gets planted
+// (solo sessions, abandoned sessions, room sessions).
+async function getPlantTreeKey(userId) {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT birthday FROM users WHERE id = ?`, args: [userId],
+    })).rows[0];
+    if (isTodayBirthday(row?.birthday)) return 'christmas';
+  } catch (_) {}
+  return getEquippedTree(userId);
 }
 
 // A member's personal timer normally self-reports its own completion
@@ -75,7 +92,7 @@ async function reconcileRoomSession(roomId) {
             args: [m.user_id, xpAmount, 'Focus: Room session'],
           });
         }
-        const treeKey = await getEquippedTree(m.user_id);
+        const treeKey = await getPlantTreeKey(m.user_id);
         await db.execute({
           sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
                  VALUES (?, ?, 'alive', 'Room session', ?)`,
@@ -246,7 +263,7 @@ router.post('/sessions', async (req, res) => {
     }
     let treePlanted = null;
     try {
-      const treeKey = await getEquippedTree(req.user.id);
+      const treeKey = await getPlantTreeKey(req.user.id);
       await db.execute({
         sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
                VALUES (?, ?, 'alive', ?, ?, ?)`,
@@ -266,7 +283,7 @@ router.post('/sessions', async (req, res) => {
 router.post('/sessions/abandon', async (req, res) => {
   try {
     const { task_name = 'Focus Session', duration_minutes = 0, task_id = null } = req.body;
-    const treeKey = await getEquippedTree(req.user.id);
+    const treeKey = await getPlantTreeKey(req.user.id);
     await db.execute({
       sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
              VALUES (?, ?, 'dead', ?, ?, ?)`,
@@ -562,7 +579,7 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
     });
     if (mode === 'focus') {
       try {
-        const treeKey = await getEquippedTree(req.user.id);
+        const treeKey = await getPlantTreeKey(req.user.id);
         await db.execute({
           sql: `INSERT INTO focus_room_tree (room_id, tree_key, status, died_by_name, died_reason, started_at, updated_at)
                 VALUES (?, ?, 'alive', NULL, 'left', datetime('now'), datetime('now'))
