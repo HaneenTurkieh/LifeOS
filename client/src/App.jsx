@@ -9,6 +9,7 @@ import FocusBar          from './components/FocusBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import NotificationBell  from './components/NotificationBell.jsx';
+import BirthdayCelebration from './components/BirthdayCelebration.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
 import { useToast }      from './context/ToastContext.jsx';
@@ -300,6 +301,7 @@ function AppShell() {
           <Onboarding user={user} onComplete={() => setShowOnboarding(false)} />
         )}
       </AnimatePresence>
+      <BirthdayCelebration user={user} />
     </div>
   );
 }
