@@ -66,13 +66,28 @@ async function getFreezeDate(userId) {
 }
 
 async function getOverallStreak(userId) {
-  const result = await db.execute({
-    sql:  `SELECT DISTINCT hl.date FROM habit_logs hl
-           JOIN habits h ON h.id = hl.habit_id
-           WHERE h.user_id = ? ORDER BY hl.date DESC`,
-    args: [userId],
-  });
-  const dates = new Set(result.rows.map((r) => r.date));
+  // A day counts toward the streak if the person logged a habit OR
+  // completed a task — this is the headline "Streak" stat on the
+  // dashboard, so it should reflect general app activity, not just
+  // habit-tracking. Previously it only looked at habit_logs, so anyone
+  // who only used tasks (earning real XP daily) still saw "0d streak".
+  const [habitResult, taskResult] = await Promise.all([
+    db.execute({
+      sql:  `SELECT DISTINCT hl.date FROM habit_logs hl
+             JOIN habits h ON h.id = hl.habit_id
+             WHERE h.user_id = ?`,
+      args: [userId],
+    }),
+    db.execute({
+      sql:  `SELECT DISTINCT date(completed_at) AS date FROM tasks
+             WHERE user_id = ? AND status = 'done' AND completed_at IS NOT NULL`,
+      args: [userId],
+    }),
+  ]);
+  const dates = new Set([
+    ...habitResult.rows.map((r) => r.date),
+    ...taskResult.rows.map((r) => r.date),
+  ]);
 
   // Premium streak freeze — the excused date counts as completed.
   const freeze = await getFreezeDate(userId);

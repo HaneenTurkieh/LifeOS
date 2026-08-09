@@ -17,7 +17,11 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       db.execute({ sql: `SELECT * FROM habits WHERE user_id = ?`, args: [userId] }),
       db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND deadline IS NOT NULL AND deadline >= ? ORDER BY deadline ASC LIMIT 5`, args: [userId, today] }),
       db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [userId, today] }),
-      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND project_id IS NULL AND date(completed_at) = ?`, args: [userId, today] }),
+      // "done" here has to mean the same thing as the denominator below
+      // (deadline = today) — matching on completed_at date instead made a
+      // task done yesterday but due today count toward the total without
+      // ever counting as done, showing e.g. "0/1" for an already-finished task.
+      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND project_id IS NULL AND deadline = ?`, args: [userId, today] }),
       db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND project_id IS NULL AND deadline = ?`, args: [userId, today] }),
     ]);
 
