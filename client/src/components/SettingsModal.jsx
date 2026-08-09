@@ -134,11 +134,9 @@ function ProfileTab() {
             <div>
               <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.gender')}</label>
               <select className="input-field" value={gender} onChange={e => setGender(e.target.value)}>
-                <option value="">{t('settings.preferNot')}</option>
+                <option value="" disabled hidden></option>
                 <option value="female">{t('settings.female')}</option>
                 <option value="male">{t('settings.male')}</option>
-                <option value="non-binary">{t('settings.nonbinary')}</option>
-                <option value="other">{t('settings.other')}</option>
               </select>
             </div>
             <div>

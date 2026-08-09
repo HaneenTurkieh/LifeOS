@@ -136,6 +136,19 @@ body {
   .input-field {
     @apply w-full rounded-2xl border border-lavender-200/70 dark:border-white/15 bg-white/70 dark:bg-white/[0.05] px-4 py-2.5 text-sm text-ink dark:text-white placeholder:text-ink/40 dark:placeholder:text-white/30 outline-none transition focus:border-lavender-400 focus:ring-2 focus:ring-lavender-200 dark:focus:ring-lavender-500/30;
   }
+  /* A few modals (Mystic Tree designer) are intentionally always-light
+     regardless of site theme — .input-field's dark: variants assume a
+     dark page background sitting behind it, which isn't true there,
+     so in dark mode it silently renders near-white text on a
+     near-white surface. This forces light-appropriate colors,
+     including ::placeholder, which an inline style can't reach. */
+  .input-field-light {
+    background: rgba(30,34,51,0.045) !important;
+    color: #1E2233 !important;
+  }
+  .input-field-light::placeholder {
+    color: rgba(30,34,51,0.40) !important;
+  }
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-lavender-500 to-lavender-700 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
