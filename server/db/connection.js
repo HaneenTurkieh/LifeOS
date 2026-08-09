@@ -58,6 +58,13 @@ async function initDb() {
       await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT ''`);
     }
   }
+  // A freeform description of how someone likes their Lumi slide decks
+  // presented — "lots of charts, minimal text" vs "just clear bullets,
+  // no fluff" — read by the slide generation prompt so decks adapt to
+  // taste instead of using one fixed layout for everyone.
+  if (!(await hasColumn('users', 'slide_style_pref'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN slide_style_pref TEXT DEFAULT NULL`);
+  }
   await db.execute(`CREATE TABLE IF NOT EXISTS cv_experience (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
