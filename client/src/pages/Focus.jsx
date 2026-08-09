@@ -200,7 +200,8 @@ export default function Flow() {
   useEffect(() => { if (died) loadForest(); }, [died]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!room) { setLiveRoom(null); return; }
+    if (!room?.code) { setLiveRoom(null); return; }
+    const code = room.code;
     let active = true;
     // Fresh mount (page load, or switching to a different room) — the
     // very first poll must only record a baseline, never auto-join.
@@ -210,11 +211,21 @@ export default function Flow() {
     // account-wide personal timer and clobbers whatever was already
     // ticking down there (that's what reset the in-progress session on
     // the other device instead of just picking it up).
+    //
+    // This must key off room.code alone, NOT the whole `room` object —
+    // FocusContext replaces `room` with a brand-new object reference on
+    // every 5s metadata poll (name/members/timer refresh) even when
+    // nothing actually changed. Keying this effect on the full object
+    // meant it tore down and remounted every ~5s too, which reset the
+    // guard above right as it mattered: the poll that would have caught
+    // the host's start kept landing right after a reset and got treated
+    // as "first poll" again, so the local timer never joined live — it
+    // only ever caught up after a real remount (i.e. refreshing).
     seededRef.current = false;
     lastTimerStartRef.current = null;
     const poll = async () => {
       try {
-        const d = await api.get(`/focus/rooms/${room.code}`);
+        const d = await api.get(`/focus/rooms/${code}`);
         if (!active) return;
         setLiveRoom(d);
         const tm = d.timer;
@@ -236,7 +247,7 @@ export default function Flow() {
     const iv = setInterval(poll, 3000);
     return () => { active = false; clearInterval(iv); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room]);
+  }, [room?.code]);
 
   const displayRoom  = liveRoom ? { ...room, ...liveRoom } : room;
   const isHost       = displayRoom?.host_id != null && Number(displayRoom.host_id) === Number(user?.id);
