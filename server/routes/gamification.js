@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db/connection');
 const { getLevelInfo, getOverallStreak, getTreeStage, evaluateAchievements, addXp } = require('../lib/gamification');
+const { isTodayBirthday } = require('../lib/birthday');
 
 const BIRTHDAY_XP = 100;
 
@@ -39,14 +40,11 @@ router.post('/birthday-claim', async (req, res) => {
     })).rows[0];
     const birthday = userRow?.birthday;
     if (!birthday) return res.status(400).json({ error: 'No birthday on file' });
-
-    const today = new Date();
-    const [, m, d] = birthday.split('-');
-    if (Number(m) !== today.getMonth() + 1 || Number(d) !== today.getDate()) {
+    if (!isTodayBirthday(birthday)) {
       return res.status(400).json({ error: "It's not your birthday today" });
     }
 
-    const year   = today.getFullYear();
+    const year   = new Date().getFullYear();
     const reason = `Birthday gift ${year}`;
     const already = (await db.execute({
       sql: `SELECT 1 FROM xp_log WHERE user_id = ? AND reason = ?`, args: [userId, reason],
