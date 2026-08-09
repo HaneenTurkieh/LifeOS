@@ -67,7 +67,7 @@ async function ensureBirthdayTask(userId) {
 async function generateNotifications(userId) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
-  const [tasks, habits, goals, streak, mood] = await Promise.all([
+  const [tasks, habits, goals, streak, mood, dueMilestones] = await Promise.all([
     db.execute({
       sql:  `SELECT id, title, deadline FROM tasks
              WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
@@ -96,6 +96,16 @@ async function generateNotifications(userId) {
     }),
     db.execute({
       sql:  `SELECT 1 FROM moods WHERE user_id=? AND date=?`,
+      args: [userId, today],
+    }),
+    // Milestones the person scheduled (via the goal day-planner) for
+    // today, via goals.js's PUT .../milestones/:id/schedule. Joined
+    // through goals since milestones don't carry user_id themselves.
+    db.execute({
+      sql:  `SELECT m.id, m.title, g.id AS goal_id, g.title AS goal_title
+             FROM milestones m
+             JOIN goals g ON g.id = m.goal_id
+             WHERE g.user_id=? AND m.scheduled_date=? AND m.done=0`,
       args: [userId, today],
     }),
   ]);
@@ -130,6 +140,15 @@ async function generateNotifications(userId) {
       title: '🎯 Goal deadline approaching',
       body:  `"${goal.title}" is due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
       link:  `/goals?goal=${goal.id}`,
+    });
+  }
+
+  for (const m of dueMilestones.rows) {
+    toCreate.push({
+      type:  'milestone_due',
+      title: '📅 Milestone due today',
+      body:  `"${m.title}" (from "${m.goal_title}") is scheduled for today`,
+      link:  `/goals?goal=${m.goal_id}&milestone=${m.id}`,
     });
   }
 
