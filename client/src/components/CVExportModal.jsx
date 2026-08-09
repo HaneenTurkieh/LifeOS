@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Printer, FileText } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, AlignmentType } from 'docx';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 const LEVEL_DOTS = { beginner: 1, intermediate: 2, advanced: 3 };
 
@@ -51,7 +52,7 @@ function dataUrlToUint8Array(dataUrl) {
   return bytes;
 }
 
-function buildDocxSections(userName, userEmail, profile, data) {
+function buildDocxSections(userName, userEmail, profile, data, isPremium) {
   const { experience, education, projects, skills, certifications } = data;
   const children = [];
 
@@ -151,6 +152,17 @@ function buildDocxSections(userName, userEmail, profile, data) {
       const line = [c.title, c.issuer].filter(Boolean).join(' — ') + (c.date ? `  (${c.date})` : '');
       children.push(docxBody(line));
     });
+  }
+
+  // Free-tier watermark — a small, unobtrusive credit line, gone
+  // entirely for premium accounts. Never touches the actual CV content
+  // above it.
+  if (!isPremium) {
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 400 },
+      children: [new TextRun({ text: 'Made with Aurora ✦', size: 16, color: '9CA3AF', italics: true })],
+    }));
   }
 
   return children;
@@ -467,11 +479,19 @@ const EMPTY_PROFILE = { cv_summary: '', cv_headline: '', cv_phone: '', cv_locati
 export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName, userEmail = '', onClose }) {
   const [template, setTemplate] = useState('minimal');
   const printRef = useRef(null);
+  const { isPremium } = useTheme();
 
   const fullData = { experience: [], education: [], projects: [], skills: [], certifications: [], ...data };
 
   const handlePrint = () => {
     const content = BUILDERS[template](userName, userEmail, profile, fullData);
+    // Free-tier watermark — a small fixed-position credit corner that
+    // repeats on every printed page (position:fixed survives pagination
+    // in every browser's print engine), gone entirely once premium.
+    const watermark = isPremium ? '' : `
+      <div style="position:fixed; bottom:0.3in; inset-inline-end:0.4in; font-size:9px; color:#9CA3AF; font-family:sans-serif; opacity:0.85;">
+        Made with Aurora ✦
+      </div>`;
     const win     = window.open('', '_blank');
     win.document.write(`<!DOCTYPE html>
 <html>
@@ -485,7 +505,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
     @media print { @page { margin:0.4in; } }
   </style>
 </head>
-<body>${content}</body>
+<body>${content}${watermark}</body>
 </html>`);
     win.document.close();
     setTimeout(() => win.print(), 400);
@@ -499,7 +519,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
   // matter which preview template is selected.
   const handleDownloadDocx = async () => {
     const doc = new Document({
-      sections: [{ properties: {}, children: buildDocxSections(userName, userEmail, profile, fullData) }],
+      sections: [{ properties: {}, children: buildDocxSections(userName, userEmail, profile, fullData, isPremium) }],
     });
     const blob = await Packer.toBlob(doc);
     const url  = URL.createObjectURL(blob);
@@ -586,6 +606,11 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
         {template === 'modern' && (
           <div className="px-6 py-2 text-[11px] border-b border-ink/5 shrink-0" style={{ color: 'rgba(30,34,51,0.40)' }}>
             Heads up: some ATS résumé scanners misread two-column layouts regardless of colour. Minimal is still the safest bet for large-company applications. (The Word download below is always a clean single-column document, independent of the template you preview here.)
+          </div>
+        )}
+        {!isPremium && (
+          <div className="px-6 py-2 text-[11px] border-b border-ink/5 shrink-0" style={{ color: 'rgba(30,34,51,0.40)' }}>
+            Free exports include a small "Made with Aurora" credit in the corner. <span style={{ color: '#7C6AF0', fontWeight: 700 }}>Premium</span> removes it.
           </div>
         )}
 

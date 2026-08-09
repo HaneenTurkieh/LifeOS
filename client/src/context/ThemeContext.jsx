@@ -87,6 +87,10 @@ export function ThemeProvider({ children }) {
       return FONT_SCALES[stored] ? stored : 'default';
     } catch (_) { return 'default'; }
   });
+  // Exposed so any page can gate a premium-only perk (e.g. watermark-free
+  // exports) without each one re-fetching /focus/premium/status itself —
+  // piggybacks on the poll below, which was already hitting that route.
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     const isDark = resolveIsDark(mode);
@@ -140,6 +144,7 @@ export function ThemeProvider({ children }) {
         if (active && p?.theme_preset && ACCENTS.includes(p.theme_preset) && p.theme_preset !== accentRef.current) {
           setAccentState(p.theme_preset);
         }
+        if (active) setIsPremium(Boolean(p?.is_premium));
       } catch (_) {}
       try {
         const f = await api.get('/focus/font-scale');
@@ -173,7 +178,7 @@ export function ThemeProvider({ children }) {
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, resolvedTheme, accent, setAccent, fontScale, setFontScale }}>
+    <ThemeContext.Provider value={{ mode, setMode, resolvedTheme, accent, setAccent, fontScale, setFontScale, isPremium }}>
       {children}
     </ThemeContext.Provider>
   );

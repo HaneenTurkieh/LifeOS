@@ -168,8 +168,11 @@ Next session should start by asking the user for a status update on both.
     generation-count cap)
   - Deep Think / Deep Search modes premium-gated (recommended, **not yet
     implemented** — currently free/unlimited for everyone)
-  - Branded/watermarked free exports vs clean premium exports (recommended,
-    **not yet implemented**)
+  - Branded/watermarked free exports vs clean premium exports — **already
+    implemented**, premium-gated, working (CV PDF/Word, Exam Assistant
+    PDF/PPTX all carry a small "Made with Aurora" credit on free tier,
+    removed entirely for premium; gated via `isPremium` from
+    `ThemeContext.jsx`, sourced from `GET /focus/premium/status`)
   - Study room creation/hosting gated, joining stays free (recommended,
     **not yet implemented**)
   - Streak pause — **already implemented**, premium-gated, working
