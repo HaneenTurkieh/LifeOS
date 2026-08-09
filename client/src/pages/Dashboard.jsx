@@ -14,12 +14,12 @@ import PageLoader         from '../components/Loader.jsx';
 const TREE_EMOJIS = {
   seedling:'🌱', sprout:'🌿', oak:'🌳',
   cherry_blossom:'🌸', coral:'🪸', bamboo:'🎋', cactus:'🌵',
-  palm:'🌴', water:'💧', maple:'🍁', pine:'🌲', flamingo:'🦩', crystal:'✨',
+  palm:'🌴', water:'💧', maple:'🍁', pine:'🌲', flamingo:'🦩', money:'💰', crystal:'✨',
 };
 const TREE_NAMES = {
   seedling:'Seedling', sprout:'Sprout', oak:'Oak',
   cherry_blossom:'Cherry Blossom', coral:'Coral Tree', bamboo:'Bamboo', cactus:'Cactus',
-  palm:'Palm', water:'Water Tree', maple:'Maple', pine:'Pine', flamingo:'Flamingo Tree', crystal:'Crystal Tree',
+  palm:'Palm', water:'Water Tree', maple:'Maple', pine:'Pine', flamingo:'Flamingo Tree', money:'Money Tree', crystal:'Crystal Tree',
 };
 const TREE_DESC = {
   seedling:'Every journey starts here.',
@@ -34,6 +34,7 @@ const TREE_DESC = {
   maple:'Changes color, never loses its roots.',
   pine:'Evergreen. Always growing.',
   flamingo:'Rare, pink, impossible to miss.',
+  money:'Grows richer the more you tend it.',
   crystal:'Legendary. For the dedicated.',
 };
 const NEXT_TREE = {

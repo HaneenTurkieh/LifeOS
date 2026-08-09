@@ -439,12 +439,37 @@ async function initDb() {
     );
   }
 
+  // One-time owner email change — she asked to switch her Aurora login
+  // from the old Gmail to her Hotmail address. Guarded on the OLD email
+  // still existing, so this only actually does anything on the first
+  // boot after deploy; every boot after that it's a harmless no-op.
+  {
+    const OLD_OWNER_EMAIL = 'turkiehhanee16@gmail.com';
+    const NEW_OWNER_EMAIL = 'haneenturkieh@hotmail.com';
+    try {
+      const oldRow = (await db.execute({
+        sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE`, args: [OLD_OWNER_EMAIL],
+      })).rows[0];
+      if (oldRow) {
+        await db.execute({
+          sql: `UPDATE users SET email = ? WHERE id = ?`,
+          args: [NEW_OWNER_EMAIL, oldRow.id],
+        });
+        console.log(`✅ Owner email migrated to ${NEW_OWNER_EMAIL}`);
+      }
+    } catch (err) {
+      // Most likely cause: a row with the new email already exists
+      // (unique constraint) — log it instead of crashing the whole boot.
+      console.error('Owner email migration skipped:', err.message);
+    }
+  }
+
   // Owner override — the account tied to the developer's own email always
   // has Premium, permanently, free, regardless of trial state, usage caps,
   // or anything toggled elsewhere. Runs on every boot (idempotent) so it
   // self-heals even if someone flips it via the free /premium/toggle route.
   {
-    const OWNER_EMAIL = 'turkiehhanee16@gmail.com';
+    const OWNER_EMAIL = 'haneenturkieh@hotmail.com';
     const owner = (await db.execute({
       sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE`, args: [OWNER_EMAIL],
     })).rows[0];
