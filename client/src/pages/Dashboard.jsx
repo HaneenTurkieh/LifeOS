@@ -6,6 +6,7 @@ import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
 import { useLanguage }    from '../context/LanguageContext.jsx';
+import { useTheme }       from '../context/ThemeContext.jsx';
 import { useWeather, weatherEmoji } from '../hooks/useWeather.js';
 import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
@@ -75,6 +76,8 @@ export default function Dashboard() {
   const navigate    = useNavigate();
   const { weather } = useWeather();
   const { t, lang } = useLanguage();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [moodSaving,   setMoodSaving]   = useState(false);
@@ -191,7 +194,9 @@ export default function Dashboard() {
                   whileHover={onClick ? { y:-2 } : {}}
                   onClick={onClick}
                   className={`relative flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
-                  style={{ background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.75)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
+                  style={isDark
+                    ? { background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }
+                    : { background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.75)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
                     {icon}
@@ -203,8 +208,10 @@ export default function Dashboard() {
                   {hint && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === label ? null : label); }}
-                      className="absolute -top-1.5 -end-1.5 flex h-5 w-5 items-center justify-center rounded-full text-ink/30 hover:text-ink/60 transition-colors"
-                      style={{ background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
+                      className="absolute -top-1.5 -end-1.5 flex h-5 w-5 items-center justify-center rounded-full text-ink/30 dark:text-white/40 hover:text-ink/60 dark:hover:text-white/70 transition-colors"
+                      style={isDark
+                        ? { background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.20)' }
+                        : { background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
                     >
                       <Info size={11} />
                     </button>
@@ -217,8 +224,10 @@ export default function Dashboard() {
                         exit={{ opacity:0, y:-4, scale:0.96 }}
                         transition={{ duration:0.15 }}
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute top-full mt-2 start-0 z-20 w-56 rounded-xl px-3 py-2.5 text-xs leading-relaxed text-ink/70"
-                        style={{ background:'rgba(255,255,255,0.98)', border:'1px solid rgba(255,255,255,0.90)', boxShadow:'0 12px 32px rgba(0,0,0,0.14)' }}
+                        className={`absolute top-full mt-2 start-0 z-20 w-56 rounded-xl px-3 py-2.5 text-xs leading-relaxed ${isDark ? 'text-white/80' : 'text-ink/70'}`}
+                        style={isDark
+                          ? { background:'rgba(32,26,54,0.98)', border:'1px solid rgba(255,255,255,0.14)', boxShadow:'0 12px 32px rgba(0,0,0,0.45)' }
+                          : { background:'rgba(255,255,255,0.98)', border:'1px solid rgba(255,255,255,0.90)', boxShadow:'0 12px 32px rgba(0,0,0,0.14)' }}
                       >
                         {hint}
                       </motion.div>
@@ -232,7 +241,9 @@ export default function Dashboard() {
                 <motion.div
                   initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }}
                   className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2 shrink-0"
-                  style={{ background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.70)', backdropFilter:'blur(12px)' }}
+                  style={isDark
+                    ? { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(12px)' }
+                    : { background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.70)', backdropFilter:'blur(12px)' }}
                 >
                   <span className="text-xl leading-none">{weatherEmoji(weather.condition)}</span>
                   <div>
@@ -301,10 +312,12 @@ export default function Dashboard() {
                   return (
                     <motion.div key={task.id} layout
                       className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
-                      style={{ background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.65)', backdropFilter:'blur(12px)' }}
+                      style={isDark
+                        ? { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)', backdropFilter:'blur(12px)' }
+                        : { background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.65)', backdropFilter:'blur(12px)' }}
                     >
                       <button onClick={() => completeTask(task)}
-                        className="shrink-0 text-ink/25 hover:text-sage-500 transition">
+                        className="shrink-0 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
                         <Circle size={18} />
                       </button>
                       <div className="flex-1 min-w-0">
@@ -327,7 +340,7 @@ export default function Dashboard() {
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
                         task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
-                                                     'bg-lavender-100 text-lavender-600'
+                                                     'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
                       }`}>{t(`tasks.${task.priority}`)}</span>
                       <button onClick={() => deleteTask(task)}
                         className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400 p-1">
@@ -402,7 +415,7 @@ export default function Dashboard() {
                 {upcomingDeadlines.slice(0, 3).map((task) => (
                   <div key={task.id} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-ink/65 dark:text-white/55 truncate">{task.title}</span>
-                    <span className="text-[10px] text-ink/35 shrink-0 flex items-center gap-1">
+                    <span className="text-[10px] text-ink/35 dark:text-white/25 shrink-0 flex items-center gap-1">
                       <Calendar size={9} /> {formatDeadline(task.deadline)}
                     </span>
                   </div>
@@ -472,7 +485,7 @@ export default function Dashboard() {
                 <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.dailyQuote')}</h3>
               </div>
               <p className="text-xs text-ink/65 dark:text-white/55 italic leading-relaxed">"{quote.text}"</p>
-              <p className="text-[10px] text-ink/35 mt-2">— {quote.author}</p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2">— {quote.author}</p>
             </GlassCard>
           )}
           {isRoughDay && (
@@ -481,7 +494,7 @@ export default function Dashboard() {
               <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
                 "{t('dash.roughQuote')}"
               </p>
-              <p className="text-[10px] text-ink/35 mt-2 text-center">💙 Aurora</p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">💙 Aurora</p>
             </GlassCard>
           )}
         </div>
