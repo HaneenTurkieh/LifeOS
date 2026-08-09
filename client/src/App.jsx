@@ -10,6 +10,7 @@ import ProtectedRoute    from './components/ProtectedRoute.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import NotificationBell  from './components/NotificationBell.jsx';
 import BirthdayCelebration from './components/BirthdayCelebration.jsx';
+import FestiveDecoration   from './components/FestiveDecoration.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
 import { useToast }      from './context/ToastContext.jsx';
@@ -302,6 +303,7 @@ function AppShell() {
         )}
       </AnimatePresence>
       <BirthdayCelebration user={user} />
+      <FestiveDecoration user={user} />
     </div>
   );
 }

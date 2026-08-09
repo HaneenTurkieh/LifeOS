@@ -41,11 +41,18 @@ function playHappyBirthday() {
 
 const CONFETTI = ['🎉', '🎈', '🎂', '✨', '🎁', '🌟'];
 
-// Fires once per calendar day for a user whose stored birthday matches
-// today — mounted at the app shell level so it shows up the moment
-// they land anywhere in the app, not just if they happen to open
-// Settings. Deduped via localStorage so a refresh/relogin later the
-// same day doesn't replay it.
+// Fires for a user whose stored birthday matches today — mounted at
+// the app shell level so it shows up the moment they land anywhere in
+// the app, not just if they happen to open Settings. Deliberately NOT
+// deduped by day — it replays in full
+// (confetti burst + song) on every fresh page load, so every refresh
+// on their birthday feels like walking back into the party. The
+// festive whole-day accent color is a separate, persistent concern
+// owned by FestiveDecoration.jsx (data-festive="birthday"), so it
+// doesn't reset just because this popup gets dismissed. The XP gift
+// stays genuinely one-time per year — that's enforced server-side in
+// /gamification/birthday-claim, not here, so replaying this popup
+// can't re-grant it.
 export default function BirthdayCelebration({ user }) {
   const { t } = useLanguage();
   const [show, setShow] = useState(false);
@@ -55,23 +62,8 @@ export default function BirthdayCelebration({ user }) {
   const age = getAge(user?.birthday);
   const firstName = user?.name?.split(' ')[0] || '';
 
-  // Festive accent color for the whole day — set on <html> the moment
-  // we know it's their birthday, independent of the popup's own
-  // once-a-day dedup below, so the theme stays festive across every
-  // page/refresh all day even after the popup's been dismissed. Cleared
-  // automatically once it's no longer their birthday (next render after
-  // midnight, or a different account).
-  useEffect(() => {
-    document.documentElement.toggleAttribute('data-birthday', isBirthday);
-    return () => document.documentElement.removeAttribute('data-birthday');
-  }, [isBirthday]);
-
   useEffect(() => {
     if (!user?.id || !isBirthday) return;
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const key = `aurora_bday_shown_${user.id}_${todayKey}`;
-    if (localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
     setShow(true);
     playHappyBirthday();
     api.post('/gamification/birthday-claim')

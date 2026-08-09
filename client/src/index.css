@@ -48,13 +48,15 @@
   --accent-600: 37 99 235;
   --accent-700: 29 78 216;
 }
-/* Birthday mode — set on <html data-birthday="true"> by
-   BirthdayCelebration.jsx for the whole day, on top of whatever accent
+/* Festive mode — set on <html data-festive="birthday|ramadan|eid"> by
+   FestiveDecoration.jsx (BirthdayCelebration.jsx for the birthday
+   case) for as long as the occasion lasts, on top of whatever accent
    preset the person actually has saved (never touches that preference
-   in storage, just visually overrides it for the day). Declared last
-   so it wins the specificity tie against [data-accent="..."]. A
-   vivid party pink/magenta, distinct from the regular "pink" preset. */
-html[data-birthday="true"] {
+   in storage, just visually overrides it for the day/period).
+   Declared last so it wins the specificity tie against
+   [data-accent="..."]. */
+html[data-festive="birthday"] {
+  /* Vivid party pink/magenta, distinct from the regular "pink" preset. */
   --accent-50:  255 240 250;
   --accent-100: 255 220 242;
   --accent-200: 255 179 224;
@@ -63,6 +65,28 @@ html[data-birthday="true"] {
   --accent-500: 255 43 153;
   --accent-600: 219 21 122;
   --accent-700: 168 10 92;
+}
+html[data-festive="ramadan"] {
+  /* Warm lantern gold — night-sky moons/stars theme. */
+  --accent-50:  255 251 235;
+  --accent-100: 254 240 199;
+  --accent-200: 253 222 140;
+  --accent-300: 250 199 88;
+  --accent-400: 232 178 55;
+  --accent-500: 212 165 55;
+  --accent-600: 173 130 32;
+  --accent-700: 133 98 20;
+}
+html[data-festive="eid"] {
+  /* Emerald + gold, traditional Eid colors. */
+  --accent-50:  236 253 245;
+  --accent-100: 209 250 229;
+  --accent-200: 167 243 208;
+  --accent-300: 110 231 183;
+  --accent-400: 52 190 143;
+  --accent-500: 16 163 105;
+  --accent-600: 5 133 85;
+  --accent-700: 4 108 70;
 }
 
 * {
