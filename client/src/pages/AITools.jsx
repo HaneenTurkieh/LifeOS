@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Plus, Trash2, Brain, Paperclip, X, FileText,
-  Sparkles, Globe, SlidersHorizontal, Check,
+  Sparkles, Globe, SlidersHorizontal, Check, Pencil,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -68,13 +68,23 @@ function ActionCard({ action }) {
     </div>
   );
 }
-function Message({ msg }) {
+function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdit, editBusy, t }) {
   const isLumi = msg.role === 'assistant';
+  const [draft, setDraft] = useState(msg.content);
+  useEffect(() => { if (isEditing) setDraft(msg.content); }, [isEditing]); // eslint-disable-line
+  const textareaRef = useRef(null);
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(draft.length, draft.length);
+    }
+  }, [isEditing]); // eslint-disable-line
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={`flex gap-3 ${isLumi ? '' : 'flex-row-reverse'}`}
+      className={`group flex gap-3 ${isLumi ? '' : 'flex-row-reverse'}`}
     >
       {isLumi && (
         <div
@@ -84,18 +94,59 @@ function Message({ msg }) {
           ✦
         </div>
       )}
-      <div className={`flex flex-col gap-1 max-w-[82%] ${isLumi ? '' : 'items-end'}`}>
-        <div
-          dir="auto"
-          className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-            isLumi
-              ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
-              : 'rounded-tr-md text-white'
-          }`}
-          style={!isLumi ? { background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 16px rgb(var(--accent-500) / 0.28)' } : {}}
-        >
-          {msg.content}
-        </div>
+      <div className={`flex flex-col gap-1 max-w-[82%] ${isLumi ? '' : 'items-end'} ${isEditing ? 'w-full' : ''}`}>
+        {isEditing ? (
+          <div className="w-full flex flex-col gap-2 items-end">
+            <textarea
+              ref={textareaRef}
+              dir="auto"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (draft.trim()) onSaveEdit(draft.trim()); }
+                if (e.key === 'Escape') onCancelEdit();
+              }}
+              rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+              className="w-full rounded-3xl rounded-tr-md px-4 py-3 text-sm leading-relaxed text-ink dark:text-white resize-none outline-none"
+              style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgb(var(--accent-500) / 0.35)' }}
+            />
+            <div className="flex items-center gap-1.5">
+              <button onClick={onCancelEdit} disabled={editBusy}
+                className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-ink/45 dark:text-white/40 hover:text-ink/70 dark:hover:text-white/65 transition disabled:opacity-40">
+                <X size={11} /> {t ? t('common.cancel') : 'Cancel'}
+              </button>
+              <button onClick={() => draft.trim() && onSaveEdit(draft.trim())} disabled={editBusy || !draft.trim()}
+                className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-white transition disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)' }}>
+                <Check size={11} /> {editBusy ? '…' : (t ? t('lumi.saveResend') : 'Save & resend')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-end gap-1.5">
+            {!isLumi && canEdit && (
+              <button
+                onClick={onStartEdit}
+                title={t ? t('lumi.editPrompt') : 'Edit'}
+                className="opacity-0 group-hover:opacity-100 transition mb-1 flex h-6 w-6 items-center justify-center rounded-lg text-ink/30 dark:text-white/30 hover:text-ink/60 dark:hover:text-white/60"
+                style={{ background: 'rgba(255,255,255,0.5)' }}
+              >
+                <Pencil size={11} />
+              </button>
+            )}
+            <div
+              dir="auto"
+              className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                isLumi
+                  ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
+                  : 'rounded-tr-md text-white'
+              }`}
+              style={!isLumi ? { background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 16px rgb(var(--accent-500) / 0.28)' } : {}}
+            >
+              {msg.content}
+            </div>
+          </div>
+        )}
         {!isLumi && msg.attachmentNames?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 justify-end">
             {msg.attachmentNames.map((n) => (
@@ -334,6 +385,8 @@ export default function AITools() {
   const [attachments,    setAttachments]    = useState([]);
   const [attaching,      setAttaching]      = useState(false);
   const [settingsOpen,   setSettingsOpen]   = useState(false);
+  const [editingIndex,   setEditingIndex]   = useState(null);
+  const [editBusy,       setEditBusy]       = useState(false);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileRef   = useRef(null);
@@ -410,11 +463,14 @@ export default function AITools() {
   };
   const removeAttachment = (name) => setAttachments((prev) => prev.filter((a) => a.name !== name));
 
-  const sendMessage = useCallback(async (text) => {
+  const sendMessage = useCallback(async (text, historyBase) => {
     const content = (text || input).trim();
     if ((!content && attachments.length === 0) || loading) return;
     const finalContent = content || (attachments.length > 1 ? t('lumi.summarizeFiles') : t('lumi.summarizeFile'));
     const sendAttachments = attachments;
+    const base = historyBase ?? messages; // editAndResend passes the
+    // already-truncated history explicitly, since `messages` here would
+    // otherwise be a stale closure from before the truncation happened
     setInput('');
     setAttachments([]);
     const userMsg = {
@@ -422,9 +478,9 @@ export default function AITools() {
       content: finalContent,
       attachmentNames: sendAttachments.map((a) => a.name),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages([...base, userMsg]);
     setLoading(true);
-    const history = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
+    const history = [...base, userMsg].map(({ role, content }) => ({ role, content }));
     try {
       const res = await api.post('/chat', {
         messages:        history,
@@ -432,7 +488,14 @@ export default function AITools() {
         mode,
         attachments:     sendAttachments.map(({ name, text }) => ({ name, text })),
       });
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.text, actions: res.actions || [], suggestSearch: res.suggestSearch }]);
+      setMessages((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i--) {
+          if (next[i].role === 'user' && next[i].id == null) { next[i] = { ...next[i], id: res.user_message_id }; break; }
+        }
+        next.push({ role: 'assistant', content: res.text, actions: res.actions || [], suggestSearch: res.suggestSearch });
+        return next;
+      });
       if (!activeConvId) {
         setActiveConvId(res.conversation_id);
         loadConvos();
@@ -444,6 +507,25 @@ export default function AITools() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [input, loading, messages, activeConvId, loadConvos, mode, attachments, t]);
+
+  // Edit-and-resend — deletes the edited message and everything after it
+  // (both locally and, if it was already persisted, on the server) then
+  // resends the edited text as a fresh turn, same as ChatGPT/Claude's
+  // "edit message" behavior.
+  const editAndResend = useCallback(async (index, newContent) => {
+    const target = messages[index];
+    const truncated = messages.slice(0, index);
+    setEditBusy(true);
+    try {
+      if (target?.id && activeConvId) {
+        try { await api.del(`/chat/conversations/${activeConvId}/messages/from/${target.id}`); } catch (_) {}
+      }
+      setEditingIndex(null);
+      await sendMessage(newContent, truncated);
+    } finally {
+      setEditBusy(false);
+    }
+  }, [messages, activeConvId, sendMessage]);
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -559,7 +641,19 @@ export default function AITools() {
 
         {!isFirstMessage && (
           <div className="flex-1 overflow-y-auto px-1 py-2 flex flex-col gap-4">
-            {messages.map((msg, i) => <Message key={i} msg={msg} />)}
+            {messages.map((msg, i) => (
+              <Message
+                key={i}
+                msg={msg}
+                t={t}
+                isEditing={editingIndex === i}
+                canEdit={msg.role === 'user' && !loading && !(msg.attachmentNames?.length > 0)}
+                editBusy={editBusy}
+                onStartEdit={() => setEditingIndex(i)}
+                onCancelEdit={() => setEditingIndex(null)}
+                onSaveEdit={(newContent) => editAndResend(i, newContent)}
+              />
+            ))}
             {loading && <TypingIndicator mode={mode} t={t} />}
             <div ref={bottomRef} />
           </div>
