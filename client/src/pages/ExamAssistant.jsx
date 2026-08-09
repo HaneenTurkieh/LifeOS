@@ -851,9 +851,9 @@ Content:\n${content}`;
 Each object: { "front": string, "back": string }
 Content:\n${content}`;
     } else if (mode === 'slides') {
-      prompt = `${base}Create a comprehensive slide deck covering all the content below. Use at least ${count} slides — split topics across more slides than that if needed to keep each slide focused, rather than cramming everything into exactly ${count}.
-Keep each slide to at most 5 concise bullets (short phrases, not paragraphs) so the deck stays skimmable and the response fits in one reply.
-Each object: { "title": string, "bullets": [max 5 short strings], "note": string or null }
+      prompt = `${base}Create a slide deck with EXACTLY ${count} slides — not fewer, not more. Combine related points onto the same slide so all the content below is covered within exactly ${count} slides; do not create extra slides even if that means more bullets per slide.
+Keep bullets concise (short phrases, not paragraphs) so the response fits in one reply.
+Each object: { "title": string, "bullets": [short strings], "note": string or null }
 Content:\n${content}`;
     }
     try {
