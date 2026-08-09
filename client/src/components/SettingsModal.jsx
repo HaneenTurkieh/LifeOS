@@ -387,6 +387,7 @@ function PremiumTab() {
   // not just "this feature is built" — otherwise a free user sees "LIVE"
   // on things they can't actually use yet, which reads as a bug.
   const PERKS = [
+    { icon: '✨', title: t('settings.perkUnlimited'), desc: t('settings.perkUnlimitedD') },
     { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD') },
     { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD') },
     { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD')   },

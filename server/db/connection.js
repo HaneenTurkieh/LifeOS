@@ -115,6 +115,17 @@ async function initDb() {
   if (!(await hasColumn('user_premium', 'trial_expires_at'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN trial_expires_at TEXT DEFAULT NULL`);
   }
+  // Daily usage caps for the AI calls that actually cost real money —
+  // exam/slide generation and Lumi's Deep Think / Deep Search chat modes
+  // were previously unlimited for free accounts. One row per user per
+  // feature per day, incremented on each successful (billed) call.
+  await db.execute(`CREATE TABLE IF NOT EXISTS feature_usage (
+    user_id INTEGER NOT NULL,
+    feature TEXT NOT NULL,
+    date    TEXT NOT NULL,
+    count   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, feature, date)
+  )`);
   if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
     await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }

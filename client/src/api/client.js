@@ -45,9 +45,16 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
-    let detail = '';
-    try { detail = (await res.json()).error; } catch (_) {}
-    throw new Error(detail || `Request failed (${res.status})`);
+    let payload = {};
+    try { payload = await res.json(); } catch (_) {}
+    const err = new Error(payload.error || `Request failed (${res.status})`);
+    // Preserved so callers can special-case things like a daily usage
+    // cap (code: 'DAILY_LIMIT') instead of treating every failure as a
+    // generic "something went wrong" — without this, that info was
+    // thrown away and every 403 looked identical to a network error.
+    err.status = res.status;
+    err.code   = payload.code || null;
+    throw err;
   }
 
   if (res.status === 204) return null;
