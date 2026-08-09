@@ -114,7 +114,10 @@ export default function Tasks() {
   const load = useCallback(async () => {
     try {
       const data = await api.get('/tasks');
-      setTasks(data.map(tk => ({ ...tk, priority: (tk.priority||'medium').toLowerCase() })));
+      // The Aurora-added birthday entry (source: 'aurora') belongs on
+      // the Calendar only — it's not something to manage from a task
+      // list (mark done, edit, delete), just a date marker.
+      setTasks(data.filter(tk => tk.source !== 'aurora').map(tk => ({ ...tk, priority: (tk.priority||'medium').toLowerCase() })));
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line

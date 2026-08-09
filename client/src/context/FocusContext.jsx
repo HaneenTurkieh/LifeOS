@@ -3,6 +3,7 @@ import { api } from '../api/client.js';
 import { useToast } from './ToastContext.jsx';
 import { useLanguage } from './LanguageContext.jsx';
 import { computeFromServer } from '../utils/timerSync.mjs';
+import { localDateStr } from '../utils/birthday.js';
 const FocusContext = createContext(null);
 
 export const MODES = {
@@ -476,6 +477,7 @@ export function FocusProvider({ children }) {
       try {
         const res = await api.post('/focus/sessions', {
           task_name: t.trim() || 'Flow Session', duration_minutes: min.focus, task_id: tid || null,
+          room_code: r?.code || null, client_date: localDateStr(),
         });
         if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
         // Session just banked its minutes onto the task server-side —
@@ -500,6 +502,7 @@ export function FocusProvider({ children }) {
         setDots(newDots);
         setCongrats({
           quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus, task: res.task || null,
+          treePlanted: res.treePlanted || null,
           nextBreak: { type: nextBreak, minutes: breakMins },
         });
         setMode(nextBreak);
@@ -549,6 +552,7 @@ export function FocusProvider({ children }) {
         task_name: t.trim() || 'Focus Session',
         duration_minutes: elapsedMin,
         task_id: tid || null,
+        client_date: localDateStr(),
       });
       playTreeDied();
       setDied({ minutes: elapsedMin, reason });

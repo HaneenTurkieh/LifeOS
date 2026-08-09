@@ -40,6 +40,7 @@ function ProfileTab() {
   const { user, updateUser } = useAuth();
   const toast   = useToast();
   const { t }   = useLanguage();
+  const { setAccent } = useTheme();
   const fileRef = useRef(null);
   const [name,     setName]     = useState(user?.name     || '');
   const [bio,      setBio]      = useState(user?.bio      || '');
@@ -65,7 +66,19 @@ function ProfileTab() {
   };
   const save = async () => {
     setSaving(true);
-    try { await updateUser({ name:name.trim(), bio, gender, birthday }); toast.success(t('settings.profileSaved')); }
+    try {
+      await updateUser({ name:name.trim(), bio, gender, birthday });
+      // A newly-set or changed gender gets a sensible default accent —
+      // blue for male, pink for female — but only on an actual change,
+      // so it doesn't quietly overwrite a color someone already picked
+      // on purpose just because they saved their bio again.
+      if (gender !== (user?.gender || '') && (gender === 'male' || gender === 'female')) {
+        const preset = gender === 'male' ? 'blue' : 'pink';
+        setAccent(preset);
+        api.post('/focus/premium/theme', { theme_preset: preset }).catch(() => {});
+      }
+      toast.success(t('settings.profileSaved'));
+    }
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { api } from '../api/client.js';
-import { isTodayBirthday, getAge } from '../utils/birthday.js';
+import { isTodayBirthday, getAge, localDateStr } from '../utils/birthday.js';
 
 // ── "Happy Birthday to You" melody, played on load via Web Audio ──
 // Same oscillator-per-note pattern as playDone/playTreeDied in
@@ -66,7 +66,7 @@ export default function BirthdayCelebration({ user }) {
     if (!user?.id || !isBirthday) return;
     setShow(true);
     playHappyBirthday();
-    api.post('/gamification/birthday-claim')
+    api.post('/gamification/birthday-claim', { client_date: localDateStr() })
       .then((res) => { if (res?.claimed) setXpAwarded(res.xpAwarded || 0); })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps

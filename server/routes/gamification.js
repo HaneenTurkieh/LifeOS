@@ -38,13 +38,14 @@ router.post('/birthday-claim', async (req, res) => {
     const userRow = (await db.execute({
       sql: `SELECT birthday FROM users WHERE id = ?`, args: [userId],
     })).rows[0];
-    const birthday = userRow?.birthday;
+    const birthday   = userRow?.birthday;
+    const clientDate = req.body?.client_date;
     if (!birthday) return res.status(400).json({ error: 'No birthday on file' });
-    if (!isTodayBirthday(birthday)) {
+    if (!isTodayBirthday(birthday, clientDate)) {
       return res.status(400).json({ error: "It's not your birthday today" });
     }
 
-    const year   = new Date().getFullYear();
+    const year   = clientDate ? Number(clientDate.slice(0, 4)) : new Date().getFullYear();
     const reason = `Birthday gift ${year}`;
     const already = (await db.execute({
       sql: `SELECT 1 FROM xp_log WHERE user_id = ? AND reason = ?`, args: [userId, reason],

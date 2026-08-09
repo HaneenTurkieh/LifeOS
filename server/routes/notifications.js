@@ -6,19 +6,29 @@ const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 
 const MOOD_CHECKPOINTS = [12, 15, 18, 21];
 
-// Aurora-authored yearly birthday task — self-seeds onto the Tasks and
-// Calendar pages the same way the grace-period notices below self-seed,
-// so the person never has to remember to add their own birthday. The
-// `source` column (added alongside this) distinguishes it from tasks
-// they typed in themselves. Idempotent per year: checks for an
-// existing one before inserting, so this can safely run on every
-// notifications poll without creating duplicates.
+// Aurora-authored yearly birthday entry — self-seeds onto the Calendar
+// the same way the grace-period notices below self-seed, so the person
+// never has to remember to add their own birthday. It's a real task
+// row (source = 'aurora', category = 'Birthday') but the Tasks page
+// filters that combination out client-side, so it only ever shows up
+// on the Calendar. Keeps exactly one: if the birthday or name changes,
+// or the year rolls over, the stale copy is deleted and a fresh one is
+// inserted for the current date — never duplicates on a refresh, never
+// lingers after an edit.
 async function ensureBirthdayTask(userId) {
   try {
     const userRow = (await db.execute({
       sql: `SELECT birthday, name FROM users WHERE id = ?`, args: [userId],
     })).rows[0];
-    if (!userRow?.birthday) return;
+    if (!userRow?.birthday) {
+      // Birthday was cleared — remove any leftover entry rather than
+      // leaving it pointing at a birthday that no longer exists.
+      await db.execute({
+        sql: `DELETE FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday'`,
+        args: [userId],
+      });
+      return;
+    }
     const [, m, d] = userRow.birthday.split('-');
     const month = Number(m), day = Number(d);
     if (!month || !day) return;
@@ -28,19 +38,28 @@ async function ensureBirthdayTask(userId) {
     // Feb 29 birthdays on a non-leap year land on the 28th instead —
     // there's no real Feb 29 to put the task on.
     const safeDay = (month === 2 && day === 29 && !isLeap(year)) ? 28 : day;
-    const deadline = `${year}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+    const deadline  = `${year}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+    const firstName = (userRow.name || '').split(' ')[0] || 'You';
+    const title     = `🎂 ${firstName}'s Birthday!`;
+
+    // Clear out any stale copy first — wrong deadline (birthday
+    // changed, or it's a new year) or wrong title (display name
+    // changed) both mean this isn't the current correct entry anymore.
+    await db.execute({
+      sql:  `DELETE FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday' AND (deadline != ? OR title != ?)`,
+      args: [userId, deadline, title],
+    });
 
     const existing = (await db.execute({
-      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday' AND deadline = ?`,
-      args: [userId, deadline],
+      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday' AND deadline = ? AND title = ?`,
+      args: [userId, deadline, title],
     })).rows[0];
     if (existing) return;
 
-    const firstName = (userRow.name || '').split(' ')[0] || 'You';
     await db.execute({
       sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source)
              VALUES (?, ?, ?, 'low', 'Birthday', ?, 'aurora')`,
-      args: [userId, `🎂 ${firstName}'s Birthday!`, 'Added automatically by Aurora — happy birthday! 💜', deadline],
+      args: [userId, title, 'Added automatically by Aurora — happy birthday! 💜', deadline],
     });
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
 }
