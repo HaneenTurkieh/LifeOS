@@ -532,7 +532,12 @@ export default function TreeShop() {
           <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
             <div className="flex items-center gap-2">
               <span className="text-lg">🔮</span>
-              <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.mysticTitle')}</h3>
+              <div>
+                <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.mysticTitle')}</h3>
+                <span className="text-[11px] font-semibold" style={{ color: '#8B5CF6' }}>
+                  {t('shop.mysticCost', { n: (data.mystic.xpPerSlot || 1000).toLocaleString() })}
+                </span>
+              </div>
             </div>
             <span className="text-xs text-ink/40 dark:text-white/30">
               {t('shop.mysticProgress', { designed: data.mystic.designedCount, unlocked: data.mystic.unlockedSlots })}

@@ -536,6 +536,7 @@ export const translations = {
       'shop.mysticProgress': '{designed}/{unlocked} designed',
       'shop.mysticXpToNext': '{n} XP to next slot',
       'shop.mysticNoneYet': 'Earn {n} more XP to unlock your first Mystic Tree slot.',
+      'shop.mysticCost': 'Every {n} lifetime XP earned = 1 free slot',
 
       // ── Login ──────────────────────────────────────────────
       'login.welcomeBack':  'Welcome back',
@@ -1188,6 +1189,7 @@ export const translations = {
       'shop.mysticProgress': '{designed}/{unlocked} مصمَّمة',
       'shop.mysticXpToNext': '{n} نقطة حتى المكان التالي',
       'shop.mysticNoneYet': 'اكسب {n} نقطة إضافية لفتح أول مكان لشجرتك الغامضة.',
+      'shop.mysticCost': 'كل {n} نقطة خبرة تكسبها مدى الحياة = مكان مجاني واحد',
 
       // ── تسجيل الدخول ─────────────────────────────────────────
       'login.welcomeBack':  'أهلًا بعودتك',
