@@ -8,9 +8,14 @@ const TREES = [
   { key: 'sprout',         name: 'Sprout',         emoji: '🌿', cost: 100,  description: 'Your first real growth.' },
   { key: 'oak',            name: 'Oak',            emoji: '🌳', cost: 300,  description: 'Strong and steady.' },
   { key: 'cherry_blossom', name: 'Cherry Blossom', emoji: '🌸', cost: 600,  description: 'Beautiful under pressure.' },
+  { key: 'coral',          name: 'Coral Tree',     emoji: '🪸', cost: 800,  description: 'Vivid and alive, like a reef beneath the waves.' },
   { key: 'bamboo',         name: 'Bamboo',         emoji: '🎋', cost: 1000, description: 'Flexible, fast, unstoppable.' },
+  { key: 'cactus',         name: 'Cactus',         emoji: '🌵', cost: 1200, description: 'Thrives on very little — resilience in its purest form.' },
   { key: 'palm',           name: 'Palm',           emoji: '🌴', cost: 1500, description: 'Thriving in the heat.' },
+  { key: 'water',          name: 'Water Tree',     emoji: '💧', cost: 1800, description: 'Fluid, calm, endlessly renewing.' },
+  { key: 'maple',          name: 'Maple',          emoji: '🍁', cost: 2200, description: 'Changes color, never loses its roots.' },
   { key: 'pine',           name: 'Pine',           emoji: '🌲', cost: 2500, description: 'Evergreen. Always growing.' },
+  { key: 'flamingo',       name: 'Flamingo Tree',  emoji: '🦩', cost: 3200, description: 'Rare, pink, impossible to miss.' },
   { key: 'crystal',        name: 'Crystal Tree',   emoji: '✨', cost: 5000, description: 'Legendary. For the dedicated.' },
 ];
 

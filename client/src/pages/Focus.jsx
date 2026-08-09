@@ -45,9 +45,11 @@ const cardGlass = {
   borderRadius:         '2rem',
 };
 const TREE_EMOJIS = {
-  seedling:       '🌱', sprout: '🌿',  oak:  '🌳',
-  cherry_blossom: '🌸', bamboo: '🎋',  palm: '🌴',
-  pine:           '🌲', crystal: '✨', mystic: '🔮',
+  seedling:       '🌱', sprout:  '🌿', oak:     '🌳',
+  cherry_blossom: '🌸', coral:   '🪸', bamboo:  '🎋',
+  cactus:         '🌵', palm:    '🌴', water:   '💧',
+  maple:          '🍁', pine:    '🌲', flamingo:'🦩',
+  crystal:        '✨', mystic:  '🔮',
 };
 const DEAD_EMOJI = '🥀';
 // Mystic trees are keyed 'mystic:<id>' (one design per unlocked slot),
