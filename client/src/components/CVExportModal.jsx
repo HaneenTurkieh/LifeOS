@@ -494,7 +494,14 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-ink/6 shrink-0">
-          <span className="font-display font-bold text-ink text-sm">Export CV</span>
+          {/* This whole modal is deliberately light-only — it's previewing a
+              printed document on white paper, so it should never follow the
+              app's dark mode. But the app-wide `.dark .text-ink` CSS rule
+              force-overrides that class to white everywhere, including here
+              — so every text color in this file uses inline `style` instead
+              of the `text-ink` className, which sidesteps that override
+              entirely (the CSS rule only matches by class name). */}
+          <span className="font-display font-bold text-sm" style={{ color: '#1E2233' }}>Export CV</span>
           <div className="flex items-center gap-2">
             <button onClick={handlePrint}
               className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-white"
@@ -502,12 +509,13 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
               <Printer size={14} /> Save as PDF
             </button>
             <button onClick={handleDownloadDocx}
-              className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-ink"
-              style={{ background: 'rgba(17,24,39,0.06)' }}>
+              className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold"
+              style={{ background: 'rgba(17,24,39,0.06)', color: '#1E2233' }}>
               <FileText size={14} /> Download Word
             </button>
             <button onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-ink/40 hover:text-ink/70 transition">
+              className="flex h-8 w-8 items-center justify-center rounded-xl hover:opacity-80 transition"
+              style={{ color: 'rgba(30,34,51,0.40)' }}>
               <X size={16} />
             </button>
           </div>
@@ -515,7 +523,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
 
         {/* Template picker */}
         <div className="flex items-center gap-2 px-6 py-3 border-b border-ink/5 shrink-0">
-          <span className="text-xs font-bold uppercase tracking-widest text-ink/30 mr-2">Template</span>
+          <span className="text-xs font-bold uppercase tracking-widest mr-2" style={{ color: 'rgba(30,34,51,0.30)' }}>Template</span>
           {TEMPLATES.map((t) => (
             <button
               key={t.key}
