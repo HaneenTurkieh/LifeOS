@@ -13,7 +13,7 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
     cherry_blossom: '🌸', coral:   '🪸', bamboo:  '🎋',
     cactus:         '🌵', palm:    '🌴', water:   '💧',
     maple:          '🍁', pine:    '🌲', flamingo:'🦩',
-    crystal:        '✨', mystic:  '🔮',
+    money:          '💰', crystal: '✨', mystic:  '🔮',
   };
   const treeEmoji = !equippedTree ? '🌱' : equippedTree.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱');
 

@@ -16,6 +16,7 @@ const TREES = [
   { key: 'maple',          name: 'Maple',          emoji: '🍁', cost: 2200, description: 'Changes color, never loses its roots.' },
   { key: 'pine',           name: 'Pine',           emoji: '🌲', cost: 2500, description: 'Evergreen. Always growing.' },
   { key: 'flamingo',       name: 'Flamingo Tree',  emoji: '🦩', cost: 3200, description: 'Rare, pink, impossible to miss.' },
+  { key: 'money',          name: 'Money Tree',     emoji: '💰', cost: 4000, description: 'Grows richer the more you tend it.' },
   { key: 'crystal',        name: 'Crystal Tree',   emoji: '✨', cost: 5000, description: 'Legendary. For the dedicated.' },
 ];
 

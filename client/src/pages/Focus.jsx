@@ -49,7 +49,7 @@ const TREE_EMOJIS = {
   cherry_blossom: '🌸', coral:   '🪸', bamboo:  '🎋',
   cactus:         '🌵', palm:    '🌴', water:   '💧',
   maple:          '🍁', pine:    '🌲', flamingo:'🦩',
-  crystal:        '✨', mystic:  '🔮',
+  money:          '💰', crystal: '✨', mystic:  '🔮',
 };
 const DEAD_EMOJI = '🥀';
 // Mystic trees are keyed 'mystic:<id>' (one design per unlocked slot),
