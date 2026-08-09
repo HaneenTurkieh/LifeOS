@@ -157,14 +157,17 @@ export default function Dashboard() {
             <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
             <div className="flex flex-wrap gap-3">
               {[
-                { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak') },
-                { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), onClick:() => navigate('/trees') },
-                { icon:'📋', color:'from-aurora-sky to-blue-500', value: counts.totalTasksToday > 0 ? `${counts.tasksDoneToday}/${counts.totalTasksToday}` : String(todaysTasks.length), label:t('dash.leftToday') },
-              ].map(({ icon, color, value, label, onClick }) => (
+                { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
+                { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
+                counts.totalTasksToday > 0
+                  ? { icon:'📋', color:'from-aurora-sky to-blue-500', value:`${counts.tasksDoneToday}/${counts.totalTasksToday}`, label:t('dash.tasksToday'), hint:t('dash.tasksTodayHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
+                  : { icon:'📋', color:'from-aurora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
+              ].map(({ icon, color, value, label, hint, onClick }) => (
                 <motion.div
                   key={label}
                   whileHover={onClick ? { y:-2 } : {}}
                   onClick={onClick}
+                  title={hint}
                   className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
                   style={{ background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.75)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
                 >
