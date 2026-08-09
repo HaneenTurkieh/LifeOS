@@ -5,6 +5,7 @@ import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'l
 import { useAuth }  from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 
 const DEMO_EMAIL    = 'demo@aurora.app';
 const DEMO_PASSWORD = 'password123';
@@ -22,6 +23,7 @@ export default function Login() {
   const { login, register } = useAuth();
   const { resolvedTheme }   = useTheme();
   const { t }               = useLanguage();
+  const toast                = useToast();
   const navigate            = useNavigate();
   const location            = useLocation();
   const redirectTo          = location.state?.from?.pathname || '/';
@@ -38,9 +40,12 @@ export default function Login() {
     if (!isLogin && password !== confirmPassword) { setError(t('login.pwMismatch')); return; }
     setSubmitting(true);
     try {
-      isLogin
-        ? await login(email.trim(), password)
-        : await register(name.trim(), email.trim(), password);
+      if (isLogin) {
+        await login(email.trim(), password);
+      } else {
+        const newUser = await register(name.trim(), email.trim(), password);
+        if (newUser?.welcomeXp) toast.success(t('login.welcomeXp', { n: newUser.welcomeXp }));
+      }
       navigate(redirectTo, { replace: true });
     } catch (err) { setError(err.message || t('login.wentWrong')); }
     finally { setSubmitting(false); }

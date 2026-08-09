@@ -376,15 +376,18 @@ export default function Goals() {
                     })}
                   </p>
                 )}
-                {/* Optional final-week planner — only offered once a goal is
-                    within 7 days of its deadline, since day-level scheduling
-                    isn't useful (or wanted) for anything further out. */}
+                {/* Optional day-by-day planner — offered whenever a goal's
+                    deadline is close enough that per-day scheduling is
+                    actually useful. Scales with however many days are
+                    actually left (1, 10, whatever) rather than a fixed
+                    week; a generous ceiling just keeps it from rendering
+                    a huge grid for goals many months out. */}
                 {g.milestones.length > 0 && g.target_date && g.status !== 'completed' &&
-                 daysUntilDate(g.target_date) !== null && daysUntilDate(g.target_date) >= 0 && daysUntilDate(g.target_date) <= 7 && (
+                 daysUntilDate(g.target_date) !== null && daysUntilDate(g.target_date) >= 0 && daysUntilDate(g.target_date) <= 60 && (
                   <div className="mt-3">
                     <button type="button" onClick={() => togglePlanner(g)}
                       className="flex items-center gap-1.5 text-xs font-semibold text-lavender-600 hover:underline">
-                      <CalendarClock size={12}/> {g.day_planner_enabled ? t('goals.hideDayPlan') : t('goals.planFinalWeek')}
+                      <CalendarClock size={12}/> {g.day_planner_enabled ? t('goals.hideDayPlan') : t('goals.planDays', { n: daysUntilDate(g.target_date) + 1 })}
                     </button>
                     {g.day_planner_enabled && (
                       <GoalDayPlanner goal={g} onSchedule={(mid, date) => scheduleMilestone(g, mid, date)} t={t} lang={lang} />

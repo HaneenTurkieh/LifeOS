@@ -42,10 +42,10 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (name, email, password) => {
-    const { token, user: u } = await api.post('/auth/register', { name, email, password });
+    const { token, user: u, welcomeXp } = await api.post('/auth/register', { name, email, password });
     setToken(token);
     setUser(u);
-    return u;
+    return { ...u, welcomeXp: welcomeXp || 0 };
   };
 
   const logout = () => {

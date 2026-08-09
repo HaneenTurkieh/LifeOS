@@ -11,9 +11,11 @@ const {
 } = require('../lib/auth');
 const { sendPasswordResetEmail } = require('../lib/email');
 const { rateLimit }              = require('../lib/rateLimit');
+const { addXp }                  = require('../lib/gamification');
 
 const EMAIL_RE               = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MINUTES = 30;
+const WELCOME_XP              = 100;
 
 // ── Public user shape ─────────────────────────────────────────
 function publicUser(row) {
@@ -55,7 +57,12 @@ router.post('/register', async (req, res) => {
       args: [Number(insert.lastInsertRowid)],
     })).rows[0];
 
-    res.status(201).json({ token: signToken(user), user: publicUser(user) });
+    // Welcome gift — one-time, brand new account only. addXp writes to
+    // xp_log itself, so there's nothing to dedup here (a user only ever
+    // registers once for a given row).
+    try { await addXp(user.id, WELCOME_XP, 'Welcome gift'); } catch (e) { console.error('Welcome XP grant failed:', e); }
+
+    res.status(201).json({ token: signToken(user), user: publicUser(user), welcomeXp: WELCOME_XP });
   } catch (err) {
     if (err.message?.includes('UNIQUE constraint')) {
       return res.status(409).json({ error: 'An account with that email already exists' });
