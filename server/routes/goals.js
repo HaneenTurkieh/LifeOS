@@ -20,9 +20,12 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { title, description = '', category = 'personal', target_date = null, milestones = [] } = req.body;
+    const { title, description = '', category = 'personal', target_date = null, milestones = [], day_planner_enabled = false } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
-    const insertResult = await db.execute({ sql: `INSERT INTO goals (user_id, title, description, category, target_date) VALUES (?, ?, ?, ?, ?)`, args: [req.user.id, title.trim(), description, category, target_date] });
+    const insertResult = await db.execute({
+      sql:  `INSERT INTO goals (user_id, title, description, category, target_date, day_planner_enabled) VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [req.user.id, title.trim(), description, category, target_date, (day_planner_enabled && target_date) ? 1 : 0],
+    });
     const goalId = Number(insertResult.lastInsertRowid);
     if (milestones.length > 0) {
       await db.batch(milestones.map((m, idx) => ({ sql: `INSERT INTO milestones (goal_id, title, position) VALUES (?, ?, ?)`, args: [goalId, m, idx] })), 'write');
