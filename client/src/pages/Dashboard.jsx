@@ -11,6 +11,7 @@ import { useWeather, weatherEmoji } from '../hooks/useWeather.js';
 import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
+import { isTodayBirthday } from '../utils/birthday.js';
 
 const TREE_EMOJIS = {
   seedling:'🌱', sprout:'🌿', oak:'🌳',
@@ -78,6 +79,7 @@ export default function Dashboard() {
   const { t, lang } = useLanguage();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const isBirthday = isTodayBirthday(user?.birthday);
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [moodSaving,   setMoodSaving]   = useState(false);
@@ -173,13 +175,13 @@ export default function Dashboard() {
               {todayLabel}
             </p>
             <h1 className="font-display text-3xl font-bold text-ink dark:text-white mb-1">
-              {t(greetKey)}, {firstName} 👋
+              {isBirthday ? t('greet.birthday') : t(greetKey)}, {firstName} {isBirthday ? '🎂' : '👋'}
             </h1>
             <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
             <div className="relative z-30 flex flex-wrap gap-3" ref={statsRef}>
               {[
                 { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
-                { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
+                { icon: isBirthday ? '🎁' : '⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
                 // "X/Y done" reads as "achieved today" to most people, but Y is
                 // tasks *due* today and X counts a task as done no matter which
                 // day it was actually finished — someone who finished a task
@@ -494,7 +496,7 @@ export default function Dashboard() {
               <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
                 "{t('dash.roughQuote')}"
               </p>
-              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">💙 Aurora</p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Aurora</p>
             </GlassCard>
           )}
         </div>

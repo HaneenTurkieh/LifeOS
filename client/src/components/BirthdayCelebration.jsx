@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { api } from '../api/client.js';
+import { isTodayBirthday, getAge } from '../utils/birthday.js';
 
 // ── "Happy Birthday to You" melody, played on load via Web Audio ──
 // Same oscillator-per-note pattern as playDone/playTreeDied in
@@ -47,15 +49,22 @@ const CONFETTI = ['🎉', '🎈', '🎂', '✨', '🎁', '🌟'];
 export default function BirthdayCelebration({ user }) {
   const { t } = useLanguage();
   const [show, setShow] = useState(false);
+  const [xpAwarded, setXpAwarded] = useState(0);
 
-  const isBirthday = (() => {
-    if (!user?.birthday) return false;
-    const today = new Date();
-    const [, m, d] = user.birthday.split('-');
-    return Number(m) === today.getMonth() + 1 && Number(d) === today.getDate();
-  })();
-  const age = user?.birthday ? new Date().getFullYear() - Number(user.birthday.split('-')[0]) : null;
+  const isBirthday = isTodayBirthday(user?.birthday);
+  const age = getAge(user?.birthday);
   const firstName = user?.name?.split(' ')[0] || '';
+
+  // Festive accent color for the whole day — set on <html> the moment
+  // we know it's their birthday, independent of the popup's own
+  // once-a-day dedup below, so the theme stays festive across every
+  // page/refresh all day even after the popup's been dismissed. Cleared
+  // automatically once it's no longer their birthday (next render after
+  // midnight, or a different account).
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-birthday', isBirthday);
+    return () => document.documentElement.removeAttribute('data-birthday');
+  }, [isBirthday]);
 
   useEffect(() => {
     if (!user?.id || !isBirthday) return;
@@ -65,6 +74,9 @@ export default function BirthdayCelebration({ user }) {
     localStorage.setItem(key, '1');
     setShow(true);
     playHappyBirthday();
+    api.post('/gamification/birthday-claim')
+      .then((res) => { if (res?.claimed) setXpAwarded(res.xpAwarded || 0); })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, isBirthday]);
 
@@ -128,6 +140,16 @@ export default function BirthdayCelebration({ user }) {
               <p className="text-sm font-semibold text-white/80 mb-3">{t('bday.age', { n: age })}</p>
             )}
             <p className="text-sm text-white/70 leading-relaxed">{t('bday.message')}</p>
+            {xpAwarded > 0 && (
+              <motion.p
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4, type: 'spring', stiffness: 300 }}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))' }}
+              >
+                {t('bday.xpGift', { n: xpAwarded })}
+              </motion.p>
+            )}
             <button onClick={() => setShow(false)}
               className="mt-6 w-full rounded-2xl py-2.5 font-semibold text-sm text-white transition"
               style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))' }}

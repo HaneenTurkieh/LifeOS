@@ -45,6 +45,7 @@ export const translations = {
       'greet.afternoon':  'Good afternoon',
       'greet.evening':    'Good evening',
       'greet.night':      'Good night',
+      'greet.birthday':   '🎉 Happy Birthday',
   
       // ── Tasks ──────────────────────────────────────────────
       'tasks.title':        'Your tasks',
@@ -370,6 +371,7 @@ export const translations = {
       'bday.age':              'Turning {n} today ✨',
       'bday.message':          "Wishing you a year as bright as your ambition. Aurora's cheering for you today — go do something that makes you smile. 💜",
       'bday.thanks':           'Thank you! 💜',
+      'bday.xpGift':           '🎁 +{n} XP gifted!',
       'settings.saveProfile':  'Save profile',
       'settings.changePhoto':  'Change photo',
       'settings.removePhoto':  'Remove',
@@ -687,6 +689,7 @@ export const translations = {
       'greet.afternoon':  'مساء الخير',
       'greet.evening':    'مساء الخير',
       'greet.night':      'تصبح على خير',
+      'greet.birthday':   '🎉 عيد ميلاد سعيد',
   
       // ── المهام ──────────────────────────────────────────────
       'tasks.title':        'مهامك',
@@ -1012,6 +1015,7 @@ export const translations = {
       'bday.age':              'تكملي {n} سنة اليوم ✨',
       'bday.message':          'نتمنى لك سنة مليئة بالنجاح بقدر طموحك. Aurora بتفرح معك اليوم — سوّي شي يخليك مبسوطة. 💜',
       'bday.thanks':           'شكرًا! 💜',
+      'bday.xpGift':           '🎁 حصلتِ على {n} XP هدية!',
       'settings.saveProfile':  'حفظ الملف الشخصي',
       'settings.changePhoto':  'تغيير الصورة',
       'settings.removePhoto':  'إزالة',
