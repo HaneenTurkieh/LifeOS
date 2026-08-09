@@ -38,7 +38,8 @@ export const translations = {
       'common.yesterday':  'Yesterday',
       'common.yesterday':  'Yesterday',
       'common.more':       'More',
-  
+      'common.less':       'Less',
+
       // ── Greetings (Dashboard) ──────────────────────────────
       'greet.morning':    'Good morning',
       'greet.afternoon':  'Good afternoon',
@@ -659,7 +660,8 @@ export const translations = {
       'common.yesterday':  'أمس',
       'common.yesterday':  'أمس',
       'common.more':       'المزيد',
-  
+      'common.less':       'أقل',
+
       // ── التحيّات ────────────────────────────────────────────
       'greet.morning':    'صباح الخير',
       'greet.afternoon':  'مساء الخير',

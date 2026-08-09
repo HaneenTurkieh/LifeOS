@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Sparkles, Trophy, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, Trophy, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
+import { useLanguage } from './LanguageContext.jsx';
 
 const ToastContext = createContext(null);
 
@@ -19,11 +20,12 @@ const STYLES = {
 };
 
 export function ToastProvider({ children }) {
+  const { t } = useLanguage();
   const [toasts, setToasts] = useState([]);
 
   const push = useCallback((toast) => {
     const id = Math.random().toString(36).slice(2);
-    setToasts((t) => [...t, { id, ...toast }]);
+    setToasts((t) => [...t, { id, expanded: false, ...toast }]);
     // Longer messages (e.g. real API error text) need more than the
     // default 3.2s to actually read, especially now that they wrap
     // instead of getting cut off — scale duration with length, capped
@@ -31,6 +33,10 @@ export function ToastProvider({ children }) {
     const textLen  = (toast.title?.length || 0) + (toast.message?.length || 0);
     const duration = toast.duration || Math.min(3200 + textLen * 40, 8000);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), duration);
+  }, []);
+
+  const toggleExpand = useCallback((id) => {
+    setToasts((prev) => prev.map((x) => (x.id === id ? { ...x, expanded: !x.expanded } : x)));
   }, []);
 
   const value = {
@@ -46,23 +52,46 @@ export function ToastProvider({ children }) {
       {children}
       <div className="fixed top-5 right-5 z-[100] flex flex-col gap-2.5 pointer-events-none">
         <AnimatePresence>
-          {toasts.map((t) => {
-            const Icon = ICONS[t.type] || Sparkles;
+          {toasts.map((toast) => {
+            const Icon = ICONS[toast.type] || Sparkles;
+            // Apple-style banners: clamp to 2 lines by default and only
+            // offer the expand chevron once the message is actually long
+            // enough to get clipped by that clamp.
+            const isLong = (toast.message?.length || 0) > 70;
             return (
               <motion.div
-                key={t.id}
+                key={toast.id}
                 initial={{ opacity: 0, x: 40, scale: 0.9 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 40, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 24 }}
                 className="glass-card pointer-events-auto flex items-start gap-3 px-4 py-3 min-w-[220px] max-w-sm"
               >
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${STYLES[t.type]} text-white shadow-sm`}>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${STYLES[toast.type]} text-white shadow-sm`}>
                   <Icon size={18} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink leading-snug break-words">{t.title}</p>
-                  {t.message && <p className="text-xs text-ink/60 mt-0.5 leading-relaxed break-words">{t.message}</p>}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink leading-snug break-words">{toast.title}</p>
+                  {toast.message && (
+                    <p className={`text-xs text-ink/60 mt-0.5 leading-relaxed break-words ${!toast.expanded && isLong ? 'line-clamp-2' : ''}`}>
+                      {toast.message}
+                    </p>
+                  )}
+                  {isLong && (
+                    <button
+                      onClick={() => toggleExpand(toast.id)}
+                      className="mt-1 flex items-center gap-0.5 text-[10px] font-semibold text-ink/35 hover:text-ink/60 transition-colors"
+                    >
+                      {toast.expanded ? t('common.less') : t('common.more')}
+                      <motion.span
+                        animate={{ rotate: toast.expanded ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex"
+                      >
+                        <ChevronDown size={11} />
+                      </motion.span>
+                    </button>
+                  )}
                 </div>
               </motion.div>
             );
