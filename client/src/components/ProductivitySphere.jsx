@@ -1,8 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext.jsx';
+import MysticSvg from './MysticTreeIcon.jsx';
 
-export default function ProductivitySphere({ score = 0, size = 132, equippedTree = null }) {
+// mysticTree: the actual designed record ({shape_key, color_hex, glow_hex})
+// for equippedTree when it's a "mystic:<id>" key — passed down from
+// whichever page already has it loaded (Dashboard.jsx), so the sphere
+// shows the real design instead of a generic placeholder.
+export default function ProductivitySphere({ score = 0, size = 132, equippedTree = null, mysticTree = null }) {
   const radius       = (size - 16) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset       = circumference - (Math.min(100, score) / 100) * circumference;
@@ -16,6 +21,7 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
     money:          '💰', crystal: '✨', mystic:  '🔮',
     christmas:      '🎄',
   };
+  const isMystic  = equippedTree?.startsWith('mystic') && mysticTree;
   const treeEmoji = !equippedTree ? '🌱' : equippedTree.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱');
 
   // SVG <linearGradient> stops can't read CSS custom properties reliably
@@ -63,9 +69,10 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="text-2xl mb-0.5 select-none"
+          className="mb-0.5 select-none flex items-center justify-center"
+          style={isMystic ? { color: mysticTree.color_hex, filter: `drop-shadow(0 0 6px ${mysticTree.glow_hex}99)` } : undefined}
         >
-          {treeEmoji}
+          {isMystic ? <MysticSvg shapeKey={mysticTree.shape_key} size={26} /> : <span className="text-2xl">{treeEmoji}</span>}
         </motion.div>
         <span className="font-display text-lg font-bold text-ink dark:text-white leading-none">{score}%</span>
         <span className="text-[9px] text-ink/40 dark:text-white/35">today</span>
