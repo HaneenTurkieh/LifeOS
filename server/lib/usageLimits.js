@@ -29,12 +29,36 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// New-account grace period — a brand-new user's first days are when they
+// explore hardest to decide if the app is worth keeping. Hitting a usage
+// cap right then, before anything's been proven to them, is the single
+// worst moment for it to happen. So caps simply don't apply yet for the
+// first GRACE_PERIOD_DAYS after signup — the meter only starts once
+// someone's actually stuck around a little.
+const GRACE_PERIOD_DAYS = 5;
+
+async function isInGracePeriod(userId) {
+  const row = (await db.execute({
+    sql: `SELECT created_at FROM users WHERE id = ?`, args: [userId],
+  })).rows[0];
+  if (!row?.created_at) return false;
+  // SQLite's datetime('now') default gives "YYYY-MM-DD HH:MM:SS" in UTC
+  // with no timezone marker — new Date() on that raw string parses
+  // inconsistently across engines, so it's converted to a proper ISO
+  // string first.
+  const createdAt = new Date(row.created_at.replace(' ', 'T') + 'Z');
+  if (Number.isNaN(createdAt.getTime())) return false;
+  const ageMs = Date.now() - createdAt.getTime();
+  return ageMs < GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+}
+
 // Read-only — call before doing the expensive work, to decide whether to
 // let the request through at all.
 async function checkLimit(userId, feature) {
   const limit = LIMITS[feature];
   if (!limit) return { allowed: true, remaining: Infinity, limit: Infinity };
   if (await isPremium(userId)) return { allowed: true, remaining: Infinity, limit: Infinity };
+  if (await isInGracePeriod(userId)) return { allowed: true, remaining: Infinity, limit: Infinity };
   const row = (await db.execute({
     sql:  `SELECT count FROM feature_usage WHERE user_id = ? AND feature = ? AND date = ?`,
     args: [userId, feature, todayIso()],
