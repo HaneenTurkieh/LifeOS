@@ -403,6 +403,7 @@ function PremiumTab() {
     { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD') },
     { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD') },
     { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD')   },
+    { icon: '💧', title: t('settings.perkWatermark'), desc: t('settings.perkWatermarkD') },
   ];
   if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
   const backToFreeStyle = isDark

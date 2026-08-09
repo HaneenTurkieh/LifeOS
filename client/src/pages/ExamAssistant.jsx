@@ -9,6 +9,7 @@ import {
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 
 const FILE_TYPES = [
@@ -67,7 +68,7 @@ function containsArabic(data) {
 // Real selectable/searchable text, small file size. Only used when
 // the content contains no Arabic — jsPDF's built-in fonts don't
 // shape Arabic letterforms correctly (see snapshot path below).
-async function exportPdfText(mode, data, t) {
+async function exportPdfText(mode, data, t, isPremium) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const marginX = 48;
@@ -142,6 +143,22 @@ async function exportPdfText(mode, data, t) {
     });
   }
 
+  // Free-tier watermark — a small credit stamped in the corner of every
+  // page, gone entirely once premium. Done last so it always lands on
+  // top of whatever content ended up on each page, including ones added
+  // by ensureSpace() along the way.
+  if (!isPremium) {
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text('Made with Aurora ✦', pageWidth - marginX, pageHeight - 24, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+    }
+  }
+
   const stamp = new Date().toISOString().slice(0, 10);
   doc.save(`aurora-${mode}-${stamp}.pdf`);
 }
@@ -153,7 +170,7 @@ async function exportPdfText(mode, data, t) {
 // PDF pages. Guarantees visually correct Arabic at the cost of the
 // text being an image (not selectable/searchable) — the honest
 // tradeoff for not having a font-shaping pipeline available.
-async function exportPdfSnapshot(mode, data, t, isRtl) {
+async function exportPdfSnapshot(mode, data, t, isRtl, isPremium) {
   const html2canvas = (await import('html2canvas')).default;
   const { jsPDF } = await import('jspdf');
 
@@ -239,6 +256,19 @@ async function exportPdfSnapshot(mode, data, t, isRtl) {
       heightLeft -= pageHeight;
     }
 
+    // Free-tier watermark, same corner stamp as the text-based PDF path —
+    // laid on top of the image content, on every page, gone once premium.
+    if (!isPremium) {
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFont('helvetica', 'italic');
+        pdf.setFontSize(8);
+        pdf.setTextColor(156, 163, 175);
+        pdf.text('Made with Aurora ✦', pageWidth - 24, pageHeight - 20, { align: 'right' });
+      }
+    }
+
     const stamp = new Date().toISOString().slice(0, 10);
     pdf.save(`aurora-${mode}-${stamp}.pdf`);
   } catch (err) {
@@ -249,16 +279,16 @@ async function exportPdfSnapshot(mode, data, t, isRtl) {
 
 // Dispatcher — auto-detects Arabic content and routes to the correct
 // export path. Nothing for the user to choose; it just works either way.
-async function exportPdf(mode, data, t, lang) {
+async function exportPdf(mode, data, t, lang, isPremium) {
   const arabic = containsArabic(data);
-  if (arabic) await exportPdfSnapshot(mode, data, t, true);
-  else await exportPdfText(mode, data, t);
+  if (arabic) await exportPdfSnapshot(mode, data, t, true, isPremium);
+  else await exportPdfText(mode, data, t, isPremium);
 }
 
 // ── PPTX export (pptxgenjs) — real slide-per-item deck. No Arabic
 // limitation here: PowerPoint shapes the text itself at render time,
 // so this path works correctly for both languages already. ─────
-async function exportPptx(mode, data, t) {
+async function exportPptx(mode, data, t, isPremium) {
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_16x9';
@@ -274,15 +304,24 @@ async function exportPptx(mode, data, t) {
   titleSlide.addText(heading, {
     x: 0.5, y: 2.2, w: 9, h: 1.2, fontSize: 36, bold: true, color: 'FFFFFF', align: 'center',
   });
-  titleSlide.addText('Aurora ✦', {
-    x: 0.5, y: 3.4, w: 9, h: 0.6, fontSize: 16, color: 'FFFFFF', align: 'center',
-  });
+  // "Aurora ✦" branding on the title slide, plus a tiny corner credit on
+  // every content slide below — both free-tier only, both gone once premium.
+  if (!isPremium) {
+    titleSlide.addText('Aurora ✦', {
+      x: 0.5, y: 3.4, w: 9, h: 0.6, fontSize: 16, color: 'FFFFFF', align: 'center',
+    });
+  }
 
   const addContentSlide = (titleText, bodyLines) => {
     const slide = pptx.addSlide();
     slide.addText(titleText, {
       x: 0.4, y: 0.3, w: 9.2, h: 0.7, fontSize: 20, bold: true, color: accentHex,
     });
+    if (!isPremium) {
+      slide.addText('Made with Aurora ✦', {
+        x: 7.6, y: 5.35, w: 2.2, h: 0.25, fontSize: 8, color: '9CA3AF', align: 'right', italic: true,
+      });
+    }
     // LAYOUT_16x9 is 10 x 5.63in — the old box (y:1.2, h:5.3) ended at
     // 6.5in, past the slide's own bottom edge, so anything that filled
     // it ran off. Now that slide *count* is exact (denser content per
@@ -784,6 +823,7 @@ function SlideDeck({ slides, t }) {
 export default function ExamAssistant() {
   const toast = useToast();
   const { t, lang } = useLanguage();
+  const { isPremium } = useTheme();
 
   const MODES = [
     { key:'mcq',        label:t('exam.mcq'),        icon:'🔵', desc:t('exam.mcqDesc')        },
@@ -1024,8 +1064,8 @@ Content:\n${content}`;
       );
     }
     try {
-      if (format === 'pdf') await exportPdf(result.mode, result.data, t, lang);
-      else await exportPptx(result.mode, result.data, t);
+      if (format === 'pdf') await exportPdf(result.mode, result.data, t, lang, isPremium);
+      else await exportPptx(result.mode, result.data, t, isPremium);
     } catch (err) {
       console.error(err);
       toast.error(
@@ -1333,6 +1373,7 @@ Content:\n${content}`;
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => handleExport('pdf')} disabled={!!exporting}
+                title={isPremium ? undefined : (lang === 'ar' ? 'التصدير المجاني يتضمن علامة "صُنع بواسطة Aurora" صغيرة — بريميوم يزيلها' : 'Free exports include a small "Made with Aurora" watermark — Premium removes it')}
                 className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-lavender-600 transition disabled:opacity-50"
                 style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
                 {exporting === 'pdf'
@@ -1341,6 +1382,7 @@ Content:\n${content}`;
                 PDF
               </button>
               <button onClick={() => handleExport('pptx')} disabled={!!exporting}
+                title={isPremium ? undefined : (lang === 'ar' ? 'التصدير المجاني يتضمن علامة "صُنع بواسطة Aurora" صغيرة — بريميوم يزيلها' : 'Free exports include a small "Made with Aurora" watermark — Premium removes it')}
                 className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-lavender-600 transition disabled:opacity-50"
                 style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
                 {exporting === 'pptx'
