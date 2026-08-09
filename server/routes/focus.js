@@ -78,11 +78,18 @@ async function reconcileRoomSession(roomId) {
                  VALUES (?, ?, 'alive', 'Room session', ?)`,
           args: [m.user_id, treeKey, durationMinutes],
         });
+        // Same reset-then-increment as the pulse handler — a straggler
+        // can get credited here on the first request of a new week,
+        // before the lazy-reset UPDATE in GET /rooms/:code runs, so this
+        // has to carry its own week check rather than assume a fresh row.
+        const weekStart = getWeekStart();
         await db.execute({
           sql:  `UPDATE focus_room_members
-                 SET is_focusing = 0, focus_minutes = focus_minutes + ?, credited_started_at = ?
+                 SET is_focusing = 0,
+                     focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
+                     week_start = ?, credited_started_at = ?
                  WHERE room_id = ? AND user_id = ?`,
-          args: [durationMinutes, t.started_at, roomId, m.user_id],
+          args: [weekStart, durationMinutes, durationMinutes, weekStart, t.started_at, roomId, m.user_id],
         });
       } catch (e) { console.error('reconcileRoomSession: member credit failed (non-fatal):', m.user_id, e.message); }
     }
@@ -466,6 +473,14 @@ router.get('/rooms/:code', async (req, res) => {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     await reconcileRoomSession(roomRow.id); // catch anyone whose room session just finished but never self-reported
+    // Same weekly reset as the leaderboard/spotlights — lazily zero out
+    // anyone whose focus_minutes are still tagged to a previous week,
+    // the first time this room is loaded after Sunday rolls over.
+    await db.execute({
+      sql:  `UPDATE focus_room_members SET focus_minutes = 0, week_start = ?
+             WHERE room_id = ? AND (week_start IS NULL OR week_start != ?)`,
+      args: [getWeekStart(), roomRow.id, getWeekStart()],
+    });
     // Membership is only ever changed by an explicit DELETE from the
     // /leave route below — being idle, backgrounded, or offline for a
     // while must never make someone disappear from this list. The old
@@ -610,11 +625,17 @@ router.post('/rooms/:code/pulse', async (req, res) => {
       const t = (await db.execute({
         sql: `SELECT started_at FROM focus_room_timer WHERE room_id = ?`, args: [roomRow.id],
       })).rows[0];
+      const weekStart = getWeekStart();
       await db.execute({
         sql:  `UPDATE focus_room_members
-               SET last_seen = datetime('now'), is_focusing = ?, focus_minutes = focus_minutes + ?, credited_started_at = ?
+               SET last_seen = datetime('now'), is_focusing = ?,
+                   focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
+                   week_start = ?, credited_started_at = ?
                WHERE room_id = ? AND user_id = ?`,
-        args: [is_focusing ? 1 : 0, add_minutes, t?.started_at || null, roomRow.id, req.user.id],
+        args: [
+          is_focusing ? 1 : 0, weekStart, add_minutes, add_minutes,
+          weekStart, t?.started_at || null, roomRow.id, req.user.id,
+        ],
       });
     } else {
       await db.execute({

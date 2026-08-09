@@ -187,6 +187,14 @@ async function initDb() {
   if (!(await hasColumn('focus_room_members', 'credited_started_at'))) {
     await db.execute(`ALTER TABLE focus_room_members ADD COLUMN credited_started_at TEXT DEFAULT NULL`);
   }
+  // Every other Flow number (leaderboard, spotlights) resets each Sunday
+  // via week_start — but focus_minutes here was a plain running counter
+  // with no time window at all, so a room's "min focused" just kept
+  // growing forever. week_start lets routes/focus.js lazily zero a
+  // member's count the first time it's touched in a new week.
+  if (!(await hasColumn('focus_room_members', 'week_start'))) {
+    await db.execute(`ALTER TABLE focus_room_members ADD COLUMN week_start TEXT DEFAULT NULL`);
+  }
 
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([

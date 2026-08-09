@@ -13,22 +13,27 @@ import PageLoader         from '../components/Loader.jsx';
 
 const TREE_EMOJIS = {
   seedling:'🌱', sprout:'🌿', oak:'🌳',
-  cherry_blossom:'🌸', bamboo:'🎋', palm:'🌴',
-  pine:'🌲', crystal:'✨',
+  cherry_blossom:'🌸', coral:'🪸', bamboo:'🎋', cactus:'🌵',
+  palm:'🌴', water:'💧', maple:'🍁', pine:'🌲', flamingo:'🦩', crystal:'✨',
 };
 const TREE_NAMES = {
   seedling:'Seedling', sprout:'Sprout', oak:'Oak',
-  cherry_blossom:'Cherry Blossom', bamboo:'Bamboo',
-  palm:'Palm', pine:'Pine', crystal:'Crystal Tree',
+  cherry_blossom:'Cherry Blossom', coral:'Coral Tree', bamboo:'Bamboo', cactus:'Cactus',
+  palm:'Palm', water:'Water Tree', maple:'Maple', pine:'Pine', flamingo:'Flamingo Tree', crystal:'Crystal Tree',
 };
 const TREE_DESC = {
   seedling:'Every journey starts here.',
   sprout:'Your first real growth.',
   oak:'Strong and steady.',
   cherry_blossom:'Beautiful under pressure.',
+  coral:'Vivid and alive, like a reef beneath the waves.',
   bamboo:'Flexible, fast, unstoppable.',
+  cactus:'Thrives on very little — resilience in its purest form.',
   palm:'Thriving in the heat.',
+  water:'Fluid, calm, endlessly renewing.',
+  maple:'Changes color, never loses its roots.',
   pine:'Evergreen. Always growing.',
+  flamingo:'Rare, pink, impossible to miss.',
   crystal:'Legendary. For the dedicated.',
 };
 const NEXT_TREE = {

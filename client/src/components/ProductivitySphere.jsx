@@ -9,9 +9,11 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
   const { accent }   = useTheme();
 
   const TREE_EMOJIS = {
-    seedling:       '🌱', sprout: '🌿', oak: '🌳',
-    cherry_blossom: '🌸', bamboo: '🎋', palm: '🌴',
-    pine:           '🌲', crystal: '✨', mystic: '🔮',
+    seedling:       '🌱', sprout:  '🌿', oak:     '🌳',
+    cherry_blossom: '🌸', coral:   '🪸', bamboo:  '🎋',
+    cactus:         '🌵', palm:    '🌴', water:   '💧',
+    maple:          '🍁', pine:    '🌲', flamingo:'🦩',
+    crystal:        '✨', mystic:  '🔮',
   };
   const treeEmoji = !equippedTree ? '🌱' : equippedTree.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱');
 
