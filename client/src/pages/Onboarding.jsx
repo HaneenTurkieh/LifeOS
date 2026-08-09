@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift, Flame } from 'lucide-react';
 import { api } from '../api/client.js';
 
 export function markOnboarded(userId) {
@@ -317,6 +317,47 @@ function LumiStep({ onNext }) {
   );
 }
 
+function LevelsStep({ onNext }) {
+  return (
+    <div className="flex flex-col items-center text-center gap-5">
+      <motion.div
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="flex h-20 w-20 items-center justify-center rounded-3xl text-4xl text-white"
+        style={{ background: 'linear-gradient(135deg,#FFB84D 0%,#E8940A 100%)', boxShadow: '0 16px 40px rgba(255,184,77,0.40)' }}>
+        🎁
+      </motion.div>
+      <div>
+        <h2 className="font-display text-2xl font-bold text-white mb-2">Level up as you go</h2>
+        <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
+          Every task and habit you complete earns XP. Every 100 XP is a new level — and it's not just for show.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2.5 w-full">
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-left"
+          style={{ background: 'rgba(255,184,77,0.10)', border: '1px solid rgba(255,184,77,0.22)' }}>
+          <span className="text-sun-300 shrink-0"><Gift size={18} /></span>
+          <div>
+            <p className="text-sm font-semibold text-white">Reach level 5</p>
+            <p className="text-xs text-white/50 mt-0.5">Unlock a free 7-day Premium trial — no payment needed.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-left"
+          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
+          <span className="text-lavender-300 shrink-0"><Flame size={18} /></span>
+          <div>
+            <p className="text-sm font-semibold text-white">Grow your tree</p>
+            <p className="text-xs text-white/50 mt-0.5">XP also grows your tree through new stages as you level up.</p>
+          </div>
+        </div>
+      </div>
+      <PrimaryBtn onClick={onNext}>
+        Got it <ArrowRight size={16} />
+      </PrimaryBtn>
+    </div>
+  );
+}
+
 function DoneStep({ name, onFinish }) {
   return (
     <div className="flex flex-col items-center text-center gap-6">
@@ -364,6 +405,7 @@ export default function Onboarding({ user, onComplete }) {
     <GoalStep    key="goal"    onNext={next} onSkip={next} />,
     <HabitStep   key="habit"   onNext={next} onSkip={next} />,
     <LumiStep    key="lumi"    onNext={next} />,
+    <LevelsStep  key="levels" onNext={next} />,
     <DoneStep    key="done"    name={name}   onFinish={finish} />,
   ];
   const totalSteps = stepContent.length - 2;

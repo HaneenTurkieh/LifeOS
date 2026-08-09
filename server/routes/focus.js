@@ -2,6 +2,8 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { hashPassword, comparePassword } = require('../lib/auth');
+const { getPremium } = require('../lib/premium');
+const { getLevelInfo } = require('../lib/gamification');
 const crypto  = require('crypto');
 
 function getWeekStart() {
@@ -688,18 +690,48 @@ const PLANS = [
 ];
 router.get('/premium/plans', (req, res) => res.json({ plans: PLANS }));
 
-async function getPremium(userId) {
-  const row = (await db.execute({
-    sql: `SELECT is_premium, freeze_date, theme_preset, plan, requested_at FROM user_premium WHERE user_id = ?`, args: [userId],
-  })).rows[0];
-  return {
-    is_premium:   Boolean(row?.is_premium),
-    freeze_date:  row?.freeze_date || null,
-    theme_preset: row?.theme_preset || 'purple',
-    plan:         row?.plan || null,
-    requested_at: row?.requested_at || null,
-  };
-}
+// ── Level-milestone free trial — reaching TRIAL_LEVEL unlocks a
+// one-time free trial of Premium, no payment involved. Framed as a
+// reward for engagement rather than a permanent discount, since anyone
+// who reaches this level is already proven-engaged and a trial (not a
+// price cut) is what actually moves conversion for that segment.
+const TRIAL_LEVEL = 5;
+const TRIAL_DAYS  = 7;
+
+router.get('/premium/trial-eligibility', async (req, res) => {
+  try {
+    const [current, level] = await Promise.all([getPremium(req.user.id), getLevelInfo(req.user.id)]);
+    res.json({
+      eligible:      !current.is_premium && !current.trial_used && level.level >= TRIAL_LEVEL,
+      trialActive:   current.is_premium && current.plan === 'trial' && !!current.trial_expires_at,
+      trialExpiresAt: current.plan === 'trial' ? current.trial_expires_at : null,
+      trialUsed:     current.trial_used,
+      level:         level.level,
+      requiredLevel: TRIAL_LEVEL,
+      trialDays:     TRIAL_DAYS,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+router.post('/premium/start-trial', async (req, res) => {
+  try {
+    const [current, level] = await Promise.all([getPremium(req.user.id), getLevelInfo(req.user.id)]);
+    if (current.is_premium)  return res.status(400).json({ error: 'Already premium' });
+    if (current.trial_used)  return res.status(400).json({ error: 'Trial already used' });
+    if (level.level < TRIAL_LEVEL)
+      return res.status(403).json({ error: `Reach level ${TRIAL_LEVEL} to unlock a free trial` });
+
+    const expiresAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, is_premium, plan, trial_used, trial_expires_at)
+            VALUES (?, 1, 'trial', 1, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              is_premium = 1, plan = 'trial', trial_used = 1, trial_expires_at = excluded.trial_expires_at`,
+      args: [req.user.id, expiresAt],
+    });
+    res.json(await getPremium(req.user.id));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 router.get('/premium/status', async (req, res) => {
   try { res.json(await getPremium(req.user.id)); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }

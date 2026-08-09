@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
-  Eye, EyeOff, ChevronRight, Crown, Snowflake,
+  Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -298,6 +298,8 @@ function PremiumTab() {
   const [busy,       setBusy]       = useState(false);
   const [requesting, setRequesting] = useState(null); // plan key currently being requested
   const [themeBusy,  setThemeBusy]  = useState(false);
+  const [trial,      setTrial]      = useState(null);
+  const [trialBusy,  setTrialBusy]  = useState(false);
   const load = useCallback(() => {
     api.get('/focus/premium/status')
       .then((d) => {
@@ -306,8 +308,23 @@ function PremiumTab() {
       })
       .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple', plan:null }));
     api.get('/focus/premium/plans').then((d) => setPlans(d.plans || [])).catch(() => setPlans([]));
+    api.get('/focus/premium/trial-eligibility').then(setTrial).catch(() => setTrial(null));
   }, [setAccent]);
   useEffect(() => { load(); }, [load]);
+  const startTrial = async () => {
+    setTrialBusy(true);
+    try {
+      const next = await api.post('/focus/premium/start-trial', {});
+      setStatus(next);
+      if (next.theme_preset) setAccent(next.theme_preset);
+      toast.success(t('settings.trialStarted', { n: trial?.trialDays || 7 }));
+      load();
+    } catch (err) { toast.error(err.message); }
+    finally { setTrialBusy(false); }
+  };
+  const trialDaysLeft = trial?.trialExpiresAt
+    ? Math.max(0, Math.ceil((new Date(trial.trialExpiresAt) - new Date()) / (24 * 60 * 60 * 1000)))
+    : 0;
   const toggle = async () => {
     setBusy(true);
     try {
@@ -405,6 +422,44 @@ function PremiumTab() {
         )}
       </div>
 
+      {trial?.trialActive && (
+        <div className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgb(var(--accent-500) / 0.10))', border:'1px solid rgba(255,184,77,0.35)' }}>
+          <Gift size={20} className="text-sun-500 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-ink dark:text-white">{t('settings.trialActive')}</p>
+            <p className="text-[11px] text-ink/50 dark:text-white/40 mt-0.5">
+              {t('settings.trialDaysLeft', { n: trialDaysLeft })}
+            </p>
+          </div>
+        </div>
+      )}
+      {!status.is_premium && trial?.eligible && (
+        <div className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgb(var(--accent-500) / 0.10))', border:'1px solid rgba(255,184,77,0.35)' }}>
+          <Gift size={20} className="text-sun-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-ink dark:text-white">{t('settings.trialUnlocked')}</p>
+            <p className="text-[11px] text-ink/50 dark:text-white/40 mt-0.5">
+              {t('settings.trialUnlockedDesc', { n: trial.trialDays })}
+            </p>
+          </div>
+          <button onClick={startTrial} disabled={trialBusy}
+            className="shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold text-white transition disabled:opacity-40"
+            style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
+            {trialBusy ? t('settings.requesting') : t('settings.startTrial')}
+          </button>
+        </div>
+      )}
+      {!status.is_premium && trial && !trial.eligible && !trial.trialActive && !trial.trialUsed && trial.level < trial.requiredLevel && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
+          style={{ background:'rgb(var(--accent-500) / 0.05)', border:'1px solid rgb(var(--accent-500) / 0.12)' }}>
+          <Gift size={15} className="text-ink/30 dark:text-white/25 shrink-0" />
+          <p className="text-[11px] text-ink/45 dark:text-white/35">
+            {t('settings.trialTeaser', { level: trial.requiredLevel, current: trial.level })}
+          </p>
+        </div>
+      )}
       {!status.is_premium && plans.length > 0 && (
         <div className="flex flex-col gap-2.5">
           <p className="text-sm font-semibold text-ink dark:text-white px-1">👑 {t('settings.choosePlan')}</p>

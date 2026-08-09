@@ -105,6 +105,16 @@ async function initDb() {
   if (!(await hasColumn('user_premium', 'requested_at'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN requested_at TEXT DEFAULT NULL`);
   }
+  // Level-milestone free trial — reaching a certain level unlocks one
+  // free 7-day Premium trial. trial_used is permanent (one per account
+  // ever, even after the trial period lapses) so it can't be re-claimed
+  // by dropping back below the level or waiting it out.
+  if (!(await hasColumn('user_premium', 'trial_used'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN trial_used INTEGER DEFAULT 0`);
+  }
+  if (!(await hasColumn('user_premium', 'trial_expires_at'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN trial_expires_at TEXT DEFAULT NULL`);
+  }
   if (!(await hasColumn('focus_room_tree', 'died_reason'))) {
     await db.execute(`ALTER TABLE focus_room_tree ADD COLUMN died_reason TEXT DEFAULT 'left'`);
   }
