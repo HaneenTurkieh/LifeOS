@@ -649,6 +649,18 @@ router.post('/rooms/:code/timer/stop', async (req, res) => {
       }
     } catch (_) {}
 
+    // If the session had already run its full course by the time stop
+    // was pressed (host just tidying up / about to start a new round —
+    // not actually cutting anyone off), this is the last chance to
+    // credit anyone whose device never self-reported: reconcileRoomSession
+    // refuses to do anything once running flips to 0 below, so a
+    // straggler who hadn't been swept by a poll yet would otherwise lose
+    // their session, XP, and planted tree permanently — nothing else
+    // ever revisits this timer row once it's stopped.
+    if (!stoppedEarly) {
+      await reconcileRoomSession(roomRow.id);
+    }
+
     await db.execute({ sql: `UPDATE focus_room_timer SET running = 0 WHERE room_id = ?`, args: [roomRow.id] });
 
     if (stoppedEarly) {
