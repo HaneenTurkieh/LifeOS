@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Plus, Trash2, Brain, Paperclip, X, FileText,
-  Sparkles, Globe, SlidersHorizontal, Check, Pencil,
+  Sparkles, Globe, SlidersHorizontal, Check, Pencil, Copy,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -70,6 +70,13 @@ function ActionCard({ action }) {
 }
 function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdit, editBusy, t }) {
   const isLumi = msg.role === 'assistant';
+  const [copied, setCopied] = useState(false);
+  const copyContent = () => {
+    navigator.clipboard?.writeText(msg.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
   const [draft, setDraft] = useState(msg.content);
   useEffect(() => { if (isEditing) setDraft(msg.content); }, [isEditing]); // eslint-disable-line
   const textareaRef = useRef(null);
@@ -134,6 +141,16 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
                 <Pencil size={11} />
               </button>
             )}
+            {!isLumi && (
+              <button
+                onClick={copyContent}
+                title={t ? t('lumi.copy') : 'Copy'}
+                className="opacity-0 group-hover:opacity-100 transition mb-1 flex h-6 w-6 items-center justify-center rounded-lg text-ink/30 dark:text-white/30 hover:text-ink/60 dark:hover:text-white/60"
+                style={{ background: 'rgba(255,255,255,0.5)' }}
+              >
+                {copied ? <Check size={11} /> : <Copy size={11} />}
+              </button>
+            )}
             <div
               dir="auto"
               className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
@@ -153,6 +170,16 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
             >
               {msg.isLimitNotice ? '👑 ' : ''}{msg.content}
             </div>
+            {isLumi && (
+              <button
+                onClick={copyContent}
+                title={t ? t('lumi.copy') : 'Copy'}
+                className="opacity-0 group-hover:opacity-100 transition mb-1 flex h-6 w-6 items-center justify-center rounded-lg text-ink/30 dark:text-white/30 hover:text-ink/60 dark:hover:text-white/60"
+                style={{ background: 'rgba(255,255,255,0.5)' }}
+              >
+                {copied ? <Check size={11} /> : <Copy size={11} />}
+              </button>
+            )}
           </div>
         )}
         {!isLumi && msg.attachmentNames?.length > 0 && (

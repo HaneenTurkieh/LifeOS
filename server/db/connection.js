@@ -439,6 +439,24 @@ async function initDb() {
     );
   }
 
+  // Owner override — the account tied to the developer's own email always
+  // has Premium, permanently, free, regardless of trial state, usage caps,
+  // or anything toggled elsewhere. Runs on every boot (idempotent) so it
+  // self-heals even if someone flips it via the free /premium/toggle route.
+  {
+    const OWNER_EMAIL = 'turkiehhanee16@gmail.com';
+    const owner = (await db.execute({
+      sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE`, args: [OWNER_EMAIL],
+    })).rows[0];
+    if (owner) {
+      await db.execute({
+        sql: `INSERT INTO user_premium (user_id, is_premium) VALUES (?, 1)
+              ON CONFLICT(user_id) DO UPDATE SET is_premium = 1`,
+        args: [owner.id],
+      });
+    }
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 
