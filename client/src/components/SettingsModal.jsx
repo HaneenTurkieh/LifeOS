@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
-  Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift,
+  Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift, Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -423,6 +423,20 @@ function PremiumTab() {
         )}
       </div>
 
+      {!status.is_premium && trial?.inGracePeriod && (
+        <div className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
+          <Sparkles size={20} className="text-lavender-500 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-ink dark:text-white">
+              {trial.graceDaysLeft > 1 ? t('settings.graceActive', { n: trial.graceDaysLeft }) : t('settings.graceEndingSoon')}
+            </p>
+            <p className="text-[11px] text-ink/50 dark:text-white/40 mt-0.5">
+              {trial.graceDaysLeft > 1 ? t('settings.graceActiveDesc', { n: trial.gracePeriodDays }) : t('settings.graceEndingSoonDesc')}
+            </p>
+          </div>
+        </div>
+      )}
       {trial?.trialActive && (
         <div className="rounded-2xl p-4 flex items-center gap-3"
           style={{ background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgb(var(--accent-500) / 0.10))', border:'1px solid rgba(255,184,77,0.35)' }}>

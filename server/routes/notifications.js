@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { buildDedupeKey } = require('../lib/notificationDedupe');
+const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 
 const MOOD_CHECKPOINTS = [12, 15, 18, 21];
 
@@ -83,6 +84,37 @@ async function generateNotifications(userId) {
       body:  'You haven\'t logged your mood today. It only takes a second.',
       link:  `/?moodcheck=${currentCheckpoint}`,
     });
+  }
+
+  // Grace period — new accounts get GRACE_PERIOD_DAYS with no caps on
+  // exam/slide generation, Deep Think, or Deep Search (see lib/usageLimits.js).
+  // Two one-time notices, both deduped forever by their static link (so
+  // each fires exactly once regardless of how many times this function
+  // re-evaluates): a welcome right when it's active, and a heads-up on
+  // the last day before real limits start — paired with an actual reason
+  // to go Premium instead of just waiting it out.
+  const userRow = (await db.execute({ sql: `SELECT created_at FROM users WHERE id=?`, args: [userId] })).rows[0];
+  if (userRow?.created_at) {
+    const createdAt = new Date(userRow.created_at.replace(' ', 'T') + 'Z');
+    if (!Number.isNaN(createdAt.getTime())) {
+      const ageDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (ageDays < GRACE_PERIOD_DAYS) {
+        toCreate.push({
+          type:  'grace_welcome',
+          title: '✨ Your first days are unlimited',
+          body:  `No daily limits for your first ${GRACE_PERIOD_DAYS} days — explore exam/slide generation, Deep Think, and Deep Search freely. After that, free accounts get a generous daily allowance, and Premium removes limits for good.`,
+          link:  null,
+        });
+      }
+      if (ageDays >= GRACE_PERIOD_DAYS - 1 && ageDays < GRACE_PERIOD_DAYS) {
+        toCreate.push({
+          type:  'grace_ending',
+          title: '⏳ Your unlimited period ends soon',
+          body:  'Daily limits on exam generation, Deep Think, and Deep Search start tomorrow. Loved having no limits? Go Premium and keep it that way — for good.',
+          link:  null,
+        });
+      }
+    }
   }
 
   for (const n of toCreate) {

@@ -4,6 +4,7 @@ const { db }  = require('../db/connection');
 const { hashPassword, comparePassword } = require('../lib/auth');
 const { getPremium } = require('../lib/premium');
 const { getLevelInfo } = require('../lib/gamification');
+const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 const crypto  = require('crypto');
 
 function getWeekStart() {
@@ -700,7 +701,25 @@ const TRIAL_DAYS  = 7;
 
 router.get('/premium/trial-eligibility', async (req, res) => {
   try {
-    const [current, level] = await Promise.all([getPremium(req.user.id), getLevelInfo(req.user.id)]);
+    const [current, level, userRow] = await Promise.all([
+      getPremium(req.user.id),
+      getLevelInfo(req.user.id),
+      db.execute({ sql: `SELECT created_at FROM users WHERE id = ?`, args: [req.user.id] }).then(r => r.rows[0]),
+    ]);
+
+    // Same GRACE_PERIOD_DAYS window that lib/usageLimits.js actually
+    // enforces — surfaced here so the Premium tab can tell someone
+    // exactly where they stand instead of them finding out by hitting a
+    // limit unannounced.
+    let graceDaysLeft = 0;
+    if (userRow?.created_at) {
+      const createdAt = new Date(userRow.created_at.replace(' ', 'T') + 'Z');
+      if (!Number.isNaN(createdAt.getTime())) {
+        const ageDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+        graceDaysLeft = Math.max(0, Math.ceil(GRACE_PERIOD_DAYS - ageDays));
+      }
+    }
+
     res.json({
       eligible:      !current.is_premium && !current.trial_used && level.level >= TRIAL_LEVEL,
       trialActive:   current.is_premium && current.plan === 'trial' && !!current.trial_expires_at,
@@ -709,6 +728,9 @@ router.get('/premium/trial-eligibility', async (req, res) => {
       level:         level.level,
       requiredLevel: TRIAL_LEVEL,
       trialDays:     TRIAL_DAYS,
+      inGracePeriod: !current.is_premium && graceDaysLeft > 0,
+      graceDaysLeft,
+      gracePeriodDays: GRACE_PERIOD_DAYS,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });

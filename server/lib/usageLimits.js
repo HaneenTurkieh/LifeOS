@@ -83,4 +83,4 @@ function limitMessage(feature, limit) {
   return `You've used all ${limit} free ${FEATURE_LABEL[feature] || feature} requests for today. Upgrade to Premium for unlimited access, or come back tomorrow.`;
 }
 
-module.exports = { LIMITS, checkLimit, recordUsage, limitMessage };
+module.exports = { LIMITS, checkLimit, recordUsage, limitMessage, isInGracePeriod, GRACE_PERIOD_DAYS };
