@@ -52,6 +52,25 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── GET /tasks/:id ─────────────────────────────────────────────
+// Single-task lookup — used by the Focus timer to re-hydrate a linked
+// task's real cumulative time_spent_minutes (e.g. after a page refresh
+// restores taskId from session storage but has no way to know the
+// actual total without asking the server).
+router.get('/:id', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT * FROM tasks WHERE id = ? AND user_id = ?`,
+      args: [req.params.id, req.user.id],
+    })).rows[0];
+    if (!row) return res.status(404).json({ error: 'Task not found' });
+    res.json(row);
+  } catch (err) {
+    console.error('GET /tasks/:id error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // ── POST /tasks ────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {

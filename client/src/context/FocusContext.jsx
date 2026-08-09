@@ -219,6 +219,22 @@ export function FocusProvider({ children }) {
   useEffect(() => { taskIdRef.current    = taskId;    }, [taskId]);
   useEffect(() => { roomRef.current      = room;      }, [room]);
 
+  // taskId can arrive from places that never fetch the task's real
+  // cumulative time — a fresh page load restoring it from session
+  // storage, or the server timer sync (applyServerState) setting it —
+  // as opposed to setTask(), which is handed the fresh total directly
+  // by whatever list the user picked it from. Without this, the "Xm
+  // logged on this task" display sat frozen at its useState(0) initial
+  // value after a refresh, looking like the logged time had been wiped.
+  useEffect(() => {
+    if (!taskId) { setTaskTimeSpent(0); return; }
+    let active = true;
+    api.get(`/tasks/${taskId}`)
+      .then((tk) => { if (active) setTaskTimeSpent(Number(tk.time_spent_minutes) || 0); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [taskId]);
+
   // ── Server-authoritative solo timer sync ───────────────────
   const versionRef   = useRef(0);
   const loadedRef     = useRef(false);

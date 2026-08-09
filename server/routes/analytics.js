@@ -33,11 +33,14 @@ router.get('/', async (req, res) => {
       })),
       Promise.all(weeks.map(async (w) => {
         const s = w * 7 + 6, e = w * 7;
-        const [rL, rS] = await Promise.all([
-          db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND category='Learning' AND date(completed_at) BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] }),
-          db.execute({ sql: `SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id WHERE h.user_id = ? AND h.name IN ('Reading', 'Coding Practice') AND hl.date BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] }),
-        ]);
-        return { week: weekLabel(e), hours: Math.round((Number(rL.rows[0].c) * 1.5 + Number(rS.rows[0].c) * 0.5) * 10) / 10 };
+        // Real focus-timer minutes (Focus page / Flow sessions), not a
+        // proxy — this used to guess "study hours" from completed
+        // Learning-category tasks and Reading/Coding habit logs, which
+        // had nothing to do with actual time spent focusing and showed
+        // 0h for anyone who'd never logged one of those specific things,
+        // no matter how long they'd actually focused that day.
+        const r = await db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) m FROM focus_sessions WHERE user_id = ? AND date(completed_at) BETWEEN date('now', '-${s} days') AND date('now', '-${e} days')`, args: [userId] });
+        return { week: weekLabel(e), hours: Math.round((Number(r.rows[0].m) / 60) * 10) / 10 };
       })),
     ]);
 

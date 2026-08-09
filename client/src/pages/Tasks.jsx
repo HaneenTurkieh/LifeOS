@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Plus, Trash2, Pencil, Calendar, Clock, ListChecks,
-  Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw,
+  Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Timer,
 } from 'lucide-react';
 import { api }       from '../api/client.js';
 import { useToast }  from '../context/ToastContext.jsx';
@@ -447,6 +447,11 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
             <span className="flex items-center gap-1 text-[11px] font-semibold text-lavender-500"
               style={{ background:'rgb(var(--accent-500) / 0.10)', borderRadius:6, padding:'1px 7px' }}>
               <RefreshCw size={9}/> {label}
+            </span>
+          )}
+          {Number(task.time_spent_minutes) > 0 && (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-ink/40 dark:text-white/30">
+              <Timer size={10}/> {t('tasks.focusedTime', { n: Number(task.time_spent_minutes) })}
             </span>
           )}
         </div>
