@@ -10,6 +10,7 @@ const TYPE_COLORS = {
   overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)'  },
   streak:   { dot: '#FFB84D', bg: 'rgba(255,184,77,0.10)'  },
   deadline: { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
+  milestone_due: { dot: '#8B5CF6', bg: 'rgba(139,92,246,0.10)' },
   mood:     { dot: '#4CC38A', bg: 'rgba(76,195,138,0.10)'  },
   default:  { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
 };

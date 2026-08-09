@@ -17,6 +17,7 @@ import { useToast }      from './context/ToastContext.jsx';
 import { useTheme }      from './context/ThemeContext.jsx';
 import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
+import useMilestoneReminders from './hooks/useMilestoneReminders.js';
 import Login          from './pages/Login.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword  from './pages/ResetPassword.jsx';
@@ -150,6 +151,7 @@ function AppShell() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   useTaskReminders();
+  useMilestoneReminders();
 
   // ── Onboarding gate ────────────────────────────────────────
   // Checks once user.id is actually populated (not on the very first
