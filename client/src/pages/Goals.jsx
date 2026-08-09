@@ -14,7 +14,7 @@ import HabitHistory from '../components/HabitHistory.jsx';
 
 const ICON_CHOICES  = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
 const COLOR_CHOICES = ['#F97316','#6366F1','#06B6D4','#22C55E','#A855F7','#EC4899','#F59E0B','#14B8A6'];
-const emptyGoalForm  = { title: '', description: '', category: 'Personal', target_date: '', milestonesText: '' };
+const emptyGoalForm  = { title: '', description: '', category: 'Personal', target_date: '', milestonesText: '', day_planner_enabled: false };
 const emptyRecurForm = { name: '', icon: 'Sparkles', color: '#6366F1', target_per_week: 7 };
 
 function last30Dates() {
@@ -184,7 +184,12 @@ export default function Goals() {
     if (!goalForm.title.trim()) return;
     const milestones = goalForm.milestonesText.split('\n').map((s) => s.trim()).filter(Boolean);
     try {
-      await api.post('/goals', { ...goalForm, target_date: goalForm.target_date || null, milestones });
+      await api.post('/goals', {
+        ...goalForm,
+        target_date: goalForm.target_date || null,
+        milestones,
+        day_planner_enabled: !!(goalForm.target_date && goalForm.day_planner_enabled),
+      });
       toast.success(t('goals.created'));
       setGoalForm(emptyGoalForm); setGoalModal(false); loadGoals();
     } catch (err) { toast.error(err.message); }
@@ -376,14 +381,16 @@ export default function Goals() {
                     })}
                   </p>
                 )}
-                {/* Optional day-by-day planner — offered whenever a goal's
-                    deadline is close enough that per-day scheduling is
-                    actually useful. Scales with however many days are
-                    actually left (1, 10, whatever) rather than a fixed
-                    week; a generous ceiling just keeps it from rendering
-                    a huge grid for goals many months out. */}
-                {g.milestones.length > 0 && g.target_date && g.status !== 'completed' &&
-                 daysUntilDate(g.target_date) !== null && daysUntilDate(g.target_date) >= 0 && daysUntilDate(g.target_date) <= 60 && (
+                {/* Optional day-by-day planner. Whether to divide a goal
+                    into days is the user's own call, made with the
+                    checkbox at goal-creation time — not something we
+                    gate on how close the deadline is. If they opted in,
+                    it just divides whatever span the goal actually has
+                    (today → target_date) into one box per day. The
+                    button here also lets them turn it on/off later for
+                    any goal that has a target date, in case they change
+                    their mind after creating it. */}
+                {g.target_date && g.status !== 'completed' && (
                   <div className="mt-3">
                     <button type="button" onClick={() => togglePlanner(g)}
                       className="flex items-center gap-1.5 text-xs font-semibold text-lavender-600 hover:underline">
@@ -486,6 +493,17 @@ export default function Goals() {
             <input type="date" className="input-field"
               value={goalForm.target_date} onChange={(e) => setGoalForm({ ...goalForm, target_date: e.target.value })}/>
           </div>
+          {goalForm.target_date && (
+            <label className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 cursor-pointer"
+              style={{ background: 'rgba(139,92,246,0.06)', border: '1px dashed rgba(139,92,246,0.25)' }}>
+              <input type="checkbox" className="mt-0.5" checked={goalForm.day_planner_enabled}
+                onChange={(e) => setGoalForm({ ...goalForm, day_planner_enabled: e.target.checked })}/>
+              <span className="text-xs text-ink/60 leading-snug">
+                <span className="font-semibold text-ink/80 block mb-0.5">{t('goals.dayPlannerOptIn')}</span>
+                {t('goals.dayPlannerOptInDesc')}
+              </span>
+            </label>
+          )}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-ink/50">{t('goals.milestonesLabel')}</label>
