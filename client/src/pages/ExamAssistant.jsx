@@ -827,9 +827,9 @@ Content:\n${content}`;
 Each object: { "front": string, "back": string }
 Content:\n${content}`;
     } else if (mode === 'slides') {
-      prompt = `${base}Create a comprehensive slide deck. Include 100% of the information — no summarizing or omitting.
-Create as many slides as needed to cover everything.
-Each object: { "title": string, "bullets": [detailed strings], "note": string or null }
+      prompt = `${base}Create a comprehensive slide deck covering all the content below. Use at least ${count} slides — split topics across more slides than that if needed to keep each slide focused, rather than cramming everything into exactly ${count}.
+Keep each slide to at most 5 concise bullets (short phrases, not paragraphs) so the deck stays skimmable and the response fits in one reply.
+Each object: { "title": string, "bullets": [max 5 short strings], "note": string or null }
 Content:\n${content}`;
     }
     try {
@@ -926,20 +926,22 @@ Content:\n${content}`;
                 ))}
               </div>
             </div>
-            <div className="rounded-3xl p-5" style={glass}>
-              <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">{t('exam.difficulty')}</p>
-              <div className="flex gap-2">
-                {DIFFICULTIES.map(d => (
-                  <button key={d.key} onClick={() => setDifficulty(d.key)}
-                    className="flex-1 rounded-2xl py-2 text-xs font-bold transition-all"
-                    style={difficulty===d.key
-                      ? { background:`${d.color}20`, border:`1px solid ${d.color}50`, color:d.color }
-                      : { background:'rgba(255,255,255,0.40)', border:'1px solid rgba(255,255,255,0.50)', color:'rgba(30,34,51,0.45)' }}>
-                    {d.label}
-                  </button>
-                ))}
+            {mode !== 'slides' && (
+              <div className="rounded-3xl p-5" style={glass}>
+                <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">{t('exam.difficulty')}</p>
+                <div className="flex gap-2">
+                  {DIFFICULTIES.map(d => (
+                    <button key={d.key} onClick={() => setDifficulty(d.key)}
+                      className="flex-1 rounded-2xl py-2 text-xs font-bold transition-all"
+                      style={difficulty===d.key
+                        ? { background:`${d.color}20`, border:`1px solid ${d.color}50`, color:d.color }
+                        : { background:'rgba(255,255,255,0.40)', border:'1px solid rgba(255,255,255,0.50)', color:'rgba(30,34,51,0.45)' }}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             <div className="rounded-3xl p-5" style={glass}>
               <div className="mb-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
@@ -1128,7 +1130,7 @@ Content:\n${content}`;
                         {s.source_name ? ` · ${s.source_name}` : ''}
                       </p>
                       <p className="text-[11px] text-ink/40 dark:text-white/30">
-                        {countLabel} · {t(`exam.${s.difficulty}`)} · {fmtSessionDate(s.created_at, lang)}
+                        {countLabel}{s.mode !== 'slides' ? ` · ${t(`exam.${s.difficulty}`)}` : ''} · {fmtSessionDate(s.created_at, lang)}
                       </p>
                     </div>
                     <span

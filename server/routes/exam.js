@@ -117,7 +117,12 @@ router.post('/generate', async (req, res) => {
       headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01' },
       body: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 4096,
+        // 4096 was cutting off comprehensive slide decks mid-JSON on
+        // longer source docs (Anthropic stops generating at the token
+        // cap, not at a clean JSON boundary) — client-side JSON.parse
+        // then failed with "Expected '}'". Slides ask for full-detail,
+        // uncapped coverage, so they need real headroom.
+        max_tokens: 8192,
         messages:   [{ role:'user', content: prompt }],
       }),
     });
