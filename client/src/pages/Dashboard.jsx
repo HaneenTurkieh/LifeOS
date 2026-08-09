@@ -11,6 +11,7 @@ import { useWeather, weatherEmoji } from '../hooks/useWeather.js';
 import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
+import MysticSvg          from '../components/MysticTreeIcon.jsx';
 import { isTodayBirthday } from '../utils/birthday.js';
 
 const TREE_EMOJIS = {
@@ -168,6 +169,12 @@ export default function Dashboard() {
   const taskLabel    = isRoughDay ? t('dash.justTwo') : t('dash.todaysTasks');
   const totalXp      = treeData?.totalXp || 0;
   const nextTree     = NEXT_TREE[equippedTree];
+  // The actual designed Mystic Tree (shape/colour/glow), not just the
+  // "mystic:<id>" key — so we can render the real shape the person made
+  // instead of a generic placeholder emoji.
+  const equippedMysticTree = equippedTree?.startsWith('mystic')
+    ? treeData?.mystic?.trees?.find((mt) => `mystic:${mt.id}` === equippedTree) || null
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -279,7 +286,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <ProductivitySphere score={productivityScore} equippedTree={isBirthday ? 'christmas' : equippedTree} />
+                <ProductivitySphere score={productivityScore} equippedTree={isBirthday ? 'christmas' : equippedTree} mysticTree={isBirthday ? null : equippedMysticTree} />
                 <button onClick={() => navigate('/trees')}
                   className="flex items-center gap-1 text-xs text-ink/35 dark:text-white/30 hover:text-lavender-500 transition">
                   <TreePine size={11} /> {t('dash.changeTree')}
@@ -461,9 +468,17 @@ export default function Dashboard() {
               <motion.div
                 animate={{ y:[0,-5,0] }} transition={{ duration:3, repeat:Infinity, ease:'easeInOut' }}
                 className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shrink-0"
-                style={{ background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))', border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)' }}
+                style={{
+                  background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))',
+                  border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)',
+                  ...(equippedMysticTree && !isBirthday ? { color: equippedMysticTree.color_hex, filter: `drop-shadow(0 0 8px ${equippedMysticTree.glow_hex}99)` } : {}),
+                }}
               >
-                {isBirthday ? '🎄' : (equippedTree?.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱'))}
+                {isBirthday
+                  ? '🎄'
+                  : equippedMysticTree
+                  ? <MysticSvg shapeKey={equippedMysticTree.shape_key} size={34} />
+                  : (TREE_EMOJIS[equippedTree] || '🌱')}
               </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="font-display font-bold text-ink dark:text-white text-sm">

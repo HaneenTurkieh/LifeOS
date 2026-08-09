@@ -12,6 +12,7 @@ import Modal        from '../components/Modal.jsx';
 import EmptyState   from '../components/EmptyState.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
 import { localDateStr, isTodayBirthday } from '../utils/birthday.js';
+import MysticSvg from '../components/MysticTreeIcon.jsx';
 
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
 const CX = 140, CY = 140, R = 108;
@@ -179,11 +180,37 @@ export default function Flow() {
   };
 
   const [equippedTree, setEquippedTree] = useState('seedling');
+  // Full list of the person's own designed Mystic Trees (shape/colour/
+  // glow), so any "mystic:<id>" key — whether it's the current
+  // equipped tree or the one just planted from a session — can render
+  // the actual design instead of a generic placeholder.
+  const [mysticTrees, setMysticTrees] = useState([]);
   useEffect(() => {
     api.get('/trees')
-      .then((d) => setEquippedTree(d.equipped || 'seedling'))
+      .then((d) => {
+        setEquippedTree(d.equipped || 'seedling');
+        setMysticTrees(d.mystic?.trees || []);
+      })
       .catch(() => {});
   }, []);
+  const findMystic = (key) => {
+    if (!key || !key.startsWith('mystic:')) return null;
+    const id = Number(key.slice('mystic:'.length));
+    return mysticTrees.find((mt) => mt.id === id) || null;
+  };
+  // Renders the real Mystic Tree design when `key` points at one,
+  // otherwise falls back to the plain emoji set above.
+  function TreeIcon({ treeKey, size = 34 }) {
+    const mystic = findMystic(treeKey);
+    if (mystic) {
+      return (
+        <span style={{ display: 'inline-flex', color: mystic.color_hex, filter: `drop-shadow(0 0 8px ${mystic.glow_hex}99)` }}>
+          <MysticSvg shapeKey={mystic.shape_key} size={size} />
+        </span>
+      );
+    }
+    return <>{treeEmoji(treeKey)}</>;
+  }
 
   const [tab,       setTab]       = useState('timer');
   const [roomModal, setRoomModal] = useState(false);
@@ -466,7 +493,7 @@ export default function Flow() {
                   className="text-4xl mb-1 select-none"
                   style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
                 >
-                  {treeEmoji(isBirthday ? 'christmas' : equippedTree)}
+                  <TreeIcon treeKey={isBirthday ? 'christmas' : equippedTree} size={36} />
                 </motion.div>
                 <span
                   className="font-display tabular-nums leading-none text-ink dark:text-white"
@@ -1096,16 +1123,16 @@ export default function Flow() {
                 className="text-6xl mb-4">🎉</motion.div>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <motion.span animate={{ rotate: [-10, 10, -10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  {treeEmoji(congrats.treePlanted || equippedTree)}
+                  <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={30} />
                 </motion.span>
                 <h2 className="font-display text-2xl font-bold text-ink dark:text-white">{t('flow.complete')}</h2>
                 <motion.span animate={{ rotate: [10, -10, 10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  {treeEmoji(congrats.treePlanted || equippedTree)}
+                  <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={30} />
                 </motion.span>
               </div>
               <p className="text-ink/50 dark:text-white/40 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>
-              <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3">
-                {treeEmoji(congrats.treePlanted || equippedTree)} {t('flow.treePlanted')}
+              <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3 flex items-center justify-center gap-1">
+                <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={14} /> {t('flow.treePlanted')}
               </p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
