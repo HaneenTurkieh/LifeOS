@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2 } from 'lucide-react';
+import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2, Info } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -79,6 +79,23 @@ export default function Dashboard() {
   const [moodSaving,   setMoodSaving]   = useState(false);
   const [equippedTree, setEquippedTree] = useState('seedling');
   const [treeData,     setTreeData]     = useState(null);
+  // Stat-card hints used the native `title` attribute, which only shows on
+  // hover — phones and iPads have no hover, so those explanations were
+  // simply unreachable there. Tap-to-open popover works on every device.
+  const [openHint,     setOpenHint]     = useState(null);
+  const statsRef = useRef(null);
+  useEffect(() => {
+    if (!openHint) return;
+    const handler = (e) => {
+      if (statsRef.current && !statsRef.current.contains(e.target)) setOpenHint(null);
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [openHint]);
 
   const load = useCallback(async () => {
     try {
@@ -155,7 +172,7 @@ export default function Dashboard() {
               {t(greetKey)}, {firstName} 👋
             </h1>
             <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3" ref={statsRef}>
               {[
                 { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
                 { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
@@ -167,8 +184,7 @@ export default function Dashboard() {
                   key={label}
                   whileHover={onClick ? { y:-2 } : {}}
                   onClick={onClick}
-                  title={hint}
-                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
+                  className={`relative flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
                   style={{ background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.75)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
@@ -178,6 +194,30 @@ export default function Dashboard() {
                     <p className="font-display text-lg font-bold text-ink dark:text-white leading-none">{value}</p>
                     <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">{label}</p>
                   </div>
+                  {hint && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === label ? null : label); }}
+                      className="absolute -top-1.5 -end-1.5 flex h-5 w-5 items-center justify-center rounded-full text-ink/30 hover:text-ink/60 transition-colors"
+                      style={{ background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
+                    >
+                      <Info size={11} />
+                    </button>
+                  )}
+                  <AnimatePresence>
+                    {hint && openHint === label && (
+                      <motion.div
+                        initial={{ opacity:0, y:-4, scale:0.96 }}
+                        animate={{ opacity:1, y:0, scale:1 }}
+                        exit={{ opacity:0, y:-4, scale:0.96 }}
+                        transition={{ duration:0.15 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute top-full mt-2 start-0 z-20 w-56 rounded-xl px-3 py-2.5 text-xs leading-relaxed text-ink/70"
+                        style={{ background:'rgba(255,255,255,0.98)', border:'1px solid rgba(255,255,255,0.90)', boxShadow:'0 12px 32px rgba(0,0,0,0.14)' }}
+                      >
+                        {hint}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               ))}
             </div>
