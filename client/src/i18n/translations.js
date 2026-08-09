@@ -323,6 +323,7 @@ export const translations = {
       'goals.target':           'Target',
       'goals.milestonesDone':   '{done} / {total} milestones done — {p}% complete',
       'goals.planFinalWeek':    'Plan the final week',
+      'goals.planDays':         'Plan the next {n} days',
       'goals.hideDayPlan':      'Hide day plan',
       'goals.unscheduled':      'Unscheduled',
       'goals.tapDayToPlace':    'Tap a day to place it',
@@ -556,6 +557,7 @@ export const translations = {
       'login.logIn':        'Log in',
       'login.pwMismatch':   "Passwords don't match",
       'login.wentWrong':    'Something went wrong',
+      'login.welcomeXp':    '🎁 Welcome! +{n} XP gifted',
   
       // ── Notifications ──────────────────────────────────────
       'notif.title':    'Notifications',
@@ -976,6 +978,7 @@ export const translations = {
       'goals.target':           'الموعد المستهدف',
       'goals.milestonesDone':   'أُنجزت {done} / {total} مراحل — اكتمل {p}٪',
       'goals.planFinalWeek':    'خطط الأسبوع الأخير',
+      'goals.planDays':         'خطط الأيام الـ {n} القادمة',
       'goals.hideDayPlan':      'إخفاء خطة الأيام',
       'goals.unscheduled':      'غير مجدولة',
       'goals.tapDayToPlace':    'اضغط على يوم لوضعها فيه',
@@ -1209,6 +1212,7 @@ export const translations = {
       'login.logIn':        'تسجيل الدخول',
       'login.pwMismatch':   'كلمتا المرور غير متطابقتين',
       'login.wentWrong':    'حدث خطأ ما',
+      'login.welcomeXp':    '🎁 أهلاً بك! تم إهداؤك {n} نقطة خبرة',
   
       // ── الإشعارات ────────────────────────────────────────────
       'notif.title':    'الإشعارات',
