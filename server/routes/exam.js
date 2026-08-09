@@ -3,6 +3,7 @@ const router  = express.Router();
 const multer  = require('multer');
 const { db }  = require('../db/connection');
 const { isPremium } = require('../lib/premium');
+const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -125,6 +126,12 @@ router.post('/generate', async (req, res) => {
   if (!prompt) return res.status(400).json({ error: 'prompt required' });
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return res.status(500).json({ error: 'API key not set' });
+
+  const gate = await checkLimit(req.user.id, 'exam_generate');
+  if (!gate.allowed) {
+    return res.status(403).json({ error: limitMessage('exam_generate', gate.limit), code: 'DAILY_LIMIT', feature: 'exam_generate' });
+  }
+
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method:  'POST',
@@ -142,7 +149,8 @@ router.post('/generate', async (req, res) => {
     });
     const data = await r.json();
     if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
-    res.json({ text: data.content?.[0]?.text || '' });
+    await recordUsage(req.user.id, 'exam_generate');
+    res.json({ text: data.content?.[0]?.text || '', remaining: gate.remaining - 1 });
   } catch (err) {
     console.error('Exam generate error:', err);
     res.status(500).json({ error: 'Generation failed. Please try again.' });

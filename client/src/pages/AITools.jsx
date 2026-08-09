@@ -137,13 +137,21 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
             <div
               dir="auto"
               className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                isLumi
+                msg.isLimitNotice
+                  ? 'rounded-tl-md text-sun-700 dark:text-sun-200'
+                  : isLumi
                   ? 'rounded-tl-md bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 text-ink dark:text-white'
                   : 'rounded-tr-md text-white'
               }`}
-              style={!isLumi ? { background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 16px rgb(var(--accent-500) / 0.28)' } : {}}
+              style={
+                msg.isLimitNotice
+                  ? { background: 'rgba(255,184,77,0.14)', border: '1px solid rgba(255,184,77,0.35)' }
+                  : !isLumi
+                  ? { background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 16px rgb(var(--accent-500) / 0.28)' }
+                  : {}
+              }
             >
-              {msg.content}
+              {msg.isLimitNotice ? '👑 ' : ''}{msg.content}
             </div>
           </div>
         )}
@@ -500,8 +508,12 @@ export default function AITools() {
         setActiveConvId(res.conversation_id);
         loadConvos();
       }
-    } catch (_) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: t('lumi.errorConnect'), actions: [] }]);
+    } catch (err) {
+      // A daily-cap hit (Deep Think / Deep Search) has a real, specific
+      // message from the server — show that instead of the generic
+      // "couldn't connect" text, which would be actively misleading here.
+      const content = err?.code === 'DAILY_LIMIT' ? err.message : t('lumi.errorConnect');
+      setMessages((prev) => [...prev, { role: 'assistant', content, actions: [], isLimitNotice: err?.code === 'DAILY_LIMIT' }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);

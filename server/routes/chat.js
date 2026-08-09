@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
+const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -832,6 +833,19 @@ router.post('/', async (req, res) => {
   // the same; only the DB writes at the bottom get skipped.
   const { messages, conversation_id, mode = 'chat', attachments = [], no_history = false } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
+
+  // Deep Think and Deep Search are the priciest calls in the app
+  // (extended thinking, and the web_search tool's own per-search fee) —
+  // capped per day for free accounts. Plain chat stays unlimited since
+  // it's cheap and it's the daily-habit feature.
+  const gateFeature = mode === 'think' ? 'deep_think' : mode === 'search' ? 'deep_search' : null;
+  if (gateFeature) {
+    const gate = await checkLimit(req.user.id, gateFeature);
+    if (!gate.allowed) {
+      return res.status(403).json({ error: limitMessage(gateFeature, gate.limit), code: 'DAILY_LIMIT', feature: gateFeature });
+    }
+  }
+
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     const system = await buildSystemPrompt(req.user.id, mode, hasAttachments);
@@ -934,6 +948,7 @@ router.post('/', async (req, res) => {
         args: [convId, responseText, JSON.stringify(actions)],
       });
     }
+    if (gateFeature) await recordUsage(req.user.id, gateFeature);
     res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch, user_message_id: userMessageId });
   } catch (err) {
     console.error('Lumi error:', err);
