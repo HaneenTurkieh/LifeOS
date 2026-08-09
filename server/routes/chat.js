@@ -721,17 +721,38 @@ router.get('/conversations/:id', async (req, res) => {
     });
     if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
     const msgs = await db.execute({
-      sql:  `SELECT role, content, actions_json FROM lumi_messages WHERE conversation_id=? ORDER BY created_at ASC`,
+      sql:  `SELECT id, role, content, actions_json FROM lumi_messages WHERE conversation_id=? ORDER BY created_at ASC`,
       args: [req.params.id],
     });
     res.json({
       conversation: conv.rows[0],
       messages: msgs.rows.map((m) => ({
+        id:      m.id,
         role:    m.role,
         content: m.content,
         actions: JSON.parse(m.actions_json || '[]'),
       })),
     });
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── Edit-and-resend support — deletes a message and everything that
+// came after it in the conversation (its own old content plus whatever
+// Lumi replied with, and anything after that), so re-sending the edited
+// text from that point produces a clean, single timeline instead of
+// leaving orphaned rows that would reappear on the next reload.
+router.delete('/conversations/:id/messages/from/:messageId', async (req, res) => {
+  try {
+    const conv = await db.execute({
+      sql:  `SELECT id FROM lumi_conversations WHERE id=? AND user_id=?`,
+      args: [req.params.id, req.user.id],
+    });
+    if (!conv.rows[0]) return res.status(404).json({ error: 'Not found' });
+    await db.execute({
+      sql:  `DELETE FROM lumi_messages WHERE conversation_id=? AND id >= ?`,
+      args: [req.params.id, req.params.messageId],
+    });
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -873,6 +894,9 @@ router.post('/', async (req, res) => {
       ? `\n\n📎 ${attachments.map(a => a.name || 'file').join(', ')}`
       : '';
     let convId = conversation_id;
+    let userMessageId = null; // lets the client attach a stable id to the
+                               // just-sent message so it can be edited
+                               // later without needing a full reload first
     if (!no_history) {
       if (!convId) {
         const firstMsg   = messages.find(m => m.role === 'user')?.content || 'New conversation';
@@ -885,18 +909,20 @@ router.post('/', async (req, res) => {
         for (let i = 0; i < messages.length; i++) {
           const msg    = messages[i];
           const isLastUser = msg.role === 'user' && i === messages.length - 1;
-          await db.execute({
+          const inserted = await db.execute({
             sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
             args: [convId, msg.role, msg.content + (isLastUser ? attachmentSuffix : '')],
           });
+          if (isLastUser) userMessageId = Number(inserted.lastInsertRowid);
         }
       } else {
         const lastUser = [...messages].reverse().find(m => m.role === 'user');
         if (lastUser) {
-          await db.execute({
+          const inserted = await db.execute({
             sql:  `INSERT INTO lumi_messages (conversation_id, role, content, actions_json) VALUES (?, ?, ?, '[]')`,
             args: [convId, 'user', lastUser.content + attachmentSuffix],
           });
+          userMessageId = Number(inserted.lastInsertRowid);
         }
         await db.execute({
           sql:  `UPDATE lumi_conversations SET updated_at=datetime('now') WHERE id=?`,
@@ -908,7 +934,7 @@ router.post('/', async (req, res) => {
         args: [convId, responseText, JSON.stringify(actions)],
       });
     }
-    res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch });
+    res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch, user_message_id: userMessageId });
   } catch (err) {
     console.error('Lumi error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
