@@ -33,14 +33,28 @@ async function getEquippedTree(userId) {
 // reverts on its own the moment the date rolls over — nothing to
 // remember to switch back. Used everywhere a tree gets planted
 // (solo sessions, abandoned sessions, room sessions).
-async function getPlantTreeKey(userId) {
+async function getPlantTreeKey(userId, clientDate) {
   try {
     const row = (await db.execute({
       sql: `SELECT birthday FROM users WHERE id = ?`, args: [userId],
     })).rows[0];
-    if (isTodayBirthday(row?.birthday)) return 'christmas';
+    if (isTodayBirthday(row?.birthday, clientDate)) return 'christmas';
   } catch (_) {}
   return getEquippedTree(userId);
+}
+
+// Any member of a room, not just the host — a shared session becomes a
+// birthday session if anyone in it is celebrating today.
+async function roomHasBirthdayToday(roomId, clientDate) {
+  try {
+    const members = (await db.execute({
+      sql: `SELECT u.birthday FROM focus_room_members frm
+            JOIN users u ON u.id = frm.user_id
+            WHERE frm.room_id = ?`,
+      args: [roomId],
+    })).rows;
+    return members.some((m) => isTodayBirthday(m.birthday, clientDate));
+  } catch (_) { return false; }
 }
 
 // A member's personal timer normally self-reports its own completion
@@ -79,6 +93,11 @@ async function reconcileRoomSession(roomId) {
       args: [roomId, t.started_at],
     })).rows;
 
+    // One check for the whole room, not per straggler — if anyone in
+    // here is celebrating today, this was a birthday session for
+    // everyone in it.
+    const roomBday = await roomHasBirthdayToday(roomId);
+
     for (const m of stragglers) {
       try {
         await db.execute({
@@ -92,7 +111,7 @@ async function reconcileRoomSession(roomId) {
             args: [m.user_id, xpAmount, 'Focus: Room session'],
           });
         }
-        const treeKey = await getPlantTreeKey(m.user_id);
+        const treeKey = roomBday ? 'christmas' : await getEquippedTree(m.user_id);
         await db.execute({
           sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
                  VALUES (?, ?, 'alive', 'Room session', ?)`,
@@ -246,7 +265,7 @@ async function logMinutesOnTask(userId, taskId, minutes) {
 
 router.post('/sessions', async (req, res) => {
   try {
-    const { task_name = 'Focus Session', duration_minutes, task_id = null } = req.body;
+    const { task_name = 'Focus Session', duration_minutes, task_id = null, room_code = null, client_date = null } = req.body;
     if (!duration_minutes || duration_minutes < 1)
       return res.status(400).json({ error: 'Invalid duration' });
     const week_start = getWeekStart();
@@ -263,7 +282,19 @@ router.post('/sessions', async (req, res) => {
     }
     let treePlanted = null;
     try {
-      const treeKey = await getPlantTreeKey(req.user.id);
+      // A room session completing on this device's own countdown lands
+      // here too (not just reconcileRoomSession's straggler sweep) —
+      // room_code lets it get the same "anyone in the room celebrating
+      // today" treatment as the shared room tree, instead of only
+      // checking this one person's own birthday.
+      let treeKey = null;
+      if (room_code) {
+        const roomRow = (await db.execute({
+          sql: `SELECT id FROM focus_rooms WHERE code = ?`, args: [String(room_code).toUpperCase()],
+        })).rows[0];
+        if (roomRow && await roomHasBirthdayToday(roomRow.id, client_date)) treeKey = 'christmas';
+      }
+      if (!treeKey) treeKey = await getPlantTreeKey(req.user.id, client_date);
       await db.execute({
         sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
                VALUES (?, ?, 'alive', ?, ?, ?)`,
@@ -282,8 +313,8 @@ router.post('/sessions', async (req, res) => {
 
 router.post('/sessions/abandon', async (req, res) => {
   try {
-    const { task_name = 'Focus Session', duration_minutes = 0, task_id = null } = req.body;
-    const treeKey = await getPlantTreeKey(req.user.id);
+    const { task_name = 'Focus Session', duration_minutes = 0, task_id = null, client_date = null } = req.body;
+    const treeKey = await getPlantTreeKey(req.user.id, client_date);
     await db.execute({
       sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
              VALUES (?, ?, 'dead', ?, ?, ?)`,
@@ -563,7 +594,7 @@ router.get('/rooms/:code', async (req, res) => {
 
 router.post('/rooms/:code/timer/start', async (req, res) => {
   try {
-    const { duration_minutes = 25, mode = 'focus' } = req.body;
+    const { duration_minutes = 25, mode = 'focus', client_date = null } = req.body;
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     if (Number(roomRow.host_id) !== Number(req.user.id))
@@ -579,7 +610,12 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
     });
     if (mode === 'focus') {
       try {
-        const treeKey = await getPlantTreeKey(req.user.id);
+        // Anyone in the room, not just the host who happened to hit
+        // start — a shared session is a birthday session for the whole
+        // group if any member is celebrating today.
+        const treeKey = (await roomHasBirthdayToday(roomRow.id, client_date))
+          ? 'christmas'
+          : await getEquippedTree(req.user.id);
         await db.execute({
           sql: `INSERT INTO focus_room_tree (room_id, tree_key, status, died_by_name, died_reason, started_at, updated_at)
                 VALUES (?, ?, 'alive', NULL, 'left', datetime('now'), datetime('now'))

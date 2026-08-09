@@ -11,6 +11,7 @@ import PageHeader   from '../components/PageHeader.jsx';
 import Modal        from '../components/Modal.jsx';
 import EmptyState   from '../components/EmptyState.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
+import { localDateStr } from '../utils/birthday.js';
 
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
 const CX = 140, CY = 140, R = 108;
@@ -258,7 +259,7 @@ export default function Flow() {
     if (!room) return;
     const mins = customMin.focus || 25;
     try {
-      await api.post(`/focus/rooms/${room.code}/timer/start`, { duration_minutes: mins, mode: 'focus' });
+      await api.post(`/focus/rooms/${room.code}/timer/start`, { duration_minutes: mins, mode: 'focus', client_date: localDateStr() });
       toast.success(t('flow.startedAll', { n: mins }));
       if (!isRunning) {
         if (mode !== 'focus') handleModeClick('focus');
@@ -1094,15 +1095,17 @@ export default function Flow() {
                 className="text-6xl mb-4">🎉</motion.div>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <motion.span animate={{ rotate: [-10, 10, -10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  {treeEmoji(equippedTree)}
+                  {treeEmoji(congrats.treePlanted || equippedTree)}
                 </motion.span>
                 <h2 className="font-display text-2xl font-bold text-ink dark:text-white">{t('flow.complete')}</h2>
                 <motion.span animate={{ rotate: [10, -10, 10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  {treeEmoji(equippedTree)}
+                  {treeEmoji(congrats.treePlanted || equippedTree)}
                 </motion.span>
               </div>
               <p className="text-ink/50 dark:text-white/40 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>
-              <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3">🌳 {t('flow.treePlanted')}</p>
+              <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3">
+                {treeEmoji(congrats.treePlanted || equippedTree)} {t('flow.treePlanted')}
+              </p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
                   style={lg({ color: modeColor, active: true })}>

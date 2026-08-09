@@ -39,7 +39,7 @@ router.put('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Goal not found' });
     const updates = { ...existing, ...req.body };
     const wasCompleted = existing.status === 'completed';
-    await db.execute({ sql: `UPDATE goals SET title=?, description=?, category=?, target_date=?, status=? WHERE id=? AND user_id=?`, args: [updates.title, updates.description, updates.category, updates.target_date, updates.status, req.params.id, req.user.id] });
+    await db.execute({ sql: `UPDATE goals SET title=?, description=?, category=?, target_date=?, status=?, day_planner_enabled=? WHERE id=? AND user_id=?`, args: [updates.title, updates.description, updates.category, updates.target_date, updates.status, updates.day_planner_enabled ? 1 : 0, req.params.id, req.user.id] });
     let xpAwarded = 0;
     if (!wasCompleted && updates.status === 'completed') {
       await addXp(req.user.id, 100, `Finished goal: ${updates.title}`); // needs gamification.js migrated
@@ -78,6 +78,27 @@ router.put('/:goalId/milestones/:milestoneId', async (req, res) => {
     const msResult = await db.execute({ sql: `SELECT * FROM milestones WHERE id = ? AND goal_id = ?`, args: [req.params.milestoneId, goal.id] });
     if (!msResult.rows[0]) return res.status(404).json({ error: 'Milestone not found' });
     await db.execute({ sql: `UPDATE milestones SET done = ? WHERE id = ?`, args: [req.body.done ? 1 : 0, req.params.milestoneId] });
+    res.json(await withMilestones(goal));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── PUT /:goalId/milestones/:milestoneId/schedule ───────────────
+// Pins a milestone to a specific day in the optional final-week
+// planner — drag-and-drop (or tap-to-place on touch) on the client
+// calls this on drop. scheduled_date: null unassigns it back to the
+// "unscheduled" bucket.
+router.put('/:goalId/milestones/:milestoneId/schedule', async (req, res) => {
+  try {
+    const goalResult = await db.execute({ sql: `SELECT * FROM goals WHERE id = ? AND user_id = ?`, args: [req.params.goalId, req.user.id] });
+    const goal = goalResult.rows[0];
+    if (!goal) return res.status(404).json({ error: 'Goal not found' });
+    const msResult = await db.execute({ sql: `SELECT * FROM milestones WHERE id = ? AND goal_id = ?`, args: [req.params.milestoneId, goal.id] });
+    if (!msResult.rows[0]) return res.status(404).json({ error: 'Milestone not found' });
+    const { scheduled_date } = req.body;
+    if (scheduled_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(scheduled_date)) {
+      return res.status(400).json({ error: 'Invalid date' });
+    }
+    await db.execute({ sql: `UPDATE milestones SET scheduled_date = ? WHERE id = ?`, args: [scheduled_date || null, req.params.milestoneId] });
     res.json(await withMilestones(goal));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });

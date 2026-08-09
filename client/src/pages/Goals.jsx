@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import * as Icons from 'lucide-react';
-import { Plus, Target, Trash2, CheckSquare, Square, Flame, RefreshCw, Pencil, X } from 'lucide-react';
+import { Plus, Target, Trash2, CheckSquare, Square, Flame, RefreshCw, Pencil, X, CalendarClock } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -26,6 +26,121 @@ function last30Dates() {
   return out;
 }
 
+// ── Optional final-week day planner ─────────────────────────────
+// Only meaningful once a goal is close to its deadline — nobody wants
+// day-by-day slots for something due in three months, which is why
+// this is opt-in per goal (day_planner_enabled) rather than always-on.
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function daysUntilDate(target_date) {
+  if (!target_date) return null;
+  const [y, m, d] = target_date.split('-').map(Number);
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const t     = new Date(y, m - 1, d);
+  return Math.round((t - today) / (1000 * 60 * 60 * 24));
+}
+function dateRangeToTarget(target_date) {
+  const [y, m, d] = target_date.split('-').map(Number);
+  const now    = new Date();
+  const today  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(y, m - 1, d);
+  const out = [];
+  for (let cur = new Date(today); cur <= target; cur.setDate(cur.getDate() + 1)) {
+    out.push(toDateStr(cur));
+  }
+  return out;
+}
+
+// Tap-to-place works everywhere (including touch, where native HTML5
+// drag events are unreliable); native draggable is layered on top for
+// desktop mouse users who expect to actually drag it.
+function GoalDayPlanner({ goal, onSchedule, t, lang }) {
+  const [selected, setSelected] = useState(null);
+  const days = dateRangeToTarget(goal.target_date);
+  const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
+  const dayLabel = (ds) => {
+    const [y, m, d] = ds.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric' });
+  };
+  const unscheduled = goal.milestones.filter((m) => !m.scheduled_date && !m.done);
+  const byDate = (ds) => goal.milestones.filter((m) => m.scheduled_date === ds);
+  const place = (milestoneId, date) => { onSchedule(milestoneId, date); setSelected(null); };
+  const handleDrop = (e, date) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/milestone-id');
+    if (id) place(Number(id), date);
+  };
+
+  return (
+    <div className="mt-3 rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.5)' }}>
+      {unscheduled.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-ink/40 mb-1.5">{t('goals.unscheduled')}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {unscheduled.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('text/milestone-id', String(m.id))}
+                onClick={() => setSelected(selected === m.id ? null : m.id)}
+                className={`text-xs rounded-full px-2.5 py-1 font-medium border transition ${
+                  selected === m.id
+                    ? 'border-lavender-500 bg-lavender-100 text-lavender-700'
+                    : 'border-white/70 bg-white/60 text-ink/70'
+                }`}
+              >
+                {m.title}
+              </button>
+            ))}
+          </div>
+          {selected && <p className="text-[10px] text-lavender-600 mt-1">{t('goals.tapDayToPlace')}</p>}
+        </div>
+      )}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0,1fr))` }}>
+        {days.map((ds) => {
+          const items = byDate(ds);
+          return (
+            <div
+              key={ds}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleDrop(e, ds)}
+              onClick={() => { if (selected) place(selected, ds); }}
+              className="rounded-xl p-1.5 border border-dashed transition"
+              style={{
+                minHeight:   64,
+                borderColor: 'rgba(124,106,240,0.25)',
+                background:  items.length ? 'rgba(124,106,240,0.06)' : 'transparent',
+                cursor:      selected ? 'pointer' : 'default',
+              }}
+            >
+              <p className="text-[9px] font-bold text-ink/40 text-center mb-1">{dayLabel(ds)}</p>
+              <div className="flex flex-col gap-1">
+                {items.map((m) => (
+                  <span
+                    key={m.id}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('text/milestone-id', String(m.id))}
+                    onClick={(e) => { e.stopPropagation(); onSchedule(m.id, null); }}
+                    title={t('goals.tapToUnschedule')}
+                    className={`text-[10px] rounded-lg px-1.5 py-1 truncate cursor-pointer ${
+                      m.done ? 'bg-sage-100 text-sage-700 line-through' : 'bg-lavender-500/15 text-lavender-700'
+                    }`}
+                  >
+                    {m.title}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Goals() {
   const [tab, setTab]               = useState('goals');
   const [goals, setGoals]           = useState([]);
@@ -37,7 +152,7 @@ export default function Goals() {
   const [recurForm, setRecurForm]   = useState(emptyRecurForm);
   const [suggesting, setSuggesting] = useState(false);
   const toast = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const dates = last30Dates();
 
   const [editModal,   setEditModal]   = useState(false);
@@ -87,6 +202,14 @@ export default function Goals() {
     loadGoals();
   };
   const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); };
+  const togglePlanner = async (goal) => {
+    try { await api.put(`/goals/${goal.id}`, { day_planner_enabled: !goal.day_planner_enabled }); loadGoals(); }
+    catch (err) { toast.error(err.message); }
+  };
+  const scheduleMilestone = async (goal, milestoneId, date) => {
+    try { await api.put(`/goals/${goal.id}/milestones/${milestoneId}/schedule`, { scheduled_date: date }); loadGoals(); }
+    catch (err) { toast.error(err.message); }
+  };
 
   const openEditGoal = (goal) => {
     setEditingGoal(goal);
@@ -252,6 +375,21 @@ export default function Goals() {
                       p:     g.progress,
                     })}
                   </p>
+                )}
+                {/* Optional final-week planner — only offered once a goal is
+                    within 7 days of its deadline, since day-level scheduling
+                    isn't useful (or wanted) for anything further out. */}
+                {g.milestones.length > 0 && g.target_date && g.status !== 'completed' &&
+                 daysUntilDate(g.target_date) !== null && daysUntilDate(g.target_date) >= 0 && daysUntilDate(g.target_date) <= 7 && (
+                  <div className="mt-3">
+                    <button type="button" onClick={() => togglePlanner(g)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-lavender-600 hover:underline">
+                      <CalendarClock size={12}/> {g.day_planner_enabled ? t('goals.hideDayPlan') : t('goals.planFinalWeek')}
+                    </button>
+                    {g.day_planner_enabled && (
+                      <GoalDayPlanner goal={g} onSchedule={(mid, date) => scheduleMilestone(g, mid, date)} t={t} lang={lang} />
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={() => markComplete(g)}
