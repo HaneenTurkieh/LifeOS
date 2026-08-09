@@ -24,19 +24,25 @@ router.use('/education', buildCrudRouter({
 router.get('/profile', async (req, res) => {
   try {
     const row = (await db.execute({
-      sql:  `SELECT cv_summary, cv_headline, cv_phone, cv_location FROM users WHERE id = ?`,
+      sql:  `SELECT cv_summary, cv_headline, cv_phone, cv_location, cv_photo FROM users WHERE id = ?`,
       args: [req.user.id],
     })).rows[0];
-    res.json(row || { cv_summary: '', cv_headline: '', cv_phone: '', cv_location: '' });
+    res.json(row || { cv_summary: '', cv_headline: '', cv_phone: '', cv_location: '', cv_photo: '' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
 router.put('/profile', async (req, res) => {
   try {
-    const { cv_summary = '', cv_headline = '', cv_phone = '', cv_location = '' } = req.body;
+    const { cv_summary = '', cv_headline = '', cv_phone = '', cv_location = '', cv_photo = '' } = req.body;
+    // Same ~300KB cap as the account avatar (routes/auth.js) — a base64
+    // JPEG at that size is already a small, low-res headshot; anything
+    // bigger is someone accidentally uploading a full-res camera photo.
+    if (cv_photo && cv_photo.length > 400000) {
+      return res.status(400).json({ error: 'Photo is too large. Use an image under 300KB.' });
+    }
     await db.execute({
-      sql:  `UPDATE users SET cv_summary = ?, cv_headline = ?, cv_phone = ?, cv_location = ? WHERE id = ?`,
-      args: [cv_summary, cv_headline, cv_phone, cv_location, req.user.id],
+      sql:  `UPDATE users SET cv_summary = ?, cv_headline = ?, cv_phone = ?, cv_location = ?, cv_photo = ? WHERE id = ?`,
+      args: [cv_summary, cv_headline, cv_phone, cv_location, cv_photo, req.user.id],
     });
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X, Download, Briefcase, GraduationCap } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X, Download, Briefcase, GraduationCap, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -9,6 +9,7 @@ import Modal      from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 import CVExportModal from '../components/CVExportModal.jsx';
+import AvatarCropper from '../components/AvatarCropper.jsx';
 
 // Experience and Education come first — they're what a resume actually
 // leads with. Projects/Skills/Certifications round it out below.
@@ -42,7 +43,7 @@ const FORMS = {
   certifications: { title: '', issuer: '', date: '', link: '' },
 };
 
-const EMPTY_PROFILE = { cv_summary: '', cv_headline: '', cv_phone: '', cv_location: '' };
+const EMPTY_PROFILE = { cv_summary: '', cv_headline: '', cv_phone: '', cv_location: '', cv_photo: '' };
 
 export default function CVBuilder({ openTrigger = 0 }) {
   const { user } = useAuth();
@@ -65,6 +66,11 @@ export default function CVBuilder({ openTrigger = 0 }) {
   const [reviewing,   setReviewing]   = useState(false);
   const [review,      setReview]      = useState(null);
   const [showExport,  setShowExport]  = useState(false);
+  // Photo is optional — many CV conventions outside the US/UK expect one,
+  // some don't, so this is opt-in rather than required. Reuses the same
+  // crop-to-circle flow as the account avatar for a familiar UX.
+  const [cropSrc,     setCropSrc]     = useState(null);
+  const photoInputRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -124,6 +130,20 @@ export default function CVBuilder({ openTrigger = 0 }) {
     } catch (err) { toast.error(err.message); }
     finally { setSavingProfile(false); }
   };
+
+  const handlePhotoFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result);
+    reader.readAsDataURL(file);
+    e.target.value = ''; // allow picking the same file again later
+  };
+  const handleCropSave = (dataUrl) => {
+    setProfileDraft((p) => ({ ...p, cv_photo: dataUrl }));
+    setCropSrc(null);
+  };
+  const removePhoto = () => setProfileDraft((p) => ({ ...p, cv_photo: '' }));
 
   const reviewCV = async () => {
     const total = data.experience.length + data.education.length + data.projects.length + data.skills.length + data.certifications.length;
@@ -192,16 +212,42 @@ ${cvSummary}`,
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <input className="input-field" placeholder="Headline, e.g. Financial Analyst"
-            value={profileDraft.cv_headline}
-            onChange={(e) => setProfileDraft({ ...profileDraft, cv_headline: e.target.value })} />
-          <input className="input-field" placeholder="Location, e.g. Ramallah, Palestine"
-            value={profileDraft.cv_location}
-            onChange={(e) => setProfileDraft({ ...profileDraft, cv_location: e.target.value })} />
-          <input className="input-field sm:col-span-2" placeholder="Phone (optional)"
-            value={profileDraft.cv_phone}
-            onChange={(e) => setProfileDraft({ ...profileDraft, cv_phone: e.target.value })} />
+        <div className="flex items-start gap-4 mb-3">
+          <div className="shrink-0 flex flex-col items-center gap-1.5">
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoFile} />
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="relative flex h-16 w-16 items-center justify-center rounded-full overflow-hidden shrink-0 group"
+              style={{ background: 'rgb(var(--accent-500) / 0.10)', border: '1.5px dashed rgb(var(--accent-500) / 0.35)' }}
+            >
+              {profileDraft.cv_photo ? (
+                <img src={profileDraft.cv_photo} alt="CV" className="h-full w-full object-cover" />
+              ) : (
+                <Camera size={18} className="text-lavender-500" />
+              )}
+              <div className="absolute inset-0 flex items-center justify-center bg-ink/50 opacity-0 group-hover:opacity-100 transition">
+                <Camera size={16} className="text-white" />
+              </div>
+            </button>
+            {profileDraft.cv_photo && (
+              <button type="button" onClick={removePhoto}
+                className="text-[10px] font-semibold text-coral-500 hover:underline">
+                Remove
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+            <input className="input-field" placeholder="Headline, e.g. Financial Analyst"
+              value={profileDraft.cv_headline}
+              onChange={(e) => setProfileDraft({ ...profileDraft, cv_headline: e.target.value })} />
+            <input className="input-field" placeholder="Location, e.g. Ramallah, Palestine"
+              value={profileDraft.cv_location}
+              onChange={(e) => setProfileDraft({ ...profileDraft, cv_location: e.target.value })} />
+            <input className="input-field sm:col-span-2" placeholder="Phone (optional)"
+              value={profileDraft.cv_phone}
+              onChange={(e) => setProfileDraft({ ...profileDraft, cv_phone: e.target.value })} />
+          </div>
         </div>
         <textarea className="input-field" rows={3}
           placeholder="Professional summary — 2-3 sentences on who you are and what you bring."
@@ -554,6 +600,14 @@ ${cvSummary}`,
           />
         )}
       </AnimatePresence>
+
+      {cropSrc && (
+        <AvatarCropper
+          imageSrc={cropSrc}
+          onSave={handleCropSave}
+          onCancel={() => setCropSrc(null)}
+        />
+      )}
     </div>
   );
 }

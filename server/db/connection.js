@@ -58,6 +58,11 @@ async function initDb() {
       await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT ''`);
     }
   }
+  // Optional CV photo — same base64-in-TEXT-column pattern as the
+  // account avatar, capped the same way (~300KB) in routes/cv.js.
+  if (!(await hasColumn('users', 'cv_photo'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN cv_photo TEXT DEFAULT ''`);
+  }
   // A freeform description of how someone likes their Lumi slide decks
   // presented — "lots of charts, minimal text" vs "just clear bullets,
   // no fluff" — read by the slide generation prompt so decks adapt to
@@ -464,21 +469,23 @@ async function initDb() {
     }
   }
 
-  // Owner override — the account tied to the developer's own email always
-  // has Premium, permanently, free, regardless of trial state, usage caps,
-  // or anything toggled elsewhere. Runs on every boot (idempotent) so it
-  // self-heals even if someone flips it via the free /premium/toggle route.
+  // Free-premium override — these accounts always have Premium, permanently,
+  // regardless of trial state, usage caps, or anything toggled elsewhere.
+  // Runs on every boot (idempotent) so it self-heals even if someone flips
+  // it via the free /premium/toggle route. Add more emails here as needed.
   {
-    const OWNER_EMAIL = 'haneenturkieh@hotmail.com';
-    const owner = (await db.execute({
-      sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE`, args: [OWNER_EMAIL],
-    })).rows[0];
-    if (owner) {
-      await db.execute({
-        sql: `INSERT INTO user_premium (user_id, is_premium) VALUES (?, 1)
-              ON CONFLICT(user_id) DO UPDATE SET is_premium = 1`,
-        args: [owner.id],
-      });
+    const FREE_PREMIUM_EMAILS = ['haneenturkieh@hotmail.com', '20tasbeeh06@gmail.com'];
+    for (const email of FREE_PREMIUM_EMAILS) {
+      const row = (await db.execute({
+        sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE`, args: [email],
+      })).rows[0];
+      if (row) {
+        await db.execute({
+          sql: `INSERT INTO user_premium (user_id, is_premium) VALUES (?, 1)
+                ON CONFLICT(user_id) DO UPDATE SET is_premium = 1`,
+          args: [row.id],
+        });
+      }
     }
   }
 
