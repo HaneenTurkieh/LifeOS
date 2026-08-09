@@ -172,7 +172,7 @@ export default function Dashboard() {
               {t(greetKey)}, {firstName} 👋
             </h1>
             <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
-            <div className="flex flex-wrap gap-3" ref={statsRef}>
+            <div className="relative z-30 flex flex-wrap gap-3" ref={statsRef}>
               {[
                 { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
                 { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const multer  = require('multer');
 const { db }  = require('../db/connection');
+const { isPremium } = require('../lib/premium');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -14,15 +15,6 @@ const SUPPORTED = ['pdf','pptx','docx','txt','png','jpg','jpeg','webp','gif'];
 // rather than blocking the save itself, so the newest exam is
 // always kept even if it pushes a free user over the limit.
 const FREE_SESSION_LIMIT = 15;
-
-async function isPremium(userId) {
-  try {
-    const row = (await db.execute({
-      sql: `SELECT is_premium FROM user_premium WHERE user_id = ?`, args: [userId],
-    })).rows[0];
-    return Boolean(row?.is_premium);
-  } catch (_) { return false; }
-}
 
 // ── POST /extract ─────────────────────────────────────────────
 router.post('/extract', upload.single('file'), async (req, res) => {
