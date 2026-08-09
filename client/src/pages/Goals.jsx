@@ -99,7 +99,10 @@ function GoalDayPlanner({ goal, onSchedule, t, lang }) {
           {selected && <p className="text-[10px] text-lavender-600 mt-1">{t('goals.tapDayToPlace')}</p>}
         </div>
       )}
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0,1fr))` }}>
+      {/* Wraps into as many rows as needed instead of squeezing every
+          day into one row — with a long span (goals aren't always a
+          tidy 7 days) that made cells too thin to read or click. */}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))' }}>
         {days.map((ds) => {
           const items = byDate(ds);
           return (
@@ -396,7 +399,11 @@ export default function Goals() {
                       className="flex items-center gap-1.5 text-xs font-semibold text-lavender-600 hover:underline">
                       <CalendarClock size={12}/> {g.day_planner_enabled ? t('goals.hideDayPlan') : t('goals.planDays', { n: daysUntilDate(g.target_date) + 1 })}
                     </button>
-                    {g.day_planner_enabled && (
+                    {/* day_planner_enabled comes back from SQLite as the
+                        integer 0/1, not a real boolean — using it bare in
+                        "x && (...)" meant a disabled goal rendered the
+                        literal text "0" under the button. !! coerces it. */}
+                    {!!g.day_planner_enabled && (
                       <GoalDayPlanner goal={g} onSchedule={(mid, date) => scheduleMilestone(g, mid, date)} t={t} lang={lang} />
                     )}
                   </div>
