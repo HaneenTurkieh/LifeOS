@@ -13,6 +13,7 @@ import { useToast }  from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
+import { isTodayBirthday, getAge } from '../utils/birthday.js';
 
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
@@ -68,13 +69,8 @@ function ProfileTab() {
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
-  const isBirthday = (() => {
-    if (!birthday) return false;
-    const today = new Date();
-    const [,m,d] = birthday.split('-');
-    return Number(m)===today.getMonth()+1 && Number(d)===today.getDate();
-  })();
-  const age = birthday ? new Date().getFullYear() - Number(birthday.split('-')[0]) : null;
+  const isBirthday = isTodayBirthday(birthday);
+  const age = getAge(birthday);
   return (
     <>
       <div className="flex flex-col gap-5">

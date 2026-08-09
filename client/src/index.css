@@ -48,6 +48,22 @@
   --accent-600: 37 99 235;
   --accent-700: 29 78 216;
 }
+/* Birthday mode — set on <html data-birthday="true"> by
+   BirthdayCelebration.jsx for the whole day, on top of whatever accent
+   preset the person actually has saved (never touches that preference
+   in storage, just visually overrides it for the day). Declared last
+   so it wins the specificity tie against [data-accent="..."]. A
+   vivid party pink/magenta, distinct from the regular "pink" preset. */
+html[data-birthday="true"] {
+  --accent-50:  255 240 250;
+  --accent-100: 255 220 242;
+  --accent-200: 255 179 224;
+  --accent-300: 255 122 199;
+  --accent-400: 255 77 176;
+  --accent-500: 255 43 153;
+  --accent-600: 219 21 122;
+  --accent-700: 168 10 92;
+}
 
 * {
   -webkit-font-smoothing: antialiased;
