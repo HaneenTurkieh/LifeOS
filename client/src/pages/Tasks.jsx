@@ -454,6 +454,12 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
               <Timer size={10}/> {t('tasks.focusedTime', { n: Number(task.time_spent_minutes) })}
             </span>
           )}
+          {task.source === 'aurora' && (
+            <span className="flex items-center gap-1 text-[11px] font-semibold"
+              style={{ color: 'rgb(var(--accent-500))' }}>
+              ✨ {t('tasks.addedByAurora')}
+            </span>
+          )}
         </div>
       </div>
     </motion.div>

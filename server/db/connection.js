@@ -149,6 +149,13 @@ async function initDb() {
   if (!(await hasColumn('tasks', 'first_completed_at'))) {
     await db.execute(`ALTER TABLE tasks ADD COLUMN first_completed_at TEXT DEFAULT NULL`);
   }
+  // Distinguishes tasks the user typed in themselves from ones Aurora
+  // added on its own (currently just the yearly birthday reminder,
+  // self-seeded in notifications.js) — lets the client badge them
+  // differently without guessing from title/category text.
+  if (!(await hasColumn('tasks', 'source'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'user'`);
+  }
   if (!(await hasColumn('focus_sessions', 'task_id'))) {
     await db.execute(`ALTER TABLE focus_sessions ADD COLUMN task_id INTEGER DEFAULT NULL`);
   }

@@ -6,6 +6,45 @@ const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 
 const MOOD_CHECKPOINTS = [12, 15, 18, 21];
 
+// Aurora-authored yearly birthday task — self-seeds onto the Tasks and
+// Calendar pages the same way the grace-period notices below self-seed,
+// so the person never has to remember to add their own birthday. The
+// `source` column (added alongside this) distinguishes it from tasks
+// they typed in themselves. Idempotent per year: checks for an
+// existing one before inserting, so this can safely run on every
+// notifications poll without creating duplicates.
+async function ensureBirthdayTask(userId) {
+  try {
+    const userRow = (await db.execute({
+      sql: `SELECT birthday, name FROM users WHERE id = ?`, args: [userId],
+    })).rows[0];
+    if (!userRow?.birthday) return;
+    const [, m, d] = userRow.birthday.split('-');
+    const month = Number(m), day = Number(d);
+    if (!month || !day) return;
+
+    const year    = new Date().getFullYear();
+    const isLeap  = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    // Feb 29 birthdays on a non-leap year land on the 28th instead —
+    // there's no real Feb 29 to put the task on.
+    const safeDay = (month === 2 && day === 29 && !isLeap(year)) ? 28 : day;
+    const deadline = `${year}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+
+    const existing = (await db.execute({
+      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday' AND deadline = ?`,
+      args: [userId, deadline],
+    })).rows[0];
+    if (existing) return;
+
+    const firstName = (userRow.name || '').split(' ')[0] || 'You';
+    await db.execute({
+      sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source)
+             VALUES (?, ?, ?, 'low', 'Birthday', ?, 'aurora')`,
+      args: [userId, `🎂 ${firstName}'s Birthday!`, 'Added automatically by Aurora — happy birthday! 💜', deadline],
+    });
+  } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
+}
+
 async function generateNotifications(userId) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
@@ -131,6 +170,7 @@ async function generateNotifications(userId) {
 router.get('/', async (req, res) => {
   try {
     await generateNotifications(req.user.id);
+    await ensureBirthdayTask(req.user.id);
     const result = await db.execute({
       sql:  `SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30`,
       args: [req.user.id],
