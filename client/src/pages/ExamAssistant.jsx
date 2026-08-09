@@ -281,8 +281,18 @@ async function exportPptx(mode, data, t) {
   const addContentSlide = (titleText, bodyLines) => {
     const slide = pptx.addSlide();
     slide.addText(titleText, {
-      x: 0.4, y: 0.3, w: 9.2, h: 0.8, fontSize: 20, bold: true, color: accentHex,
+      x: 0.4, y: 0.3, w: 9.2, h: 0.7, fontSize: 20, bold: true, color: accentHex,
     });
+    // LAYOUT_16x9 is 10 x 5.63in — the old box (y:1.2, h:5.3) ended at
+    // 6.5in, past the slide's own bottom edge, so anything that filled
+    // it ran off. Now that slide *count* is exact (denser content per
+    // slide is expected), shrink the font based on how much text is
+    // actually on the slide instead of letting it silently overflow.
+    const totalChars = bodyLines.reduce((n, l) => n + (l.text?.length || 0), 0);
+    const scale = totalChars > 900 ? 0.70
+                : totalChars > 650 ? 0.80
+                : totalChars > 450 ? 0.90
+                : 1;
     slide.addText(
       bodyLines.map((line) => ({
         text: line.text,
@@ -290,10 +300,10 @@ async function exportPptx(mode, data, t) {
           bullet: line.bullet !== false,
           color:  line.color || '333333',
           bold:   !!line.bold,
-          fontSize: line.fontSize || 14,
+          fontSize: Math.max(9, Math.round((line.fontSize || 14) * scale)),
         },
       })),
-      { x: 0.5, y: 1.2, w: 9, h: 5.3, valign: 'top', lineSpacingMultiple: 1.3 }
+      { x: 0.5, y: 1.1, w: 9, h: 4.3, valign: 'top', lineSpacingMultiple: 1.25, autoFit: true }
     );
   };
 
@@ -333,10 +343,47 @@ async function exportPptx(mode, data, t) {
     });
   } else if (mode === 'slides') {
     data.forEach((s, i) => {
-      addContentSlide(s.title, [
-        ...(s.bullets || []).map((b) => ({ text: b })),
-        ...(s.note ? [{ text: `📝 ${s.note}`, fontSize: 12 }] : []),
-      ]);
+      const hasChart = s.chart && Array.isArray(s.chart.labels) && Array.isArray(s.chart.values) && s.chart.labels.length > 0;
+      if (hasChart) {
+        const slide = pptx.addSlide();
+        slide.addText(s.title, {
+          x: 0.4, y: 0.3, w: 9.2, h: 0.7, fontSize: 20, bold: true, color: accentHex,
+        });
+        try {
+          // Exact enum accessor differs slightly across pptxgenjs versions —
+          // this is wrapped defensively so a chart-API mismatch never breaks
+          // the whole export; it just falls back to a plain text list.
+          const chartType = s.chart.type === 'pie' ? pptx.ChartType.pie : pptx.ChartType.bar;
+          slide.addChart(
+            chartType,
+            [{ name: s.title, labels: s.chart.labels, values: s.chart.values }],
+            {
+              x: 0.6, y: 1.1, w: 8.8, h: 3.9,
+              showLegend: true, legendPos: 'b', showValue: true,
+              chartColors: [accentHex, '7C6AF0', 'FF8A42', 'FF6BA6', '5C9AFF', '2DA76E', 'F5408F', '3B82F6'],
+            }
+          );
+        } catch (err) {
+          console.error('pptx chart render failed, falling back to text list', err);
+          slide.addText(
+            s.chart.labels.map((l, j) => ({
+              text: `${l}: ${s.chart.values[j]}`,
+              options: { bullet: true, color: '333333', fontSize: 14 },
+            })),
+            { x: 0.5, y: 1.1, w: 9, h: 3.9, valign: 'top', lineSpacingMultiple: 1.25 }
+          );
+        }
+        if (s.note) {
+          slide.addText(`📝 ${s.note}`, {
+            x: 0.5, y: 5.05, w: 9, h: 0.5, fontSize: 10, color: '666666',
+          });
+        }
+      } else {
+        addContentSlide(s.title, [
+          ...(s.bullets || []).map((b) => ({ text: b })),
+          ...(s.note ? [{ text: `📝 ${s.note}`, fontSize: 12 }] : []),
+        ]);
+      }
     });
   }
 
@@ -627,6 +674,53 @@ function Flashcards({ cards, t }) {
   );
 }
 
+// Lightweight in-app preview for the "chart" a slide can carry instead
+// of (or alongside) bullets — plain SVG, no charting library needed,
+// just enough to show what the exported PPTX chart will look like.
+const CHART_COLORS = ['#7C6AF0','#4CC38A','#FFB84D','#FF7A63','#5C9AFF','#FF6BA6','#E8940A','#2DA76E'];
+function MiniChart({ chart }) {
+  if (!chart || !Array.isArray(chart.values) || !chart.values.length) return null;
+  const { type, labels = [], values } = chart;
+  if (type === 'pie') {
+    const total = values.reduce((a, b) => a + b, 0) || 1;
+    let cumulative = 0;
+    const r = 70, cx = 90, cy = 90;
+    const slices = values.map((v, i) => {
+      const startAngle = (cumulative / total) * 2 * Math.PI;
+      cumulative += v;
+      const endAngle = (cumulative / total) * 2 * Math.PI;
+      const x1 = cx + r * Math.sin(startAngle), y1 = cy - r * Math.cos(startAngle);
+      const x2 = cx + r * Math.sin(endAngle),   y2 = cy - r * Math.cos(endAngle);
+      const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+      return <path key={i} d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`} fill={CHART_COLORS[i % CHART_COLORS.length]} />;
+    });
+    return (
+      <div className="flex items-center gap-6 flex-wrap">
+        <svg width={160} height={160} viewBox="0 0 180 180" className="shrink-0">{slices}</svg>
+        <div className="flex flex-col gap-1.5">
+          {labels.map((l, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs text-ink/70 dark:text-white/60">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}/>
+              {l}: {values[i]}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const max = Math.max(...values, 1);
+  return (
+    <div className="flex items-end gap-3 h-48 w-full">
+      {values.map((v, i) => (
+        <div key={i} className="flex flex-col items-center flex-1 gap-1.5 h-full justify-end">
+          <span className="text-xs font-bold text-ink/70 dark:text-white/60">{v}</span>
+          <div className="w-full rounded-t-lg" style={{ height: `${Math.max(4, (v / max) * 100)}%`, background: 'linear-gradient(180deg, rgb(var(--accent-500)), rgb(var(--accent-600)))' }}/>
+          <span className="text-[10px] text-ink/40 dark:text-white/30 text-center truncate w-full">{labels[i] || ''}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 function SlideDeck({ slides, t }) {
   const [current, setCurrent] = useState(0);
   const slide = slides[current];
@@ -653,13 +747,17 @@ function SlideDeck({ slides, t }) {
           </div>
           <h2 className="font-display text-2xl font-bold text-ink dark:text-white mb-6 leading-snug">{slide.title}</h2>
           <div className="flex flex-col gap-3 flex-1">
-            {slide.bullets?.map((b,i) => (
-              <motion.div key={i} initial={{ opacity:0, x:10 }} animate={{ opacity:1, x:0 }} transition={{ delay:i*0.06 }}
-                className="flex items-start gap-3">
-                <div className="mt-1.5 h-2 w-2 rounded-full bg-lavender-400 shrink-0"/>
-                <p className="text-sm text-ink/75 dark:text-white/65 leading-relaxed">{b}</p>
-              </motion.div>
-            ))}
+            {slide.chart ? (
+              <MiniChart chart={slide.chart} />
+            ) : (
+              slide.bullets?.map((b,i) => (
+                <motion.div key={i} initial={{ opacity:0, x:10 }} animate={{ opacity:1, x:0 }} transition={{ delay:i*0.06 }}
+                  className="flex items-start gap-3">
+                  <div className="mt-1.5 h-2 w-2 rounded-full bg-lavender-400 shrink-0"/>
+                  <p className="text-sm text-ink/75 dark:text-white/65 leading-relaxed">{b}</p>
+                </motion.div>
+              ))
+            )}
           </div>
           {slide.note && (
             <div className="mt-6 pt-4" style={{ borderTop:'1px solid rgba(30,34,51,0.08)' }}>
@@ -715,6 +813,8 @@ export default function ExamAssistant() {
   const [sessions,      setSessions]      = useState([]);
   const [sessionBusy,   setSessionBusy]   = useState(null);
   const [exporting,     setExporting]     = useState(null);
+  const [stylePref,     setStylePref]     = useState('');
+  const [stylePrefSaved,setStylePrefSaved]= useState('');
   const fileRef = useRef(null);
 
   const BASE_URL = window.location.hostname === 'localhost'
@@ -729,6 +829,25 @@ export default function ExamAssistant() {
       ...(opts.headers || {}),
     },
   }), [BASE_URL]);
+
+  // Slide style preference — a one-time freeform note ("lots of charts,
+  // minimal text" / "just clean bullets, no fluff") that Lumi reads
+  // into every future slide generation instead of using one fixed
+  // layout for everyone. Loaded once on mount, saved on blur.
+  useEffect(() => {
+    authedFetch('/api/exam/style-pref').then(r => r.json()).then(d => {
+      setStylePref(d.style_pref || '');
+      setStylePrefSaved(d.style_pref || '');
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const saveStylePref = async () => {
+    if (stylePref === stylePrefSaved) return;
+    try {
+      await authedFetch('/api/exam/style-pref', { method:'PUT', body: JSON.stringify({ style_pref: stylePref }) });
+      setStylePrefSaved(stylePref);
+    } catch (_) {}
+  };
 
   // Big slide decks can genuinely take longer than the old flat "15-30s"
   // promised (especially now that generation has real headroom instead
@@ -851,9 +970,12 @@ Content:\n${content}`;
 Each object: { "front": string, "back": string }
 Content:\n${content}`;
     } else if (mode === 'slides') {
+      const styleLine = stylePref.trim()
+        ? `\nThe person you're building this for has described how they like slides presented: "${stylePref.trim()}". Follow that preference — e.g. if they want visuals/charts, look for slides whose content is numeric/comparative (stats, percentages, before/after, rankings) and give those a "chart" instead of bullets; if they want icons, prefix bullets with a fitting emoji; if they want minimal/text-only, skip charts and emoji entirely. Don't force a chart onto content that isn't actually numeric.`
+        : '';
       prompt = `${base}Create a slide deck with EXACTLY ${count} slides — not fewer, not more. Combine related points onto the same slide so all the content below is covered within exactly ${count} slides; do not create extra slides even if that means more bullets per slide.
-Keep bullets concise (short phrases, not paragraphs) so the response fits in one reply.
-Each object: { "title": string, "bullets": [short strings], "note": string or null }
+Keep bullets concise (short phrases, not paragraphs) so the response fits in one reply.${styleLine}
+Each object: { "title": string, "bullets": [short strings] or [] if using a chart, "note": string or null, "chart": null or { "type": "bar" or "pie", "labels": [string], "values": [number] } }
 Content:\n${content}`;
     }
     try {
@@ -989,6 +1111,22 @@ Content:\n${content}`;
                     onChange={e => setDuration(Number(e.target.value))}
                     className="w-full accent-lavender-600"/>
                   <div className="flex justify-between text-[10px] text-ink/30 mt-1"><span>5 min</span><span>2 hr</span></div>
+                </div>
+              )}
+              {mode==='slides' && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
+                    {t('exam.slideStyle')}
+                  </p>
+                  <textarea
+                    className="input-field text-xs"
+                    rows={2}
+                    placeholder={t('exam.slideStylePh')}
+                    value={stylePref}
+                    onChange={e => setStylePref(e.target.value)}
+                    onBlur={saveStylePref}
+                  />
+                  <p className="text-[10px] text-ink/30 mt-1">{t('exam.slideStyleNote')}</p>
                 </div>
               )}
             </div>

@@ -105,6 +105,28 @@ router.post('/extract', upload.single('file'), async (req, res) => {
   }
 });
 
+// ── Slide style preference — a freeform description of how someone
+// likes their decks presented, read into the slide-generation prompt
+// so output adapts to taste instead of one fixed layout for everyone. ──
+router.get('/style-pref', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT slide_style_pref FROM users WHERE id = ?`, args: [req.user.id],
+    })).rows[0];
+    res.json({ style_pref: row?.slide_style_pref || '' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+router.put('/style-pref', async (req, res) => {
+  try {
+    const { style_pref = '' } = req.body;
+    await db.execute({
+      sql:  `UPDATE users SET slide_style_pref = ? WHERE id = ?`,
+      args: [String(style_pref).slice(0, 400), req.user.id],
+    });
+    res.json({ style_pref: String(style_pref).slice(0, 400) });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 // ── POST /generate ────────────────────────────────────────────
 router.post('/generate', async (req, res) => {
   const { prompt } = req.body;
