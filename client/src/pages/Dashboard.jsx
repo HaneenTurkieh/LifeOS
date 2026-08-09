@@ -176,8 +176,13 @@ export default function Dashboard() {
               {[
                 { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
                 { icon:'⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
+                // "X/Y done" reads as "achieved today" to most people, but Y is
+                // tasks *due* today and X counts a task as done no matter which
+                // day it was actually finished — someone who finished a task
+                // early sees "1/1" and reasonably thinks "I did nothing today".
+                // A plain remaining count can't be misread either way.
                 counts.totalTasksToday > 0
-                  ? { icon:'📋', color:'from-aurora-sky to-blue-500', value:`${counts.tasksDoneToday}/${counts.totalTasksToday}`, label:t('dash.tasksToday'), hint:t('dash.tasksTodayHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
+                  ? { icon:'📋', color:'from-aurora-sky to-blue-500', value:String(Math.max(0, counts.totalTasksToday - counts.tasksDoneToday)), label:t('dash.leftToday'), hint:t('dash.leftTodayCountHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
                   : { icon:'📋', color:'from-aurora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
               ].map(({ icon, color, value, label, hint, onClick }) => (
                 <motion.div
