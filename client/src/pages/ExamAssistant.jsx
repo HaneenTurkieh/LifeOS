@@ -707,6 +707,7 @@ export default function ExamAssistant() {
   const [notes,         setNotes]         = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [loading,       setLoading]       = useState(false);
+  const [genElapsed,    setGenElapsed]    = useState(0);
   const [uploading,     setUploading]     = useState(false);
   const [uploadedFile,  setUploadedFile]  = useState(null);
   const [result,        setResult]        = useState(null);
@@ -728,6 +729,29 @@ export default function ExamAssistant() {
       ...(opts.headers || {}),
     },
   }), [BASE_URL]);
+
+  // Big slide decks can genuinely take longer than the old flat "15-30s"
+  // promised (especially now that generation has real headroom instead
+  // of getting cut off) — a static estimate that turns out wrong just
+  // makes people think it's frozen and refresh, killing the request
+  // mid-flight. A live "Xs elapsed" counter shows it's actually working.
+  useEffect(() => {
+    if (!loading) { setGenElapsed(0); return; }
+    setGenElapsed(0);
+    const id = setInterval(() => setGenElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [loading]);
+
+  // Refreshing mid-generation loses the request entirely (no way to
+  // resume), so warn before an accidental close/reload while one is
+  // in flight — browsers show their own generic confirmation text,
+  // custom messages aren't supported, but the prompt itself is enough.
+  useEffect(() => {
+    if (!loading) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [loading]);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -1090,7 +1114,9 @@ Content:\n${content}`;
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <div className="h-5 w-5 rounded-full border-2 border-white/40 border-t-white animate-spin"/>
-                    {t('exam.generating')}
+                    {genElapsed > 0
+                      ? t('exam.generatingElapsed', { n: genElapsed })
+                      : t('exam.generating')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
