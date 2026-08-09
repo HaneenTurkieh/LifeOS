@@ -148,7 +148,7 @@ export default function Dashboard() {
 
   if (loading || !data) return <PageLoader />;
   const firstName = user?.name?.split(' ')[0] || '';
-  const { todaysTasks, todaysHabits, upcomingDeadlines, mood, quote, productivityScore, streak, level, counts } = data;
+  const { todaysTasks, todaysHabits, upcomingDeadlines, birthday, mood, quote, productivityScore, streak, level, counts } = data;
   const moodValue  = mood?.mood || null;
   const isRoughDay = moodValue && moodValue <= 2;
   const isGreatDay = moodValue && moodValue >= 4;
@@ -407,6 +407,24 @@ export default function Dashboard() {
                     {hb.doneToday && <CheckCircle2 size={13} className="text-sage-500 shrink-0" />}
                   </div>
                 ))}
+              </div>
+            </GlassCard>
+          )}
+          {birthday && daysUntil(birthday.deadline) != null && daysUntil(birthday.deadline) >= 0 && daysUntil(birthday.deadline) <= 30 && (
+            <GlassCard className="p-5" style={{
+              background: 'linear-gradient(135deg, rgb(var(--accent-500) / 0.10), rgb(var(--accent-600) / 0.04))',
+              border: '1px solid rgb(var(--accent-500) / 0.18)',
+            }}>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🎂</span>
+                <div className="min-w-0">
+                  <p className="font-display font-semibold text-sm text-ink dark:text-white">
+                    {daysUntil(birthday.deadline) === 0
+                      ? t('dash.birthdayToday')
+                      : t('dash.birthdayIn', { n: daysUntil(birthday.deadline) })}
+                  </p>
+                  <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5 truncate">{birthday.title}</p>
+                </div>
               </div>
             </GlassCard>
           )}

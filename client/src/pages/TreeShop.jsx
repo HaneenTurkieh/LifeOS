@@ -208,10 +208,10 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-5xl mb-3">{tree.emoji}</div>
-        <h3 className="font-display font-bold text-ink text-lg mb-1">{t('shop.unlockQ', { name: tree.name })}</h3>
-        <p className="text-sm text-ink/50 mb-5">{t('shop.spendText', { n: tree.cost.toLocaleString() })}</p>
+        <h3 className="font-display font-bold text-lg mb-1" style={{ color: '#1E2233' }}>{t('shop.unlockQ', { name: tree.name })}</h3>
+        <p className="text-sm mb-5" style={{ color: 'rgba(30,34,51,0.50)' }}>{t('shop.spendText', { n: tree.cost.toLocaleString() })}</p>
         <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold text-ink/55 bg-ink/5">
+          <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold bg-ink/5" style={{ color: 'rgba(30,34,51,0.55)' }}>
             {t('common.cancel')}
           </button>
           <motion.button
@@ -369,10 +369,10 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
           <div className="mb-2" style={{ color: form.color_hex, filter: `drop-shadow(0 0 12px ${form.glow_hex}99)` }}>
             <MysticSvg shapeKey={form.shape_key} size={64} />
           </div>
-          <p className="font-display font-bold text-ink text-sm">{form.custom_name || t('shop.mysticNamePh')}</p>
+          <p className="font-display font-bold text-sm" style={{ color: '#1E2233' }}>{form.custom_name || t('shop.mysticNamePh')}</p>
         </div>
 
-        <p className="text-[10px] font-bold uppercase tracking-widest text-ink/35 mb-2">{t('shop.mysticShape')}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticShape')}</p>
         <div className="flex gap-2 mb-4">
           {MYSTIC_SHAPES.map((s) => (
             <button key={s} onClick={() => setForm({ ...form, shape_key: s })}
@@ -387,7 +387,7 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
           ))}
         </div>
 
-        <p className="text-[10px] font-bold uppercase tracking-widest text-ink/35 mb-2">{t('shop.mysticColor')}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticColor')}</p>
         <div className="flex gap-2 mb-4 flex-wrap">
           {MYSTIC_COLORS.map((c) => (
             <button key={c} onClick={() => setForm({ ...form, color_hex: c })}
@@ -396,7 +396,7 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
           ))}
         </div>
 
-        <p className="text-[10px] font-bold uppercase tracking-widest text-ink/35 mb-2">{t('shop.mysticGlow')}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticGlow')}</p>
         <div className="flex gap-2 mb-4 flex-wrap">
           {MYSTIC_COLORS.map((c) => (
             <button key={c} onClick={() => setForm({ ...form, glow_hex: c })}
@@ -405,9 +405,9 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
           ))}
         </div>
 
-        <p className="text-[10px] font-bold uppercase tracking-widest text-ink/35 mb-2">{t('shop.mysticName')}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticName')}</p>
         <input
-          className="input-field mb-5"
+          className="input-field input-field-light mb-5"
           maxLength={24}
           placeholder={t('shop.mysticNamePh')}
           value={form.custom_name}
@@ -415,7 +415,7 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
         />
 
         <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold text-ink/55 bg-ink/5">
+          <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold bg-ink/5" style={{ color: 'rgba(30,34,51,0.55)' }}>
             {t('common.cancel')}
           </button>
           <motion.button
