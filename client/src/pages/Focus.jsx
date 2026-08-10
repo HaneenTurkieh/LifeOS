@@ -146,6 +146,13 @@ export default function Flow() {
     toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
   } = useFocus();
 
+  // `room` stays set just from being a member of a persistent room (not
+  // only while actively focusing together), and `roomTree` keeps the
+  // last session's tree around indefinitely after it ends — neither one
+  // alone means "there's a live shared session right now." Only
+  // room.timer.running actually reflects that.
+  const isLiveRoomSession = Boolean(room?.timer?.running) && !!roomTree;
+
   // ── Link the timer to a real task instead of a free-text label ──
   const [openTasks,      setOpenTasks]      = useState([]);
   const [taskPickerOpen, setTaskPickerOpen] = useState(false);
@@ -496,7 +503,7 @@ export default function Flow() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
                 <motion.div
-                  key={room && roomTree ? roomTree.tree_key : (isBirthday ? 'christmas' : equippedTree)}
+                  key={isLiveRoomSession ? roomTree.tree_key : (isBirthday ? 'christmas' : equippedTree)}
                   animate={isRunning
                     ? { y: [0, -5, 0], scale: [1, 1.05, 1] }
                     : { y: [0, -3, 0] }
@@ -505,12 +512,14 @@ export default function Flow() {
                   className="text-4xl mb-1 select-none"
                   style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
                 >
-                  {room && roomTree ? (
-                    // In an active room, the centerpiece tree is the
-                    // room's shared tree (whoever's equipped tree it was
-                    // when the session started) — not the viewer's own,
-                    // which was the bug: every member saw their own tree
-                    // regardless of what the host actually planted.
+                  {isLiveRoomSession ? (
+                    // Only while the room's shared timer is actually
+                    // running — `room` itself stays set just from being a
+                    // member of a persistent room, and `roomTree` keeps
+                    // the last session's tree around indefinitely (even
+                    // 'completed'/'dead'), so gating on those alone kept
+                    // showing the host's tree long after their session
+                    // had ended and this member was back on their own.
                     roomTree.status === 'dead'
                       ? <>{DEAD_EMOJI}</>
                       : <TreeIcon treeKey={roomTree.tree_key} size={36} mysticDesign={roomMysticDesign(roomTree)} />
