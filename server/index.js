@@ -53,6 +53,7 @@ app.use('/api/chat', authenticate, require('./routes/chat'));
 app.use('/api/trees', authenticate, require('./routes/trees'));
 app.use('/api/notifications', authenticate, require('./routes/notifications'));
 app.use('/api/exam', authenticate, require('./routes/exam'));
+app.use('/api/admin', authenticate, require('./routes/admin'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Personal Life Dashboard API' }));
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
