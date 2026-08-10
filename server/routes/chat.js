@@ -3,8 +3,7 @@ const router  = express.Router();
 const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
-
-const MODEL = 'claude-haiku-4-5-20251001';
+const { callGemini } = require('../lib/gemini');
 
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
 const TONE_PROMPTS = {
@@ -199,12 +198,6 @@ const TOOLS = [
     },
   },
 ];
-const WEB_SEARCH_TOOL = {
-  type:     'web_search_20250305',
-  name:     'web_search',
-  max_uses: 4,
-};
-
 async function executeTool(name, input, userId) {
   switch (name) {
     case 'create_task': {
@@ -823,15 +816,14 @@ const MAX_ATTACHMENT_CHARS = 25000;
 const STAT_CLAIM_RE = /\d[\d,.]*\s?(%|percent|million|billion|thousand)\b/i;
 
 router.post('/', async (req, res) => {
-  // Deep Think and Deep Search need Anthropic-only features (extended
-  // thinking, the hosted web_search tool) and stay on Claude. Plain
-  // chat — the everyday, highest-volume path — routes to OpenRouter/
-  // DeepSeek instead, so only that mode needs the OpenRouter key.
+  // Deep Think and Deep Search need capabilities OpenRouter/DeepSeek
+  // doesn't have (native reasoning, hosted web-search grounding) — routed
+  // to Gemini, which covers both on its free tier. Plain chat — the
+  // everyday, highest-volume path — stays on OpenRouter/DeepSeek.
   const requestedMode = req.body?.mode || 'chat';
-  const usesAnthropic = requestedMode === 'think' || requestedMode === 'search';
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (usesAnthropic && !key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
-  if (!usesAnthropic && !process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set.' });
+  const usesGemini = requestedMode === 'think' || requestedMode === 'search';
+  if (usesGemini && !process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set.' });
+  if (!usesGemini && !process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set.' });
   // no_history: true is for behind-the-scenes uses of this same endpoint
   // that were never meant to be a real conversation with Lumi — the
   // Projects "Break into tasks" breakdown and the CV Builder review both
@@ -872,42 +864,43 @@ router.post('/', async (req, res) => {
     let finalText = '';
     const actions = [];
 
-    if (usesAnthropic) {
-      // Deep Think / Deep Search — unchanged Anthropic tool-use loop.
-      const tools = mode === 'search' ? [...TOOLS, WEB_SEARCH_TOOL] : TOOLS;
-      const requestBase = {
-        model:      MODEL,
-        system,
-        tools,
-        max_tokens: mode === 'think' ? 6000 : hasAttachments ? 3000 : 1024,
-      };
-      if (mode === 'think') {
-        requestBase.thinking = { type: 'enabled', budget_tokens: 4000 };
-      }
+    if (usesGemini) {
+      // Deep Think / Deep Search — routed to Gemini. Deep Search uses
+      // only the hosted google_search grounding tool (its whole job is
+      // real web lookups, so the app's own function-calling tools are
+      // left out of that request — Gemini doesn't allow combining
+      // grounding with custom tools in one call). Deep Think keeps the
+      // full app tool set plus a thinking budget for step-by-step reasoning.
+      let geminiContents = currentMessages.map((m) => ({
+        role:  m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }],
+      }));
+      const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 3000 : 1024;
       for (let i = 0; i < 6; i++) {
-        const r = await fetch('https://api.anthropic.com/v1/messages', {
-          method:  'POST',
-          headers: { 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01' },
-          body: JSON.stringify({ ...requestBase, messages: currentMessages }),
+        const data = await callGemini({
+          system,
+          contents:        geminiContents,
+          tools:           mode === 'search' ? undefined : TOOLS,
+          useGoogleSearch: mode === 'search',
+          thinkingBudget:  mode === 'think' ? 4000 : undefined,
+          maxOutputTokens: maxTokens,
         });
-        const data = await r.json();
-        if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
-        const toolUses = data.content.filter(c => c.type === 'tool_use');
-        if (!toolUses.length) {
-          finalText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
+        if (!functionCalls.length) {
+          finalText = parts.filter((p) => p.text).map((p) => p.text).join('');
           break;
         }
-        const toolResults = [];
-        for (const tu of toolUses) {
-          const result = await executeTool(tu.name, tu.input, req.user.id);
-          actions.push({ tool: tu.name, input: tu.input, result });
-          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+        geminiContents = [...geminiContents, { role: 'model', parts }];
+        const functionResponseParts = [];
+        for (const fc of functionCalls) {
+          const result = await executeTool(fc.name, fc.args || {}, req.user.id);
+          actions.push({ tool: fc.name, input: fc.args || {}, result });
+          functionResponseParts.push({
+            functionResponse: { name: fc.name, response: { name: fc.name, content: result } },
+          });
         }
-        currentMessages = [
-          ...currentMessages,
-          { role: 'assistant', content: data.content },
-          { role: 'user',      content: toolResults },
-        ];
+        geminiContents = [...geminiContents, { role: 'function', parts: functionResponseParts }];
       }
     } else {
       // Plain chat — the everyday path (also what Projects' "Break into
@@ -915,7 +908,7 @@ router.post('/', async (req, res) => {
       // to OpenRouter/DeepSeek instead. Same tool set (create_task,
       // list_tasks, etc.), converted to OpenAI's function-calling shape
       // by callOpenRouter, and the same up-to-6-turn loop so DeepSeek can
-      // call a tool, see the result, and keep going same as Claude did.
+      // call a tool, see the result, and keep going same as the other modes.
       const maxTokens = hasAttachments ? 3000 : 1024;
       for (let i = 0; i < 6; i++) {
         const data = await callOpenRouter({

@@ -5,11 +5,10 @@
 // both far cheaper than Haiku and benchmark-competitive with it.
 //
 // Deliberately NOT used for: PDF/image extraction in exam.js (needs
-// Claude's native document/vision input — DeepSeek's chat endpoint is
-// text-only), Deep Think (needs Anthropic's extended-thinking budget
-// param), or Deep Search (needs Anthropic's hosted web_search tool,
-// which has no equivalent on OpenRouter). Those three keep calling
-// ANTHROPIC_API_KEY directly, unchanged.
+// native document/vision input — DeepSeek's chat endpoint is text-only),
+// Deep Think (needs a native reasoning/thinking budget), or Deep Search
+// (needs a hosted web-search tool). Those three run on Gemini instead
+// (see ../lib/gemini.js), which covers all of them on its free tier.
 const OPENROUTER_MODEL = 'deepseek/deepseek-chat';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
