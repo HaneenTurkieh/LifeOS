@@ -4,6 +4,7 @@ import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
   Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift, Sparkles,
+  BarChart3, Users, TrendingUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -711,6 +712,85 @@ function DangerTab({ onClose }) {
   );
 }
 
+// Owner-only — mirrors server/routes/admin.js's OWNER_EMAILS. This is
+// purely a UI gate (hide the tab from everyone else); the real
+// protection is the server route itself checking req.user.email, so
+// nothing sensitive leaks even if someone forces this tab open.
+const OWNER_EMAILS = ['haneenturkieh@hotmail.com', '20tasbeeh06@gmail.com'];
+
+function StatCard({ icon: Icon, label, value, isDark }) {
+  return (
+    <div className="flex-1 rounded-2xl px-4 py-3.5"
+      style={isDark
+        ? { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)' }
+        : { background:'rgba(30,34,51,0.03)', border:'1px solid rgba(30,34,51,0.06)' }}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon size={12} className="text-lavender-500" />
+        <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark?'text-white/35':'text-ink/35'}`}>{label}</span>
+      </div>
+      <p className={`text-2xl font-display font-bold ${isDark?'text-white':'text-ink'}`}>{value}</p>
+    </div>
+  );
+}
+
+function StatsTab() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const [stats,   setStats]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.get('/admin/stats')
+      .then((d) => { if (active) setStats(d); })
+      .catch((e) => { if (active) setError(e.message || 'Could not load stats'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  if (loading) return <p className={`text-sm text-center py-8 ${isDark?'text-white/35':'text-ink/35'}`}>Loading…</p>;
+  if (error)   return <p className="text-sm text-center py-8 text-coral-500">{error}</p>;
+  if (!stats)  return null;
+
+  const maxDay = Math.max(1, ...stats.by_day.map((d) => d.count));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h3 className="font-display font-bold text-ink dark:text-white mb-1">User growth</h3>
+        <p className={`text-xs ${isDark?'text-white/40':'text-ink/45'}`}>Visible only to your account.</p>
+      </div>
+      <div className="flex gap-3">
+        <StatCard icon={Users}      label="Total users" value={stats.total_users}      isDark={isDark} />
+        <StatCard icon={TrendingUp} label="New today"   value={stats.new_today}        isDark={isDark} />
+      </div>
+      <div className="flex gap-3">
+        <StatCard icon={BarChart3} label="Last 7 days"  value={stats.new_last_7_days}  isDark={isDark} />
+        <StatCard icon={BarChart3} label="Last 30 days" value={stats.new_last_30_days} isDark={isDark} />
+      </div>
+      {stats.by_day.length > 0 && (
+        <div className="rounded-2xl px-4 py-3.5"
+          style={isDark
+            ? { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)' }
+            : { background:'rgba(30,34,51,0.03)', border:'1px solid rgba(30,34,51,0.06)' }}>
+          <p className={`text-[10px] font-bold uppercase tracking-widest mb-2.5 ${isDark?'text-white/35':'text-ink/35'}`}>
+            Signups — last 30 days
+          </p>
+          <div className="flex items-end gap-1 h-16">
+            {stats.by_day.map((d) => (
+              <div key={d.day} className="flex-1 min-w-[3px] rounded-t-sm bg-gradient-to-t from-lavender-600 to-lavender-400"
+                style={{ height: `${Math.max(6, (d.count / maxDay) * 100)}%` }}
+                title={`${d.day}: ${d.count}`} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const NAV_ITEMS = [
   { key:'profile',    label:'settings.profile',    icon:User          },
   { key:'account',    label:'settings.account',    icon:Lock          },
@@ -726,6 +806,10 @@ export default function SettingsModal({ open, onClose }) {
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
   const closeAndReset = () => { setTab('profile'); onClose(); };
+  const isOwner = OWNER_EMAILS.map((e) => e.toLowerCase()).includes((user?.email || '').toLowerCase());
+  const navItems = isOwner
+    ? [...NAV_ITEMS.slice(0, -1), { key:'stats', label:'settings.stats', icon:BarChart3 }, NAV_ITEMS[NAV_ITEMS.length - 1]]
+    : NAV_ITEMS;
   const navBg     = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(30,34,51,0.03)';
   const navBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(30,34,51,0.06)';
   const activeStyle = isDark
@@ -748,7 +832,7 @@ export default function SettingsModal({ open, onClose }) {
             </p>
           </div>
           <div className="flex lg:flex-col gap-1 lg:gap-0.5 flex-nowrap">
-            {NAV_ITEMS.map(({ key, label, icon:Icon }) => (
+            {navItems.map(({ key, label, icon:Icon }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -778,6 +862,7 @@ export default function SettingsModal({ open, onClose }) {
               {tab==='account'    && <AccountTab/>}
               {tab==='appearance' && <AppearanceTab/>}
               {tab==='premium'    && <PremiumTab/>}
+              {tab==='stats' && isOwner && <StatsTab/>}
               {tab==='feedback'   && <FeedbackTab/>}
               {tab==='danger'     && <DangerTab onClose={closeAndReset}/>}
             </motion.div>
