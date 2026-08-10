@@ -3,10 +3,18 @@
 // the three paths that need capabilities OpenRouter/DeepSeek doesn't have:
 // PDF/image extraction (native vision/document input), Deep Think (native
 // "thinking" reasoning), and Deep Search (hosted Google Search grounding
-// tool). Gemini 2.5 Flash covers all three, is free-tier eligible, and per
-// public benchmarks runs ~6-7x cheaper than Claude Haiku on paid usage —
-// so this fully replaces ANTHROPIC_API_KEY across the app.
-const GEMINI_MODEL = 'gemini-2.5-flash';
+// tool). Covers all three, is free-tier eligible, and per public
+// benchmarks runs far cheaper than Claude Haiku on paid usage — so this
+// fully replaces ANTHROPIC_API_KEY across the app.
+//
+// Model pinned to gemini-3.1-flash-lite (stable, not preview) — the
+// original gemini-2.5-flash choice started throwing "no longer available
+// to new users" once Google rolled out the Gemini 3 line as the default
+// for new AI Studio projects. If this ever needs bumping again, check
+// https://ai.google.dev/gemini-api/docs/models for the current "Stable"
+// list before picking a replacement — "Preview" models get deprecated
+// on much shorter notice.
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Anthropic-style JSON schema ({ type: 'object', properties: {...} }, all
