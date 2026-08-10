@@ -69,6 +69,48 @@ function ActionCard({ action }) {
     </div>
   );
 }
+// Lightweight markdown → JSX for Lumi's replies — no library dependency,
+// just the handful of things the model actually produces: **bold**,
+// #/##/### headers, and "- "/"* " bullet lists. Renders real React
+// elements (not dangerouslySetInnerHTML) so there's no injection risk.
+// Was previously plain text, so `**bold**` and `### heading` showed up
+// as literal asterisks/hashes in the chat bubble instead of formatted.
+function renderInlineMd(line, keyPrefix) {
+  const parts = line.split(/(\*\*.+?\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>
+      : <React.Fragment key={`${keyPrefix}-${i}`}>{part}</React.Fragment>
+  );
+}
+function renderMarkdown(text) {
+  if (!text) return null;
+  const lines = String(text).split('\n');
+  const elements = [];
+  let listBuffer = [];
+  const flushList = () => {
+    if (listBuffer.length) {
+      elements.push(<ul key={`ul-${elements.length}`} className="list-disc ps-5 my-1 space-y-0.5">{listBuffer}</ul>);
+      listBuffer = [];
+    }
+  };
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (trimmed === '') { flushList(); return; }
+    if (/^#{1,4}\s+/.test(trimmed)) {
+      flushList();
+      const headerText = trimmed.replace(/^#{1,4}\s+/, '');
+      elements.push(<p key={idx} className="font-bold mt-2.5 mb-1 first:mt-0">{renderInlineMd(headerText, idx)}</p>);
+    } else if (/^[-*]\s+/.test(trimmed)) {
+      listBuffer.push(<li key={idx}>{renderInlineMd(trimmed.replace(/^[-*]\s+/, ''), idx)}</li>);
+    } else {
+      flushList();
+      elements.push(<p key={idx} className="mb-1 last:mb-0">{renderInlineMd(line, idx)}</p>);
+    }
+  });
+  flushList();
+  return elements;
+}
 function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdit, editBusy, t }) {
   const isLumi = msg.role === 'assistant';
   const [copied, setCopied] = useState(false);
@@ -155,7 +197,7 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
             )}
             <div
               dir="auto"
-              className={`rounded-3xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+              className={`rounded-3xl px-4 py-3 text-sm leading-relaxed ${isLumi ? '' : 'whitespace-pre-wrap'} ${
                 msg.isLimitNotice
                   ? 'rounded-tl-md text-sun-700 dark:text-sun-200'
                   : isLumi
@@ -170,7 +212,8 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
                   : {}
               }
             >
-              {msg.isLimitNotice ? '👑 ' : ''}{msg.content}
+              {msg.isLimitNotice && '👑 '}
+              {isLumi && !msg.isLimitNotice ? renderMarkdown(msg.content) : msg.content}
             </div>
             {isLumi && (
               <button
