@@ -538,7 +538,7 @@ async function generateTitle(firstUserMessage) {
   return words.length > 40 ? words.slice(0, 40) + '…' : words;
 }
 
-async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) {
+async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false, currentConvId = null) {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const q = (sql, args) =>
@@ -546,7 +546,7 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
         console.error('[lumi prompt] query failed (non-fatal):', e.message, '—', sql.slice(0, 60));
         return { rows: [] };
       });
-    const [tasks, goals, habits, mood, focus, xp, memories] = await Promise.all([
+    const [tasks, goals, habits, mood, focus, xp, memories, recentConvos] = await Promise.all([
       q(`SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, [userId]),
       q(`SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, [userId]),
       q(`SELECT id,name FROM habits WHERE user_id=? LIMIT 6`, [userId]),
@@ -554,6 +554,14 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
       q(`SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, [userId]),
       q(`SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, [userId]),
       q(`SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, [userId]),
+      // Cross-chat continuity — every "New chat" used to start with zero
+      // awareness of anything discussed in earlier conversations, only
+      // ever recalling facts explicitly saved via save_memory. Titles are
+      // free (already generated per-conversation) and cheap to include,
+      // so Lumi can at least recognize "we talked about X before" instead
+      // of treating every new chat as a stranger would.
+      q(`SELECT id, title FROM lumi_conversations WHERE user_id=? AND id!=? ORDER BY updated_at DESC LIMIT 6`,
+        [userId, currentConvId || 0]),
     ]);
     let profile = await q(`SELECT name, email, gender, birthday, bio FROM users WHERE id=?`, [userId]);
     if (!profile.rows.length) {
@@ -568,6 +576,9 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
     const memoryList = memories.rows.length
       ? memories.rows.map(m => `• ${m.key}: ${m.value}`).join('\n')
       : 'None yet';
+    const recentTopicsList = recentConvos.rows.length
+      ? recentConvos.rows.map(c => `• ${c.title}`).join('\n')
+      : 'None yet — this is one of the user\'s first conversations.';
 
     const p          = profile.rows[0] || {};
     const profileAge = p.birthday
@@ -607,11 +618,17 @@ sections. When asked questions about it, quote or reference specific parts.\n`
     return `You are Lumi ✦, the intelligent productivity assistant built into Aurora — a personal life OS.
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 
-LANGUAGE: If the user writes to you in Arabic, respond in Palestinian colloquial Arabic
-(اللهجة الفلسطينية) — not Egyptian, not Gulf, not formal Modern Standard Arabic (فصحى).
-Use everyday Palestinian vocabulary, expressions, and sentence rhythm, the way someone
-from Nablus/the West Bank would actually text a friend. If the user writes in English,
-respond in English as normal.
+LANGUAGE: Match the language of the user's MOST RECENT message specifically —
+not the dominant language earlier in this same conversation. If a conversation
+started in Arabic and the user's latest message is in English, respond in
+English; if it started in English and they just switched to Arabic, switch
+with them. Never let earlier turns pull you back into a language the user has
+already moved away from. If their latest message is in Arabic, respond in
+Palestinian colloquial Arabic (اللهجة الفلسطينية) — not Egyptian, not Gulf,
+not formal Modern Standard Arabic (فصحى) — using everyday Palestinian
+vocabulary and rhythm, the way someone from Nablus/the West Bank would
+actually text a friend. If their latest message is in English, respond in
+English.
 
 ABOUT AURORA (public — share with any user who asks):
 Aurora was designed and built entirely from scratch by Haneen Turkieh, a passionate
@@ -652,8 +669,14 @@ PERSONALITY SETTINGS (chosen by the user — always follow these, except where
 EMOTIONAL SUPPORT above takes priority):
 ${personality}
 
-WHAT YOU REMEMBER ABOUT THIS USER:
+WHAT YOU REMEMBER ABOUT THIS USER (facts saved across every past conversation):
 ${memoryList}
+
+RECENT CONVERSATION TOPICS (titles of this user's last few chats with you,
+most recent first — you don't have the full text, but reference them
+naturally if this new conversation is clearly a continuation, e.g. "still
+thinking about that Arduino project?" — don't force it if unrelated):
+${recentTopicsList}
 
 USER WORKSPACE SNAPSHOT:
 Active tasks:
@@ -691,7 +714,14 @@ INSTRUCTIONS:
 - Use profile info (gender, age, bio) to personalise — adjust pronouns, references, tone.
 - When the user clearly asks for an action, use the tool immediately — don't ask for
   confirmation first. But don't reach for a tool just because one exists.
-- Use save_memory proactively whenever the user shares something worth remembering.
+- Use save_memory PROACTIVELY and OFTEN — don't wait to be told "remember this."
+  Save it the moment you notice: a project or idea they're actively working on,
+  a preference (language, tone, how they like things explained), a recurring
+  topic, their field of study/goals, or any personal detail that would make a
+  future conversation feel like picking up with someone who actually knows
+  them. Err toward saving too much rather than too little — this is the only
+  thing that carries real detail between separate conversations (conversation
+  titles above are just topic labels, not full context).
 - Reference memory naturally — don't announce that you remember, just use it.
 - After a tool action, confirm briefly then ask what's next.
 - Keep everyday responses short and punchy — except emotional-support conversations,
@@ -853,7 +883,7 @@ router.post('/', async (req, res) => {
 
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-    const system = await buildSystemPrompt(req.user.id, mode, hasAttachments);
+    const system = await buildSystemPrompt(req.user.id, mode, hasAttachments, conversation_id);
     let currentMessages = messages.map(m => ({ ...m }));
     if (hasAttachments) {
       for (let i = currentMessages.length - 1; i >= 0; i--) {
@@ -864,6 +894,28 @@ router.post('/', async (req, res) => {
           currentMessages[i] = { ...currentMessages[i], content: currentMessages[i].content + attachBlock };
           break;
         }
+      }
+    }
+    // Deterministic language match, pinned right next to the message it
+    // applies to — this is the actual fix for "responded in Arabic when I
+    // wrote English." The LANGUAGE rule in the system prompt is one
+    // paragraph inside a long block of text, and a model can drift toward
+    // whichever language dominated earlier turns instead of rechecking it
+    // every reply (DeepSeek especially, since it's not as strong at
+    // instruction-following as what this app used before). Detecting the
+    // latest message's script directly with a regex and tagging it inline
+    // removes the guesswork entirely. Only touches what's sent to the
+    // model — the original `messages`/DB save below is untouched, same
+    // pattern as the attachment block above.
+    const ARABIC_RE = /[؀-ۿ]/;
+    for (let i = currentMessages.length - 1; i >= 0; i--) {
+      if (currentMessages[i].role === 'user') {
+        const isArabic = ARABIC_RE.test(currentMessages[i].content || '');
+        const langTag = isArabic
+          ? '\n\n[Reply in Palestinian colloquial Arabic — this message is in Arabic.]'
+          : '\n\n[Reply in English — this message is in English, regardless of what language earlier messages in this conversation used.]';
+        currentMessages[i] = { ...currentMessages[i], content: currentMessages[i].content + langTag };
+        break;
       }
     }
     let finalText = '';
