@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader   from '../components/PageHeader.jsx';
 import Modal        from '../components/Modal.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const PRIORITY_COLORS = {
   high:   { bg:'rgba(255,122,99,0.20)', border:'rgba(255,122,99,0.45)', text:'#FF7A63', dark:'rgba(255,122,99,0.25)' },
@@ -456,19 +457,25 @@ export default function Calendar() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <input
-                    className="input-field font-semibold"
-                    value={editForm.title}
-                    onChange={e => setEditForm({...editForm, title:e.target.value})}
-                    placeholder={t('tasks.taskTitle')}
-                  />
-                  <textarea
-                    className="input-field resize-none text-sm"
-                    rows={2}
-                    value={editForm.description}
-                    onChange={e => setEditForm({...editForm, description:e.target.value})}
-                    placeholder={t('tasks.description')}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="input-field font-semibold flex-1"
+                      value={editForm.title}
+                      onChange={e => setEditForm({...editForm, title:e.target.value})}
+                      placeholder={t('tasks.taskTitle')}
+                    />
+                    <VoiceInputButton size="sm" onText={(c) => setEditForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <textarea
+                      className="input-field resize-none text-sm flex-1"
+                      rows={2}
+                      value={editForm.description}
+                      onChange={e => setEditForm({...editForm, description:e.target.value})}
+                      placeholder={t('tasks.description')}
+                    />
+                    <VoiceInputButton size="sm" onText={(c) => setEditForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <select className="input-field text-sm" value={editForm.priority}
                       onChange={e => setEditForm({...editForm, priority:e.target.value})}>
@@ -593,11 +600,17 @@ export default function Calendar() {
         title={addModalOpen ? `${t('calendar.addTo')} · ${fmtLabel(addModalOpen)}` : t('calendar.addTo')}
       >
         <form onSubmit={submitAdd} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder={t('tasks.taskTitle')}
-            value={addForm.title} onChange={e => setAddForm({...addForm, title:e.target.value})}
-            autoFocus required />
-          <textarea className="input-field resize-none" placeholder={t('tasks.description')} rows={2}
-            value={addForm.description} onChange={e => setAddForm({...addForm, description:e.target.value})} />
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder={t('tasks.taskTitle')}
+              value={addForm.title} onChange={e => setAddForm({...addForm, title:e.target.value})}
+              autoFocus required />
+            <VoiceInputButton size="sm" onText={(c) => setAddForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <textarea className="input-field resize-none flex-1" placeholder={t('tasks.description')} rows={2}
+              value={addForm.description} onChange={e => setAddForm({...addForm, description:e.target.value})} />
+            <VoiceInputButton size="sm" onText={(c) => setAddForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <select className="input-field" value={addForm.priority}
               onChange={e => setAddForm({...addForm, priority:e.target.value})}>

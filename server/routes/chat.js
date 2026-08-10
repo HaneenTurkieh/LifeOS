@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
+const { callOpenRouter } = require('../lib/openrouter');
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -822,8 +823,15 @@ const MAX_ATTACHMENT_CHARS = 25000;
 const STAT_CLAIM_RE = /\d[\d,.]*\s?(%|percent|million|billion|thousand)\b/i;
 
 router.post('/', async (req, res) => {
+  // Deep Think and Deep Search need Anthropic-only features (extended
+  // thinking, the hosted web_search tool) and stay on Claude. Plain
+  // chat — the everyday, highest-volume path — routes to OpenRouter/
+  // DeepSeek instead, so only that mode needs the OpenRouter key.
+  const requestedMode = req.body?.mode || 'chat';
+  const usesAnthropic = requestedMode === 'think' || requestedMode === 'search';
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
+  if (usesAnthropic && !key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set.' });
+  if (!usesAnthropic && !process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set.' });
   // no_history: true is for behind-the-scenes uses of this same endpoint
   // that were never meant to be a real conversation with Lumi — the
   // Projects "Break into tasks" breakdown and the CV Builder review both
@@ -861,42 +869,78 @@ router.post('/', async (req, res) => {
         }
       }
     }
-    const tools = mode === 'search' ? [...TOOLS, WEB_SEARCH_TOOL] : TOOLS;
-    const requestBase = {
-      model:      MODEL,
-      system,
-      tools,
-      max_tokens: mode === 'think' ? 6000 : hasAttachments ? 3000 : 1024,
-    };
-    if (mode === 'think') {
-      requestBase.thinking = { type: 'enabled', budget_tokens: 4000 };
-    }
     let finalText = '';
     const actions = [];
-    for (let i = 0; i < 6; i++) {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({ ...requestBase, messages: currentMessages }),
-      });
-      const data = await r.json();
-      if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
-      const toolUses = data.content.filter(c => c.type === 'tool_use');
-      if (!toolUses.length) {
-        finalText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
-        break;
+
+    if (usesAnthropic) {
+      // Deep Think / Deep Search — unchanged Anthropic tool-use loop.
+      const tools = mode === 'search' ? [...TOOLS, WEB_SEARCH_TOOL] : TOOLS;
+      const requestBase = {
+        model:      MODEL,
+        system,
+        tools,
+        max_tokens: mode === 'think' ? 6000 : hasAttachments ? 3000 : 1024,
+      };
+      if (mode === 'think') {
+        requestBase.thinking = { type: 'enabled', budget_tokens: 4000 };
       }
-      const toolResults = [];
-      for (const tu of toolUses) {
-        const result = await executeTool(tu.name, tu.input, req.user.id);
-        actions.push({ tool: tu.name, input: tu.input, result });
-        toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+      for (let i = 0; i < 6; i++) {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method:  'POST',
+          headers: { 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01' },
+          body: JSON.stringify({ ...requestBase, messages: currentMessages }),
+        });
+        const data = await r.json();
+        if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
+        const toolUses = data.content.filter(c => c.type === 'tool_use');
+        if (!toolUses.length) {
+          finalText = data.content.filter(c => c.type === 'text').map(c => c.text).join('');
+          break;
+        }
+        const toolResults = [];
+        for (const tu of toolUses) {
+          const result = await executeTool(tu.name, tu.input, req.user.id);
+          actions.push({ tool: tu.name, input: tu.input, result });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+        }
+        currentMessages = [
+          ...currentMessages,
+          { role: 'assistant', content: data.content },
+          { role: 'user',      content: toolResults },
+        ];
       }
-      currentMessages = [
-        ...currentMessages,
-        { role: 'assistant', content: data.content },
-        { role: 'user',      content: toolResults },
-      ];
+    } else {
+      // Plain chat — the everyday path (also what Projects' "Break into
+      // tasks" and the CV Builder review reuse via no_history) — routed
+      // to OpenRouter/DeepSeek instead. Same tool set (create_task,
+      // list_tasks, etc.), converted to OpenAI's function-calling shape
+      // by callOpenRouter, and the same up-to-6-turn loop so DeepSeek can
+      // call a tool, see the result, and keep going same as Claude did.
+      const maxTokens = hasAttachments ? 3000 : 1024;
+      for (let i = 0; i < 6; i++) {
+        const data = await callOpenRouter({
+          system, messages: currentMessages, tools: TOOLS, max_tokens: maxTokens,
+        });
+        const msg = data.choices?.[0]?.message || {};
+        const toolCalls = msg.tool_calls || [];
+        if (!toolCalls.length) {
+          finalText = msg.content || '';
+          break;
+        }
+        const toolResults = [];
+        for (const tc of toolCalls) {
+          let input = {};
+          try { input = JSON.parse(tc.function.arguments || '{}'); } catch (_) {}
+          const result = await executeTool(tc.function.name, input, req.user.id);
+          actions.push({ tool: tc.function.name, input, result });
+          toolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+        }
+        currentMessages = [
+          ...currentMessages,
+          { role: 'assistant', content: msg.content || null, tool_calls: toolCalls },
+          ...toolResults,
+        ];
+      }
     }
     const responseText = finalText || "Done! Let me know if you need anything else.";
 

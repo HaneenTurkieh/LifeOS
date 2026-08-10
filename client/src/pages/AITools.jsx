@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const TOOL_META = {
   create_task:             { icon: '✅', label: 'Task created',      color: 'rgb(var(--accent-500))' },
@@ -118,6 +119,7 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
               style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgb(var(--accent-500) / 0.35)' }}
             />
             <div className="flex items-center gap-1.5">
+              <VoiceInputButton size="sm" onText={(c) => setDraft((v) => appendText(v, c))} />
               <button onClick={onCancelEdit} disabled={editBusy}
                 className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-ink/45 dark:text-white/40 hover:text-ink/70 dark:hover:text-white/65 transition disabled:opacity-40">
                 <X size={11} /> {t ? t('common.cancel') : 'Cancel'}
@@ -786,6 +788,7 @@ export default function AITools() {
                 }}
                 onKeyDown={handleKey}
               />
+              <VoiceInputButton onText={(c) => setInput((v) => appendText(v, c))} />
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={() => setSettingsOpen((s) => !s)}

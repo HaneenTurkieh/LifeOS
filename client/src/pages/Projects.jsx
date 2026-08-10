@@ -8,6 +8,7 @@ import Modal        from '../components/Modal.jsx';
 import EmptyState   from '../components/EmptyState.jsx';
 import PageLoader   from '../components/Loader.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const STAGES = [
   { key: 'idea',        title: 'Idea',        accent: 'bg-ink/20',       progress: 10  },
@@ -424,14 +425,19 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
             <p className="text-sm text-ink/50 dark:text-white/40">
               Stage and existing tasks are used automatically. This is optional — add anything specific that matters right now, e.g. "auth and the dashboard are done, focus on the payments flow" or "this is a school report, not code."
             </p>
-            <textarea
-              className="input-field"
-              rows={3}
-              placeholder="Optional context (leave blank to skip)"
-              value={extraNote}
-              onChange={(e) => setExtraNote(e.target.value)}
-              autoFocus
-            />
+            <div className="relative">
+              <textarea
+                className="input-field"
+                rows={3}
+                placeholder="Optional context (leave blank to skip)"
+                value={extraNote}
+                onChange={(e) => setExtraNote(e.target.value)}
+                autoFocus
+              />
+              <div className="absolute top-2 end-2">
+                <VoiceInputButton size="sm" onText={(c) => setExtraNote((v) => appendText(v, c))} />
+              </div>
+            </div>
             <button
               className="btn-primary justify-center mt-1"
               onClick={() => { const p = contextFor; setContextFor(null); breakIntoTasks(p, extraNote); }}
@@ -486,11 +492,17 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
       >
         {editingProjectTask && (
           <form onSubmit={saveProjectTaskEdit} className="flex flex-col gap-3.5">
-            <input className="input-field" placeholder="Task title" value={taskEditForm.title}
-              onChange={(e) => setTaskEditForm({ ...taskEditForm, title: e.target.value })} autoFocus required />
-            <textarea className="input-field" placeholder="Description (optional)" rows={2}
-              value={taskEditForm.description}
-              onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })} />
+            <div className="flex items-center gap-2">
+              <input className="input-field flex-1" placeholder="Task title" value={taskEditForm.title}
+                onChange={(e) => setTaskEditForm({ ...taskEditForm, title: e.target.value })} autoFocus required />
+              <VoiceInputButton size="sm" onText={(c) => setTaskEditForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <textarea className="input-field flex-1" placeholder="Description (optional)" rows={2}
+                value={taskEditForm.description}
+                onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })} />
+              <VoiceInputButton size="sm" onText={(c) => setTaskEditForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+            </div>
             <select className="input-field" value={taskEditForm.priority}
               onChange={(e) => setTaskEditForm({ ...taskEditForm, priority: e.target.value })}>
               <option value="high">High priority</option>
@@ -510,11 +522,17 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
       >
         {addingTaskFor && (
           <form onSubmit={createProjectTask} className="flex flex-col gap-3.5">
-            <input className="input-field" placeholder="Task title" value={newTaskForm.title}
-              onChange={(e) => setNewTaskForm({ ...newTaskForm, title: e.target.value })} autoFocus required />
-            <textarea className="input-field" placeholder="Description (optional)" rows={2}
-              value={newTaskForm.description}
-              onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })} />
+            <div className="flex items-center gap-2">
+              <input className="input-field flex-1" placeholder="Task title" value={newTaskForm.title}
+                onChange={(e) => setNewTaskForm({ ...newTaskForm, title: e.target.value })} autoFocus required />
+              <VoiceInputButton size="sm" onText={(c) => setNewTaskForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <textarea className="input-field flex-1" placeholder="Description (optional)" rows={2}
+                value={newTaskForm.description}
+                onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })} />
+              <VoiceInputButton size="sm" onText={(c) => setNewTaskForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+            </div>
             <select className="input-field" value={newTaskForm.priority}
               onChange={(e) => setNewTaskForm({ ...newTaskForm, priority: e.target.value })}>
               <option value="high">High priority</option>
@@ -529,11 +547,17 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
       {/* ── Add project modal ───────────────────────────────── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New project">
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder="Project title" value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
-          <textarea className="input-field" placeholder="Description (optional)" rows={2}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder="Project title" value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <textarea className="input-field flex-1" placeholder="Description (optional)" rows={2}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+          </div>
           <div>
             <label className="block text-xs font-semibold text-ink/50 dark:text-white/40 mb-1.5">
               Where is this project right now?

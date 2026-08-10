@@ -4,6 +4,7 @@ const multer  = require('multer');
 const { db }  = require('../db/connection');
 const { isPremium } = require('../lib/premium');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
+const { callOpenRouter } = require('../lib/openrouter');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -121,11 +122,14 @@ router.put('/style-pref', async (req, res) => {
 });
 
 // ── POST /generate ────────────────────────────────────────────
+// Pure text-in/JSON-out generation (no document/vision input, unlike
+// /extract below) — routed to OpenRouter/DeepSeek V3.2 instead of
+// Claude, since this is the single highest-volume AI call in the app
+// and DeepSeek is both far cheaper and benchmark-competitive here.
 router.post('/generate', async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'prompt required' });
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: 'API key not set' });
+  if (!process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set' });
 
   const gate = await checkLimit(req.user.id, 'exam_generate');
   if (!gate.allowed) {
@@ -133,24 +137,16 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method:  'POST',
-      headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01' },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5-20251001',
-        // 4096 was cutting off comprehensive slide decks mid-JSON on
-        // longer source docs (Anthropic stops generating at the token
-        // cap, not at a clean JSON boundary) — client-side JSON.parse
-        // then failed with "Expected '}'". Slides ask for full-detail,
-        // uncapped coverage, so they need real headroom.
-        max_tokens: 8192,
-        messages:   [{ role:'user', content: prompt }],
-      }),
+    // 8192 headroom (not the old 4096) — was cutting off comprehensive
+    // slide decks mid-JSON on longer source docs, since generation stops
+    // at the token cap, not at a clean JSON boundary. Slides ask for
+    // full-detail, uncapped coverage, so they need the room.
+    const data = await callOpenRouter({
+      messages:   [{ role: 'user', content: prompt }],
+      max_tokens: 8192,
     });
-    const data = await r.json();
-    if (!r.ok) return res.status(500).json({ error: data.error?.message || 'AI error' });
     await recordUsage(req.user.id, 'exam_generate');
-    res.json({ text: data.content?.[0]?.text || '', remaining: gate.remaining - 1 });
+    res.json({ text: data.choices?.[0]?.message?.content || '', remaining: gate.remaining - 1 });
   } catch (err) {
     console.error('Exam generate error:', err);
     res.status(500).json({ error: 'Generation failed. Please try again.' });

@@ -7,6 +7,7 @@ import GlassCard from '../components/GlassCard.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const TYPES = [
   { key: 'course', label: 'Courses', icon: GraduationCap },
@@ -114,9 +115,18 @@ export default function Learning() {
             <option value="book">Book</option>
             <option value="certification">Certification</option>
           </select>
-          <input className="input-field" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
-          <input className="input-field" placeholder="Provider / author (optional)" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} />
-          <textarea className="input-field" placeholder="Notes (optional)" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder="Provider / author (optional)" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, provider: appendText(f.provider, c) }))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <textarea className="input-field flex-1" placeholder="Notes (optional)" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, notes: appendText(f.notes, c) }))} />
+          </div>
           <button type="submit" className="btn-primary justify-center mt-1">Add</button>
         </form>
       </Modal>

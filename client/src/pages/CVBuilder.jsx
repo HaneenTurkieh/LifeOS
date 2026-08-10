@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 import CVExportModal from '../components/CVExportModal.jsx';
 import AvatarCropper from '../components/AvatarCropper.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 // Experience and Education come first — they're what a resume actually
 // leads with. Projects/Skills/Certifications round it out below.
@@ -238,21 +239,30 @@ ${cvSummary}`,
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
-            <input className="input-field" placeholder="Headline, e.g. Financial Analyst"
-              value={profileDraft.cv_headline}
-              onChange={(e) => setProfileDraft({ ...profileDraft, cv_headline: e.target.value })} />
-            <input className="input-field" placeholder="Location, e.g. Ramallah, Palestine"
-              value={profileDraft.cv_location}
-              onChange={(e) => setProfileDraft({ ...profileDraft, cv_location: e.target.value })} />
+            <div className="flex items-center gap-2">
+              <input className="input-field flex-1" placeholder="Headline, e.g. Financial Analyst"
+                value={profileDraft.cv_headline}
+                onChange={(e) => setProfileDraft({ ...profileDraft, cv_headline: e.target.value })} />
+              <VoiceInputButton size="sm" onText={(c) => setProfileDraft((p) => ({ ...p, cv_headline: appendText(p.cv_headline, c) }))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <input className="input-field flex-1" placeholder="Location, e.g. Ramallah, Palestine"
+                value={profileDraft.cv_location}
+                onChange={(e) => setProfileDraft({ ...profileDraft, cv_location: e.target.value })} />
+              <VoiceInputButton size="sm" onText={(c) => setProfileDraft((p) => ({ ...p, cv_location: appendText(p.cv_location, c) }))} />
+            </div>
             <input className="input-field sm:col-span-2" placeholder="Phone (optional)"
               value={profileDraft.cv_phone}
               onChange={(e) => setProfileDraft({ ...profileDraft, cv_phone: e.target.value })} />
           </div>
         </div>
-        <textarea className="input-field" rows={3}
-          placeholder="Professional summary — 2-3 sentences on who you are and what you bring."
-          value={profileDraft.cv_summary}
-          onChange={(e) => setProfileDraft({ ...profileDraft, cv_summary: e.target.value })} />
+        <div className="flex items-start gap-2">
+          <textarea className="input-field flex-1" rows={3}
+            placeholder="Professional summary — 2-3 sentences on who you are and what you bring."
+            value={profileDraft.cv_summary}
+            onChange={(e) => setProfileDraft({ ...profileDraft, cv_summary: e.target.value })} />
+          <VoiceInputButton size="sm" className="mt-1" onText={(c) => setProfileDraft((p) => ({ ...p, cv_summary: appendText(p.cv_summary, c) }))} />
+        </div>
       </GlassCard>
 
       {/* ── Top bar: tabs + action buttons ──────────────────── */}
@@ -490,13 +500,22 @@ ${cvSummary}`,
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
           {tab === 'experience' && (
             <>
-              <input className="input-field" placeholder="Job title"
-                value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
-                autoFocus required />
-              <input className="input-field" placeholder="Company"
-                value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
-              <input className="input-field" placeholder="Location (optional)"
-                value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Job title"
+                  value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  autoFocus required />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, role: appendText(f.role, c) }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Company"
+                  value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, company: appendText(f.company, c) }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Location (optional)"
+                  value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, location: appendText(f.location, c) }))} />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <input className="input-field" placeholder="Start (e.g. Jan 2023)"
                   value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
@@ -509,42 +528,66 @@ ${cvSummary}`,
                   onChange={(e) => setForm({ ...form, is_current: e.target.checked, end_date: e.target.checked ? '' : form.end_date })} />
                 I currently work here
               </label>
-              <textarea className="input-field" placeholder="What did you do? (bullet points work great)" rows={3}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <div className="flex items-start gap-2">
+                <textarea className="input-field flex-1" placeholder="What did you do? (bullet points work great)" rows={3}
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <VoiceInputButton size="sm" className="mt-1" onText={(c) => setForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+              </div>
             </>
           )}
           {tab === 'education' && (
             <>
-              <input className="input-field" placeholder="School / University"
-                value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })}
-                autoFocus required />
-              <input className="input-field" placeholder="Degree, e.g. Bachelor of Science"
-                value={form.degree} onChange={(e) => setForm({ ...form, degree: e.target.value })} />
-              <input className="input-field" placeholder="Field of study (optional)"
-                value={form.field} onChange={(e) => setForm({ ...form, field: e.target.value })} />
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="School / University"
+                  value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })}
+                  autoFocus required />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, school: appendText(f.school, c) }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Degree, e.g. Bachelor of Science"
+                  value={form.degree} onChange={(e) => setForm({ ...form, degree: e.target.value })} />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, degree: appendText(f.degree, c) }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Field of study (optional)"
+                  value={form.field} onChange={(e) => setForm({ ...form, field: e.target.value })} />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, field: appendText(f.field, c) }))} />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <input className="input-field" placeholder="Start (e.g. 2021)"
                   value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
                 <input className="input-field" placeholder="End (e.g. 2025)"
                   value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
               </div>
-              <textarea className="input-field" placeholder="Notes (optional) — honors, relevant coursework, GPA" rows={2}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <div className="flex items-start gap-2">
+                <textarea className="input-field flex-1" placeholder="Notes (optional) — honors, relevant coursework, GPA" rows={2}
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <VoiceInputButton size="sm" className="mt-1" onText={(c) => setForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+              </div>
             </>
           )}
           {tab === 'projects' && (
             <>
-              <input className="input-field" placeholder="Project title"
-                value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-                autoFocus required />
-              <textarea className="input-field" placeholder="Description" rows={2}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              <input className="input-field" placeholder="Tech stack (e.g. React, Node)"
-                value={form.tech}
-                onChange={(e) => setForm({ ...form, tech: e.target.value })} />
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Project title"
+                  value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  autoFocus required />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+              </div>
+              <div className="flex items-start gap-2">
+                <textarea className="input-field flex-1" placeholder="Description" rows={2}
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <VoiceInputButton size="sm" className="mt-1" onText={(c) => setForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Tech stack (e.g. React, Node)"
+                  value={form.tech}
+                  onChange={(e) => setForm({ ...form, tech: e.target.value })} />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, tech: appendText(f.tech, c) }))} />
+              </div>
               <input className="input-field" placeholder="Link (optional)"
                 value={form.link}
                 onChange={(e) => setForm({ ...form, link: e.target.value })} />
@@ -552,9 +595,12 @@ ${cvSummary}`,
           )}
           {tab === 'skills' && (
             <>
-              <input className="input-field" placeholder="Skill name"
-                value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                autoFocus required />
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Skill name"
+                  value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  autoFocus required />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, name: appendText(f.name, c) }))} />
+              </div>
               <select className="input-field" value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value })}>
                 <option value="beginner">Beginner</option>
@@ -570,12 +616,18 @@ ${cvSummary}`,
           )}
           {tab === 'certifications' && (
             <>
-              <input className="input-field" placeholder="Certification title"
-                value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-                autoFocus required />
-              <input className="input-field" placeholder="Issuer"
-                value={form.issuer}
-                onChange={(e) => setForm({ ...form, issuer: e.target.value })} />
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Certification title"
+                  value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  autoFocus required />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className="input-field flex-1" placeholder="Issuer"
+                  value={form.issuer}
+                  onChange={(e) => setForm({ ...form, issuer: e.target.value })} />
+                <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, issuer: appendText(f.issuer, c) }))} />
+              </div>
               <input type="date" className="input-field"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })} />
