@@ -199,9 +199,13 @@ export default function Flow() {
     return mysticTrees.find((mt) => mt.id === id) || null;
   };
   // Renders the real Mystic Tree design when `key` points at one,
-  // otherwise falls back to the plain emoji set above.
-  function TreeIcon({ treeKey, size = 34 }) {
-    const mystic = findMystic(treeKey);
+  // otherwise falls back to the plain emoji set above. `mysticDesign`
+  // lets a caller pass a design directly (shape_key/color_hex/glow_hex)
+  // instead of looking it up in the viewer's own mysticTrees — needed for
+  // a room's shared tree, which can belong to any member and only that
+  // member's personal /trees response would resolve it via findMystic.
+  function TreeIcon({ treeKey, size = 34, mysticDesign = null }) {
+    const mystic = mysticDesign || findMystic(treeKey);
     if (mystic) {
       return (
         <span style={{ display: 'inline-flex', color: mystic.color_hex, filter: `drop-shadow(0 0 8px ${mystic.glow_hex}99)` }}>
@@ -211,6 +215,14 @@ export default function Flow() {
     }
     return <>{treeEmoji(treeKey)}</>;
   }
+  // Builds the mysticDesign prop for a room-tree object (which carries
+  // shape_key/color_hex/glow_hex directly from the server, see
+  // GET /rooms/:code) — null for non-mystic keys, letting TreeIcon fall
+  // through to its normal emoji lookup.
+  const roomMysticDesign = (rt) =>
+    rt?.tree_key?.startsWith('mystic:') && rt.shape_key
+      ? { shape_key: rt.shape_key, color_hex: rt.color_hex, glow_hex: rt.glow_hex }
+      : null;
 
   const [tab,       setTab]       = useState('timer');
   const [roomModal, setRoomModal] = useState(false);
@@ -484,7 +496,7 @@ export default function Flow() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
                 <motion.div
-                  key={equippedTree}
+                  key={room && roomTree ? roomTree.tree_key : (isBirthday ? 'christmas' : equippedTree)}
                   animate={isRunning
                     ? { y: [0, -5, 0], scale: [1, 1.05, 1] }
                     : { y: [0, -3, 0] }
@@ -493,7 +505,18 @@ export default function Flow() {
                   className="text-4xl mb-1 select-none"
                   style={{ filter: isRunning ? `drop-shadow(0 0 8px ${modeColor}88)` : 'none' }}
                 >
-                  <TreeIcon treeKey={isBirthday ? 'christmas' : equippedTree} size={36} />
+                  {room && roomTree ? (
+                    // In an active room, the centerpiece tree is the
+                    // room's shared tree (whoever's equipped tree it was
+                    // when the session started) — not the viewer's own,
+                    // which was the bug: every member saw their own tree
+                    // regardless of what the host actually planted.
+                    roomTree.status === 'dead'
+                      ? <>{DEAD_EMOJI}</>
+                      : <TreeIcon treeKey={roomTree.tree_key} size={36} mysticDesign={roomMysticDesign(roomTree)} />
+                  ) : (
+                    <TreeIcon treeKey={isBirthday ? 'christmas' : equippedTree} size={36} />
+                  )}
                 </motion.div>
                 <span
                   className="font-display tabular-nums leading-none text-ink dark:text-white"
@@ -690,7 +713,7 @@ export default function Flow() {
                   <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-3"
                     style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
                     <span className="text-lg shrink-0">
-                      {roomTree.status === 'dead' ? DEAD_EMOJI : (treeEmoji(roomTree.tree_key))}
+                      {roomTree.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={roomTree.tree_key} size={18} mysticDesign={roomMysticDesign(roomTree)} />}
                     </span>
                     <span className="text-[11px] font-semibold leading-snug" style={{ color: treeStatusColor() }}>
                       {treeStatusLabel()}
@@ -812,7 +835,7 @@ export default function Flow() {
                 <div className="flex items-center gap-2.5 rounded-2xl px-5 py-3 mb-4"
                   style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
                   <span className="text-xl shrink-0">
-                    {roomTree.status === 'dead' ? DEAD_EMOJI : (treeEmoji(roomTree.tree_key))}
+                    {roomTree.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={roomTree.tree_key} size={22} mysticDesign={roomMysticDesign(roomTree)} />}
                   </span>
                   <span className="text-xs font-semibold leading-snug" style={{ color: treeStatusColor() }}>
                     {treeStatusLabel()}
@@ -944,13 +967,13 @@ export default function Flow() {
                           key={i}
                           initial={{ scale: 0 }} animate={{ scale: 1 }}
                           transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
-                          className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-2xl leading-none"
                           title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
                           style={tr.status === 'dead'
                             ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
                             : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
                         >
-                          {tr.status === 'dead' ? DEAD_EMOJI : (treeEmoji(tr.tree_key))}
+                          {tr.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={tr.tree_key} size={26} />}
                         </motion.div>
                       ))}
                     </div>

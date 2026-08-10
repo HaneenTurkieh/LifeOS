@@ -585,6 +585,24 @@ router.get('/rooms/:code', async (req, res) => {
           tr.status = 'completed';
         }
         tree = { tree_key: tr.tree_key, status: tr.status, died_by_name: tr.died_by_name || null, died_reason: tr.died_reason || null };
+        // The room's tree can belong to any member (whoever's equipped
+        // tree it was when the shared session started) — a Mystic Tree
+        // design only lives in *that* member's own user_mystic_tree rows,
+        // so every other viewer needs the actual shape/color handed to
+        // them directly. Without this, everyone but the tree's owner just
+        // sees the generic 🔮 fallback instead of the real design.
+        if (tr.tree_key && tr.tree_key.startsWith('mystic:')) {
+          const mysticId = Number(tr.tree_key.slice('mystic:'.length));
+          const design = (await db.execute({
+            sql: `SELECT shape_key, color_hex, glow_hex FROM user_mystic_tree WHERE id = ?`,
+            args: [mysticId],
+          })).rows[0];
+          if (design) {
+            tree.shape_key = design.shape_key;
+            tree.color_hex = design.color_hex;
+            tree.glow_hex  = design.glow_hex;
+          }
+        }
       }
     } catch (_) {}
 
@@ -665,12 +683,48 @@ router.post('/rooms/:code/timer/stop', async (req, res) => {
 
     if (stoppedEarly) {
       try {
-        const tr = (await db.execute({ sql: `SELECT status FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id] })).rows[0];
+        const tr = (await db.execute({
+          sql: `SELECT status FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id],
+        })).rows[0];
         if (tr && tr.status === 'alive') {
           await db.execute({
             sql: `UPDATE focus_room_tree SET status = 'dead', died_by_name = ?, died_reason = 'host_stopped', updated_at = datetime('now') WHERE room_id = ?`,
             args: [req.user.name, roomRow.id],
           });
+          // The shared room tree dying was never mirrored into each
+          // member's own Forest history — reconcileRoomSession (above)
+          // writes a personal `planted_trees` row per member on a
+          // *successful* completion, but this early-stop path only ever
+          // touched the one shared focus_room_tree row, so a session that
+          // died here simply vanished for everyone instead of showing up
+          // as a wilted tree on their personal Forest tab. Mirror it the
+          // same way, with 'dead' status and partial (elapsed) duration.
+          try {
+            const timerRow = (await db.execute({
+              sql: `SELECT started_at FROM focus_room_timer WHERE room_id = ?`, args: [roomRow.id],
+            })).rows[0];
+            const elapsedMinutes = timerRow
+              ? Math.max(0, Math.floor((Date.now() - new Date(timerRow.started_at.replace(' ', 'T') + 'Z').getTime()) / 60000))
+              : 0;
+            const focusingMembers = (await db.execute({
+              sql: `SELECT user_id FROM focus_room_members WHERE room_id = ? AND is_focusing = 1`,
+              args: [roomRow.id],
+            })).rows;
+            for (const m of focusingMembers) {
+              try {
+                const treeKey = await getEquippedTree(m.user_id);
+                await db.execute({
+                  sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
+                         VALUES (?, ?, 'dead', 'Room session', ?)`,
+                  args: [m.user_id, treeKey, elapsedMinutes],
+                });
+              } catch (e) { console.error('room-death planted_trees insert failed (non-fatal):', m.user_id, e.message); }
+            }
+            await db.execute({
+              sql:  `UPDATE focus_room_members SET is_focusing = 0 WHERE room_id = ? AND is_focusing = 1`,
+              args: [roomRow.id],
+            });
+          } catch (e) { console.error('room-death member sweep failed (non-fatal):', e.message); }
         }
       } catch (_) {}
     }
