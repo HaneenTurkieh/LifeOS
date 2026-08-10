@@ -7,14 +7,16 @@
 
 Aurora is a solo-built (Haneen Turkieh, 19, CS student at An-Najah National
 University, Nablus) full-stack productivity app — React/Vite client on Vercel,
-Node/Express server on Render, Turso libSQL DB. AI features are now split
-across two providers by cost/capability (see `server/lib/openrouter.js`):
-plain Lumi chat and exam generation (the two highest-volume, pure-text calls)
-route to OpenRouter/DeepSeek V3.2 (`OPENROUTER_API_KEY`), far cheaper and
-benchmark-competitive with Haiku; PDF/image extraction (needs Claude's native
-document/vision input), Deep Think (extended thinking), and Deep Search
-(Anthropic's hosted web_search tool) stay on Claude Haiku (`ANTHROPIC_API_KEY`)
-since none of those three have a direct OpenRouter/DeepSeek equivalent.
+Node/Express server on Render, Turso libSQL DB. AI features are split across
+two free/near-free providers by capability — Anthropic/Claude Haiku has been
+fully retired. Plain Lumi chat and exam generation (the two highest-volume,
+pure-text calls) route to OpenRouter/DeepSeek V3.2 (`OPENROUTER_API_KEY`, see
+`server/lib/openrouter.js`). PDF/image extraction (needs native vision/document
+input), Deep Think (needs native reasoning), and Deep Search (needs a hosted
+web-search tool) route to Gemini 2.5 Flash (`GEMINI_API_KEY`, see
+`server/lib/gemini.js`), which covers all three on its free tier and is ~6-7x
+cheaper than Haiku even past that. `ANTHROPIC_API_KEY` is no longer used
+anywhere in the app.
 This was a long, thorough bugfix + polish session. **Everything reported this
 session is fixed and pushed.** The two real open threads are: (1) picking and
 integrating a real payment gateway (in progress — researching Arab Bank's

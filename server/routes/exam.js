@@ -5,6 +5,7 @@ const { db }  = require('../db/connection');
 const { isPremium } = require('../lib/premium');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
+const { callGemini } = require('../lib/gemini');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -25,50 +26,38 @@ router.post('/extract', upload.single('file'), async (req, res) => {
   const ext = file.originalname.toLowerCase().split('.').pop();
   if (!SUPPORTED.includes(ext))
     return res.status(400).json({ error: `Unsupported type. Supported: ${SUPPORTED.join(', ')}` });
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
   try {
     let text = '';
     if (ext === 'pdf') {
       const base64 = file.buffer.toString('base64');
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({
-          model:      'claude-haiku-4-5-20251001',
-          max_tokens: 4096,
-          messages: [{
-            role:    'user',
-            content: [
-              { type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } },
-              { type:'text', text:'Extract ALL text from this document. Include every heading, paragraph, bullet point, table, formula, and caption. Do not skip or summarize anything. Return raw text only.' },
-            ],
-          }],
-        }),
+      const data = await callGemini({
+        contents: [{
+          role: 'user',
+          parts: [
+            { inline_data: { mime_type: 'application/pdf', data: base64 } },
+            { text: 'Extract ALL text from this document. Include every heading, paragraph, bullet point, table, formula, and caption. Do not skip or summarize anything. Return raw text only.' },
+          ],
+        }],
+        maxOutputTokens: 8192,
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error?.message || 'Claude API error');
-      text = d.content?.[0]?.text || '';
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      text = parts.filter((p) => p.text).map((p) => p.text).join('');
     } else if (['png','jpg','jpeg','webp','gif'].includes(ext)) {
       const base64 = file.buffer.toString('base64');
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method:  'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({
-          model:      'claude-haiku-4-5-20251001',
-          max_tokens: 4096,
-          messages: [{
-            role:    'user',
-            content: [
-              { type:'image', source:{ type:'base64', media_type:file.mimetype, data:base64 } },
-              { type:'text',  text:'Extract ALL text and content visible in this image. Include everything — text, labels, diagrams, formulas, tables. Return the complete content.' },
-            ],
-          }],
-        }),
+      const data = await callGemini({
+        contents: [{
+          role: 'user',
+          parts: [
+            { inline_data: { mime_type: file.mimetype, data: base64 } },
+            { text: 'Extract ALL text and content visible in this image. Include everything — text, labels, diagrams, formulas, tables. Return the complete content.' },
+          ],
+        }],
+        maxOutputTokens: 8192,
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error?.message || 'Claude API error');
-      text = d.content?.[0]?.text || '';
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      text = parts.filter((p) => p.text).map((p) => p.text).join('');
     } else if (ext === 'txt') {
       text = file.buffer.toString('utf-8');
     } else if (ext === 'docx') {
