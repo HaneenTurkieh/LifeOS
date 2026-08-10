@@ -12,6 +12,7 @@ import PriorityPill  from '../components/PriorityPill.jsx';
 import Modal         from '../components/Modal.jsx';
 import EmptyState    from '../components/EmptyState.jsx';
 import PageLoader    from '../components/Loader.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 function localTodayStr()   { return new Date().toLocaleDateString('en-CA'); }
@@ -277,10 +278,16 @@ export default function Tasks() {
       )}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingTask ? t('tasks.editTask') : t('tasks.newTask')}>
         <form onSubmit={submitForm} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder={t('tasks.taskTitle')} value={form.title}
-            onChange={e => setForm({...form, title:e.target.value})} autoFocus required />
-          <textarea className="input-field" placeholder={t('goals.descPh')} rows={2}
-            value={form.description} onChange={e => setForm({...form, description:e.target.value})} />
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder={t('tasks.taskTitle')} value={form.title}
+              onChange={e => setForm({...form, title:e.target.value})} autoFocus required />
+            <VoiceInputButton size="sm" onText={(chunk) => setForm(f => ({...f, title: appendText(f.title, chunk)}))} />
+          </div>
+          <div className="flex items-start gap-2">
+            <textarea className="input-field flex-1" placeholder={t('goals.descPh')} rows={2}
+              value={form.description} onChange={e => setForm({...form, description:e.target.value})} />
+            <VoiceInputButton size="sm" className="mt-1" onText={(chunk) => setForm(f => ({...f, description: appendText(f.description, chunk)}))} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <select className="input-field" value={form.priority} onChange={e => setForm({...form, priority:e.target.value})}>
               <option value="high">{t('tasks.priorityHigh')}</option>
