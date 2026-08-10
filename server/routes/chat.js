@@ -4,6 +4,7 @@ const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
 const { callGemini } = require('../lib/gemini');
+const { getHabitStreak } = require('../lib/gamification');
 
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
 const TONE_PROMPTS = {
@@ -380,22 +381,24 @@ async function executeTool(name, input, userId) {
       return { available_hours: hours, energy, plan };
     }
     case 'get_habit_streaks': {
+      // habits has no `streak` column — streak is computed on the fly from
+      // habit_logs (same helper the Habits page itself uses), not stored.
       const today = new Date().toISOString().slice(0, 10);
       const habits = await db.execute({
-        sql: `SELECT h.id, h.name, h.streak, h.color,
+        sql: `SELECT h.id, h.name, h.color,
                      (SELECT COUNT(*) FROM habit_logs hl WHERE hl.habit_id=h.id AND hl.date=?) done_today,
                      (SELECT COUNT(*) FROM habit_logs hl WHERE hl.habit_id=h.id AND hl.date>=date('now','-30 days')) logs_30d
-              FROM habits h WHERE h.user_id=? ORDER BY h.streak DESC`,
+              FROM habits h WHERE h.user_id=?`,
         args: [today, userId],
       });
-      const rows = habits.rows.map(h => ({
+      const rows = (await Promise.all(habits.rows.map(async (h) => ({
         name:       h.name,
-        streak:     Number(h.streak || 0),
+        streak:     await getHabitStreak(h.id),
         done_today: Boolean(h.done_today),
         logs_30d:   Number(h.logs_30d || 0),
         consistency_30d: Math.round((Number(h.logs_30d || 0) / 30) * 100),
-        at_risk: !h.done_today && Number(h.streak || 0) > 0,
-      }));
+      })))).map((h) => ({ ...h, at_risk: !h.done_today && h.streak > 0 }))
+        .sort((a, b) => b.streak - a.streak);
       const atRisk = rows.filter(h => h.at_risk);
       return {
         habits: rows,
@@ -546,7 +549,7 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
     const [tasks, goals, habits, mood, focus, xp, memories] = await Promise.all([
       q(`SELECT title,priority,deadline FROM tasks WHERE user_id=? AND status!='done' ORDER BY deadline ASC LIMIT 8`, [userId]),
       q(`SELECT title,status,category FROM goals WHERE user_id=? LIMIT 5`, [userId]),
-      q(`SELECT name,streak FROM habits WHERE user_id=? LIMIT 6`, [userId]),
+      q(`SELECT id,name FROM habits WHERE user_id=? LIMIT 6`, [userId]),
       q(`SELECT mood FROM moods WHERE user_id=? AND date=?`, [userId, today]),
       q(`SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, [userId]),
       q(`SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, [userId]),
@@ -559,7 +562,9 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false) 
     const settings = await getSettings(userId);
     const taskList   = tasks.rows.map(t => `• ${t.title} [${t.priority}${t.deadline ? ` · due ${t.deadline}` : ''}]`).join('\n') || 'None';
     const goalList   = goals.rows.map(g => `• ${g.title} [${g.status}]`).join('\n') || 'None';
-    const habitList  = habits.rows.map(h => `• ${h.name} (${h.streak}d streak)`).join('\n') || 'None';
+    // habits has no `streak` column — computed on the fly from habit_logs.
+    const habitStreaks = await Promise.all(habits.rows.map((h) => getHabitStreak(h.id)));
+    const habitList  = habits.rows.map((h, i) => `• ${h.name} (${habitStreaks[i]}d streak)`).join('\n') || 'None';
     const memoryList = memories.rows.length
       ? memories.rows.map(m => `• ${m.key}: ${m.value}`).join('\n')
       : 'None yet';
