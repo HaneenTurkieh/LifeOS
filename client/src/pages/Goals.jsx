@@ -11,6 +11,7 @@ import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 import HabitHistory from '../components/HabitHistory.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const ICON_CHOICES  = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
 const COLOR_CHOICES = ['#F97316','#6366F1','#06B6D4','#22C55E','#A855F7','#EC4899','#F59E0B','#14B8A6'];
@@ -490,10 +491,16 @@ export default function Goals() {
       )}
       <Modal open={goalModal} onClose={() => setGoalModal(false)} title={t('goals.newGoal')}>
         <form onSubmit={createGoal} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder={t('goals.goalTitlePh')}
-            value={goalForm.title} onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })} autoFocus required />
-          <textarea className="input-field" placeholder={t('goals.descPh')} rows={2}
-            value={goalForm.description} onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}/>
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder={t('goals.goalTitlePh')}
+              value={goalForm.title} onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })} autoFocus required />
+            <VoiceInputButton size="sm" onText={(chunk) => setGoalForm(f => ({ ...f, title: appendText(f.title, chunk) }))} />
+          </div>
+          <div className="flex items-start gap-2">
+            <textarea className="input-field flex-1" placeholder={t('goals.descPh')} rows={2}
+              value={goalForm.description} onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}/>
+            <VoiceInputButton size="sm" className="mt-1" onText={(chunk) => setGoalForm(f => ({ ...f, description: appendText(f.description, chunk) }))} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <input className="input-field" placeholder={t('calendar.category')}
               value={goalForm.category} onChange={(e) => setGoalForm({ ...goalForm, category: e.target.value })}/>
@@ -519,8 +526,14 @@ export default function Goals() {
                 <Icons.Wand2 size={12}/> {suggesting ? t('goals.thinking') : t('goals.suggestAI')}
               </button>
             </div>
-            <textarea className="input-field" rows={4}
-              value={goalForm.milestonesText} onChange={(e) => setGoalForm({ ...goalForm, milestonesText: e.target.value })}/>
+            <div className="flex items-start gap-2">
+              <textarea className="input-field flex-1" rows={4}
+                value={goalForm.milestonesText} onChange={(e) => setGoalForm({ ...goalForm, milestonesText: e.target.value })}/>
+              {/* One milestone per line, so each dictated chunk starts a
+                  new line instead of running into the previous one. */}
+              <VoiceInputButton size="sm" className="mt-1"
+                onText={(chunk) => setGoalForm(f => ({ ...f, milestonesText: f.milestonesText ? `${f.milestonesText}\n${chunk}` : chunk }))} />
+            </div>
           </div>
           <button type="submit" className="btn-primary justify-center mt-1">{t('goals.createGoal')}</button>
         </form>

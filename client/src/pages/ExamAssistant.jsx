@@ -11,6 +11,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const FILE_TYPES = [
   { ext:'PDF',  icon:'📄', accept:'.pdf'              },
@@ -1254,9 +1255,15 @@ Content:\n${content}`;
                 <div className="flex-1 h-px bg-ink/8"/>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
-                  {uploadedFile ? t('exam.extraNotes') : t('exam.notes')}
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-ink/40">
+                    {uploadedFile ? t('exam.extraNotes') : t('exam.notes')}
+                  </p>
+                  {/* Dictation lets someone who can't type (or just doesn't
+                      want to) get their study material in by talking
+                      instead — same textarea, same downstream generation. */}
+                  <VoiceInputButton size="sm" onText={(chunk) => setNotes((n) => appendText(n, chunk))} />
+                </div>
                 <textarea
                   className="w-full rounded-2xl p-4 text-sm text-ink dark:text-white bg-white/60 dark:bg-white/[0.05] border border-white/65 outline-none resize-none placeholder:text-ink/30 focus:border-lavender-400 transition"
                   rows={uploadedFile ? 4 : 10}

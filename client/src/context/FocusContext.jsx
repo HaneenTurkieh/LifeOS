@@ -562,9 +562,9 @@ export function FocusProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
 
-  // ── Pause is a 60s grace period, not a free pass. If you pause a
+  // ── Pause is a 10s grace period, not a free pass. If you pause a
   // focus session with at least a minute already logged and don't
-  // resume within 60s, the tree dies — same outcome as hitting Reset,
+  // resume within 10s, the tree dies — same outcome as hitting Reset,
   // just with a warning window first instead of being instant.
   const pauseGraceTimeoutRef = useRef(null);
   const clearPauseGrace = useCallback(() => {
@@ -635,8 +635,8 @@ export function FocusProvider({ children }) {
       const elapsedMin = Math.floor((totalTime - timeLeft) / 60);
       if (mode === 'focus' && elapsedMin >= 1) {
         toast.error(lang === 'ar'
-          ? '⏸ أوقفت الجلسة مؤقتًا — استأنف خلال 60 ثانية وإلا ماتت شجرتك 🥀'
-          : "⏸ Paused — resume within 60s or your tree dies 🥀");
+          ? '⏸ أوقفت الجلسة مؤقتًا — استأنف خلال 10 ثوانٍ وإلا ماتت شجرتك 🥀'
+          : "⏸ Paused — resume within 10s or your tree dies 🥀");
         clearPauseGrace();
         pauseGraceTimeoutRef.current = setTimeout(() => {
           pauseGraceTimeoutRef.current = null;
@@ -651,7 +651,7 @@ export function FocusProvider({ children }) {
             running: false, started_at: null,
             remaining_seconds: mins * 60, duration_seconds: mins * 60,
           });
-        }, 60000);
+        }, 10000);
       }
     }
   };

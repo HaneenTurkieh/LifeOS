@@ -194,8 +194,8 @@ export const translations = {
       'flow.treeDiedTitle': 'Your Tree Died 💔',
       'flow.diedAfterMin':  '{n} min of focus before you quit.',
       'flow.tryAgain':      'Try again',
-      'flow.pauseGraceWarning': '⏸ Paused — resume within 60s or your tree dies',
-      'flow.diedFromPause':     'You paused for too long and the session ended. Pausing gives you a 60-second grace window — after that, it counts as quitting.',
+      'flow.pauseGraceWarning': '⏸ Paused — resume within 10s or your tree dies',
+      'flow.diedFromPause':     'You paused for too long and the session ended. Pausing gives you a 10-second grace window — after that, it counts as quitting.',
   
       // ── Lumi ───────────────────────────────────────────────
       'lumi.greeting':     "Hi {name}, I'm Lumi ✦",
@@ -853,8 +853,8 @@ export const translations = {
       'flow.treeDiedTitle': 'ماتت شجرتك 💔',
       'flow.diedAfterMin':  '{n} دقيقة من التركيز قبل أن تستسلم.',
       'flow.tryAgain':      'حاول مجددًا',
-      'flow.pauseGraceWarning': '⏸ أوقفت الجلسة مؤقتًا — استأنف خلال 60 ثانية وإلا ماتت شجرتك',
-      'flow.diedFromPause':     'توقفت مؤقتًا لفترة طويلة فانتهت الجلسة. الإيقاف المؤقت يمنحك 60 ثانية كفترة سماح — بعدها يُحتسب كاستسلام.',
+      'flow.pauseGraceWarning': '⏸ أوقفت الجلسة مؤقتًا — استأنف خلال 10 ثوانٍ وإلا ماتت شجرتك',
+      'flow.diedFromPause':     'توقفت مؤقتًا لفترة طويلة فانتهت الجلسة. الإيقاف المؤقت يمنحك 10 ثوانٍ كفترة سماح — بعدها يُحتسب كاستسلام.',
   
       // ── لومي ────────────────────────────────────────────────
       'lumi.greeting':     'أهلًا {name}، أنا لومي ✦',
