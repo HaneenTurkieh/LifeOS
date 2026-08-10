@@ -14,6 +14,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
 import { isTodayBirthday, getAge } from '../utils/birthday.js';
+import VoiceInputButton, { appendText } from './VoiceInputButton.jsx';
 
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
@@ -132,8 +133,11 @@ function ProfileTab() {
           </div>
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1.5 block">{t('settings.bio')}</label>
-            <textarea className="input-field resize-none" rows={2} value={bio}
-              onChange={e => setBio(e.target.value)} placeholder={t('settings.bioPh')}/>
+            <div className="flex items-center gap-2">
+              <textarea className="input-field resize-none flex-1" rows={2} value={bio}
+                onChange={e => setBio(e.target.value)} placeholder={t('settings.bioPh')}/>
+              <VoiceInputButton size="sm" onText={(c) => setBio((v) => appendText(v, c))} />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -636,9 +640,12 @@ function FeedbackTab() {
   return (
     <div className="flex flex-col gap-4">
       <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 block">{t('settings.sendFeedback')}</label>
-      <textarea className="input-field resize-none" rows={5}
-        placeholder={t('settings.feedbackPh')}
-        value={msg} onChange={e => setMsg(e.target.value)}/>
+      <div className="flex items-center gap-2">
+        <textarea className="input-field resize-none flex-1" rows={5}
+          placeholder={t('settings.feedbackPh')}
+          value={msg} onChange={e => setMsg(e.target.value)}/>
+        <VoiceInputButton size="sm" onText={(c) => setMsg((v) => appendText(v, c))} />
+      </div>
       <button onClick={send} disabled={!msg.trim()||sending||sent} className="btn-primary justify-center">
         {sending?t('settings.sending'):sent?t('settings.sent'):t('settings.sendFeedback')}
       </button>

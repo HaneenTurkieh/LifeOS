@@ -1,0 +1,59 @@
+// server/lib/openrouter.js
+// Thin wrapper around OpenRouter's OpenAI-compatible /chat/completions
+// endpoint, used for the highest-volume, plain-text AI calls in the
+// app (everyday Lumi chat, exam generation) — DeepSeek V3.2 there is
+// both far cheaper than Haiku and benchmark-competitive with it.
+//
+// Deliberately NOT used for: PDF/image extraction in exam.js (needs
+// Claude's native document/vision input — DeepSeek's chat endpoint is
+// text-only), Deep Think (needs Anthropic's extended-thinking budget
+// param), or Deep Search (needs Anthropic's hosted web_search tool,
+// which has no equivalent on OpenRouter). Those three keep calling
+// ANTHROPIC_API_KEY directly, unchanged.
+const OPENROUTER_MODEL = 'deepseek/deepseek-chat';
+const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
+
+// Anthropic tool shape ({ name, description, input_schema }) → OpenAI/
+// OpenRouter function-calling shape ({ type:'function', function:{...} }).
+// Lets chat.js keep defining its tools once, in the format it already
+// used for the Anthropic loop, rather than maintaining two copies.
+function toolsToOpenAiFormat(tools) {
+  return (tools || []).map((tool) => ({
+    type: 'function',
+    function: {
+      name:        tool.name,
+      description: tool.description,
+      parameters:  tool.input_schema || { type: 'object', properties: {} },
+    },
+  }));
+}
+
+async function callOpenRouter({ system, messages, tools, max_tokens = 1024 }) {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error('OPENROUTER_API_KEY not set');
+
+  const body = {
+    model:    OPENROUTER_MODEL,
+    messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
+    max_tokens,
+  };
+  if (tools?.length) body.tools = toolsToOpenAiFormat(tools);
+
+  const r = await fetch(OPENROUTER_URL, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${key}`,
+      // Not required for billing, just OpenRouter's own attribution —
+      // harmless to send, helps their leaderboard/analytics.
+      'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
+      'X-Title':       'Aurora',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error?.message || 'OpenRouter API error');
+  return data;
+}
+
+module.exports = { callOpenRouter, OPENROUTER_MODEL };

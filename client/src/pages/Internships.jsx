@@ -6,6 +6,7 @@ import GlassCard from '../components/GlassCard.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
+import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const COLUMNS = [
   { key: 'applied',   title: 'Applied',   accent: 'bg-lavender-400' },
@@ -106,10 +107,16 @@ export default function Internships({ openTrigger = 0 }) {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add application">
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
-          <input className="input-field" placeholder="Company" value={form.company}
-            onChange={(e) => setForm({ ...form, company: e.target.value })} autoFocus required />
-          <input className="input-field" placeholder="Role" value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })} required />
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder="Company" value={form.company}
+              onChange={(e) => setForm({ ...form, company: e.target.value })} autoFocus required />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, company: appendText(f.company, c) }))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <input className="input-field flex-1" placeholder="Role" value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })} required />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, role: appendText(f.role, c) }))} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <select className="input-field" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.title}</option>)}
@@ -119,8 +126,11 @@ export default function Internships({ openTrigger = 0 }) {
           </div>
           <input className="input-field" placeholder="Listing link (optional)" value={form.link}
             onChange={(e) => setForm({ ...form, link: e.target.value })} />
-          <textarea className="input-field" placeholder="Notes (optional)" rows={2} value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <div className="flex items-center gap-2">
+            <textarea className="input-field flex-1" placeholder="Notes (optional)" rows={2} value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, notes: appendText(f.notes, c) }))} />
+          </div>
           <button type="submit" className="btn-primary justify-center mt-1">Add application</button>
         </form>
       </Modal>
