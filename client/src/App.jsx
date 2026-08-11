@@ -21,6 +21,10 @@ import useMilestoneReminders from './hooks/useMilestoneReminders.js';
 import Login          from './pages/Login.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword  from './pages/ResetPassword.jsx';
+import Terms          from './pages/legal/Terms.jsx';
+import Privacy        from './pages/legal/Privacy.jsx';
+import Refund         from './pages/legal/Refund.jsx';
+import Pricing        from './pages/legal/Pricing.jsx';
 import Dashboard      from './pages/Dashboard.jsx';
 import Tasks          from './pages/Tasks.jsx';
 import Goals          from './pages/Goals.jsx';
@@ -128,6 +132,12 @@ export default function App() {
         <Route path="/login"           element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password"  element={<ResetPassword />} />
+        {/* Public — no login required. Paddle's domain review needs these
+            reachable without an account. */}
+        <Route path="/terms"           element={<Terms />} />
+        <Route path="/privacy"         element={<Privacy />} />
+        <Route path="/refund-policy"   element={<Refund />} />
+        <Route path="/pricing"         element={<Pricing />} />
         <Route path="/*" element={
           <ProtectedRoute>
             <AppShell />

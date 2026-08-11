@@ -228,6 +228,20 @@ export default function Login() {
         <span className="pointer-events-none absolute inset-x-8 bottom-0 h-px"
           style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
       </motion.div>
+
+      {/* Legal footer — needs to be reachable without logging in (Paddle's
+          domain review checks for this), and is a normal thing to have
+          regardless. */}
+      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-3 text-[11px] flex-wrap px-4"
+        style={{ color: linkClr }} dir="ltr">
+        <Link to="/pricing" className="hover:underline">Pricing</Link>
+        <span>·</span>
+        <Link to="/terms" className="hover:underline">Terms</Link>
+        <span>·</span>
+        <Link to="/privacy" className="hover:underline">Privacy</Link>
+        <span>·</span>
+        <Link to="/refund-policy" className="hover:underline">Refunds</Link>
+      </div>
     </div>
   );
 }
