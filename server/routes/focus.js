@@ -330,24 +330,37 @@ router.post('/sessions/abandon', async (req, res) => {
 router.get('/forest', async (req, res) => {
   try {
     const result = await db.execute({
-      sql: `SELECT tree_key, status, task_name, duration_minutes,
-                   date(planted_at) day, planted_at
+      sql: `SELECT tree_key, status, task_name, duration_minutes, planted_at
             FROM planted_trees WHERE user_id = ?
             ORDER BY planted_at DESC LIMIT 300`,
       args: [req.user.id],
     });
+    // planted_at is stored via SQLite's datetime('now') — UTC. Bucketing
+    // straight off date(planted_at) (UTC calendar day) meant anything
+    // planted right after local midnight, in any timezone ahead of UTC,
+    // still landed on UTC's previous day and showed up under "yesterday"
+    // in the forest history. Shift each timestamp by the client's own
+    // offset (same value JS's Date.getTimezoneOffset() reports) before
+    // bucketing, so a "day" here means the same local calendar day as
+    // everywhere else in the app (Dashboard, Mood, Habits).
+    const offsetMin = Number(req.query.tz_offset) || 0;
+    const localDay = (utcStr) => {
+      const utcMs = new Date(String(utcStr).replace(' ', 'T') + 'Z').getTime();
+      return new Date(utcMs - offsetMin * 60000).toISOString().slice(0, 10);
+    };
     const days = [];
     const byDay = {};
     for (const r of result.rows) {
-      if (!byDay[r.day]) { byDay[r.day] = []; days.push(r.day); }
-      byDay[r.day].push({
+      const day = localDay(r.planted_at);
+      if (!byDay[day]) { byDay[day] = []; days.push(day); }
+      byDay[day].push({
         tree_key: r.tree_key, status: r.status,
         task_name: r.task_name, duration_minutes: Number(r.duration_minutes),
       });
     }
     const alive = result.rows.filter(r => r.status === 'alive').length;
     const dead  = result.rows.filter(r => r.status === 'dead').length;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date(Date.now() - offsetMin * 60000).toISOString().slice(0, 10);
     res.json({
       days: days.map(d => ({ date: d, trees: byDay[d] })),
       stats: {
