@@ -212,7 +212,10 @@ const TOOLS = [
     },
   },
 ];
-async function executeTool(name, input, userId) {
+async function executeTool(name, input, userId, todayLocal) {
+  // Fallback only matters if a caller forgets to pass it — the real
+  // request path above always supplies the client's local date.
+  const today = todayLocal || new Date().toISOString().slice(0, 10);
   switch (name) {
     case 'create_task': {
       const maxPos = await db.execute({
@@ -396,7 +399,6 @@ async function executeTool(name, input, userId) {
     case 'get_habit_streaks': {
       // habits has no `streak` column — streak is computed on the fly from
       // habit_logs (same helper the Habits page itself uses), not stored.
-      const today = new Date().toISOString().slice(0, 10);
       const habits = await db.execute({
         sql: `SELECT h.id, h.name, h.color,
                      (SELECT COUNT(*) FROM habit_logs hl WHERE hl.habit_id=h.id AND hl.date=?) done_today,
@@ -471,7 +473,7 @@ async function executeTool(name, input, userId) {
       const MOOD_VALUES = { rough: 1, meh: 2, okay: 3, good: 4, great: 5 };
       const moodNum = MOOD_VALUES[String(input.mood || '').toLowerCase()];
       if (!moodNum) return { success: false, message: 'mood must be one of: rough, meh, okay, good, great' };
-      const date = input.date || new Date().toISOString().slice(0, 10);
+      const date = input.date || today;
       await db.execute({
         sql:  `INSERT INTO moods (user_id, date, mood, note)
                VALUES (?, ?, ?, ?)
@@ -493,7 +495,6 @@ async function executeTool(name, input, userId) {
               LIMIT 15`,
         args: [userId],
       });
-      const today = new Date().toISOString().slice(0, 10);
       const tasks = result.rows.map(t => {
         const daysLeft = Math.ceil((new Date(t.deadline) - new Date(today)) / (1000*60*60*24));
         return { ...t, days_left: daysLeft, urgency: daysLeft <= 1 ? 'urgent' : daysLeft <= 3 ? 'soon' : 'upcoming' };
@@ -570,9 +571,13 @@ async function generateTitle(firstUserMessage) {
   return words.length > 40 ? words.slice(0, 40) + '…' : words;
 }
 
-async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false, currentConvId = null) {
+async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false, currentConvId = null, todayLocal = null) {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    // Uses the client's own local date when available (see router.post
+    // below) so Lumi's idea of "today" matches the Dashboard/Mood/Habits
+    // pages, which are all computed from the user's browser timezone —
+    // not the server's UTC clock.
+    const today = todayLocal || new Date().toISOString().slice(0, 10);
     const q = (sql, args) =>
       db.execute({ sql, args }).catch((e) => {
         console.error('[lumi prompt] query failed (non-fatal):', e.message, '—', sql.slice(0, 60));
@@ -905,8 +910,20 @@ router.post('/', async (req, res) => {
   // lumi_conversations row every time, cluttering the visible chat
   // history with raw internal prompts. Everything still runs exactly
   // the same; only the DB writes at the bottom get skipped.
-  const { messages, conversation_id, mode = 'chat', attachments = [], no_history = false } = req.body;
+  const { messages, conversation_id, mode = 'chat', attachments = [], no_history = false, local_date } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
+
+  // Every other "today" in this app (Dashboard, Mood, Habits) is computed
+  // client-side from the user's own timezone (toLocaleDateString('en-CA')).
+  // This route used to fall back to the server's own UTC date instead —
+  // fine for users near UTC, silently wrong for anyone else (a mood logged
+  // through Lumi could land on a date that never matches what the
+  // Dashboard shows as "today"). Validate the client-sent date loosely and
+  // fall back to server UTC only if it's missing/malformed (older client
+  // build, or one of the no_history internal callers that don't send it).
+  const todayLocal = /^\d{4}-\d{2}-\d{2}$/.test(local_date || '')
+    ? local_date
+    : new Date().toISOString().slice(0, 10);
 
   // Deep Think and Deep Search are the priciest calls in the app
   // (extended thinking, and the web_search tool's own per-search fee) —
@@ -922,7 +939,7 @@ router.post('/', async (req, res) => {
 
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-    const system = await buildSystemPrompt(req.user.id, mode, hasAttachments, conversation_id);
+    const system = await buildSystemPrompt(req.user.id, mode, hasAttachments, conversation_id, todayLocal);
     let currentMessages = messages.map(m => ({ ...m }));
     if (hasAttachments) {
       for (let i = currentMessages.length - 1; i >= 0; i--) {
@@ -990,7 +1007,7 @@ router.post('/', async (req, res) => {
         geminiContents = [...geminiContents, { role: 'model', parts }];
         const functionResponseParts = [];
         for (const fc of functionCalls) {
-          const result = await executeTool(fc.name, fc.args || {}, req.user.id);
+          const result = await executeTool(fc.name, fc.args || {}, req.user.id, todayLocal);
           actions.push({ tool: fc.name, input: fc.args || {}, result });
           functionResponseParts.push({
             functionResponse: { name: fc.name, response: { name: fc.name, content: result } },
@@ -1020,7 +1037,7 @@ router.post('/', async (req, res) => {
         for (const tc of toolCalls) {
           let input = {};
           try { input = JSON.parse(tc.function.arguments || '{}'); } catch (_) {}
-          const result = await executeTool(tc.function.name, input, req.user.id);
+          const result = await executeTool(tc.function.name, input, req.user.id, todayLocal);
           actions.push({ tool: tc.function.name, input, result });
           toolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
         }
