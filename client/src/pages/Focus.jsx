@@ -241,7 +241,11 @@ export default function Flow() {
   const isRunningRef      = useRef(isRunning);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
 
-  const loadForest = () => api.get('/focus/forest').then(setForest).catch(() => {});
+  // tz_offset lets the server bucket each planted tree into the correct
+  // *local* calendar day — planted_at is stored in UTC, so without this,
+  // anything planted right after local midnight (in any timezone ahead of
+  // UTC) showed up filed under "yesterday" instead of today.
+  const loadForest = () => api.get(`/focus/forest?tz_offset=${new Date().getTimezoneOffset()}`).then(setForest).catch(() => {});
   useEffect(() => { if (tab === 'forest') loadForest(); }, [tab]);
   // died (tree-died confirmation) lives in FocusContext now — it fires
   // from both the Reset button and the pause-grace timeout, so refresh
