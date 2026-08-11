@@ -105,8 +105,16 @@ async function getOverallStreak(userId) {
 }
 
 async function getHabitStreak(habitId) {
+  // Bounded to ~2 years — the streak-walk below stops at the first gap
+  // it finds, so it only ever needs a contiguous recent tail of data, not
+  // a habit's entire history. Without this, an account with years of
+  // logs re-scans its *whole* habit_logs history on every single chat
+  // message (buildSystemPrompt runs this once per habit) and every call
+  // to the get_habit_streaks tool. No real streak runs past 2 years, so
+  // this changes nothing for any actual user, just the pathological
+  // unbounded-growth case for old accounts.
   const result = await db.execute({
-    sql:  `SELECT date FROM habit_logs WHERE habit_id = ? ORDER BY date DESC`,
+    sql:  `SELECT date FROM habit_logs WHERE habit_id = ? AND date >= date('now', '-730 days') ORDER BY date DESC`,
     args: [habitId],
   });
   const dates = new Set(result.rows.map((r) => r.date));

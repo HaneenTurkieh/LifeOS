@@ -553,7 +553,12 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false, 
       q(`SELECT mood FROM moods WHERE user_id=? AND date=?`, [userId, today]),
       q(`SELECT COALESCE(SUM(duration_minutes),0) w FROM focus_sessions WHERE user_id=? AND week_start>=date('now','weekday 0','-6 days')`, [userId]),
       q(`SELECT COALESCE(SUM(amount),0) t FROM xp_log WHERE user_id=?`, [userId]),
-      q(`SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC`, [userId]),
+      // Capped — with save_memory now used proactively (see the
+      // instruction below), this table only grows, and an unbounded
+      // SELECT here means every chat message re-fetches a user's entire
+      // memory history forever. 40 most-recent facts is more than enough
+      // context for a system prompt; older ones just age out.
+      q(`SELECT key, value FROM lumi_memory WHERE user_id=? ORDER BY updated_at DESC LIMIT 40`, [userId]),
       // Cross-chat continuity — every "New chat" used to start with zero
       // awareness of anything discussed in earlier conversations, only
       // ever recalling facts explicitly saved via save_memory. Titles are
