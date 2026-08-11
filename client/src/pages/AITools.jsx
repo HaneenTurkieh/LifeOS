@@ -567,6 +567,13 @@ export default function AITools() {
         conversation_id: activeConvId,
         mode,
         attachments:     sendAttachments.map(({ name, text }) => ({ name, text })),
+        // The server has no notion of the user's timezone otherwise, and
+        // defaulted to its own UTC date for "today" — for anyone not on
+        // UTC that silently diverged from what the Dashboard/Mood widgets
+        // (which use this same local-date convention) consider "today",
+        // so moods Lumi logged could land on the wrong day and never show
+        // up. Same format Dashboard.jsx already uses for its own /mood calls.
+        local_date:      new Date().toLocaleDateString('en-CA'),
       });
       setMessages((prev) => {
         const next = [...prev];
