@@ -925,11 +925,13 @@ export default function ExamAssistant() {
   const [count,         setCount]         = useState(10);
   const [duration,      setDuration]      = useState(15);
   const [notes,         setNotes]         = useState('');
-  const [extractedText, setExtractedText] = useState('');
+  // Multiple source files, each independently extracted server-side —
+  // { id, name, text, wordCount }. Combined with notes at generation time
+  // (see combinedContent below) instead of one replacing the other.
+  const [files,         setFiles]         = useState([]);
   const [loading,       setLoading]       = useState(false);
   const [genElapsed,    setGenElapsed]    = useState(0);
   const [uploading,     setUploading]     = useState(false);
-  const [uploadedFile,  setUploadedFile]  = useState(null);
   const [result,        setResult]        = useState(null);
   const [showFileInfo,  setShowFileInfo]  = useState(false);
   const [sessions,      setSessions]      = useState([]);
@@ -1034,36 +1036,52 @@ export default function ExamAssistant() {
     finally { setSessionBusy(null); }
   };
 
-  const handleFile = useCallback(async (file) => {
-    if (!file) return;
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      toast.error(t('exam.tooLarge', { n: MAX_SIZE_MB }));
+  const MAX_FILES = 6;
+  // Uploads and extracts each file independently (the server only ever
+  // handles one file per /extract call) and appends results to `files` as
+  // each one finishes, so a slow/large file doesn't block the others and
+  // partial progress isn't lost if one fails.
+  const handleFiles = useCallback(async (fileList) => {
+    const incoming = Array.from(fileList || []).filter(Boolean);
+    if (!incoming.length) return;
+    if (files.length + incoming.length > MAX_FILES) {
+      toast.error(t('exam.tooManyFiles', { n: MAX_FILES }));
       return;
     }
     setUploading(true);
-    setUploadedFile(null);
-    setExtractedText('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await authedFetch('/api/exam/extract', { method:'POST', body:formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      setExtractedText(data.text);
-      setUploadedFile({ name: file.name, wordCount: data.wordCount });
-      toast.success(`✓ ${file.name} — ${data.wordCount?.toLocaleString()} ${t('exam.wordsReady')}`);
-    } catch (err) {
-      toast.error(err.message);
-      setUploadedFile(null);
-    } finally {
-      setUploading(false);
+    for (const file of incoming) {
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        toast.error(`${file.name}: ${t('exam.tooLarge', { n: MAX_SIZE_MB })}`);
+        continue;
+      }
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await authedFetch('/api/exam/extract', { method:'POST', body:formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        const id = `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+        setFiles(prev => [...prev, { id, name: file.name, text: data.text, wordCount: data.wordCount }]);
+        toast.success(`✓ ${file.name} — ${data.wordCount?.toLocaleString()} ${t('exam.wordsReady')}`);
+      } catch (err) {
+        toast.error(`${file.name}: ${err.message}`);
+      }
     }
-  }, [toast, authedFetch, t]);
-  const onDrop = (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
-  const removeFile = () => { setUploadedFile(null); setExtractedText(''); };
+    setUploading(false);
+  }, [toast, authedFetch, t, files.length]);
+  const onDrop = (e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); };
+  const removeFile = (id) => setFiles(prev => prev.filter(f => f.id !== id));
+
+  // Notes plus every uploaded file's extracted text, combined into one
+  // source blob — each file is labeled so the model can tell them apart
+  // instead of them running together as one undifferentiated wall of text.
+  const combinedContent = [
+    notes.trim(),
+    ...files.map(f => `[${f.name}]\n${f.text}`),
+  ].filter(Boolean).join('\n\n---\n\n');
 
   const generate = async () => {
-    const content = extractedText || notes;
+    const content = combinedContent;
     if (!content.trim()) { toast.error(t('exam.addFirst')); return; }
     setLoading(true);
     setResult(null);
@@ -1150,7 +1168,9 @@ Content:\n${content}`;
         ? t('exam.cards', { n: parsed.length })
         : t('exam.questions', { n: parsed.length });
       toast.success(`${label} ✓`);
-      saveSession(mode, difficulty, parsed, uploadedFile?.name || notes.slice(0, 60));
+      saveSession(mode, difficulty, parsed, files.length
+        ? files.map(f => f.name).join(', ')
+        : notes.slice(0, 60));
     } catch (err) {
       toast.error(err.message || 'Generation failed. Try again.');
     } finally {
@@ -1186,8 +1206,8 @@ Content:\n${content}`;
     }
   };
 
-  const wordCount  = (extractedText || notes).split(/\s+/).filter(Boolean).length;
-  const hasContent = !!(extractedText || notes.trim());
+  const wordCount  = combinedContent.split(/\s+/).filter(Boolean).length;
+  const hasContent = !!combinedContent.trim();
 
   return (
     <div>
@@ -1310,7 +1330,7 @@ Content:\n${content}`;
           </div>
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="rounded-3xl p-6 flex flex-col gap-4" style={glass}>
-              {!uploadedFile ? (
+              {files.length < MAX_FILES && (
                 <div
                   onDrop={onDrop}
                   onDragOver={e => e.preventDefault()}
@@ -1318,8 +1338,8 @@ Content:\n${content}`;
                   style={{ borderColor:'rgb(var(--accent-500) / 0.30)', background:'rgb(var(--accent-500) / 0.04)' }}
                   onClick={() => fileRef.current?.click()}
                 >
-                  <input ref={fileRef} type="file" accept={ACCEPTED} className="hidden"
-                    onChange={e => handleFile(e.target.files[0])}/>
+                  <input ref={fileRef} type="file" accept={ACCEPTED} multiple className="hidden"
+                    onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}/>
                   <div className="flex items-center justify-center gap-3 px-5 py-5">
                     {uploading ? (
                       <div className="flex items-center gap-2 text-lavender-600">
@@ -1339,32 +1359,37 @@ Content:\n${content}`;
                     )}
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center gap-3 rounded-2xl px-4 py-3"
-                  style={{ background:'rgba(76,195,138,0.10)', border:'1px solid rgba(76,195,138,0.25)' }}>
-                  <FileText size={18} className="text-sage-600 shrink-0"/>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-sage-700 truncate">{uploadedFile.name}</p>
-                    <p className="text-[11px] text-sage-600/70">
-                      {t('exam.words', { n: uploadedFile.wordCount?.toLocaleString() })} · {t('exam.wordsReady')}
-                    </p>
-                  </div>
-                  <button onClick={removeFile} className="text-sage-600/50 hover:text-coral-500 transition">
-                    <X size={16}/>
-                  </button>
+              )}
+              {files.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {files.map(f => (
+                    <div key={f.id} className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                      style={{ background:'rgba(76,195,138,0.10)', border:'1px solid rgba(76,195,138,0.25)' }}>
+                      <FileText size={18} className="text-sage-600 shrink-0"/>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-sage-700 truncate">{f.name}</p>
+                        <p className="text-[11px] text-sage-600/70">
+                          {t('exam.words', { n: f.wordCount?.toLocaleString() })} · {t('exam.wordsReady')}
+                        </p>
+                      </div>
+                      <button onClick={() => removeFile(f.id)} className="text-sage-600/50 hover:text-coral-500 transition">
+                        <X size={16}/>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-px bg-ink/8"/>
                 <span className="text-xs text-ink/30 font-medium">
-                  {uploadedFile ? t('exam.orExtra') : t('exam.orPaste')}
+                  {files.length > 0 ? t('exam.orExtra') : t('exam.orPaste')}
                 </span>
                 <div className="flex-1 h-px bg-ink/8"/>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-bold uppercase tracking-widest text-ink/40">
-                    {uploadedFile ? t('exam.extraNotes') : t('exam.notes')}
+                    {files.length > 0 ? t('exam.extraNotes') : t('exam.notes')}
                   </p>
                   {/* Dictation lets someone who can't type (or just doesn't
                       want to) get their study material in by talking
@@ -1373,8 +1398,8 @@ Content:\n${content}`;
                 </div>
                 <textarea
                   className="w-full rounded-2xl p-4 text-sm text-ink dark:text-white bg-white/60 dark:bg-white/[0.05] border border-white/65 outline-none resize-none placeholder:text-ink/30 focus:border-lavender-400 transition"
-                  rows={uploadedFile ? 4 : 10}
-                  placeholder={uploadedFile ? t('exam.extraPh') : t('exam.notesPh')}
+                  rows={files.length > 0 ? 4 : 10}
+                  placeholder={files.length > 0 ? t('exam.extraPh') : t('exam.notesPh')}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                 />
