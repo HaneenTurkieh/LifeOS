@@ -27,7 +27,7 @@ function toolsToOpenAiFormat(tools) {
   }));
 }
 
-async function callOpenRouter({ system, messages, tools, max_tokens = 1024 }) {
+async function callOpenRouter({ system, messages, tools, max_tokens = 1024, temperature, top_p }) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY not set');
 
@@ -36,6 +36,12 @@ async function callOpenRouter({ system, messages, tools, max_tokens = 1024 }) {
     messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
     max_tokens,
   };
+  // Optional — callers doing plain chat leave these unset (DeepSeek's
+  // own default is fine there). Exam generation passes an explicit
+  // higher temperature so regenerating from the same source material
+  // doesn't produce near-identical output every time.
+  if (temperature !== undefined) body.temperature = temperature;
+  if (top_p !== undefined) body.top_p = top_p;
   if (tools?.length) body.tools = toolsToOpenAiFormat(tools);
 
   const r = await fetch(OPENROUTER_URL, {

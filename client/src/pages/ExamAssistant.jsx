@@ -987,27 +987,50 @@ export default function ExamAssistant() {
     setLoading(true);
     setResult(null);
     let prompt = '';
+    // Concrete criteria per level — "hard" was previously just a bare
+    // adjective the model got zero guidance on, so it defaulted to
+    // whatever it considered normal (which read as "easy" regardless of
+    // the selected level). Also used for flashcards now, which
+    // previously ignored the difficulty setting entirely.
+    const DIFFICULTY_RUBRIC = {
+      easy:   'DIFFICULTY — EASY: Test direct recall of facts, terms, and definitions stated explicitly in the content. The correct answer should be clear to anyone who read the material once. Wrong options must be clearly, obviously wrong — no close calls.',
+      medium: 'DIFFICULTY — MEDIUM: Require connecting two related ideas from the content, or applying a definition to a straightforward example. Wrong options should be plausible but distinguishable with solid understanding of the material.',
+      hard:   "DIFFICULTY — HARD: Require multi-step reasoning or synthesizing multiple parts of the content — not something answerable by skimming or matching keywords. Apply concepts to a scenario that isn't stated verbatim in the material. Wrong options must be genuinely plausible: common misconceptions, near-misses, or subtly incorrect in a way that requires real understanding to rule out.",
+    };
+    const difficultyLine = DIFFICULTY_RUBRIC[difficulty] || DIFFICULTY_RUBRIC.medium;
+    // Regenerating from the same source material was producing near-
+    // identical output — no sampling randomness was set server-side, and
+    // nothing in the prompt signaled "this is a fresh attempt, don't just
+    // repeat the obvious first-appearing facts every time." This nonce +
+    // instruction line fixes both: it breaks any exact-prompt caching and
+    // gives the model an explicit reason to vary its choices.
+    const varietyTag = `VARIETY: This may be a repeat generation from the same material (variation token: ${Math.random().toString(36).slice(2, 8)}) — choose different specific facts, angles, and phrasing than an obvious first pass would, and don't default to only the first-appearing concepts.`;
     const base = `CRITICAL RULES:
 - Return ONLY a valid JSON array. No markdown, no explanation, no text before or after.
 - Cover ALL topics in the content. Do not skip any concept.
 - The content to study is at the end of this message.
+${varietyTag}
 `;
     if (mode === 'mcq') {
-      prompt = `${base}Generate a ${difficulty} multiple choice exam with exactly ${count} questions.
+      prompt = `${base}${difficultyLine}
+Generate a ${difficulty} multiple choice exam with exactly ${count} questions.
 Each object: { "question": string, "options": [4 strings], "correct": 0-indexed number, "explanation": string }
 Content:\n${content}`;
     } else if (mode === 'blanks') {
-      prompt = `${base}Generate a ${difficulty} fill-in-the-blank exercise with exactly ${count} questions.
+      prompt = `${base}${difficultyLine}
+Generate a ${difficulty} fill-in-the-blank exercise with exactly ${count} questions.
 Each object: { "sentence": "text with ___ blank", "answer": string, "hint": string }
 Content:\n${content}`;
     } else if (mode === 'mixed') {
       const half = Math.ceil(count/2);
-      prompt = `${base}Generate a ${difficulty} mixed exam: ${half} MCQ and ${count-half} fill-in-the-blank questions. Interleave them.
+      prompt = `${base}${difficultyLine}
+Generate a ${difficulty} mixed exam: ${half} MCQ and ${count-half} fill-in-the-blank questions. Interleave them.
 MCQ object:   { "type": "mcq",   "question": string, "options": [4 strings], "correct": number, "explanation": string }
 Blank object: { "type": "blank", "sentence": "text with ___", "answer": string, "hint": string }
 Content:\n${content}`;
     } else if (mode === 'flashcards') {
-      prompt = `${base}Generate exactly ${count} flashcards. Every important concept, term, formula must appear.
+      prompt = `${base}${difficultyLine}
+Generate exactly ${count} ${difficulty} flashcards. Every important concept, term, formula must appear.
 Each object: { "front": string, "back": string }
 Content:\n${content}`;
     } else if (mode === 'slides') {
