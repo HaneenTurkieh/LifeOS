@@ -65,6 +65,26 @@ function containsArabic(data) {
   catch (_) { return false; }
 }
 
+// jsPDF's built-in Helvetica font only shapes the WinAnsi (Latin-1-ish)
+// glyph set. Anything outside it silently corrupts: astral-plane emoji
+// (💡, 📝, 🎉…) get split into their two UTF-16 surrogate halves and each
+// half gets looked up as its own WinAnsi byte — 💡 (U+1F4A1) becomes the
+// exact "Ø=Ü¡" garbage seen in exported PDFs — and symbols like → or ✓
+// fall back to unrelated stray glyphs, which also throws off jsPDF's own
+// width measurement for the rest of that line (the letter-spread look on
+// affected lines). Strip/replace anything outside that range before it
+// ever reaches doc.text() or splitTextToSize().
+function toPdfSafeText(str) {
+  return String(str)
+    .replace(/→/g, '->')
+    .replace(/←/g, '<-')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}️]/gu, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+const PDF_GREEN = [45, 167, 110]; // #2DA76E — same brand green used to mark correct answers in the Arabic snapshot path
+
 // ── PDF export, English/Latin path (jsPDF native text) ─────────
 // Real selectable/searchable text, small file size. Only used when
 // the content contains no Arabic — jsPDF's built-in fonts don't
@@ -89,18 +109,24 @@ async function exportPdfText(mode, data, t, isPremium) {
       y = 56;
     }
   };
-  const writeWrapped = (text, size = 11, bold = false, indent = 0) => {
+  // `color` highlights a line in green (correct answers) instead of the
+  // old inline "✓" mark, which was both the visual the user asked to
+  // change and (being outside WinAnsi) the actual source of the garbling.
+  const writeWrapped = (text, size = 11, bold = false, indent = 0, color = null) => {
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
     doc.setFontSize(size);
-    const lines = doc.splitTextToSize(String(text), maxWidth - indent);
+    doc.setTextColor(...(color || [0, 0, 0]));
+    const safeText = toPdfSafeText(text);
+    const lines = doc.splitTextToSize(safeText, maxWidth - indent);
     ensureSpace(lines.length, size * 1.4);
     doc.text(lines, marginX + indent, y);
     y += lines.length * size * 1.4;
+    doc.setTextColor(0, 0, 0);
   };
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text(heading, marginX, y);
+  doc.text(toPdfSafeText(heading), marginX, y);
   y += 32;
 
   if (mode === 'mcq' || mode === 'mixed') {
@@ -108,14 +134,14 @@ async function exportPdfText(mode, data, t, isPremium) {
       ensureSpace(2, 18);
       if (mode === 'mixed' && q.type === 'blank') {
         writeWrapped(`${i + 1}. ${q.sentence}`, 12, true);
-        writeWrapped(`${t('exam.answer')}: ${q.answer}`, 10, false, 16);
+        writeWrapped(`${t('exam.answer')}: ${q.answer}`, 10, true, 16, PDF_GREEN);
         if (q.hint) writeWrapped(`${t('exam.hint')}: ${q.hint}`, 10, false, 16);
       } else {
         writeWrapped(`${i + 1}. ${q.question}`, 12, true);
         (q.options || []).forEach((opt, j) => {
           const letter = ['A', 'B', 'C', 'D'][j];
-          const mark = j === q.correct ? '  ✓' : '';
-          writeWrapped(`${letter}) ${opt}${mark}`, 10.5, false, 16);
+          const isCorrect = j === q.correct;
+          writeWrapped(`${letter}) ${opt}`, 10.5, isCorrect, 16, isCorrect ? PDF_GREEN : null);
         });
         if (q.explanation) writeWrapped(`${t('exam.hint')}: ${q.explanation}`, 9.5, false, 16);
       }
@@ -124,14 +150,14 @@ async function exportPdfText(mode, data, t, isPremium) {
   } else if (mode === 'blanks') {
     data.forEach((q, i) => {
       writeWrapped(`${i + 1}. ${q.sentence}`, 12, true);
-      writeWrapped(`${t('exam.answer')}: ${q.answer}`, 10, false, 16);
+      writeWrapped(`${t('exam.answer')}: ${q.answer}`, 10, true, 16, PDF_GREEN);
       if (q.hint) writeWrapped(`${t('exam.hint')}: ${q.hint}`, 10, false, 16);
       y += 10;
     });
   } else if (mode === 'flashcards') {
     data.forEach((c, i) => {
       writeWrapped(`${i + 1}. ${t('exam.question')}: ${c.front}`, 12, true);
-      writeWrapped(`${t('exam.answer')}: ${c.back}`, 10.5, false, 16);
+      writeWrapped(`${t('exam.answer')}: ${c.back}`, 10.5, false, 16, PDF_GREEN);
       y += 10;
     });
   } else if (mode === 'slides') {
@@ -139,7 +165,7 @@ async function exportPdfText(mode, data, t, isPremium) {
       ensureSpace(2, 18);
       writeWrapped(`${t('exam.slide', { n: i + 1 })} — ${s.title}`, 13, true);
       (s.bullets || []).forEach((b) => writeWrapped(`•  ${b}`, 10.5, false, 16));
-      if (s.note) writeWrapped(`📝 ${s.note}`, 9.5, false, 16);
+      if (s.note) writeWrapped(`Note: ${s.note}`, 9.5, false, 16);
       y += 12;
     });
   }
@@ -155,7 +181,7 @@ async function exportPdfText(mode, data, t, isPremium) {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8);
       doc.setTextColor(156, 163, 175);
-      doc.text('Made with Aurora ✦', pageWidth - marginX, pageHeight - 24, { align: 'right' });
+      doc.text(toPdfSafeText('Made with Aurora'), pageWidth - marginX, pageHeight - 24, { align: 'right' });
       doc.setTextColor(0, 0, 0);
     }
   }
@@ -517,11 +543,56 @@ function BlankQuestion({ q, idx, answer, checked, onChange, onCheck, t }) {
   );
 }
 
-function MCQExam({ questions, t }) {
+// Ticks down from `minutes` and fires onExpire exactly once when it
+// reaches zero — this is what actually makes the quiz duration setting
+// do something, instead of just being a label. Deadline is computed once
+// from wall-clock time (not decremented tick-by-tick) so it stays correct
+// even if the tab is backgrounded and setInterval gets throttled.
+function useCountdown(minutes, onExpire) {
+  const [remaining, setRemaining] = useState(() => (minutes ? Math.round(minutes * 60) : null));
+  const expiredRef = useRef(false);
+  useEffect(() => {
+    if (!minutes) return;
+    const deadline = Date.now() + minutes * 60 * 1000;
+    const tick = () => {
+      const secs = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+      setRemaining(secs);
+      if (secs <= 0 && !expiredRef.current) {
+        expiredRef.current = true;
+        onExpire?.();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minutes]);
+  return remaining;
+}
+
+function TimerBadge({ seconds, expiredLabel, t }) {
+  if (seconds == null) return null;
+  const low = seconds <= 60;
+  const mm = Math.floor(seconds / 60);
+  const ss = seconds % 60;
+  return (
+    <span className="flex items-center gap-1.5 text-xs font-bold rounded-full px-2.5 py-1 shrink-0"
+      style={{
+        color:      seconds<=0 ? '#FF7A63' : low ? '#E8940A' : 'rgb(var(--ink) / 0.5)',
+        background: seconds<=0 ? 'rgba(255,122,99,0.14)' : low ? 'rgba(232,148,10,0.12)' : 'rgb(var(--accent-500) / 0.08)',
+      }}>
+      <Clock size={12}/> {seconds<=0 ? (expiredLabel || t('exam.timeUp')) : `${mm}:${String(ss).padStart(2,'0')}`}
+    </span>
+  );
+}
+
+function MCQExam({ questions, t, durationMin }) {
   const [current,  setCurrent]  = useState(0);
   const [selected, setSelected] = useState({});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const remaining = useCountdown(finished ? null : durationMin, () => { setTimedOut(true); setFinished(true); });
   const correct = Object.entries(selected).filter(([i,v]) => v === questions[i].correct).length;
   if (finished) {
     const pct = Math.round((correct/questions.length)*100);
@@ -530,8 +601,9 @@ function MCQExam({ questions, t }) {
         className="flex flex-col items-center text-center gap-6 py-10">
         <div className="text-7xl">{pct>=80?'🎉':pct>=50?'💪':'📚'}</div>
         <h2 className="font-display text-3xl font-bold text-ink dark:text-white">{pct}%</h2>
+        {timedOut && <p className="text-xs font-semibold text-coral-500">{t('exam.timeUpDesc')}</p>}
         <p className="text-ink/50">{t('exam.nCorrect', { c: correct, t: questions.length })}</p>
-        <button onClick={() => { setCurrent(0); setSelected({}); setRevealed({}); setFinished(false); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setCurrent(0); setSelected({}); setRevealed({}); setFinished(false); setTimedOut(false); }} className="btn-primary flex items-center gap-2">
           <RotateCcw size={15}/> {t('exam.retry')}
         </button>
       </motion.div>
@@ -542,6 +614,7 @@ function MCQExam({ questions, t }) {
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs font-semibold text-ink/40">{current+1} / {questions.length}</span>
+        <TimerBadge seconds={remaining} t={t}/>
         <div className="flex gap-1">
           {questions.map((_,i) => (
             <div key={i} className="h-1.5 w-6 rounded-full"
@@ -568,10 +641,12 @@ function MCQExam({ questions, t }) {
   );
 }
 
-function FillBlanks({ questions, t }) {
+function FillBlanks({ questions, t, durationMin }) {
   const [answers,  setAnswers]  = useState({});
   const [checked,  setChecked]  = useState({});
   const [finished, setFinished] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const remaining = useCountdown(finished ? null : durationMin, () => { setTimedOut(true); setFinished(true); });
   const correct = Object.entries(checked).filter(([i]) =>
     answers[i]?.trim().toLowerCase() === questions[i].answer?.trim().toLowerCase()).length;
   if (finished) {
@@ -581,8 +656,9 @@ function FillBlanks({ questions, t }) {
         className="flex flex-col items-center text-center gap-6 py-10">
         <div className="text-7xl">{pct>=80?'🎉':pct>=50?'💪':'📚'}</div>
         <h2 className="font-display text-3xl font-bold text-ink dark:text-white">{pct}%</h2>
+        {timedOut && <p className="text-xs font-semibold text-coral-500">{t('exam.timeUpDesc')}</p>}
         <p className="text-ink/50">{t('exam.nCorrect', { c: correct, t: questions.length })}</p>
-        <button onClick={() => { setAnswers({}); setChecked({}); setFinished(false); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setAnswers({}); setChecked({}); setFinished(false); setTimedOut(false); }} className="btn-primary flex items-center gap-2">
           <RotateCcw size={15}/> {t('exam.tryAgain')}
         </button>
       </motion.div>
@@ -590,6 +666,7 @@ function FillBlanks({ questions, t }) {
   }
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
+      {durationMin ? <div className="flex justify-end"><TimerBadge seconds={remaining} t={t}/></div> : null}
       {questions.map((q,i) => (
         <BlankQuestion key={i} q={q} idx={i} answer={answers[i]} checked={!!checked[i]}
           onChange={v => setAnswers(a => ({...a,[i]:v}))}
@@ -602,12 +679,14 @@ function FillBlanks({ questions, t }) {
   );
 }
 
-function MixedExam({ questions, t }) {
+function MixedExam({ questions, t, durationMin }) {
   const [selectedMCQ, setSelectedMCQ] = useState({});
   const [revealedMCQ, setRevealedMCQ] = useState({});
   const [answers,     setAnswers]     = useState({});
   const [checked,     setChecked]     = useState({});
   const [finished,    setFinished]    = useState(false);
+  const [timedOut,    setTimedOut]    = useState(false);
+  const remaining = useCountdown(finished ? null : durationMin, () => { setTimedOut(true); setFinished(true); });
   const mcqQs   = questions.filter(q => q.type==='mcq');
   const blankQs = questions.filter(q => q.type==='blank');
   const mcqCorrect   = Object.entries(selectedMCQ).filter(([i,v]) => v===mcqQs[i]?.correct).length;
@@ -621,12 +700,13 @@ function MixedExam({ questions, t }) {
         className="flex flex-col items-center text-center gap-6 py-10">
         <div className="text-7xl">{pct>=80?'🎉':pct>=50?'💪':'📚'}</div>
         <h2 className="font-display text-3xl font-bold text-ink dark:text-white">{pct}%</h2>
+        {timedOut && <p className="text-xs font-semibold text-coral-500">{t('exam.timeUpDesc')}</p>}
         <p className="text-ink/50">{t('exam.nCorrect', { c: mcqCorrect+blankCorrect, t: total })}</p>
         <div className="flex gap-4 text-sm">
           <span className="text-lavender-600">{t('exam.mcq')}: {mcqCorrect}/{mcqQs.length}</span>
           <span className="text-blue-500">{t('exam.blanks')}: {blankCorrect}/{blankQs.length}</span>
         </div>
-        <button onClick={() => { setSelectedMCQ({}); setRevealedMCQ({}); setAnswers({}); setChecked({}); setFinished(false); }}
+        <button onClick={() => { setSelectedMCQ({}); setRevealedMCQ({}); setAnswers({}); setChecked({}); setFinished(false); setTimedOut(false); }}
           className="btn-primary flex items-center gap-2"><RotateCcw size={15}/> {t('exam.retry')}</button>
       </motion.div>
     );
@@ -634,6 +714,7 @@ function MixedExam({ questions, t }) {
   let mi=0, bi=0;
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-4">
+      {durationMin ? <div className="flex justify-end"><TimerBadge seconds={remaining} t={t}/></div> : null}
       {questions.map((q,i) => {
         if (q.type==='mcq') { const m=mi++;
           return <MCQQuestion key={i} q={q} idx={i} selected={selectedMCQ[m]} revealed={!!revealedMCQ[m]}
@@ -1059,7 +1140,10 @@ Content:\n${content}`;
         else throw new Error('Invalid response format — try again');
       }
       if (!Array.isArray(parsed) || !parsed.length) throw new Error('Empty result — try again');
-      setResult({ mode, data: parsed });
+      // Carry the duration picked at generation time into the result so the
+      // quiz runner can actually enforce it — reopened past sessions (via
+      // openSession) don't have a stored duration, so they run untimed.
+      setResult({ mode, data: parsed, durationMin: (mode==='mcq'||mode==='blanks'||mode==='mixed') ? duration : null });
       const label = mode==='slides'
         ? t('exam.minSlides', { n: parsed.length })
         : mode==='flashcards'
@@ -1426,9 +1510,9 @@ Content:\n${content}`;
               </button>
             </div>
           </div>
-          {result.mode==='mcq'        && <MCQExam    questions={result.data} t={t}/>}
-          {result.mode==='blanks'     && <FillBlanks questions={result.data} t={t}/>}
-          {result.mode==='mixed'      && <MixedExam  questions={result.data} t={t}/>}
+          {result.mode==='mcq'        && <MCQExam    questions={result.data} t={t} durationMin={result.durationMin}/>}
+          {result.mode==='blanks'     && <FillBlanks questions={result.data} t={t} durationMin={result.durationMin}/>}
+          {result.mode==='mixed'      && <MixedExam  questions={result.data} t={t} durationMin={result.durationMin}/>}
           {result.mode==='flashcards' && <Flashcards cards={result.data} t={t}/>}
           {result.mode==='slides'     && <SlideDeck  slides={result.data} t={t}/>}
         </div>
