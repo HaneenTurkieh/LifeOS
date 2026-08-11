@@ -6,7 +6,7 @@ import {
   Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift, Sparkles,
   BarChart3, Users, TrendingUp,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api }       from '../api/client.js';
 import { useAuth }   from '../context/AuthContext.jsx';
 import { useTheme, FONT_SCALES } from '../context/ThemeContext.jsx';
@@ -687,6 +687,13 @@ function PremiumTab() {
         ))}
       </div>
       <p className="text-[11px] text-ink/30 dark:text-white/25 text-center">{t('settings.noPayment')}</p>
+      <p className="flex items-center justify-center gap-2 text-[10px] text-ink/25 dark:text-white/20" dir="ltr">
+        <Link to="/terms" target="_blank" className="hover:underline">Terms</Link>
+        <span>·</span>
+        <Link to="/privacy" target="_blank" className="hover:underline">Privacy</Link>
+        <span>·</span>
+        <Link to="/refund-policy" target="_blank" className="hover:underline">Refunds</Link>
+      </p>
     </div>
   );
 }
