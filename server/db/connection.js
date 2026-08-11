@@ -525,6 +525,23 @@ async function initDb() {
     );
   }
 
+  // ── Paddle payment integration ──────────────────────────────
+  // Tracks the Paddle-side identifiers for a user's subscription so the
+  // webhook handler can look up/update the right row, and so we can call
+  // the Paddle API later (e.g. to cancel) without re-deriving these IDs.
+  if (!(await hasColumn('user_premium', 'paddle_customer_id'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_customer_id TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('user_premium', 'paddle_subscription_id'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_subscription_id TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('user_premium', 'paddle_price_id'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_price_id TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('user_premium', 'paddle_status'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_status TEXT DEFAULT NULL`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

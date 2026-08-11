@@ -304,16 +304,40 @@ function AppearanceTab() {
   );
 }
 
+// ── Paddle.js — lazy singleton init ──────────────────────────────
+// Paddle.js is loaded via a <script> tag in index.html, so window.Paddle
+// may not exist yet the instant this component mounts, and — since this
+// modal can mount/unmount many times in a session — Paddle.Initialize()
+// must only ever be called once for the whole page. Its eventCallback is
+// therefore a stable module-level function that just forwards to whatever
+// the currently-mounted PremiumTab last registered, rather than trying to
+// pass a fresh per-instance closure into an init call that may not
+// actually run (because a previous instance already initialized it).
+let paddleInitialized = false;
+let paddleEventHandler = null;
+function paddleEventDispatch(event) { paddleEventHandler?.(event); }
+function ensurePaddleInitialized() {
+  if (paddleInitialized) return true;
+  if (!window.Paddle) return false;
+  const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
+  if (!token) return false; // not configured yet — checkout button will no-op with a toast
+  window.Paddle.Initialize({ token, eventCallback: paddleEventDispatch });
+  paddleInitialized = true;
+  return true;
+}
+
 // ── Premium tab ───────────────────────────────────────────────
 function PremiumTab() {
   const toast = useToast();
   const { t, lang } = useLanguage();
+  const { user } = useAuth();
   const { accent, setAccent, resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const [status,     setStatus]     = useState(null);
   const [plans,      setPlans]      = useState([]);
   const [busy,       setBusy]       = useState(false);
   const [requesting, setRequesting] = useState(null); // plan key currently being requested
+  const [checkingOut, setCheckingOut] = useState(null); // plan key currently in Paddle checkout
   const [themeBusy,  setThemeBusy]  = useState(false);
   const [trial,      setTrial]      = useState(null);
   const [trialBusy,  setTrialBusy]  = useState(false);
@@ -328,6 +352,49 @@ function PremiumTab() {
     api.get('/focus/premium/trial-eligibility').then(setTrial).catch(() => setTrial(null));
   }, [setAccent]);
   useEffect(() => { load(); }, [load]);
+
+  // Paddle fires 'checkout.completed' the instant payment succeeds, but
+  // our own is_premium flip only happens once the Paddle webhook reaches
+  // our server (usually near-instant, but not guaranteed to beat the
+  // client). So: show an "activating" state and poll status a few times
+  // rather than assuming it's already flipped.
+  useEffect(() => {
+    paddleEventHandler = (event) => {
+      if (event?.name === 'checkout.completed') {
+        setCheckingOut(null);
+        toast.success(t('settings.paymentActivating'));
+        let tries = 0;
+        const poll = setInterval(() => {
+          tries += 1;
+          api.get('/focus/premium/status')
+            .then((d) => {
+              setStatus(d);
+              if (d.theme_preset) setAccent(d.theme_preset);
+              if (d.is_premium || tries >= 6) clearInterval(poll);
+            })
+            .catch(() => {});
+        }, 2500);
+      } else if (event?.name === 'checkout.closed') {
+        setCheckingOut(null);
+      }
+    };
+    ensurePaddleInitialized();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const checkoutPlan = (plan) => {
+    if (!ensurePaddleInitialized()) {
+      toast.error(t('settings.paymentLoading'));
+      return;
+    }
+    setCheckingOut(plan.key);
+    window.Paddle.Checkout.open({
+      items: [{ priceId: plan.priceId, quantity: 1 }],
+      customer: user?.email ? { email: user.email } : undefined,
+      customData: { user_id: String(user?.id || '') },
+      settings: { theme: isDark ? 'dark' : 'light', displayMode: 'overlay' },
+    });
+  };
   const startTrial = async () => {
     setTrialBusy(true);
     try {
@@ -498,7 +565,6 @@ function PremiumTab() {
           <p className="text-sm font-semibold text-ink dark:text-white px-1">👑 {t('settings.choosePlan')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {plans.map((plan) => {
-              const isPending = requesting === plan.key;
               const badgeLabel = plan.badge === 'popular' ? t('settings.mostPopular')
                                 : plan.badge === 'value'   ? t('settings.bestValue')
                                 : null;
@@ -526,15 +592,19 @@ function PremiumTab() {
                       {t('settings.perMonthEq', { n: monthlyEq(plan) })}
                     </p>
                   )}
-                  <button onClick={() => requestPlan(plan.key)} disabled={requesting !== null}
+                  <button onClick={() => checkoutPlan(plan)} disabled={checkingOut !== null}
                     className="mt-3 w-full rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-40"
                     style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
-                    {isPending ? t('settings.requesting') : t('settings.requestPlan')}
+                    {checkingOut === plan.key ? t('settings.activating') : t('settings.subscribe')}
                   </button>
                 </div>
               );
             })}
           </div>
+          <button onClick={() => requestPlan(plans[0]?.key)} disabled={requesting !== null}
+            className="text-[11px] text-ink/35 dark:text-white/30 underline decoration-dotted underline-offset-2 text-center disabled:opacity-40">
+            {requesting ? t('settings.requesting') : t('settings.troubleWithPayment')}
+          </button>
         </div>
       )}
       <div className="rounded-2xl p-4"
