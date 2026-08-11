@@ -507,6 +507,24 @@ async function initDb() {
     }
   }
 
+  // ── Missing user_id indexes ─────────────────────────────────
+  // Every one of these tables is queried with `WHERE user_id = ?`
+  // constantly (most heavily by Lumi's buildSystemPrompt, which fires on
+  // every single chat message), but had no index backing that column —
+  // meaning a full table scan on every lookup, on every message, for
+  // every user, forever. IF NOT EXISTS makes this a fast no-op on every
+  // boot after the first.
+  const USER_ID_INDEXES = [
+    'tasks', 'goals', 'habits', 'xp_log', 'lumi_conversations',
+    'lumi_memory', 'learning_items', 'internships', 'projects',
+    'cv_experience', 'cv_education', 'notifications',
+  ];
+  for (const table of USER_ID_INDEXES) {
+    await db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_${table}_user ON ${table}(user_id)`
+    );
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 
