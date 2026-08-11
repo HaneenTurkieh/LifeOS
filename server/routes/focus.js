@@ -814,12 +814,13 @@ router.delete('/rooms/:code/leave', async (req, res) => {
 // years), with monthly as a low-commitment entry point and annual
 // as the max-savings option — each tier's discount grows with the
 // length of commitment so the pricing reads as consistent, not
-// arbitrary. No gateway is wired up yet, so "buying" a plan today
-// is a request that emails the dev — see POST /premium/request.
+// arbitrary. priceId maps to the real Paddle Price for real checkout via
+// Paddle.js on the client — actual granting happens in routes/paddle.js
+// once the subscription webhook confirms payment, not here.
 const PLANS = [
-  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 10, currency: 'NIS', discountPct: 0,  badge: null },
-  { key: 'semester', name: 'Semester', months: 4,  price: 34, currency: 'NIS', discountPct: 15, badge: 'popular' },
-  { key: 'annual',   name: 'Annual',   months: 12, price: 96, currency: 'NIS', discountPct: 20, badge: 'value' },
+  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 10, currency: 'NIS', discountPct: 0,  badge: null,      priceId: 'pri_01kzrz0epxcy9v8qhe5md6qmbd' },
+  { key: 'semester', name: 'Semester', months: 4,  price: 34, currency: 'NIS', discountPct: 15, badge: 'popular', priceId: 'pri_01kzrz863vxsrjcjnkrnk1pzya' },
+  { key: 'annual',   name: 'Annual',   months: 12, price: 96, currency: 'NIS', discountPct: 20, badge: 'value',   priceId: 'pri_01kzrz9dxpyt5pwyb4kkb26gb6' },
 ];
 router.get('/premium/plans', (req, res) => res.json({ plans: PLANS }));
 
@@ -910,10 +911,14 @@ router.post('/premium/toggle', async (req, res) => {
     res.json(await getPremium(req.user.id));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
-// ── POST /premium/request — pick a plan, email the dev ──────────
-// Grants premium immediately (same bootstrap trust model as the old
-// free toggle) but records which plan was actually requested, so
-// there's a real record to follow up on once a payment method exists.
+// ── POST /premium/request — fallback contact path ───────────────
+// Real purchases now go through Paddle checkout (client calls
+// Paddle.Checkout.open() with a plan's priceId) and Premium is granted
+// by routes/paddle.js only once a verified subscription webhook confirms
+// payment actually happened. This route no longer flips is_premium
+// itself — it's kept as a lightweight "email the dev" fallback for
+// someone who can't complete checkout (no card, wants another payment
+// method, etc.), so there's still a record to follow up on manually.
 router.post('/premium/request', async (req, res) => {
   const { plan_key } = req.body;
   const plan = PLANS.find(p => p.key === plan_key);
@@ -922,9 +927,9 @@ router.post('/premium/request', async (req, res) => {
   try {
     const now = new Date().toISOString();
     await db.execute({
-      sql: `INSERT INTO user_premium (user_id, is_premium, plan, requested_at) VALUES (?, 1, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET is_premium = 1, plan = excluded.plan, requested_at = excluded.requested_at`,
-      args: [req.user.id, plan.key, now],
+      sql: `INSERT INTO user_premium (user_id, requested_at) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET requested_at = excluded.requested_at`,
+      args: [req.user.id, now],
     });
 
     try {

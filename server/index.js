@@ -28,10 +28,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Paddle webhooks must be verified against the exact raw request body
+// (HMAC signature), so this route gets express.raw() BEFORE the global
+// express.json() below — otherwise the body would already be parsed
+// into an object and re-serializing it would break the signature check.
+app.use('/api/paddle/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 // Public routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/paddle', require('./routes/paddle')); // webhook is unauthenticated; verified via Paddle-Signature instead
 
 // Protected routes
 app.use('/api/tasks',        authenticate, require('./routes/tasks'));
