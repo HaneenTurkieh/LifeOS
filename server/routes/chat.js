@@ -161,6 +161,19 @@ const TOOLS = [
     },
   },
   {
+    name: 'log_mood',
+    description: 'Record how the user is feeling today (or a specific date). Use this whenever the user tells you their mood and wants it saved — e.g. "log my mood as great" or "I\'m feeling okay today, save that". Actually writes the entry — never just say it\'s done without calling this.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mood: { type: 'string', enum: ['rough','meh','okay','good','great'], description: "The user's mood" },
+        note: { type: 'string', description: 'Optional short note about why' },
+        date: { type: 'string', description: 'YYYY-MM-DD, defaults to today' },
+      },
+      required: ['mood'],
+    },
+  },
+  {
     name: 'list_upcoming_deadlines',
     description: 'Get tasks with upcoming deadlines sorted by urgency.',
     input_schema: {
@@ -450,6 +463,25 @@ async function executeTool(name, input, userId) {
           : `Your average mood this ${period} is ${avgVal}/5 (${moodLabels[Math.round(avgVal)] || ''}). You've logged ${avg.rows[0].count} days.`,
       };
     }
+    case 'log_mood': {
+      // Mirrors the exact upsert POST /mood uses (routes/mood.js) —
+      // same table, same ON CONFLICT behavior — so a mood logged via
+      // Lumi shows up identically on the Mood check-in UI, and logging
+      // it again the same day updates rather than duplicates.
+      const MOOD_VALUES = { rough: 1, meh: 2, okay: 3, good: 4, great: 5 };
+      const moodNum = MOOD_VALUES[String(input.mood || '').toLowerCase()];
+      if (!moodNum) return { success: false, message: 'mood must be one of: rough, meh, okay, good, great' };
+      const date = input.date || new Date().toISOString().slice(0, 10);
+      await db.execute({
+        sql:  `INSERT INTO moods (user_id, date, mood, note)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(user_id, date)
+               DO UPDATE SET mood=excluded.mood, note=excluded.note`,
+        args: [userId, date, moodNum, input.note || ''],
+      });
+      const moodLabels2 = ['', 'Rough', 'Meh', 'Okay', 'Good', 'Great'];
+      return { success: true, date, mood: moodLabels2[moodNum] };
+    }
     case 'list_upcoming_deadlines': {
       const days   = input.days || 7;
       const result = await db.execute({
@@ -707,6 +739,8 @@ not as a default reflex:
 - generate_daily_plan — build a schedule
 - get_habit_streaks — habit consistency and at-risk habits
 - get_mood_insights — mood trends and patterns
+- log_mood — record how the user is feeling today (always call this when they
+  ask you to log/save/set their mood — never just claim it's done in text)
 - list_upcoming_deadlines — what's due soon
 - get_xp_progress — level, XP, next tree unlock
 - save_memory / forget_memory — remember important facts
