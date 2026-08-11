@@ -690,6 +690,30 @@ export function FocusProvider({ children }) {
       custom_min: newCustomMin,
     });
   };
+  // Called when a guest's poll detects the host started a shared room
+  // session (see Focus.jsx) — syncs this device's local countdown to the
+  // room's *actual* remaining time instead of restarting from the full
+  // duration. Joining a few seconds (or longer, if this device's own
+  // timer was busy and the join had to wait for it to free up) after the
+  // host actually clicked start used to still seed a full-length
+  // countdown here, so a guest's own clock silently ran behind — and
+  // finished after — everyone else's, drifting further the later they
+  // joined.
+  const joinRoomTimer = (durationSeconds, remainingSeconds) => {
+    const newCustomMin = { ...customMin, focus: Math.max(1, Math.round(durationSeconds / 60)) };
+    setCustomMin(newCustomMin);
+    setMode('focus');
+    setTotalTime(durationSeconds);
+    setTimeLeft(remainingSeconds);
+    const sa = new Date(Date.now() - (durationSeconds - remainingSeconds) * 1000);
+    setStartedAt(sa);
+    setIsRunning(true);
+    pushTimerState({
+      mode: 'focus', running: true, started_at: sa.toISOString(),
+      remaining_seconds: remainingSeconds, duration_seconds: durationSeconds,
+      custom_min: newCustomMin,
+    });
+  };
   const setDuration = (mins) => {
     const newCustomMin = { ...customMin, [mode]: mins };
     setCustomMin(newCustomMin);
@@ -712,7 +736,7 @@ export function FocusProvider({ children }) {
       startedAt, congrats, died, stats, board, spotlights, room, roomTree, myRooms,
       setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
       switchRoom, loadMyRooms,
-      toggleTimer, resetTimer, addMinute, setDuration, handleModeClick, switchMode,
+      toggleTimer, resetTimer, addMinute, setDuration, joinRoomTimer, handleModeClick, switchMode,
       loadData,
     }}>
       {children}

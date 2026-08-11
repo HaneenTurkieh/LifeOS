@@ -143,7 +143,7 @@ export default function Flow() {
     taskName, taskId, taskTimeSpent, dots, startedAt, congrats, died, stats, board, spotlights, room, roomTree,
     myRooms, switchRoom, loadMyRooms,
     setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
-    toggleTimer, resetTimer, addMinute, setDuration, handleModeClick,
+    toggleTimer, resetTimer, addMinute, setDuration, joinRoomTimer, handleModeClick,
   } = useFocus();
 
   // `room` stays set just from being a member of a persistent room (not
@@ -285,14 +285,29 @@ export default function Flow() {
         const isFirstPoll = !seededRef.current;
         seededRef.current = true;
         if (tm?.running && tm.started_at && lastTimerStartRef.current !== tm.started_at) {
-          lastTimerStartRef.current = tm.started_at;
-          if (!isFirstPoll && !isRunningRef.current && tm.remaining_seconds > 20) {
-            const mins = Math.max(1, Math.round(tm.duration_seconds / 60));
+          if (isFirstPoll) {
+            // Baseline only on mount/room-switch — never auto-join off the
+            // very first poll (see comment above).
+            lastTimerStartRef.current = tm.started_at;
+          } else if (tm.remaining_seconds <= 20) {
+            // Too little of the session left to bother joining — stop
+            // watching this round so it doesn't keep re-checking it.
+            lastTimerStartRef.current = tm.started_at;
+          } else if (!isRunningRef.current) {
+            // Free to join right now — sync to the room's *actual*
+            // remaining time (not a fresh full-length countdown), so this
+            // device's clock matches everyone else's instead of running
+            // a bit behind depending on how late this join landed.
+            lastTimerStartRef.current = tm.started_at;
             if (mode !== 'focus') handleModeClick('focus');
-            setDuration(mins);
-            setTimeout(() => { if (!isRunningRef.current) toggleTimer(); }, 150);
-            toast.success(t('flow.hostStarted', { name: d.name, n: mins }));
+            joinRoomTimer(tm.duration_seconds, tm.remaining_seconds);
+            toast.success(t('flow.hostStarted', { name: d.name, n: Math.max(1, Math.round(tm.duration_seconds / 60)) }));
           }
+          // else: this device's own timer is busy right now (e.g. mid
+          // break) — deliberately leave lastTimerStartRef unset for this
+          // started_at, so the next poll (3s later) retries the same
+          // round and can still join once it frees up, instead of
+          // silently missing the whole session forever.
         }
       } catch (_) {}
     };
