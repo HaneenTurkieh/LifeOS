@@ -131,8 +131,14 @@ router.post('/generate', async (req, res) => {
     // at the token cap, not at a clean JSON boundary. Slides ask for
     // full-detail, uncapped coverage, so they need the room.
     const data = await callOpenRouter({
-      messages:   [{ role: 'user', content: prompt }],
-      max_tokens: 8192,
+      messages:    [{ role: 'user', content: prompt }],
+      max_tokens:  8192,
+      // Higher than the (unset→provider-default) value used for plain
+      // Lumi chat — exam questions should vary between regenerations off
+      // the same source material instead of converging on the same
+      // "obvious" first-pass questions every time.
+      temperature: 1.0,
+      top_p:       0.95,
     });
     await recordUsage(req.user.id, 'exam_generate');
     res.json({ text: data.choices?.[0]?.message?.content || '', remaining: gate.remaining - 1 });
