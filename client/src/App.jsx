@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
@@ -18,29 +18,49 @@ import { useTheme }      from './context/ThemeContext.jsx';
 import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
 import useMilestoneReminders from './hooks/useMilestoneReminders.js';
-import Login          from './pages/Login.jsx';
-import ForgotPassword from './pages/ForgotPassword.jsx';
-import ResetPassword  from './pages/ResetPassword.jsx';
-import Terms          from './pages/legal/Terms.jsx';
-import Privacy        from './pages/legal/Privacy.jsx';
-import Refund         from './pages/legal/Refund.jsx';
-import Pricing        from './pages/legal/Pricing.jsx';
-import Dashboard      from './pages/Dashboard.jsx';
-import Tasks          from './pages/Tasks.jsx';
-import Goals          from './pages/Goals.jsx';
-import Focus          from './pages/Focus.jsx';
-import Analytics      from './pages/Analytics.jsx';
-import Launchpad      from './pages/Launchpad.jsx';
-import AITools        from './pages/AITools.jsx';
-import History        from './pages/History.jsx';
-import TreeShop       from './pages/TreeShop.jsx';
-import ExamAssistant  from './pages/ExamAssistant.jsx';
-import Calendar       from './pages/Calendar.jsx';
-import NotFound       from './pages/NotFound.jsx';
+// Every page below is lazy-loaded so each route becomes its own JS chunk
+// instead of all of them (plus their dependencies, e.g. recharts pulled in
+// by Analytics) getting bundled into one ~2.3MB file that every visitor
+// downloads just to see the login screen. <Suspense> boundaries around
+// both <Routes> blocks below show a small spinner during the (usually
+// sub-100ms) chunk fetch.
+const Login          = lazy(() => import('./pages/Login.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
+const ResetPassword  = lazy(() => import('./pages/ResetPassword.jsx'));
+const Terms          = lazy(() => import('./pages/legal/Terms.jsx'));
+const Privacy        = lazy(() => import('./pages/legal/Privacy.jsx'));
+const Refund         = lazy(() => import('./pages/legal/Refund.jsx'));
+const Pricing        = lazy(() => import('./pages/legal/Pricing.jsx'));
+const Dashboard      = lazy(() => import('./pages/Dashboard.jsx'));
+const Tasks          = lazy(() => import('./pages/Tasks.jsx'));
+const Goals          = lazy(() => import('./pages/Goals.jsx'));
+const Focus          = lazy(() => import('./pages/Focus.jsx'));
+const Analytics      = lazy(() => import('./pages/Analytics.jsx'));
+const Launchpad      = lazy(() => import('./pages/Launchpad.jsx'));
+const AITools        = lazy(() => import('./pages/AITools.jsx'));
+const History        = lazy(() => import('./pages/History.jsx'));
+const TreeShop       = lazy(() => import('./pages/TreeShop.jsx'));
+const ExamAssistant  = lazy(() => import('./pages/ExamAssistant.jsx'));
+const Calendar       = lazy(() => import('./pages/Calendar.jsx'));
+const NotFound       = lazy(() => import('./pages/NotFound.jsx'));
 // Onboarding was fully built but never actually mounted anywhere in
 // the app — that's why it "skipped entirely" rather than just showing
 // without the fold animation. Wired in below, in AppShell.
+// Kept as a regular (non-lazy) import: isOnboarded() is called directly
+// inside a synchronous useEffect below, not just referenced in JSX, and
+// React.lazy only works for the default-exported component itself.
 import Onboarding, { isOnboarded } from './pages/Onboarding.jsx';
+
+// Shown briefly in the gap while a route's JS chunk downloads. Deliberately
+// minimal (no i18n/theme wiring) since it only flashes for a moment and
+// must never itself suspend.
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh] w-full">
+      <Loader2 size={22} className="animate-spin text-white/30" />
+    </div>
+  );
+}
 
 // ── Shortcuts modal ───────────────────────────────────────────
 function ShortcutsModal({ onClose }) {
@@ -128,22 +148,24 @@ export default function App() {
   return (
     <FocusProvider>
       <GlobalBackground />
-      <Routes>
-        <Route path="/login"           element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password"  element={<ResetPassword />} />
-        {/* Public — no login required. Paddle's domain review needs these
-            reachable without an account. */}
-        <Route path="/terms"           element={<Terms />} />
-        <Route path="/privacy"         element={<Privacy />} />
-        <Route path="/refund-policy"   element={<Refund />} />
-        <Route path="/pricing"         element={<Pricing />} />
-        <Route path="/*" element={
-          <ProtectedRoute>
-            <AppShell />
-          </ProtectedRoute>
-        } />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login"           element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password"  element={<ResetPassword />} />
+          {/* Public — no login required. Paddle's domain review needs these
+              reachable without an account. */}
+          <Route path="/terms"           element={<Terms />} />
+          <Route path="/privacy"         element={<Privacy />} />
+          <Route path="/refund-policy"   element={<Refund />} />
+          <Route path="/pricing"         element={<Pricing />} />
+          <Route path="/*" element={
+            <ProtectedRoute>
+              <AppShell />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </Suspense>
     </FocusProvider>
   );
 }
@@ -253,23 +275,25 @@ function AppShell() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         >
-          <Routes location={location}>
-            <Route path="/"            element={<Dashboard />} />
-            <Route path="/tasks"       element={<Tasks />} />
-            <Route path="/goals"       element={<Goals />} />
-            <Route path="/learning"    element={<Focus />} />
-            <Route path="/analytics"   element={<Analytics />} />
-            <Route path="/launchpad"   element={<Launchpad />} />
-            <Route path="/ai"          element={<AITools />} />
-            <Route path="/history"     element={<History />} />
-            <Route path="/trees"       element={<TreeShop />} />
-            <Route path="/exam"        element={<ExamAssistant />} />
-            <Route path="/calendar"    element={<Calendar />} />
-            <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
-            <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
-            <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
-            <Route path="*"            element={<NotFound />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes location={location}>
+              <Route path="/"            element={<Dashboard />} />
+              <Route path="/tasks"       element={<Tasks />} />
+              <Route path="/goals"       element={<Goals />} />
+              <Route path="/learning"    element={<Focus />} />
+              <Route path="/analytics"   element={<Analytics />} />
+              <Route path="/launchpad"   element={<Launchpad />} />
+              <Route path="/ai"          element={<AITools />} />
+              <Route path="/history"     element={<History />} />
+              <Route path="/trees"       element={<TreeShop />} />
+              <Route path="/exam"        element={<ExamAssistant />} />
+              <Route path="/calendar"    element={<Calendar />} />
+              <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
+              <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
+              <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />
+              <Route path="*"            element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </motion.div>
       </main>
       <MobileNav />
