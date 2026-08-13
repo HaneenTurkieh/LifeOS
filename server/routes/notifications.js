@@ -194,6 +194,19 @@ async function generateNotifications(userId) {
     }
   }
 
+  // One-time announcement for the new grace-passes perk (added right
+  // after it shipped) — deduped forever by its static link, same trick
+  // as grace_welcome/grace_ending above, so it fires exactly once per
+  // account regardless of premium status. Sent to everyone (not just
+  // current Premium users) since it's also a reason for free users to
+  // consider upgrading.
+  toCreate.push({
+    type:  'grace_passes_announcement',
+    title: '🌳 New: Grace passes',
+    body:  "Premium now gets 3 grace passes a week — miss the 10s pause window and one auto-saves your tree instead of losing it. Check Settings → Premium to see how many you have left.",
+    link:  null,
+  });
+
   for (const n of toCreate) {
     const dedupeKey = buildDedupeKey(n.type, n.link, today);
     await db.execute({
