@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 
-const DEMO_EMAIL    = 'demo@nuvora.app'; // server aliases this to the actual seeded demo@aurora.app row
+const DEMO_EMAIL    = 'demo@nuvora.app';
 const DEMO_PASSWORD = 'password123';
 
 export default function Login() {

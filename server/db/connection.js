@@ -575,6 +575,19 @@ async function initDb() {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN grace_passes_week_start TEXT DEFAULT NULL`);
   }
 
+  // ── Aurora → Nuvora data cleanup (self-healing, idempotent) ────
+  // The rename touched every UI string and new inserts, but rows already
+  // sitting in the live DB from before the rename kept the old value —
+  // a task's `source` column, and the seeded demo account's email. Both
+  // get fixed here automatically on every boot rather than needing a
+  // manual one-off script; a no-op once nothing matches anymore.
+  await db.execute(`UPDATE tasks SET source = 'nuvora' WHERE source = 'aurora'`);
+  await db.execute(`
+    UPDATE users SET email = 'demo@nuvora.app'
+    WHERE email = 'demo@aurora.app'
+      AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo@nuvora.app' COLLATE NOCASE)
+  `);
+
   // ── Error logs (owner visibility) ────────────────────────────
   // A lightweight record of user-facing AI-call failures (Lumi chat,
   // anti-procrastination, etc.) so the app owner can actually see when

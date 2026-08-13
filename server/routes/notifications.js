@@ -9,7 +9,7 @@ const MOOD_CHECKPOINTS = [12, 15, 18, 21];
 // Nuvora-authored yearly birthday entry — self-seeds onto the Calendar
 // the same way the grace-period notices below self-seed, so the person
 // never has to remember to add their own birthday. It's a real task
-// row (source = 'aurora', category = 'Birthday') but the Tasks page
+// row (source = 'nuvora', category = 'Birthday') but the Tasks page
 // filters that combination out client-side, so it only ever shows up
 // on the Calendar. Keeps exactly one: if the birthday or name changes,
 // or the year rolls over, the stale copy is deleted and a fresh one is
@@ -24,7 +24,7 @@ async function ensureBirthdayTask(userId) {
       // Birthday was cleared — remove any leftover entry rather than
       // leaving it pointing at a birthday that no longer exists.
       await db.execute({
-        sql: `DELETE FROM tasks WHERE user_id = ? AND source IN ('aurora','nuvora') AND category = 'Birthday'`,
+        sql: `DELETE FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday'`,
         args: [userId],
       });
       return;
@@ -46,12 +46,12 @@ async function ensureBirthdayTask(userId) {
     // changed, or it's a new year) or wrong title (display name
     // changed) both mean this isn't the current correct entry anymore.
     await db.execute({
-      sql:  `DELETE FROM tasks WHERE user_id = ? AND source IN ('aurora','nuvora') AND category = 'Birthday' AND (deadline != ? OR title != ?)`,
+      sql:  `DELETE FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' AND (deadline != ? OR title != ?)`,
       args: [userId, deadline, title],
     });
 
     const existing = (await db.execute({
-      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source IN ('aurora','nuvora') AND category = 'Birthday' AND deadline = ? AND title = ?`,
+      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' AND deadline = ? AND title = ?`,
       args: [userId, deadline, title],
     })).rows[0];
     if (existing) return;
@@ -129,7 +129,7 @@ async function generateNotifications(userId) {
   // entry, which isn't a real actionable task.
   const stagnantTasks = await db.execute({
     sql:  `SELECT id, title FROM tasks
-           WHERE user_id=? AND status='todo' AND source NOT IN ('aurora','nuvora')
+           WHERE user_id=? AND status='todo' AND source != 'nuvora'
              AND COALESCE(time_spent_minutes,0) = 0
              AND date(created_at) <= date(?, '-2 days')
            ORDER BY created_at ASC LIMIT 3`,
