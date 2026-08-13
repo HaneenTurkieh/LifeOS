@@ -358,10 +358,11 @@ export default function Tasks() {
   );
 }
 // Anti-procrastination helper — no penalty, no coins taken, nothing
-// tracked against the user. Purely Lumi offering three differently-sized
+// tracked against the user. Lumi reads the actual task (and description,
+// if there is one) and proposes three differently-sized, task-specific
 // on-ramps (5 min / 15 min / 1 hour) for a task that's been sitting
-// untouched, reusing the existing rule-based /ai/anti-procrastination
-// endpoint (already built, just never had UI wired to it before).
+// untouched — a real model call per click, not a fill-in-the-blank
+// template, so the suggestions actually fit what the task involves.
 function AntiProcrastinationModal({ task, onClose, t, lang }) {
   const [loading, setLoading] = useState(false);
   const [versions, setVersions] = useState(null);
@@ -369,7 +370,7 @@ function AntiProcrastinationModal({ task, onClose, t, lang }) {
     if (!task) { setVersions(null); return; }
     setLoading(true);
     setVersions(null);
-    api.post('/ai/anti-procrastination', { title: task.title })
+    api.post('/ai/anti-procrastination', { title: task.title, description: task.description || '' })
       .then(setVersions)
       .catch(() => setVersions(null))
       .finally(() => setLoading(false));

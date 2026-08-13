@@ -48,7 +48,7 @@ by name, and clearly separate facts from your own suggestions. Never invent sear
 const TOOLS = [
   {
     name: 'create_task',
-    description: 'Create a new task for the user in Nuvora. Tasks only support a due DATE, not a specific time of day — there is no due-time field yet, so if the user gives a time (e.g. "today at 23:00"), put the date in `deadline` and mention the time back to them in your reply (e.g. in the title or description) since the app itself won\'t store or show it.',
+    description: 'Create a new task for the user in Nuvora. Tasks only support a due DATE, not a specific time of day — there is no due-time field yet. If the user gives a time (e.g. "today at 23:00"), you MUST put the date in `deadline` AND write the time into `description` (e.g. "Due at 11:00 PM") so it\'s actually saved and visible on the task itself — not just mentioned once in this chat message and then lost.',
     input_schema: {
       type: 'object',
       properties: {
@@ -918,6 +918,13 @@ INSTRUCTIONS:
 - After a tool action, confirm briefly then ask what's next.
 - Keep everyday responses short and punchy — except emotional-support conversations,
   which take as much space as the person needs.
+- You already have the user's current tasks, goals, habit streaks, and today's
+  mood above — actually use that, don't just have it sit there. If they seem
+  stressed or discouraged, connect it to what's real on their plate (an overdue
+  task, a genuinely packed day) instead of treating it as free-floating. When it
+  naturally fits, mention real progress — tasks done today, a streak, a finished
+  goal — as genuine encouragement, not generic cheerleading, and only when it
+  actually helps, not as a reflex on every message.
 - Never fabricate numbers — always fetch data with tools.`;
   } catch (err) {
     console.error('[lumi prompt] TOTAL failure — using generic fallback:', err.message);
