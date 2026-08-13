@@ -74,7 +74,29 @@ const TOOLS = [
   },
   {
     name: 'complete_task',
-    description: 'Mark a task as done by ID or title fragment.',
+    description: 'Mark a task as DONE — not the same as deleting it, the task still exists afterward. If the user says "delete"/"remove", use delete_task instead, never this. If task_title matches more than one task, this returns the candidates instead of guessing — call list_tasks or ask the user which one, don\'t retry with a random guess.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        task_id:    { type: 'number' },
+        task_title: { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'reopen_task',
+    description: 'Undo a task completion — sets it back to not-done. Use this if the user says a task was marked done by mistake.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        task_id:    { type: 'number' },
+        task_title: { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'delete_task',
+    description: 'Permanently delete a task — this is NOT the same as complete_task and cannot be undone. Use this whenever the user says "delete"/"remove"/"get rid of" a task. If task_title matches more than one task, this returns the candidates instead of guessing — call list_tasks or ask the user which one first, never guess an ID from earlier context.',
     input_schema: {
       type: 'object',
       properties: {
@@ -252,6 +274,20 @@ const TOOLS = [
     },
   },
 ];
+// Shared by complete_task / reopen_task / delete_task — a LIKE search that
+// silently picks the first match (the old behavior) is how a real bug
+// happened: "delete it" with no delete_task tool led the model to call
+// complete_task on the wrong task entirely, permanently marking a real,
+// unrelated task done with no way to tell it had guessed wrong. Now any
+// title search that matches more than one task returns the candidates
+// instead of acting — the model has to disambiguate (call list_tasks, ask
+// the user) rather than gamble on task_id.
+async function findTaskByTitle(userId, titleFragment, { excludeDone = false } = {}) {
+  const sql = `SELECT id, title FROM tasks WHERE user_id=? AND title LIKE ?` + (excludeDone ? ` AND status!='done'` : '');
+  const res = await db.execute({ sql, args: [userId, `%${titleFragment}%`] });
+  return res.rows;
+}
+
 async function executeTool(name, input, userId, todayLocal) {
   // Fallback only matters if a caller forgets to pass it — the real
   // request path above always supplies the client's local date.
@@ -298,11 +334,11 @@ async function executeTool(name, input, userId, todayLocal) {
     case 'complete_task': {
       let id = input.task_id;
       if (!id && input.task_title) {
-        const found = await db.execute({
-          sql:  `SELECT id FROM tasks WHERE user_id=? AND title LIKE ? AND status!='done' LIMIT 1`,
-          args: [userId, `%${input.task_title}%`],
-        });
-        if (found.rows[0]) id = found.rows[0].id;
+        const matches = await findTaskByTitle(userId, input.task_title, { excludeDone: true });
+        if (matches.length > 1) {
+          return { success: false, ambiguous: true, message: 'More than one task matches — ask the user which one before acting.', candidates: matches };
+        }
+        if (matches.length === 1) id = matches[0].id;
       }
       if (!id) return { success: false, message: 'Task not found' };
       const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
@@ -315,6 +351,37 @@ async function executeTool(name, input, userId, todayLocal) {
         args: [userId],
       });
       return { success: true, title: task.rows[0]?.title || 'Task', message: 'Marked as complete ✓' };
+    }
+    case 'reopen_task': {
+      let id = input.task_id;
+      if (!id && input.task_title) {
+        const matches = await findTaskByTitle(userId, input.task_title, {});
+        if (matches.length > 1) {
+          return { success: false, ambiguous: true, message: 'More than one task matches — ask the user which one before acting.', candidates: matches };
+        }
+        if (matches.length === 1) id = matches[0].id;
+      }
+      if (!id) return { success: false, message: 'Task not found' };
+      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
+      await db.execute({
+        sql:  `UPDATE tasks SET status='todo',progress=0,completed_at=NULL WHERE id=? AND user_id=?`,
+        args: [id, userId],
+      });
+      return { success: true, title: task.rows[0]?.title || 'Task', message: 'Reopened — no longer marked done' };
+    }
+    case 'delete_task': {
+      let id = input.task_id;
+      if (!id && input.task_title) {
+        const matches = await findTaskByTitle(userId, input.task_title, {});
+        if (matches.length > 1) {
+          return { success: false, ambiguous: true, message: 'More than one task matches — ask the user which one before acting.', candidates: matches };
+        }
+        if (matches.length === 1) id = matches[0].id;
+      }
+      if (!id) return { success: false, message: 'Task not found' };
+      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
+      await db.execute({ sql: `DELETE FROM tasks WHERE id=? AND user_id=?`, args: [id, userId] });
+      return { success: true, title: task.rows[0]?.title || 'Task', message: 'Deleted' };
     }
     case 'create_goal': {
       const res = await db.execute({
@@ -883,7 +950,9 @@ ${attachmentNote}
 TOOLS AVAILABLE:
 Use these when they're genuinely relevant to what the user is asking for —
 not as a default reflex:
-- create_task / list_tasks / complete_task — task management
+- create_task / list_tasks / complete_task / reopen_task / delete_task — task
+  management. complete_task marks done (reversible via reopen_task); delete_task
+  permanently removes it (NOT reversible) — never use one for the other
 - create_goal / list_goals — goal tracking
 - get_productivity_summary — weekly/monthly overview
 - get_focus_stats / get_focus_history — deep work patterns
@@ -906,6 +975,11 @@ INSTRUCTIONS:
 - Use profile info (gender, age, bio) to personalise — adjust pronouns, references, tone.
 - When the user clearly asks for an action, use the tool immediately — don't ask for
   confirmation first. But don't reach for a tool just because one exists.
+- Exception to the above: destructive or hard-to-reverse actions on a specific item
+  referenced vaguely ("delete it", "remove that one") — never guess which task_id
+  "it" means from something mentioned earlier in the conversation. Call list_tasks
+  (or the matching tool) fresh to resolve the reference, and if a title search comes
+  back ambiguous (more than one match), ask which one before acting — don't pick one.
 - Use save_memory PROACTIVELY and OFTEN — don't wait to be told "remember this."
   Save it the moment you notice: a project or idea they're actively working on,
   a preference (language, tone, how they like things explained), a recurring
