@@ -5,17 +5,20 @@
 // (see ../lib/openrouter.js) — Gemini's only remaining job is reading
 // documents/images accurately before that text gets handed off.
 //
-// Bumped from gemini-3.1-flash-lite to gemini-3.6-flash — Haneen wanted a
-// stronger model here (extraction accuracy directly affects exam question
-// quality), and this is low-volume enough (only fires on PDF/image
-// uploads, not every chat message) that the jump from Flash-Lite to full
-// Flash is cheap in absolute terms even though it's pricier per token.
-// Still pinned to a "Stable" release, not "Preview" — confirmed against
-// https://ai.google.dev/gemini-api/docs/models (checked Aug 2026). The
-// original gemini-2.5-flash choice broke once before when Google rolled
-// the Gemini 3 line out as the new default and deprecated it — re-check
-// that same page for the current Stable list before bumping this again.
-const GEMINI_MODEL = 'gemini-3.6-flash';
+// Went through two picks here (Aug 2026). First tried gemini-3.6-flash
+// (full Flash tier) for stronger extraction accuracy — but at $1.50/$7.50
+// per million tokens that's nearly Sonnet-5 pricing, not the "reasonable"
+// number Haneen actually wanted for a background extraction step. Settled
+// on gemini-3.5-flash-lite instead: still a real generation newer than
+// the original 3.1-flash-lite (better accuracy), but priced at $0.30/$2.50
+// — a fraction of full Flash — which fits a low-stakes, low-volume path
+// much better. Still pinned to a "Stable" release, not "Preview" —
+// confirmed against https://ai.google.dev/gemini-api/docs/models (checked
+// Aug 2026). The original gemini-2.5-flash choice broke once before when
+// Google rolled the Gemini 3 line out as the new default and deprecated
+// it — re-check that same page for the current Stable list before
+// bumping this again.
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Anthropic-style JSON schema ({ type: 'object', properties: {...} }, all

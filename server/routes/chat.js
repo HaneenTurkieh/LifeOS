@@ -3,7 +3,7 @@ const router  = express.Router();
 const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
-const { getHabitStreak } = require('../lib/gamification');
+const { getHabitStreak, addXp } = require('../lib/gamification');
 
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
 const TONE_PROMPTS = {
@@ -208,6 +208,47 @@ const TOOLS = [
         key: { type: 'string' },
       },
       required: ['key'],
+    },
+  },
+  {
+    name: 'create_habit',
+    description: 'Create a new recurring habit to track (e.g. "Gym", "Read 20 min").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:             { type: 'string' },
+        target_per_week:  { type: 'number', description: 'How many times a week, default 7 (daily)' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'toggle_habit',
+    description: 'Mark a habit done (or undone, if already done) for today, by name.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        habit_name: { type: 'string' },
+      },
+      required: ['habit_name'],
+    },
+  },
+  {
+    name: 'list_projects',
+    description: 'Get the user\'s tracked projects (idea/design/dev/testing/deployment stages).',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'create_project',
+    description: 'Create a new project to track.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title:       { type: 'string' },
+        description: { type: 'string' },
+        stage:       { type: 'string', enum: ['idea','design','dev','testing','deployment'] },
+      },
+      required: ['title'],
     },
   },
 ];
@@ -575,6 +616,52 @@ async function executeTool(name, input, userId, todayLocal) {
       });
       return { success: true, deleted: input.key };
     }
+    case 'create_habit': {
+      const res = await db.execute({
+        sql:  `INSERT INTO habits (user_id, name, target_per_week) VALUES (?, ?, ?)`,
+        args: [userId, input.name, input.target_per_week || 7],
+      });
+      return { success: true, habit_id: Number(res.lastInsertRowid), name: input.name };
+    }
+    case 'toggle_habit': {
+      const found = await db.execute({
+        sql:  `SELECT id, name FROM habits WHERE user_id=? AND name LIKE ? LIMIT 1`,
+        args: [userId, `%${input.habit_name}%`],
+      });
+      const habit = found.rows[0];
+      if (!habit) return { success: false, message: 'Habit not found' };
+      const existing = await db.execute({
+        sql:  `SELECT id FROM habit_logs WHERE habit_id=? AND date=?`,
+        args: [habit.id, today],
+      });
+      let done;
+      if (existing.rows[0]) {
+        await db.execute({ sql: `DELETE FROM habit_logs WHERE id=?`, args: [existing.rows[0].id] });
+        done = false;
+      } else {
+        await db.execute({
+          sql:  `INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)`,
+          args: [habit.id, today],
+        });
+        await addXp(userId, 5, `Completed habit: ${habit.name}`);
+        done = true;
+      }
+      return { success: true, habit: habit.name, done_today: done };
+    }
+    case 'list_projects': {
+      const res = await db.execute({
+        sql:  `SELECT id, title, description, stage, progress FROM projects WHERE user_id=? ORDER BY created_at DESC`,
+        args: [userId],
+      });
+      return { projects: res.rows };
+    }
+    case 'create_project': {
+      const res = await db.execute({
+        sql:  `INSERT INTO projects (user_id, title, description, stage, progress) VALUES (?, ?, ?, ?, 0)`,
+        args: [userId, input.title, input.description || '', input.stage || 'idea'],
+      });
+      return { success: true, project_id: Number(res.lastInsertRowid), title: input.title };
+    }
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -808,6 +895,8 @@ not as a default reflex:
 - list_upcoming_deadlines — what's due soon
 - get_xp_progress — level, XP, next tree unlock
 - save_memory / forget_memory — remember important facts
+- create_habit / toggle_habit — add a new recurring habit, or mark one done/undone for today
+- list_projects / create_project — the user's tracked projects (idea/design/dev/testing/deployment)
 
 INSTRUCTIONS:
 - Be a real conversational partner first — warm, natural, present. Concise second.
