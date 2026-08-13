@@ -527,7 +527,7 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, onAskLumi,
           {(task.source === 'aurora' || task.source === 'nuvora') && (
             <span className="flex items-center gap-1 text-[11px] font-semibold"
               style={{ color: 'rgb(var(--accent-500))' }}>
-              ✨ {t('tasks.addedByAurora')}
+              ✨ {t('tasks.addedByNuvora')}
             </span>
           )}
         </div>
