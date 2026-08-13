@@ -1,12 +1,28 @@
 const BASE      = window.location.hostname === 'localhost'
   ? 'http://localhost:4000/api'
   : 'https://lifeos-0l81.onrender.com/api';
-const TOKEN_KEY = 'aurora_auth_token';
+const TOKEN_KEY     = 'nuvora_auth_token';
+const OLD_TOKEN_KEY  = 'aurora_auth_token'; // pre-rebrand key — read once, then migrated below
 
-export function getToken()      { return localStorage.getItem(TOKEN_KEY); }
+// Self-healing one-time migration: anyone already logged in has their
+// token sitting under the old key. First read wins it over to the new
+// key so every *subsequent* read (here and everywhere else that used to
+// hardcode the old string) just works without needing its own fallback
+// — nobody gets silently logged out by the rename.
+export function getToken() {
+  const current = localStorage.getItem(TOKEN_KEY);
+  if (current) return current;
+  const legacy = localStorage.getItem(OLD_TOKEN_KEY);
+  if (legacy) {
+    localStorage.setItem(TOKEN_KEY, legacy);
+    localStorage.removeItem(OLD_TOKEN_KEY);
+  }
+  return legacy;
+}
 export function setToken(token) {
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else       localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(OLD_TOKEN_KEY);
 }
 
 async function request(path, options = {}) {
