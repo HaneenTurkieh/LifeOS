@@ -178,7 +178,7 @@ body {
   @apply clay hover:-translate-y-0.5 hover:shadow-glow-ring cursor-pointer active:translate-y-0 active:shadow-clay;
 }
 .glass-spline {
-  background: rgba(255,255,255,0.045);
+  background: rgba(255,255,255,0.035);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.16);
@@ -190,7 +190,7 @@ body {
    see-through) and leans on a crisp near-opaque border for the edge
    that makes it readable against the page. */
 html:not(.dark) .glass-spline {
-  background: rgba(255,255,255,0.32);
+  background: rgba(255,255,255,0.22);
   border: 1px solid rgba(255,255,255,0.95);
   box-shadow: 0 4px 20px rgba(60,40,100,0.10);
 }
