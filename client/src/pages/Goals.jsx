@@ -12,7 +12,6 @@ import ProgressRing from '../components/ProgressRing.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
-import HabitHistory from '../components/HabitHistory.jsx';
 import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 
 const ICON_CHOICES  = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
@@ -466,8 +465,7 @@ export default function Goals() {
             }
           />
         ) : (
-          <>
-            <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
               {habits.map((h, i) => {
                 const Icon = Icons[h.icon] || Icons.Sparkles;
                 const doneDates = new Set(h.last30);
@@ -509,9 +507,7 @@ export default function Goals() {
                   </GlassCard>
                 );
               })}
-            </div>
-            <div className="mt-6"><HabitHistory habits={habits}/></div>
-          </>
+          </div>
         )
       )}
       <Modal open={goalModal} onClose={() => setGoalModal(false)} title={t('goals.newGoal')}>

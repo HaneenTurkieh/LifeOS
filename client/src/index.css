@@ -184,6 +184,16 @@ body {
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
+/* In light mode, 8% white on a light lavender page background gave cards
+   almost no visible edge — everything read as one flat surface. Bump the
+   fill + border in light mode only so cards actually separate from the
+   page; dark mode (light-on-dark) already has natural contrast and is
+   untouched. */
+html:not(.dark) .glass-spline {
+  background: rgba(255,255,255,0.65);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 4px 20px rgba(60,40,100,0.08);
+}
 .dark .text-ink { color: rgba(255,255,255,0.95) !important; }
 .dark .text-ink\/80, .dark .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
 .dark .text-ink\/60, .dark .text-ink\/55, .dark .text-ink\/50 { color: rgba(255,255,255,0.55) !important; }
