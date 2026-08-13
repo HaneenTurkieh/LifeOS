@@ -511,9 +511,14 @@ export default function AITools() {
     setConvos((c) => c.filter((x) => x.id !== id));
   };
 
-  const handleAttach = async (file) => {
+  // slotsUsed lets a caller reserve a spot before the upload finishes —
+  // needed by handleAttachFiles below, which uploads several files in one
+  // batch and can't just read `attachments.length` per-file (state from
+  // setAttachments hasn't re-rendered yet between two awaits in the same
+  // loop, so every file in the batch would see the same stale count).
+  const handleAttach = async (file, slotsUsed = attachments.length) => {
     if (!file) return;
-    if (attachments.length >= MAX_ATTACH) {
+    if (slotsUsed >= MAX_ATTACH) {
       toast.error(t('lumi.maxFiles', { n: MAX_ATTACH }));
       return;
     }
@@ -538,8 +543,27 @@ export default function AITools() {
       toast.error(err.message);
     } finally {
       setAttaching(false);
-      if (fileRef.current) fileRef.current.value = '';
     }
+  };
+  // Handles picking/dropping several files at once — the file input below
+  // now allows multi-select, but was previously only ever reading
+  // e.target.files[0], so a multi-file selection silently attached just
+  // the first one with no indication anything was dropped. Uploads go
+  // one at a time (not Promise.all) so the running slot count and the
+  // "you've hit the limit" toast stay accurate instead of racing.
+  const handleAttachFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    let slotsUsed = attachments.length;
+    for (const file of files) {
+      if (slotsUsed >= MAX_ATTACH) {
+        toast.error(t('lumi.maxFiles', { n: MAX_ATTACH }));
+        break;
+      }
+      await handleAttach(file, slotsUsed);
+      slotsUsed += 1;
+    }
+    if (fileRef.current) fileRef.current.value = '';
   };
   const removeAttachment = (name) => setAttachments((prev) => prev.filter((a) => a.name !== name));
 
@@ -801,8 +825,8 @@ export default function AITools() {
           <div className="relative">
             <div className="flex items-end gap-1.5 rounded-3xl p-2" style={glass}>
               <input
-                ref={fileRef} type="file" accept={ACCEPTED_FILES} className="hidden"
-                onChange={(e) => handleAttach(e.target.files[0])}
+                ref={fileRef} type="file" accept={ACCEPTED_FILES} multiple className="hidden"
+                onChange={(e) => handleAttachFiles(e.target.files)}
               />
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
