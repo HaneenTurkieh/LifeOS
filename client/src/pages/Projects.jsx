@@ -207,6 +207,7 @@ The tasks must fit where the project actually is right now. Idea/Design stage: f
 Return ONLY a JSON array of objects with keys: title (string), priority (high/medium/low). No explanation, just the JSON array.`,
         }],
         no_history: true, // internal tool call, not a real Lumi conversation — keep it out of the chat history
+        mode: 'review', // gets a real reasoning pass server-side — breaking a project into the *right* next tasks is a judgment call, not a quick chat reply
       });
       let tasks = [];
       try {
