@@ -175,10 +175,10 @@ export default function CVExportModal({ data, userName, onClose }) {
             <div className="header-line" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:32, paddingBottom:20, borderBottom:'3px solid #7C6AF0' }}>
               <div>
                 <h1 style={{ fontSize:28, fontWeight:800, color:'#1E2233', marginBottom:4 }}>{userName}</h1>
-                <p style={{ color:'#6B7280', fontSize:13 }}>Built with Aurora · {new Date().toLocaleDateString('en-US', { month:'long', year:'numeric' })}</p>
+                <p style={{ color:'#6B7280', fontSize:13 }}>Built with Nuvora · {new Date().toLocaleDateString('en-US', { month:'long', year:'numeric' })}</p>
               </div>
               <span style={{ background:'linear-gradient(135deg,#7C6AF0,#5B47E0)', color:'white', padding:'4px 12px', borderRadius:999, fontSize:11, fontWeight:700 }}>
-                ✦ Aurora CV
+                ✦ Nuvora CV
               </span>
             </div>
 

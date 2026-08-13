@@ -6,7 +6,7 @@ const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 
 const MOOD_CHECKPOINTS = [12, 15, 18, 21];
 
-// Aurora-authored yearly birthday entry — self-seeds onto the Calendar
+// Nuvora-authored yearly birthday entry — self-seeds onto the Calendar
 // the same way the grace-period notices below self-seed, so the person
 // never has to remember to add their own birthday. It's a real task
 // row (source = 'aurora', category = 'Birthday') but the Tasks page
@@ -59,7 +59,7 @@ async function ensureBirthdayTask(userId) {
     await db.execute({
       sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source)
              VALUES (?, ?, ?, 'low', 'Birthday', ?, 'aurora')`,
-      args: [userId, title, 'Added automatically by Aurora — happy birthday! 💜', deadline],
+      args: [userId, title, 'Added automatically by Nuvora — happy birthday! 💜', deadline],
     });
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
 }

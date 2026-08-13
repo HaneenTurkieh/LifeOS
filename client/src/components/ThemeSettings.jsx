@@ -43,7 +43,7 @@ export default function ThemeSettings() {
         })}
       </div>
       <p className="text-[11px] text-ink/35 dark:text-white/30 mt-2.5">
-        "System" follows your OS appearance automatically, even if you change it while Aurora is open.
+        "System" follows your OS appearance automatically, even if you change it while Nuvora is open.
       </p>
     </div>
   );

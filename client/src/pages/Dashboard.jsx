@@ -41,7 +41,7 @@ const TREE_DESC = {
   flamingo:'Rare, pink, impossible to miss.',
   money:'Grows richer the more you tend it.',
   crystal:'Legendary. For the dedicated.',
-  christmas:'One day a year, just for you. Not for sale — a birthday gift from Aurora.',
+  christmas:'One day a year, just for you. Not for sale — a birthday gift from Nuvora.',
 };
 const NEXT_TREE = {
   seedling:       { key:'sprout',         name:'Sprout',        cost:100  },
@@ -536,7 +536,7 @@ export default function Dashboard() {
               <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
                 "{t('dash.roughQuote')}"
               </p>
-              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Aurora</p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Nuvora</p>
             </GlassCard>
           )}
         </div>

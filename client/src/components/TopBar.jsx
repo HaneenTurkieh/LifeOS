@@ -18,7 +18,7 @@ export default function TopBar({ onSearchOpen }) {
       {/* Left — app name */}
       <div className="flex items-center gap-2 pl-16 lg:pl-20">
         <span className="font-display font-bold text-ink/70 dark:text-white/60 text-sm tracking-wide">
-          Aurora
+          Nuvora
         </span>
       </div>
 

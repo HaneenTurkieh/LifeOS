@@ -34,7 +34,7 @@ export default function LegalLayout({ title, updated, children }) {
       >
         <Link to="/login" className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 transition"
           style={{ color: linkClr }}>
-          <ArrowLeft size={14} /> Back to Aurora
+          <ArrowLeft size={14} /> Back to Nuvora
         </Link>
 
         <div className="rounded-3xl p-8 sm:p-10"
@@ -47,7 +47,7 @@ export default function LegalLayout({ title, updated, children }) {
         </div>
 
         <p className="text-center text-[11px] mt-6" style={{ color: mutedClr }}>
-          Aurora is operated by Haneen Turkieh, an individual seller based in Nablus, Palestine.
+          Nuvora is operated by Haneen Turkieh, an individual seller based in Nablus, Palestine.
         </p>
       </motion.div>
     </div>

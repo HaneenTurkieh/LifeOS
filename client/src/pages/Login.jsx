@@ -114,7 +114,7 @@ export default function Login() {
           </motion.div>
           <p className="font-display text-xs font-bold tracking-[0.4em]"
             style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(30,34,51,0.55)' }}>
-            AURORA
+            NUVORA
           </p>
         </div>
 

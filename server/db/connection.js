@@ -149,7 +149,7 @@ async function initDb() {
   if (!(await hasColumn('tasks', 'first_completed_at'))) {
     await db.execute(`ALTER TABLE tasks ADD COLUMN first_completed_at TEXT DEFAULT NULL`);
   }
-  // Distinguishes tasks the user typed in themselves from ones Aurora
+  // Distinguishes tasks the user typed in themselves from ones Nuvora
   // added on its own (currently just the yearly birthday reminder,
   // self-seeded in notifications.js) — lets the client badge them
   // differently without guessing from title/category text.
@@ -462,7 +462,7 @@ async function initDb() {
     );
   }
 
-  // One-time owner email change — she asked to switch her Aurora login
+  // One-time owner email change — she asked to switch her Nuvora login
   // from the old Gmail to her Hotmail address. Guarded on the OLD email
   // still existing, so this only actually does anything on the first
   // boot after deploy; every boot after that it's a harmless no-op.
