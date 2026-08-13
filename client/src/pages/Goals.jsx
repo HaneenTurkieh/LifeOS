@@ -7,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import GlassCard from '../components/GlassCard.jsx';
 import StarChartCard from '../components/StarChartCard.jsx';
+import StarPickerModal from '../components/StarPickerModal.jsx';
 import ProgressRing from '../components/ProgressRing.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -173,6 +174,7 @@ export default function Goals() {
   const [editForm,    setEditForm]    = useState({ title: '', description: '', category: '', target_date: '' });
   const [newMilestone, setNewMilestone] = useState('');
   const [addingMilestone, setAddingMilestone] = useState(false);
+  const [pickingStar, setPickingStar] = useState(null);
 
   const loadGoals  = useCallback(async () => {
     try { setGoals(await api.get('/goals')); } catch (e) { toast.error(e.message); }
@@ -212,11 +214,22 @@ export default function Goals() {
     loadGoals();
   };
   const markComplete = async (goal) => {
+    const completing = goal.status !== 'completed';
     const { xpAwarded, unlocked } = await api.put(`/goals/${goal.id}`, {
-      status: goal.status === 'completed' ? 'active' : 'completed',
+      status: completing ? 'completed' : 'active',
     });
     if (xpAwarded) toast.xp(xpAwarded, goal.title);
     unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
+    // The star-picker is the reward moment for finishing, not for
+    // un-completing something you'd marked done by mistake.
+    if (completing) setPickingStar(goal);
+    loadGoals();
+  };
+  const pickStar = async (styleKey) => {
+    if (!pickingStar) return;
+    try { await api.put(`/goals/${pickingStar.id}`, { star_style: styleKey }); }
+    catch (err) { toast.error(err.message); }
+    setPickingStar(null);
     loadGoals();
   };
   const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); };
@@ -653,6 +666,7 @@ export default function Goals() {
           <button type="submit" className="btn-primary justify-center mt-1">{t('goals.addRecur')}</button>
         </form>
       </Modal>
+      <StarPickerModal goal={pickingStar} onClose={() => setPickingStar(null)} onPick={pickStar} t={t} />
     </div>
   );
 }
