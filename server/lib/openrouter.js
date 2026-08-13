@@ -1,15 +1,21 @@
 // server/lib/openrouter.js
 // Thin wrapper around OpenRouter's OpenAI-compatible /chat/completions
 // endpoint, used for the highest-volume, plain-text AI calls in the
-// app (everyday Lumi chat, exam generation) — DeepSeek V3.2 there is
-// both far cheaper than Haiku and benchmark-competitive with it.
+// app (everyday Lumi chat, exam generation).
+//
+// Bumped from deepseek/deepseek-chat (DeepSeek V3.2) to Claude Sonnet 5
+// (Aug 2026) — Haneen asked for Lumi to actually be smarter, not just
+// cheap. Sonnet 5 supports adaptive "thinking" via the `reasoning` param
+// below, which we turn on at a moderate budget so multi-step requests get
+// real reasoning without every single "hey" costing a slow, expensive
+// max-effort pass. If cost ever becomes a real concern at scale, DeepSeek
+// R1 (deepseek/deepseek-r1) is the cheaper reasoning-capable fallback.
 //
 // Deliberately NOT used for: PDF/image extraction in exam.js (needs
-// native document/vision input — DeepSeek's chat endpoint is text-only),
-// Deep Think (needs a native reasoning/thinking budget), or Deep Search
-// (needs a hosted web-search tool). Those three run on Gemini instead
-// (see ../lib/gemini.js), which covers all of them on its free tier.
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat';
+// native document/vision input), Deep Think (needs a native
+// reasoning/thinking budget of its own), or Deep Search (needs a hosted
+// web-search tool). Those three run on Gemini instead (see ../lib/gemini.js).
+const OPENROUTER_MODEL = 'anthropic/claude-sonnet-5';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Anthropic tool shape ({ name, description, input_schema }) → OpenAI/
@@ -35,6 +41,11 @@ async function callOpenRouter({ system, messages, tools, max_tokens = 1024, temp
     model:    OPENROUTER_MODEL,
     messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
     max_tokens,
+    // Moderate thinking budget — enough for Sonnet 5 to actually reason
+    // through non-trivial requests (see the REASONING block in Lumi's
+    // system prompt) without every one-line "hey" eating extra latency
+    // and tokens on max-effort thinking it doesn't need.
+    reasoning: { effort: 'medium' },
   };
   // Optional — callers doing plain chat leave these unset (DeepSeek's
   // own default is fine there). Exam generation passes an explicit
