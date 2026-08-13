@@ -61,4 +61,34 @@ router.get('/users', requireOwner, async (req, res) => {
   }
 });
 
+// ── GET /errors — recent AI-call failures, owner-only ──────────────
+// Backs the "Recent failures" section of the Stats tab — the actual
+// visibility Haneen asked for into whether/how often Lumi (or the
+// anti-procrastination feature) is failing for real users, without
+// needing anyone to report it to her first.
+router.get('/errors', requireOwner, async (req, res) => {
+  try {
+    const [recent, last24h, last7d] = await Promise.all([
+      db.execute(`
+        SELECT e.id, e.source, e.message, e.created_at, u.email
+        FROM error_logs e LEFT JOIN users u ON u.id = e.user_id
+        ORDER BY e.id DESC LIMIT 25
+      `),
+      db.execute(`SELECT COUNT(*) c FROM error_logs WHERE created_at >= datetime('now','-1 day')`),
+      db.execute(`SELECT COUNT(*) c FROM error_logs WHERE created_at >= datetime('now','-7 days')`),
+    ]);
+    res.json({
+      last_24h: Number(last24h.rows[0].c),
+      last_7_days: Number(last7d.rows[0].c),
+      recent: recent.rows.map((r) => ({
+        id: r.id, source: r.source, message: r.message,
+        created_at: r.created_at, email: r.email || null,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /admin/errors error:', err);
+    res.status(500).json({ error: 'Could not load error log' });
+  }
+});
+
 module.exports = router;

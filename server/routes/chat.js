@@ -4,6 +4,7 @@ const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
 const { getHabitStreak, addXp } = require('../lib/gamification');
+const { logError } = require('../lib/errorLog');
 
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
 const TONE_PROMPTS = {
@@ -1325,6 +1326,7 @@ router.post('/', async (req, res) => {
     res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch, user_message_id: userMessageId });
   } catch (err) {
     console.error('Lumi error:', err);
+    logError(req.user?.id, 'chat', err.message).catch(() => {});
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
