@@ -119,6 +119,30 @@ async function generateNotifications(userId) {
     });
   }
 
+  // Gentle anti-procrastination nudge — deliberately NOT tied to a
+  // deadline (that's what 'overdue' already covers) and carries no
+  // consequence of any kind, just a supportive check-in: a task that's
+  // sat untouched (no time logged against it) for a couple of days.
+  // Deduped forever per task (same as overdue/deadline above) so it
+  // fires once, not a daily nag. Excludes the self-seeded birthday
+  // entry, which isn't a real actionable task.
+  const stagnantTasks = await db.execute({
+    sql:  `SELECT id, title FROM tasks
+           WHERE user_id=? AND status='todo' AND source != 'aurora'
+             AND COALESCE(time_spent_minutes,0) = 0
+             AND date(created_at) <= date(?, '-2 days')
+           ORDER BY created_at ASC LIMIT 3`,
+    args: [userId, today],
+  });
+  for (const task of stagnantTasks.rows) {
+    toCreate.push({
+      type:  'procrastination',
+      title: '🌱 Still on your list',
+      body:  `"${task.title}" has been sitting a couple days — want Lumi to help you start small?`,
+      link:  `/tasks?task=${task.id}`,
+    });
+  }
+
   const streakCount = Number(streak.rows[0]?.c || 0);
   const habitsDoneToday = await db.execute({
     sql:  `SELECT COUNT(*) c FROM habit_logs hl JOIN habits h ON h.id=hl.habit_id WHERE h.user_id=? AND hl.date=?`,
