@@ -77,18 +77,36 @@ async function callOpenRouter({
   if (top_p !== undefined) body.top_p = top_p;
   if (tools?.length) body.tools = toolsToOpenAiFormat(tools);
 
-  const r = await fetch(OPENROUTER_URL, {
-    method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${key}`,
-      // Not required for billing, just OpenRouter's own attribution —
-      // harmless to send, helps their leaderboard/analytics.
-      'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
-      'X-Title':       'Nuvora',
-    },
-    body: JSON.stringify(body),
-  });
+  // Without an explicit timeout, a hung connection to OpenRouter/DeepSeek
+  // (provider slowness, a bad network path) could leave the request open
+  // indefinitely — the user just sees an endless spinner instead of a
+  // clean "couldn't connect, try again" error. 45s covers even a slow
+  // Deep Think call (xhigh reasoning + a 6000-token cap) generously while
+  // still failing fast enough to be honest with the user that something's
+  // wrong, rather than leaving them waiting with no idea if it's working.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  let r;
+  try {
+    r = await fetch(OPENROUTER_URL, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${key}`,
+        // Not required for billing, just OpenRouter's own attribution —
+        // harmless to send, helps their leaderboard/analytics.
+        'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
+        'X-Title':       'Nuvora',
+      },
+      body:   JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('The AI provider took too long to respond. Please try again.');
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   const data = await r.json();
   if (!r.ok) throw new Error(data.error?.message || 'OpenRouter API error');
   return data;
