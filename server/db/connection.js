@@ -462,6 +462,17 @@ async function initDb() {
     );
   }
 
+  // Notifications used to store only a pre-rendered English title/body,
+  // so there was no way to show them in Arabic short of re-rendering
+  // from scratch. `data` carries the raw interpolation params (task
+  // title, a date, a count, etc.) alongside the type, so the client can
+  // run both through t() in whichever language is active — same pattern
+  // as every other page. Old rows keep NULL here and just fall back to
+  // their stored English text (see NotificationBell.jsx).
+  if (!(await hasColumn('notifications', 'data'))) {
+    await db.execute(`ALTER TABLE notifications ADD COLUMN data TEXT DEFAULT NULL`);
+  }
+
   // One-time owner email change — she asked to switch her Nuvora login
   // from the old Gmail to her Hotmail address. Guarded on the OLD email
   // still existing, so this only actually does anything on the first

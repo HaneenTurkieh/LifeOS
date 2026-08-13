@@ -4,24 +4,27 @@ import { Search, X, ListChecks, Target, Sparkles, ArrowRight } from 'lucide-reac
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 const PAGES = [
-  { label: 'Dashboard',  path: '/',          icon: '🏠', keywords: ['home','dashboard'] },
-  { label: 'Tasks',      path: '/tasks',      icon: '✅', keywords: ['tasks','todo'] },
-  { label: 'Goals',      path: '/goals',      icon: '🎯', keywords: ['goals','habits','recurring'] },
-  { label: 'Flow',       path: '/learning',   icon: '⏱', keywords: ['flow','focus','pomodoro','timer'] },
-  { label: 'Lumi AI',    path: '/ai',         icon: '✦',  keywords: ['lumi','ai','chat','assistant'] },
-  { label: 'Analytics',  path: '/analytics',  icon: '📊', keywords: ['analytics','stats','charts'] },
-  { label: 'Launchpad',  path: '/launchpad',  icon: '🚀', keywords: ['launchpad','internship','cv','projects'] },
-  { label: 'Tree Shop',  path: '/trees',      icon: '🌳', keywords: ['trees','xp','shop'] },
-  { label: 'History',    path: '/history',    icon: '🕐', keywords: ['history','timeline'] },
-  { label: 'Exam AI',    path: '/exam',       icon: '🎓', keywords: ['exam','quiz','flashcards','study'] },
+  { navKey: 'nav.dashboard', path: '/',          icon: '🏠', keywords: ['home','dashboard'] },
+  { navKey: 'nav.tasks',     path: '/tasks',      icon: '✅', keywords: ['tasks','todo'] },
+  { navKey: 'nav.goals',     path: '/goals',      icon: '🎯', keywords: ['goals','habits','recurring'] },
+  { navKey: 'nav.flow',      path: '/learning',   icon: '⏱', keywords: ['flow','focus','pomodoro','timer'] },
+  { navKey: 'nav.lumi',      path: '/ai',         icon: '✦',  keywords: ['lumi','ai','chat','assistant'] },
+  { navKey: 'nav.analytics', path: '/analytics',  icon: '📊', keywords: ['analytics','stats','charts'] },
+  { navKey: 'nav.launchpad', path: '/launchpad',  icon: '🚀', keywords: ['launchpad','internship','cv','projects'] },
+  { navKey: 'nav.treeshop',  path: '/trees',      icon: '🌳', keywords: ['trees','xp','shop'] },
+  { navKey: 'nav.history',   path: '/history',    icon: '🕐', keywords: ['history','timeline'] },
+  { navKey: 'nav.exam',      path: '/exam',       icon: '🎓', keywords: ['exam','quiz','flashcards','study'] },
 ];
 
 export default function GlobalSearch({ open, onClose }) {
   const navigate              = useNavigate();
   const { resolvedTheme }     = useTheme();
+  const { t }                 = useLanguage();
   const isDark                = resolvedTheme === 'dark';
+  const PAGES_T = PAGES.map((p) => ({ ...p, label: t(p.navKey) }));
   const inputRef              = useRef(null);
   const listRef               = useRef(null);
   const [query,   setQuery]   = useState('');
@@ -61,7 +64,7 @@ export default function GlobalSearch({ open, onClose }) {
 
   const search = useCallback(async (q) => {
     const trimmed = q.trim().toLowerCase();
-    const pageMatches = PAGES
+    const pageMatches = PAGES_T
       .filter((p) =>
         p.label.toLowerCase().includes(trimmed) ||
         p.keywords.some((k) => k.includes(trimmed))
@@ -75,25 +78,27 @@ export default function GlobalSearch({ open, onClose }) {
         api.get('/goals'),
         api.get('/chat/conversations'),
       ]);
+      const priorityLabel = (p) => t(p === 'high' ? 'tasks.high' : p === 'low' ? 'tasks.low' : 'tasks.medium');
+      const statusLabel   = (s) => t(s === 'doing' ? 'search.statusDoing' : s === 'done' ? 'search.statusDone' : 'search.statusTodo');
       const taskResults = tasks
-        .filter((t) => t.title.toLowerCase().includes(trimmed))
+        .filter((tk) => tk.title.toLowerCase().includes(trimmed))
         .slice(0, 4)
-        .map((t) => ({ type:'task', label:t.title, subtitle:`${t.priority} priority · ${t.status}`, path:'/tasks' }));
+        .map((tk) => ({ type:'task', label:tk.title, subtitle: t('search.taskSubtitle', { priority: priorityLabel(tk.priority), status: statusLabel(tk.status) }), path:'/tasks' }));
       const goalResults = goals
         .filter((g) => g.title.toLowerCase().includes(trimmed))
         .slice(0, 3)
-        .map((g) => ({ type:'goal', label:g.title, subtitle:`${g.status} · ${g.progress||0}% complete`, path:'/goals' }));
+        .map((g) => ({ type:'goal', label:g.title, subtitle: t('search.goalSubtitle', { status: t(g.status === 'completed' ? 'search.goalCompleted' : 'search.goalActive'), n: g.progress||0 }), path:'/goals' }));
       const convoResults = convos
         .filter((c) => c.title.toLowerCase().includes(trimmed))
         .slice(0, 3)
-        .map((c) => ({ type:'conversation', label:c.title, subtitle:'Lumi conversation', path:'/ai' }));
+        .map((c) => ({ type:'conversation', label:c.title, subtitle: t('search.chatSubtitle'), path:'/ai' }));
       setResults([...taskResults, ...goalResults, ...convoResults, ...pageMatches.slice(0, 3)]);
     } catch (_) {
       setResults(pageMatches);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const id = setTimeout(() => search(query), 150);
     return () => clearTimeout(id);
@@ -153,7 +158,7 @@ export default function GlobalSearch({ open, onClose }) {
                 ref={inputRef}
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActive(0); }}
-                placeholder="Search tasks, goals, pages…"
+                placeholder={t('search.placeholder')}
                 className={`flex-1 bg-transparent outline-none text-sm font-medium ${inputClr} ${placeholderC}`}
               />
               {query && (
@@ -174,20 +179,20 @@ export default function GlobalSearch({ open, onClose }) {
                 <div className="flex flex-col items-center py-10 text-center">
                   <span className="text-3xl mb-2">🔍</span>
                   <p className={`text-sm font-medium ${isDark ? 'text-white/55' : 'text-ink/55'}`}>
-                    No results for "{query}"
+                    {t('search.noResults', { query })}
                   </p>
                   <p className={`text-xs mt-1 ${isDark ? 'text-white/30' : 'text-ink/35'}`}>
-                    Try a task name, goal, or page
+                    {t('search.tryHint')}
                   </p>
                 </div>
               )}
               {results.length === 0 && !loading && !query.trim() && (
                 <div className="px-5 py-4">
                   <p className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${labelClr}`}>
-                    Quick navigation
+                    {t('search.quickNav')}
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {PAGES.slice(0, 6).map((p) => (
+                    {PAGES_T.slice(0, 6).map((p) => (
                       <button
                         key={p.path}
                         onClick={() => go({ path: p.path })}
@@ -206,7 +211,7 @@ export default function GlobalSearch({ open, onClose }) {
                   {['task','goal','conversation','page'].map((type) => {
                     const group = results.filter((r) => r.type === type);
                     if (!group.length) return null;
-                    const labels = { task:'Tasks', goal:'Goals', conversation:'Lumi Chats', page:'Pages' };
+                    const labels = { task:t('search.groupTasks'), goal:t('search.groupGoals'), conversation:t('search.groupChats'), page:t('search.groupPages') };
                     return (
                       <div key={type}>
                         <p className={`px-5 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest ${labelClr}`}>
@@ -263,9 +268,9 @@ export default function GlobalSearch({ open, onClose }) {
               style={{ borderTop: `1px solid ${divider}` }}
             >
               {[
-                { key:'↑↓', label:'navigate' },
-                { key:'↵',  label:'open'     },
-                { key:'ESC',label:'close'    },
+                { key:'↑↓', label:t('search.navHint') },
+                { key:'↵',  label:t('search.openHint')     },
+                { key:'ESC',label:t('search.closeHint')    },
               ].map(({ key, label }) => (
                 <span key={key} className={`flex items-center gap-1.5 text-[10px] ${kbdClr}`}>
                   <kbd
