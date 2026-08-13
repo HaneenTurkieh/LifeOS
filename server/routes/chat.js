@@ -1189,6 +1189,35 @@ router.post('/', async (req, res) => {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     const system = await buildSystemPrompt(req.user.id, mode, hasAttachments, conversation_id, todayLocal);
     let currentMessages = messages.map(m => ({ ...m }));
+    // Deterministic language match, pinned right next to the message it
+    // applies to — this is the actual fix for "responded in Arabic when I
+    // wrote English." The LANGUAGE rule in the system prompt is one
+    // paragraph inside a long block of text, and a model can drift toward
+    // whichever language dominated earlier turns instead of rechecking it
+    // every reply (DeepSeek especially, since it's not as strong at
+    // instruction-following as what this app used before). Detecting the
+    // latest message's script directly with a regex and tagging it inline
+    // removes the guesswork entirely.
+    //
+    // MUST run before the attachment block gets appended below — a real
+    // bug had this the other way around: uploaded course material is
+    // often in Arabic even when the user's own typed message is plain
+    // English ("I have 4 days... this is the material" + Arabic slide
+    // screenshots), and testing the language AFTER merging attachment
+    // text in made the regex match the Arabic in the FILE, not in what
+    // the user actually typed — replying in Arabic to an English message
+    // just because the attached slides happened to be Arabic.
+    const ARABIC_RE = /[؀-ۿ]/;
+    for (let i = currentMessages.length - 1; i >= 0; i--) {
+      if (currentMessages[i].role === 'user') {
+        const isArabic = ARABIC_RE.test(currentMessages[i].content || '');
+        const langTag = isArabic
+          ? '\n\n[Reply in Palestinian colloquial Arabic — this message is in Arabic.]'
+          : '\n\n[Reply in English — this message is in English, regardless of what language earlier messages in this conversation used, and regardless of what language any attached file content is in.]';
+        currentMessages[i] = { ...currentMessages[i], content: currentMessages[i].content + langTag };
+        break;
+      }
+    }
     if (hasAttachments) {
       for (let i = currentMessages.length - 1; i >= 0; i--) {
         if (currentMessages[i].role === 'user') {
@@ -1198,28 +1227,6 @@ router.post('/', async (req, res) => {
           currentMessages[i] = { ...currentMessages[i], content: currentMessages[i].content + attachBlock };
           break;
         }
-      }
-    }
-    // Deterministic language match, pinned right next to the message it
-    // applies to — this is the actual fix for "responded in Arabic when I
-    // wrote English." The LANGUAGE rule in the system prompt is one
-    // paragraph inside a long block of text, and a model can drift toward
-    // whichever language dominated earlier turns instead of rechecking it
-    // every reply (DeepSeek especially, since it's not as strong at
-    // instruction-following as what this app used before). Detecting the
-    // latest message's script directly with a regex and tagging it inline
-    // removes the guesswork entirely. Only touches what's sent to the
-    // model — the original `messages`/DB save below is untouched, same
-    // pattern as the attachment block above.
-    const ARABIC_RE = /[؀-ۿ]/;
-    for (let i = currentMessages.length - 1; i >= 0; i--) {
-      if (currentMessages[i].role === 'user') {
-        const isArabic = ARABIC_RE.test(currentMessages[i].content || '');
-        const langTag = isArabic
-          ? '\n\n[Reply in Palestinian colloquial Arabic — this message is in Arabic.]'
-          : '\n\n[Reply in English — this message is in English, regardless of what language earlier messages in this conversation used.]';
-        currentMessages[i] = { ...currentMessages[i], content: currentMessages[i].content + langTag };
-        break;
       }
     }
     let finalText = '';

@@ -29,8 +29,10 @@ const TOOL_META = {
   forget_memory:           { icon: '🗑', label: 'Memory cleared',    color: '#EF4444' },
 };
 const ACCEPTED_FILES = '.pdf,.pptx,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif';
-const MAX_FILE_MB    = 25;
-const MAX_ATTACH     = 3;
+// Must match server/routes/exam.js's multer fileSize limit exactly — a
+// mismatch would let the client accept a file the server then rejects.
+const MAX_FILE_MB    = 40;
+const MAX_ATTACH     = 5;
 
 const glassDark = {
   background:           'rgba(255,255,255,0.04)',
@@ -567,11 +569,17 @@ export default function AITools() {
   };
   const removeAttachment = (name) => setAttachments((prev) => prev.filter((a) => a.name !== name));
 
-  const sendMessage = useCallback(async (text, historyBase) => {
+  const sendMessage = useCallback(async (text, historyBase, attachmentsOverride) => {
     const content = (text || input).trim();
-    if ((!content && attachments.length === 0) || loading) return;
-    const finalContent = content || (attachments.length > 1 ? t('lumi.summarizeFiles') : t('lumi.summarizeFile'));
-    const sendAttachments = attachments;
+    // attachmentsOverride lets editAndResend below re-send the ORIGINAL
+    // message's files — without this, editing a message that had
+    // attachments would silently drop them (the compose box's own
+    // `attachments` state was already cleared right after that original
+    // send, so there'd be nothing left to resend). Plain typing still
+    // just uses whatever's currently in the compose box.
+    const sendAttachments = attachmentsOverride ?? attachments;
+    if ((!content && sendAttachments.length === 0) || loading) return;
+    const finalContent = content || (sendAttachments.length > 1 ? t('lumi.summarizeFiles') : t('lumi.summarizeFile'));
     const base = historyBase ?? messages; // editAndResend passes the
     // already-truncated history explicitly, since `messages` here would
     // otherwise be a stale closure from before the truncation happened
@@ -581,6 +589,11 @@ export default function AITools() {
       role: 'user',
       content: finalContent,
       attachmentNames: sendAttachments.map((a) => a.name),
+      // Full {name, text, wordCount} kept on the message itself (not just
+      // the filenames) so a later edit-and-resend of THIS message can
+      // still pass the original file content back through — see
+      // editAndResend/attachmentsOverride above.
+      attachments: sendAttachments,
     };
     setMessages([...base, userMsg]);
     setLoading(true);
@@ -636,7 +649,11 @@ export default function AITools() {
         try { await api.del(`/chat/conversations/${activeConvId}/messages/from/${target.id}`); } catch (_) {}
       }
       setEditingIndex(null);
-      await sendMessage(newContent, truncated);
+      // Carry the original message's own files back through — see the
+      // attachmentsOverride comment in sendMessage. Falls back to []
+      // (not the live compose box) for older messages saved before
+      // `attachments` was stored on the message itself.
+      await sendMessage(newContent, truncated, target?.attachments || []);
     } finally {
       setEditBusy(false);
     }
@@ -762,7 +779,7 @@ export default function AITools() {
                 msg={msg}
                 t={t}
                 isEditing={editingIndex === i}
-                canEdit={msg.role === 'user' && !loading && !(msg.attachmentNames?.length > 0)}
+                canEdit={msg.role === 'user' && !loading}
                 editBusy={editBusy}
                 onStartEdit={() => setEditingIndex(i)}
                 onCancelEdit={() => setEditingIndex(null)}

@@ -7,9 +7,14 @@ const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
 const { callGemini } = require('../lib/gemini');
 
+// 40MB — raw upload size, not what actually reaches the AI. chat.js caps
+// each attachment's extracted text at 25,000 characters before it's sent
+// to Lumi (MAX_ATTACHMENT_CHARS), so a bigger raw-file ceiling here mostly
+// just stops rejecting real image-heavy PDFs/PPTX before extraction even
+// runs — it doesn't meaningfully raise per-message AI cost.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 25 * 1024 * 1024 },
+  limits:  { fileSize: 40 * 1024 * 1024 },
 });
 const SUPPORTED = ['pdf','pptx','docx','txt','png','jpg','jpeg','webp','gif'];
 
