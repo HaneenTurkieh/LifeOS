@@ -181,13 +181,13 @@ async function exportPdfText(mode, data, t, isPremium) {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8);
       doc.setTextColor(156, 163, 175);
-      doc.text(toPdfSafeText('Made with Aurora'), pageWidth - marginX, pageHeight - 24, { align: 'right' });
+      doc.text(toPdfSafeText('Made with Nuvora'), pageWidth - marginX, pageHeight - 24, { align: 'right' });
       doc.setTextColor(0, 0, 0);
     }
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
-  doc.save(`aurora-${mode}-${stamp}.pdf`);
+  doc.save(`nuvora-${mode}-${stamp}.pdf`);
 }
 
 // ── PDF export, Arabic path (html2canvas snapshot) ──────────────
@@ -292,12 +292,12 @@ async function exportPdfSnapshot(mode, data, t, isRtl, isPremium) {
         pdf.setFont('helvetica', 'italic');
         pdf.setFontSize(8);
         pdf.setTextColor(156, 163, 175);
-        pdf.text('Made with Aurora ✦', pageWidth - 24, pageHeight - 20, { align: 'right' });
+        pdf.text('Made with Nuvora ✦', pageWidth - 24, pageHeight - 20, { align: 'right' });
       }
     }
 
     const stamp = new Date().toISOString().slice(0, 10);
-    pdf.save(`aurora-${mode}-${stamp}.pdf`);
+    pdf.save(`nuvora-${mode}-${stamp}.pdf`);
   } catch (err) {
     if (container.parentNode) document.body.removeChild(container);
     throw err;
@@ -331,10 +331,10 @@ async function exportPptx(mode, data, t, isPremium) {
   titleSlide.addText(heading, {
     x: 0.5, y: 2.2, w: 9, h: 1.2, fontSize: 36, bold: true, color: 'FFFFFF', align: 'center',
   });
-  // "Aurora ✦" branding on the title slide, plus a tiny corner credit on
+  // "Nuvora ✦" branding on the title slide, plus a tiny corner credit on
   // every content slide below — both free-tier only, both gone once premium.
   if (!isPremium) {
-    titleSlide.addText('Aurora ✦', {
+    titleSlide.addText('Nuvora ✦', {
       x: 0.5, y: 3.4, w: 9, h: 0.6, fontSize: 16, color: 'FFFFFF', align: 'center',
     });
   }
@@ -345,7 +345,7 @@ async function exportPptx(mode, data, t, isPremium) {
       x: 0.4, y: 0.3, w: 9.2, h: 0.7, fontSize: 20, bold: true, color: accentHex,
     });
     if (!isPremium) {
-      slide.addText('Made with Aurora ✦', {
+      slide.addText('Made with Nuvora ✦', {
         x: 7.6, y: 5.35, w: 2.2, h: 0.25, fontSize: 8, color: '9CA3AF', align: 'right', italic: true,
       });
     }
@@ -454,7 +454,7 @@ async function exportPptx(mode, data, t, isPremium) {
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
-  await pptx.writeFile({ fileName: `aurora-${mode}-${stamp}.pptx` });
+  await pptx.writeFile({ fileName: `nuvora-${mode}-${stamp}.pptx` });
 }
 
 function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
@@ -1512,7 +1512,7 @@ Content:\n${content}`;
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => handleExport('pdf')} disabled={!!exporting}
-                title={isPremium ? undefined : (lang === 'ar' ? 'التصدير المجاني يتضمن علامة "صُنع بواسطة Aurora" صغيرة — بريميوم يزيلها' : 'Free exports include a small "Made with Aurora" watermark — Premium removes it')}
+                title={isPremium ? undefined : (lang === 'ar' ? 'التصدير المجاني يتضمن علامة "صُنع بواسطة Nuvora" صغيرة — بريميوم يزيلها' : 'Free exports include a small "Made with Nuvora" watermark — Premium removes it')}
                 className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-lavender-600 transition disabled:opacity-50"
                 style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
                 {exporting === 'pdf'
@@ -1521,7 +1521,7 @@ Content:\n${content}`;
                 PDF
               </button>
               <button onClick={() => handleExport('pptx')} disabled={!!exporting}
-                title={isPremium ? undefined : (lang === 'ar' ? 'التصدير المجاني يتضمن علامة "صُنع بواسطة Aurora" صغيرة — بريميوم يزيلها' : 'Free exports include a small "Made with Aurora" watermark — Premium removes it')}
+                title={isPremium ? undefined : (lang === 'ar' ? 'التصدير المجاني يتضمن علامة "صُنع بواسطة Nuvora" صغيرة — بريميوم يزيلها' : 'Free exports include a small "Made with Nuvora" watermark — Premium removes it')}
                 className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-lavender-600 transition disabled:opacity-50"
                 style={{ background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.22)' }}>
                 {exporting === 'pptx'

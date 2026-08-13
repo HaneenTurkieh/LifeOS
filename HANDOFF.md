@@ -1,11 +1,11 @@
-# Handoff: Aurora / Life OS — full-stack productivity app
+# Handoff: Nuvora / Life OS — full-stack productivity app
 
 > Resume by reading this whole file before taking any action. Do not repeat
 > approaches listed under "Tried and failed" below.
 
 ## TL;DR
 
-Aurora is a solo-built (Haneen Turkieh, 19, CS student at An-Najah National
+Nuvora is a solo-built (Haneen Turkieh, 19, CS student at An-Najah National
 University, Nablus) full-stack productivity app — React/Vite client on Vercel,
 Node/Express server on Render, Turso libSQL DB. AI features are split across
 two free/near-free providers by capability — Anthropic/Claude Haiku has been
@@ -26,7 +26,7 @@ Next session should start by asking the user for a status update on both.
 
 ## 1. Goal
 
-- **Objective:** Keep building out and fixing Aurora, a productivity app with
+- **Objective:** Keep building out and fixing Nuvora, a productivity app with
   tasks/goals/habits/calendar, a gamified Pomodoro ("Flow" — trees die if you
   quit early, shared study rooms), an AI assistant ("Lumi"), an AI exam/study
   generator, analytics, and a CV/launchpad builder. Full English/Arabic (RTL)
@@ -102,7 +102,7 @@ Next session should start by asking the user for a status update on both.
   patching every call site.
 - **Open question:** Payment gateway choice — user is currently checking
   whether Arab Bank's new (as of ~2026) direct merchant payment gateway
-  integration will work for Aurora. See Section 4 below for full detail.
+  integration will work for Nuvora. See Section 4 below for full detail.
   Nothing built yet — do not assume a gateway is chosen.
 - **Open question:** Domain name — recommended buying now (cheap, no
   downside) but not yet purchased as of this handoff. See Section 4.
@@ -179,7 +179,7 @@ Next session should start by asking the user for a status update on both.
     implemented** — currently free/unlimited for everyone)
   - Branded/watermarked free exports vs clean premium exports — **already
     implemented**, premium-gated, working (CV PDF/Word, Exam Assistant
-    PDF/PPTX all carry a small "Made with Aurora" credit on free tier,
+    PDF/PPTX all carry a small "Made with Nuvora" credit on free tier,
     removed entirely for premium; gated via `isPremium` from
     `ThemeContext.jsx`, sourced from `GET /focus/premium/status`)
   - Study room creation/hosting gated, joining stays free (recommended,

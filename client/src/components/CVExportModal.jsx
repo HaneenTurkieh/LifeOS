@@ -161,7 +161,7 @@ function buildDocxSections(userName, userEmail, profile, data, isPremium) {
     children.push(new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 400 },
-      children: [new TextRun({ text: 'Made with Aurora ✦', size: 16, color: '9CA3AF', italics: true })],
+      children: [new TextRun({ text: 'Made with Nuvora ✦', size: 16, color: '9CA3AF', italics: true })],
     }));
   }
 
@@ -257,7 +257,7 @@ function buildMinimal(userName, userEmail, profile, data) {
     </div>`).join('')}
   </div>` : ''}
 
-  <div style="margin-top:40px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:11px;color:#D1D5DB;text-align:right">Created with Aurora</div>
+  <div style="margin-top:40px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:11px;color:#D1D5DB;text-align:right">Created with Nuvora</div>
 </div>`;
 }
 
@@ -361,7 +361,7 @@ function buildModern(userName, userEmail, profile, data) {
       <div style="font-weight:600;color:#6B7280">Your CV will appear here</div>
     </div>` : ''}
 
-    <div style="margin-top:auto;padding-top:20px;border-top:1px solid #F3F4F6;font-size:11px;color:#D1D5DB;text-align:right">Created with Aurora</div>
+    <div style="margin-top:auto;padding-top:20px;border-top:1px solid #F3F4F6;font-size:11px;color:#D1D5DB;text-align:right">Created with Nuvora</div>
   </div>
 </div>`;
 }
@@ -461,7 +461,7 @@ function buildAcademic(userName, userEmail, profile, data) {
     <div style="font-weight:600;color:#6B7280">Your CV will appear here</div>
   </div>` : ''}
 
-  <div style="margin-top:40px;text-align:center;font-size:11px;color:#D1D5DB;font-style:italic">Created with Aurora</div>
+  <div style="margin-top:40px;text-align:center;font-size:11px;color:#D1D5DB;font-style:italic">Created with Nuvora</div>
 </div>`;
 }
 
@@ -490,7 +490,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
     // in every browser's print engine), gone entirely once premium.
     const watermark = isPremium ? '' : `
       <div style="position:fixed; bottom:0.3in; inset-inline-end:0.4in; font-size:9px; color:#9CA3AF; font-family:sans-serif; opacity:0.85;">
-        Made with Aurora ✦
+        Made with Nuvora ✦
       </div>`;
     const win     = window.open('', '_blank');
     win.document.write(`<!DOCTYPE html>
@@ -610,7 +610,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
         )}
         {!isPremium && (
           <div className="px-6 py-2 text-[11px] border-b border-ink/5 shrink-0" style={{ color: 'rgba(30,34,51,0.40)' }}>
-            Free exports include a small "Made with Aurora" credit in the corner. <span style={{ color: '#7C6AF0', fontWeight: 700 }}>Premium</span> removes it.
+            Free exports include a small "Made with Nuvora" credit in the corner. <span style={{ color: '#7C6AF0', fontWeight: 700 }}>Premium</span> removes it.
           </div>
         )}
 

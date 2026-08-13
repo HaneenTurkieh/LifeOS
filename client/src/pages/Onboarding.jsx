@@ -70,7 +70,7 @@ function WelcomeStep({ name, onNext }) {
       </motion.div>
       <div>
         <h1 className="font-display text-3xl font-bold text-white mb-2">
-          Welcome to Aurora, {name} 👋
+          Welcome to Nuvora, {name} 👋
         </h1>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
           Your personal productivity OS. Let's set you up in 2 minutes.
@@ -269,7 +269,7 @@ function LumiStep({ onNext }) {
       <div>
         <h2 className="font-display text-2xl font-bold text-white mb-2">Meet Lumi + shortcuts</h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Lumi knows your tasks, goals, and habits. Ask her anything — and navigate Aurora instantly with keyboard shortcuts.
+          Lumi knows your tasks, goals, and habits. Ask her anything — and navigate Nuvora instantly with keyboard shortcuts.
         </p>
       </div>
       <div className="flex flex-col gap-2 w-full">
@@ -374,11 +374,11 @@ function DoneStep({ name, onFinish }) {
           You're all set, {name}!
         </h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Aurora is ready. Your dashboard is live, Lumi is waiting, and your first task is already logged.
+          Nuvora is ready. Your dashboard is live, Lumi is waiting, and your first task is already logged.
         </p>
       </div>
       <PrimaryBtn onClick={onFinish}>
-        Open Aurora ✦
+        Open Nuvora ✦
       </PrimaryBtn>
     </div>
   );

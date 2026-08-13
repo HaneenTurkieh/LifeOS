@@ -6,20 +6,20 @@ export default function Terms() {
     <LegalLayout title="Terms of Service" updated="August 2026">
       <Section>
         <p>
-          These Terms of Service ("Terms") govern your use of Aurora (the "Service"), a personal
+          These Terms of Service ("Terms") govern your use of Nuvora (the "Service"), a personal
           productivity application covering tasks, goals, habits, focus sessions, an AI assistant
           ("Lumi"), an AI exam study tool, and related features, available at{' '}
-          <strong>life-os-three-xi.vercel.app</strong> and any successor domain. Aurora is
+          <strong>life-os-three-xi.vercel.app</strong> and any successor domain. Nuvora is
           developed and operated by Haneen Turkieh, an individual seller based in Nablus,
-          Palestine ("we", "us", "our"). By creating an account or using Aurora, you agree to
+          Palestine ("we", "us", "our"). By creating an account or using Nuvora, you agree to
           these Terms.
         </p>
       </Section>
 
       <Section heading="1. Eligibility">
         <p>
-          You must be at least 13 years old to use Aurora. If you are under the age of majority
-          in your country, you may only use Aurora with the involvement of a parent or guardian.
+          You must be at least 13 years old to use Nuvora. If you are under the age of majority
+          in your country, you may only use Nuvora with the involvement of a parent or guardian.
         </p>
       </Section>
 
@@ -33,7 +33,7 @@ export default function Terms() {
 
       <Section heading="3. Subscriptions, billing, and Paddle">
         <p>
-          Aurora offers a free tier and a paid "Premium" subscription (monthly, semester, or
+          Nuvora offers a free tier and a paid "Premium" subscription (monthly, semester, or
           annual). All payments are processed by our order processor,{' '}
           <strong>Paddle.com Market Ltd</strong> ("Paddle"), who act as the Merchant of Record for
           all orders. Paddle handles payment collection, applicable sales tax/VAT, invoicing, and
@@ -54,7 +54,7 @@ export default function Terms() {
 
       <Section heading="4. Acceptable use">
         <p>
-          Don't use Aurora to break the law, harass others, upload malicious content, or attempt
+          Don't use Nuvora to break the law, harass others, upload malicious content, or attempt
           to disrupt or reverse-engineer the Service. The AI exam study tool is intended as a
           study aid for practicing and reviewing material you already have access to — you're
           responsible for complying with your school or institution's academic integrity policies
@@ -64,7 +64,7 @@ export default function Terms() {
 
       <Section heading="5. Your content">
         <p>
-          You retain ownership of the content you create or upload in Aurora (tasks, notes,
+          You retain ownership of the content you create or upload in Nuvora (tasks, notes,
           uploaded study material, etc.). By using AI-powered features (Lumi chat, exam
           generation), you understand that relevant content is sent to third-party AI providers
           for processing — see our{' '}
@@ -75,24 +75,24 @@ export default function Terms() {
 
       <Section heading="6. Disclaimers and limitation of liability">
         <p>
-          Aurora is provided "as is." We do our best to keep it reliable and accurate, but we
+          Nuvora is provided "as is." We do our best to keep it reliable and accurate, but we
           don't guarantee uninterrupted service or that AI-generated content (study material,
           chat responses) is error-free — always verify anything important yourself. To the
           fullest extent permitted by law, we aren't liable for indirect, incidental, or
-          consequential damages arising from your use of Aurora.
+          consequential damages arising from your use of Nuvora.
         </p>
       </Section>
 
       <Section heading="7. Termination">
         <p>
           We may suspend or terminate accounts that violate these Terms. You may stop using
-          Aurora and delete your account at any time.
+          Nuvora and delete your account at any time.
         </p>
       </Section>
 
       <Section heading="8. Changes to these Terms">
         <p>
-          We may update these Terms as Aurora grows. Meaningful changes will be reflected by
+          We may update these Terms as Nuvora grows. Meaningful changes will be reflected by
           updating the date at the top of this page.
         </p>
       </Section>

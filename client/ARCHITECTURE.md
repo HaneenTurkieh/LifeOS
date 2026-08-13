@@ -1,4 +1,4 @@
-# Aurora — Architecture Notes
+# Nuvora — Architecture Notes
 
 Short version of the decisions that aren't obvious just from reading the code.
 
@@ -69,7 +69,7 @@ See `server/lib/notificationDedupe.js` for the extracted, unit-tested logic.
 
 Lumi (the assistant) and the Exam Assistant both call the Anthropic API
 directly from the server, not through a client SDK. Lumi runs a tool-use
-loop (up to 6 round-trips) so the model can call Aurora's own data — tasks,
+loop (up to 6 round-trips) so the model can call Nuvora's own data — tasks,
 goals, habits, mood, focus history — as real tool calls rather than the
 server pre-stuffing everything into the prompt. The system prompt is
 rebuilt per-request from live DB state (see `buildSystemPrompt` in

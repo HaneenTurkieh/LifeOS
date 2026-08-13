@@ -4,7 +4,7 @@
 // HTTP API path is the reliable one in production.
 const nodemailer = require('nodemailer');
 const CLIENT_URL = process.env.CLIENT_URL || 'https://life-os-three-xi.vercel.app';
-const FROM_NAME  = 'Aurora';
+const FROM_NAME  = 'Nuvora';
 
 function resetEmailHtml({ name, resetUrl }) {
   return `
@@ -14,7 +14,7 @@ function resetEmailHtml({ name, resetUrl }) {
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">Reset your password</h2>
     <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
-      Hi ${name || 'there'}, we received a request to reset your Aurora password.
+      Hi ${name || 'there'}, we received a request to reset your Nuvora password.
       This link expires in 30 minutes.
     </p>
     <div style="text-align:center;margin:28px 0;">
@@ -38,7 +38,7 @@ function feedbackEmailHtml({ userEmail, message }) {
     <div style="text-align:center;margin-bottom:24px;">
       <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;font-size:24px;line-height:48px;text-align:center;">✦</div>
     </div>
-    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New Aurora feedback</h2>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New Nuvora feedback</h2>
     <p style="color:#5A5F73;font-size:13px;text-align:center;margin:0 0 20px;">
       From: <strong>${userEmail || 'not provided'}</strong>
     </p>
@@ -149,7 +149,7 @@ async function sendPasswordResetEmail({ to, name, rawToken }) {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${rawToken}`;
   await dispatch({
     to, label: 'password reset',
-    subject: 'Reset your Aurora password ✦',
+    subject: 'Reset your Nuvora password ✦',
     html: resetEmailHtml({ name, resetUrl }),
   });
 }
@@ -162,7 +162,7 @@ async function sendFeedbackEmail({ userEmail, message }) {
   await dispatch({
     to: 'haneenturkieh@hotmail.com',
     label: 'feedback',
-    subject: 'Aurora feedback',
+    subject: 'Nuvora feedback',
     html: feedbackEmailHtml({ userEmail, message }),
   });
 }

@@ -21,7 +21,7 @@ const router  = express.Router();
 const crypto  = require('crypto');
 const { db }  = require('../db/connection');
 
-// Maps a Paddle Price ID (from the Aurora Premium product) to our internal
+// Maps a Paddle Price ID (from the Nuvora Premium product) to our internal
 // plan key. Keep this in sync with the PLANS array in routes/focus.js.
 const PRICE_TO_PLAN = {
   'pri_01kzrz0epxcy9v8qhe5md6qmbd': 'monthly',

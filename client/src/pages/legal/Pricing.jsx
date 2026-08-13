@@ -25,7 +25,7 @@ export default function Pricing() {
     <LegalLayout title="Pricing">
       <Section>
         <p>
-          Aurora is free to use. <strong>Premium</strong> unlocks unlimited AI usage and a few
+          Nuvora is free to use. <strong>Premium</strong> unlocks unlimited AI usage and a few
           extra perks, billed in New Israeli Shekels (NIS) through our payment processor,{' '}
           <strong>Paddle</strong>, which converts to your local currency automatically at
           checkout.

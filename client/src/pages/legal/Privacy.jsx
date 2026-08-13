@@ -6,15 +6,15 @@ export default function Privacy() {
     <LegalLayout title="Privacy Policy" updated="August 2026">
       <Section>
         <p>
-          This Privacy Policy explains what data Aurora collects, why, and how it's handled.
-          Aurora is operated by Haneen Turkieh ("we", "us", "our"), based in Nablus, Palestine.
+          This Privacy Policy explains what data Nuvora collects, why, and how it's handled.
+          Nuvora is operated by Haneen Turkieh ("we", "us", "our"), based in Nablus, Palestine.
         </p>
       </Section>
 
       <Section heading="1. What we collect">
         <p>
           <strong>Account data:</strong> name, email address, and a securely hashed password.{' '}
-          <strong>Product data:</strong> the content you create in Aurora — tasks, goals, habits,
+          <strong>Product data:</strong> the content you create in Nuvora — tasks, goals, habits,
           mood logs, focus sessions, projects, exam material you upload, and messages you send to
           Lumi (our AI assistant). <strong>Usage data:</strong> basic technical data like device/
           browser type and timestamps, used only to keep the Service working and to fix bugs.
@@ -27,7 +27,7 @@ export default function Privacy() {
 
       <Section heading="2. How we use it">
         <p>
-          To provide and improve Aurora's features, to authenticate you, to send you
+          To provide and improve Nuvora's features, to authenticate you, to send you
           account-relevant notifications (deadlines, streaks, etc.), and to respond if you contact
           us for support.
         </p>
@@ -78,14 +78,14 @@ export default function Privacy() {
 
       <Section heading="6. Cookies and local storage">
         <p>
-          Aurora uses browser local storage to keep you signed in and to remember your
+          Nuvora uses browser local storage to keep you signed in and to remember your
           preferences (theme, language). We don't use third-party advertising trackers.
         </p>
       </Section>
 
       <Section heading="7. Children's privacy">
         <p>
-          Aurora isn't directed at children under 13, and we don't knowingly collect data from
+          Nuvora isn't directed at children under 13, and we don't knowingly collect data from
           them. If you believe a child has created an account, contact us and we'll remove it.
         </p>
       </Section>

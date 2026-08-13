@@ -44,7 +44,7 @@ export default function ForgotPassword() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-lavender-400 to-lavender-700 shadow-glow">
             <TreePine className="text-white" size={26} />
           </div>
-          <p className="mt-3 font-display text-sm font-bold tracking-[0.35em] text-white/80">AURORA</p>
+          <p className="mt-3 font-display text-sm font-bold tracking-[0.35em] text-white/80">NUVORA</p>
         </div>
 
         {!sent ? (

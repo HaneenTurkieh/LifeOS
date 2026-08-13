@@ -1,10 +1,10 @@
-# Aurora — Personal Life Operating System
+# Nuvora — Personal Life Operating System
 
 **Author:** Haneen Turkieh
 **Copyright:** © 2025–2026 Haneen Turkieh. All Rights Reserved.
 **Status:** Private / active development
 
-Aurora is a full-stack productivity platform combining task and goal management,
+Nuvora is a full-stack productivity platform combining task and goal management,
 habit tracking, a shared-focus Pomodoro system with a gamified "forest" mechanic,
 an AI assistant ("Lumi"), an AI-generated exam/study tool, and a CV/launchpad
 builder — with full English/Arabic (RTL) localization.

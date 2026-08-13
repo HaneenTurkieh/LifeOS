@@ -6,7 +6,7 @@ export default function Refund() {
     <LegalLayout title="Refund Policy" updated="August 2026">
       <Section>
         <p>
-          All Aurora Premium purchases are processed by <strong>Paddle.com Market Ltd</strong>,
+          All Nuvora Premium purchases are processed by <strong>Paddle.com Market Ltd</strong>,
           our Merchant of Record. Refunds are issued by Paddle on our behalf, in line with the
           policy below.
         </p>
@@ -14,7 +14,7 @@ export default function Refund() {
 
       <Section heading="14-day money-back guarantee">
         <p>
-          If you're not happy with Aurora Premium, email us within <strong>14 days</strong> of
+          If you're not happy with Nuvora Premium, email us within <strong>14 days</strong> of
           your first payment on any plan (monthly, semester, or annual) and we'll request a full
           refund from Paddle — no questions asked.
         </p>

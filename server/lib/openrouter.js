@@ -52,7 +52,7 @@ async function callOpenRouter({ system, messages, tools, max_tokens = 1024, temp
       // Not required for billing, just OpenRouter's own attribution —
       // harmless to send, helps their leaderboard/analytics.
       'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
-      'X-Title':       'Aurora',
+      'X-Title':       'Nuvora',
     },
     body: JSON.stringify(body),
   });

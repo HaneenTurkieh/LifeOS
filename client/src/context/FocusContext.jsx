@@ -596,7 +596,7 @@ export function FocusProvider({ children }) {
       const ss = String(timeLeft % 60).padStart(2, '0');
       document.title = `${mm}:${ss} · ${MODES[mode].emoji} Flow`;
     } else {
-      document.title = 'Aurora';
+      document.title = 'Nuvora';
     }
   }, [isRunning, timeLeft, mode]);
 
