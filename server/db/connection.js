@@ -575,6 +575,21 @@ async function initDb() {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN grace_passes_week_start TEXT DEFAULT NULL`);
   }
 
+  // ── Error logs (owner visibility) ────────────────────────────
+  // A lightweight record of user-facing AI-call failures (Lumi chat,
+  // anti-procrastination, etc.) so the app owner can actually see when
+  // something breaks instead of only finding out if a user happens to
+  // mention it. Writing to this table is fire-and-forget from the
+  // calling route (see lib/errorLog.js) — logging must never affect the
+  // user-facing response, so it's wrapped in its own try/catch there.
+  await db.execute(`CREATE TABLE IF NOT EXISTS error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    source TEXT NOT NULL,
+    message TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+
   console.log('✅ Database connected and migrations applied.');
 }
 

@@ -848,6 +848,9 @@ function StatsTab() {
   const [users,       setUsers]       = useState(null);
   const [usersLoading, setUsersLoading] = useState(true);
   const [showUsers,   setShowUsers]   = useState(false);
+  const [errors,        setErrors]        = useState(null);
+  const [errorsLoading, setErrorsLoading] = useState(true);
+  const [showErrors,    setShowErrors]    = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -865,6 +868,18 @@ function StatsTab() {
       .then((d) => { if (active) setUsers(d.users || []); })
       .catch(() => { if (active) setUsers([]); })
       .finally(() => { if (active) setUsersLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  // "Recent failures" — actual visibility into how often Lumi/anti-
+  // procrastination calls fail for real users, instead of only finding
+  // out if someone happens to mention it.
+  useEffect(() => {
+    let active = true;
+    api.get('/admin/errors')
+      .then((d) => { if (active) setErrors(d); })
+      .catch(() => { if (active) setErrors({ last_24h: 0, last_7_days: 0, recent: [] }); })
+      .finally(() => { if (active) setErrorsLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -933,6 +948,49 @@ function StatsTab() {
                 <p className={`text-[10px] shrink-0 ${isDark?'text-white/30':'text-ink/35'}`}>
                   {u.created_at ? String(u.created_at).slice(0, 10) : ''}
                 </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="font-display font-bold text-ink dark:text-white mb-1">Recent failures</h3>
+        <p className={`text-xs ${isDark?'text-white/40':'text-ink/45'}`}>Lumi chat and anti-procrastination call failures.</p>
+      </div>
+      {!errorsLoading && errors && (
+        <div className="flex gap-3">
+          <StatCard icon={AlertTriangle} label="Last 24h"   value={errors.last_24h}    isDark={isDark} />
+          <StatCard icon={AlertTriangle} label="Last 7 days" value={errors.last_7_days} isDark={isDark} />
+        </div>
+      )}
+      <div className="rounded-2xl overflow-hidden"
+        style={isDark
+          ? { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)' }
+          : { background:'rgba(30,34,51,0.03)', border:'1px solid rgba(30,34,51,0.06)' }}>
+        <button onClick={() => setShowErrors((s) => !s)}
+          className="w-full flex items-center justify-between px-4 py-3.5">
+          <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark?'text-white/35':'text-ink/35'}`}>
+            Recent errors {errors ? `(${errors.recent.length})` : ''}
+          </span>
+          <ChevronRight size={14} className={`transition-transform ${isDark?'text-white/35':'text-ink/35'} ${showErrors ? 'rotate-90' : ''}`} />
+        </button>
+        {showErrors && (
+          <div className="px-4 pb-3.5 flex flex-col gap-1.5 max-h-64 overflow-y-auto">
+            {errorsLoading ? (
+              <p className={`text-xs text-center py-4 ${isDark?'text-white/35':'text-ink/35'}`}>Loading…</p>
+            ) : !errors?.recent?.length ? (
+              <p className={`text-xs text-center py-4 ${isDark?'text-white/35':'text-ink/35'}`}>No failures logged. Good sign.</p>
+            ) : errors.recent.map((e) => (
+              <div key={e.id} className="py-1.5"
+                style={{ borderTop: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(30,34,51,0.05)' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className={`text-xs font-semibold truncate ${isDark?'text-white':'text-ink'}`}>{e.source}{e.email ? ` — ${e.email}` : ''}</p>
+                  <p className={`text-[10px] shrink-0 ${isDark?'text-white/30':'text-ink/35'}`}>
+                    {e.created_at ? String(e.created_at).slice(0, 16).replace('T', ' ') : ''}
+                  </p>
+                </div>
+                <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{e.message}</p>
               </div>
             ))}
           </div>

@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db/connection');
 const ai = require('../lib/ai');
 const { callOpenRouter } = require('../lib/openrouter');
+const { logError } = require('../lib/errorLog');
 
 router.get('/quote', (req, res) => res.json(ai.quoteOfTheDay()));
 
@@ -103,6 +104,7 @@ Return a JSON object with exactly these three keys (five_minute, fifteen_minute,
     res.json(parsed);
   } catch (err) {
     console.error('anti-procrastination model call failed, using fallback:', err.message);
+    logError(req.user?.id, 'anti-procrastination', err.message).catch(() => {});
     res.json(ai.antiProcrastinationVersions(title));
   }
 });
