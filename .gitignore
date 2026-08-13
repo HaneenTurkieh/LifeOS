@@ -3,3 +3,10 @@ node_modules/
 dist/
 .vite/
 *.log
+
+# Local dev SQLite artifacts — production runs on Turso (TURSO_DATABASE_URL),
+# this file is never read by the deployed app. Was accidentally committed;
+# untracked here so it stops showing up in diffs/history going forward.
+server/db/dashboard.sqlite3
+server/db/dashboard.sqlite3-shm
+server/db/dashboard.sqlite3-wal
