@@ -1,6 +1,9 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
 import GlassCard from './GlassCard.jsx';
+import { STAR_STYLES } from './StarPickerModal.jsx';
+
+const STAR_BY_KEY = Object.fromEntries(STAR_STYLES.map((s) => [s.key, s]));
 
 // A whimsical, decorative companion to the real goals grid below it —
 // every active goal shown as a star on a little paper poster, filling
@@ -38,10 +41,14 @@ export default function StarChartCard({ goals = [], t }) {
         <div className="flex flex-col gap-2.5">
           {visible.map((g) => {
             const filled = g.status === 'completed' || Number(g.progress) >= 100;
+            // A chosen star_style only ever applies once a goal is
+            // actually finished — un-finished goals always show the
+            // plain outline, same as before this existed.
+            const chosen = filled ? (STAR_BY_KEY[g.star_style] || STAR_BY_KEY.gold) : null;
             return (
               <div key={g.id} className="flex items-center gap-2.5">
-                <span className="text-lg leading-none shrink-0" style={{ color: filled ? '#F5B324' : '#C9BE9E' }}>
-                  {filled ? '★' : '☆'}
+                <span className="text-lg leading-none shrink-0" style={{ color: filled ? chosen.color : '#C9BE9E' }}>
+                  {filled ? chosen.glyph : '☆'}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold leading-tight truncate" style={{ color: '#3A3020' }}>

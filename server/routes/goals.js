@@ -42,7 +42,7 @@ router.put('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Goal not found' });
     const updates = { ...existing, ...req.body };
     const wasCompleted = existing.status === 'completed';
-    await db.execute({ sql: `UPDATE goals SET title=?, description=?, category=?, target_date=?, status=?, day_planner_enabled=? WHERE id=? AND user_id=?`, args: [updates.title, updates.description, updates.category, updates.target_date, updates.status, updates.day_planner_enabled ? 1 : 0, req.params.id, req.user.id] });
+    await db.execute({ sql: `UPDATE goals SET title=?, description=?, category=?, target_date=?, status=?, day_planner_enabled=?, star_style=? WHERE id=? AND user_id=?`, args: [updates.title, updates.description, updates.category, updates.target_date, updates.status, updates.day_planner_enabled ? 1 : 0, updates.star_style ?? null, req.params.id, req.user.id] });
     let xpAwarded = 0;
     if (!wasCompleted && updates.status === 'completed') {
       await addXp(req.user.id, 100, `Finished goal: ${updates.title}`); // needs gamification.js migrated
