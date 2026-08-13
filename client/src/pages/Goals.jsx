@@ -65,7 +65,15 @@ function GoalDayPlanner({ goal, onSchedule, t, lang }) {
     const [y, m, d] = ds.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric' });
   };
-  const unscheduled = goal.milestones.filter((m) => !m.scheduled_date && !m.done);
+  // A milestone whose scheduled_date falls outside today→target (e.g. it
+  // was scheduled for a date that has since passed) has no cell to render
+  // into below, and — because it DOES have a scheduled_date — used to be
+  // silently excluded from "unscheduled" too, making it vanish from the
+  // planner entirely even though it still exists and still counts toward
+  // the goal. Treat "not placeable in the visible grid" the same as
+  // "unscheduled" so nothing disappears.
+  const daySet = new Set(days);
+  const unscheduled = goal.milestones.filter((m) => !m.done && (!m.scheduled_date || !daySet.has(m.scheduled_date)));
   const byDate = (ds) => goal.milestones.filter((m) => m.scheduled_date === ds);
   const place = (milestoneId, date) => { onSchedule(milestoneId, date); setSelected(null); };
   const handleDrop = (e, date) => {
