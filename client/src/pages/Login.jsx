@@ -103,14 +103,9 @@ export default function Login() {
           <motion.div
             animate={{ y:[0,-4,0] }}
             transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
-            className="flex h-16 w-16 items-center justify-center rounded-[1.25rem] text-white mb-3"
-            style={{
-              background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
-              boxShadow:  '0 12px 32px rgb(var(--accent-500) / 0.55), inset 0 1px 0 rgba(255,255,255,0.30)',
-              fontSize:   28, fontFamily:'serif', fontWeight:700, lineHeight:1,
-            }}
+            className="flex h-16 w-16 items-center justify-center mb-3"
           >
-            ✦
+            <img src="/icon-192.png" alt="Nuvora" className="h-16 w-16 drop-shadow-lg" />
           </motion.div>
           <p className="font-display text-xs font-bold tracking-[0.4em]"
             style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(30,34,51,0.55)' }}>

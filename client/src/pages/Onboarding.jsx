@@ -66,10 +66,9 @@ function WelcomeStep({ name, onNext }) {
       <motion.div
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex h-20 w-20 items-center justify-center rounded-3xl text-white text-4xl"
-        style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 50%, rgb(var(--accent-700)) 100%)', boxShadow: '0 16px 40px rgb(var(--accent-500) / 0.45)' }}
+        className="flex h-20 w-20 items-center justify-center"
       >
-        ✦
+        <img src="/icon-192.png" alt="Nuvora" className="h-20 w-20 drop-shadow-lg" />
       </motion.div>
       <div>
         <h1 className="font-display text-3xl font-bold text-white mb-2">

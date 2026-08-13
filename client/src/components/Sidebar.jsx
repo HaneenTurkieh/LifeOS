@@ -56,21 +56,16 @@ export default function Sidebar() {
         style={{ overflow: 'visible' }}
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />
-        {/* ✦ Logo mark — now theme-accent-aware */}
+        {/* Logo mark — the Nuvora ribbon icon. Carries its own violet/
+            pink/blue gradient, so unlike most sidebar chrome it doesn't
+            re-tint with the user's chosen accent color — a brand mark
+            should stay recognizable regardless of theme. */}
         <motion.div
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-white shrink-0"
-          style={{
-            background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
-            boxShadow:  '0 8px 20px rgb(var(--accent-500) / 0.45)',
-            fontSize:   20,
-            fontFamily: 'serif',
-            fontWeight: 700,
-            lineHeight: 1,
-          }}
+          className="mb-3 flex h-10 w-10 items-center justify-center shrink-0"
         >
-          ✦
+          <img src="/icon-192.png" alt="Nuvora" className="h-10 w-10 drop-shadow-lg" />
         </motion.div>
         {/* Nav */}
         <nav className="flex flex-col gap-1" style={{ overflow: 'visible' }}>
