@@ -75,22 +75,30 @@ router.post('/anti-procrastination', async (req, res) => {
     const data = await callOpenRouter({
       messages: [{
         role: 'user',
-        content: `The user is stuck/avoiding this task and needs a gentle, genuinely useful nudge to start — not generic filler. Task: "${title}"${description ? `\nMore context: ${description}` : ''}
+        content: `The user is stuck/avoiding this task and needs a genuinely useful nudge to start. Task: "${title}"${description ? `\nMore context: ${description}` : ''}
 
-Give three concrete, specific on-ramps sized differently, each actually tailored to what THIS task involves (not a template that would fit any task):
-- five_minute: the smallest possible real first move, doable in 5 minutes
+Titles are often short or vague ("CA final", "clay", "essay") — that's normal, not missing information. Infer what kind of task it actually is from the title/context (a short title like "CA final" clearly means studying/preparing for a final exam, not literally "opening" something) and write on-ramps around THAT — a real first move someone would actually take for a task like this, not a generic "open it and write down the first step" that could apply to literally anything. If it's genuinely too vague to infer anything (e.g. a single ambiguous word), it's fine to keep it general, but default to making a specific, reasonable inference first.
+
+Give three concrete on-ramps sized differently:
+- five_minute: the smallest real first move, doable in 5 minutes
 - fifteen_minute: a slightly bigger chunk of visible progress, doable in 15 minutes
 - one_hour: a focused hour that meaningfully advances it
 
-Return ONLY a JSON object with exactly these three keys (five_minute, fifteen_minute, one_hour), each a string of 1-2 sentences. No markdown, no explanation, just the JSON object.`,
+Return a JSON object with exactly these three keys (five_minute, fifteen_minute, one_hour), each a string of 1-2 sentences.`,
       }],
       reasoningEffort: null,
+      jsonMode: true,
       max_tokens: 400,
       temperature: 0.8,
     });
     const raw = data.choices?.[0]?.message?.content || '';
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+    // response_format:json_object should already guarantee this, but a
+    // provider hiccup shouldn't take the whole feature down with it —
+    // pull the {...} out even if something got wrapped around it, same
+    // safety net as before, now just a second line of defense instead of
+    // the only one.
+    const match = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(match ? match[0] : raw);
     if (!parsed.five_minute || !parsed.fifteen_minute || !parsed.one_hour) throw new Error('Incomplete response');
     res.json(parsed);
   } catch (err) {
