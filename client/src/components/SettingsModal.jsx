@@ -341,6 +341,7 @@ function PremiumTab() {
   const [themeBusy,  setThemeBusy]  = useState(false);
   const [trial,      setTrial]      = useState(null);
   const [trialBusy,  setTrialBusy]  = useState(false);
+  const [gracePasses, setGracePasses] = useState(null);
   const load = useCallback(() => {
     api.get('/focus/premium/status')
       .then((d) => {
@@ -350,6 +351,7 @@ function PremiumTab() {
       .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple', plan:null }));
     api.get('/focus/premium/plans').then((d) => setPlans(d.plans || [])).catch(() => setPlans([]));
     api.get('/focus/premium/trial-eligibility').then(setTrial).catch(() => setTrial(null));
+    api.get('/focus/grace-passes').then(setGracePasses).catch(() => setGracePasses(null));
   }, [setAccent]);
   useEffect(() => { load(); }, [load]);
 
@@ -660,6 +662,33 @@ function PremiumTab() {
                 style={{ background:'rgba(96,165,250,0.14)', border:'1px solid rgba(96,165,250,0.30)', color:'#3B82F6' }}>
                 {status.is_premium ? t('settings.freezeBtn') : t('settings.premiumOnly')}
               </button>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="rounded-2xl p-4"
+        style={{ background:'rgba(76,195,138,0.06)', border:'1px solid rgba(76,195,138,0.18)' }}>
+        <div className="flex items-start gap-3">
+          <Sparkles size={18} className="text-emerald-400 shrink-0 mt-0.5"/>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-ink dark:text-white">
+              {lang === 'ar' ? 'بطاقات السماح' : 'Grace passes'}
+            </p>
+            <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">
+              {lang === 'ar'
+                ? 'إذا فاتتك مهلة الـ 10 ثوانٍ بعد الإيقاف المؤقت، تنقذ بطاقة سماح شجرتك تلقائيًا بدل ما تموت.'
+                : "If you miss the 10s pause window, a grace pass auto-saves your tree instead of letting it die."}
+            </p>
+            {status.is_premium ? (
+              <p className="mt-2 text-xs font-bold text-emerald-500">
+                {gracePasses
+                  ? (lang === 'ar'
+                      ? `${gracePasses.remaining} من ${gracePasses.total} متبقية هذا الأسبوع`
+                      : `${gracePasses.remaining} of ${gracePasses.total} left this week`)
+                  : (lang === 'ar' ? '...جارٍ التحميل' : 'Loading…')}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs font-bold text-ink/30 dark:text-white/25">{t('settings.premiumOnly')}</p>
             )}
           </div>
         </div>

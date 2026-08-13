@@ -961,6 +961,75 @@ router.post('/premium/pause', async (req, res) => {
     res.json({ ok: true, freeze_date: today });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
+
+// ── Grace passes (Premium) ───────────────────────────────────────
+// Duolingo-streak-freeze-style leniency: everyone keeps the normal 10s
+// pause-grace window on the focus timer, but Premium gets a weekly
+// allowance of passes that auto-save the tree if that window runs out
+// instead of letting it die. Deliberately NOT gating the base 10s
+// window itself — that's basic fairness (don't punish an accidental
+// pause), not a paid perk. This is the actual upgrade-worthy layer on
+// top of it.
+const WEEKLY_GRACE_PASSES = 3;
+
+router.get('/grace-passes', async (req, res) => {
+  try {
+    const current = await getPremium(req.user.id);
+    if (!current.is_premium) {
+      return res.json({ is_premium: false, total: 0, used: 0, remaining: 0 });
+    }
+    const weekStart = getWeekStart();
+    const row = (await db.execute({
+      sql: `SELECT grace_passes_used, grace_passes_week_start FROM user_premium WHERE user_id = ?`,
+      args: [req.user.id],
+    })).rows[0];
+    // Lazy weekly reset (same pattern as focus_room_members.week_start
+    // elsewhere) — if the stored week doesn't match the current one,
+    // treat it as a fresh allowance without needing a cron job.
+    const used = (row?.grace_passes_week_start === weekStart) ? Number(row.grace_passes_used || 0) : 0;
+    res.json({
+      is_premium: true,
+      total:     WEEKLY_GRACE_PASSES,
+      used,
+      remaining: Math.max(0, WEEKLY_GRACE_PASSES - used),
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// Called automatically by the client the instant a Premium user's 10s
+// pause-grace window is about to expire — silently saves the tree if a
+// pass is left this week. The client falls back to the normal kill
+// whenever this comes back ok:false (no passes left, or not Premium).
+router.post('/grace-passes/use', async (req, res) => {
+  try {
+    const current = await getPremium(req.user.id);
+    if (!current.is_premium)
+      return res.status(403).json({ error: 'Grace passes are a Premium feature', remaining: 0 });
+
+    const weekStart = getWeekStart();
+    const row = (await db.execute({
+      sql: `SELECT grace_passes_used, grace_passes_week_start FROM user_premium WHERE user_id = ?`,
+      args: [req.user.id],
+    })).rows[0];
+    const usedSoFar = (row?.grace_passes_week_start === weekStart) ? Number(row.grace_passes_used || 0) : 0;
+
+    if (usedSoFar >= WEEKLY_GRACE_PASSES) {
+      return res.json({ ok: false, remaining: 0 });
+    }
+
+    const nextUsed = usedSoFar + 1;
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, is_premium, grace_passes_used, grace_passes_week_start)
+            VALUES (?, 1, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              grace_passes_used = excluded.grace_passes_used,
+              grace_passes_week_start = excluded.grace_passes_week_start`,
+      args: [req.user.id, nextUsed, weekStart],
+    });
+    res.json({ ok: true, remaining: WEEKLY_GRACE_PASSES - nextUsed });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue'];
 router.post('/premium/theme', async (req, res) => {
   try {
