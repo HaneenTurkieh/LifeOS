@@ -6,6 +6,24 @@ import { api } from '../api/client.js';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
+// Notification text used to be pre-rendered in English at insert time,
+// so there was no way to show it in Arabic later. Newer rows carry a
+// `data` JSON blob with the raw interpolation params instead — this maps
+// each type to its translation keys so the client can render in whatever
+// language is active right now. Rows from before this existed have
+// data === null and just fall back to their stored English text below.
+const NOTIF_KEYS = {
+  overdue:                    { title: 'notif.overdue.title',                   body: 'notif.overdue.body' },
+  procrastination:            { title: 'notif.procrastination.title',           body: 'notif.procrastination.body' },
+  streak:                     { title: 'notif.streak.title',                    body: 'notif.streak.body' },
+  deadline:                   { title: 'notif.deadline.title',                  body: 'notif.deadline.body' },
+  milestone_due:              { title: 'notif.milestone_due.title',             body: 'notif.milestone_due.body' },
+  mood:                       { title: 'notif.mood.title',                      body: 'notif.mood.body' },
+  grace_welcome:              { title: 'notif.grace_welcome.title',             body: 'notif.grace_welcome.body' },
+  grace_ending:                { title: 'notif.grace_ending.title',              body: 'notif.grace_ending.body' },
+  grace_passes_announcement:  { title: 'notif.grace_passes_announcement.title', body: 'notif.grace_passes_announcement.body' },
+};
+
 const TYPE_COLORS = {
   overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)'  },
   streak:   { dot: '#FFB84D', bg: 'rgba(255,184,77,0.10)'  },
@@ -103,6 +121,16 @@ export default function NotificationBell() {
   const handleClick = async (n) => {
     if (!n.read) await markRead(n.id);
     if (n.link) { navigate(n.link); setOpen(false); }
+  };
+  // Renders via translation keys when this row has structured `data`
+  // (every notification created after the Arabic-support fix); silently
+  // falls back to the stored English text for older rows that predate it.
+  const displayText = (n) => {
+    const keys = NOTIF_KEYS[n.type];
+    if (!keys || n.data == null) return { title: n.title, body: n.body };
+    let data = {};
+    try { data = JSON.parse(n.data) || {}; } catch (_) { return { title: n.title, body: n.body }; }
+    return { title: t(keys.title), body: t(keys.body, data) };
   };
 
   return (
@@ -204,6 +232,7 @@ export default function NotificationBell() {
                 notifications.map((n, idx) => {
                   const colors = TYPE_COLORS[n.type] || TYPE_COLORS.default;
                   const isLast = idx === notifications.length - 1;
+                  const { title: nTitle, body: nBody } = displayText(n);
                   return (
                     <motion.div
                       key={n.id}
@@ -222,7 +251,7 @@ export default function NotificationBell() {
                           <p className={`text-xs font-semibold leading-snug ${
                             n.read ? (isDark ? 'text-white/45' : 'text-ink/55') : titleClr
                           }`}>
-                            {n.title}
+                            {nTitle}
                           </p>
                           <button
                             onClick={(e) => dismiss(n.id, e)}
@@ -233,7 +262,7 @@ export default function NotificationBell() {
                             <X size={12} />
                           </button>
                         </div>
-                        <p className={`text-[11px] mt-0.5 leading-relaxed ${bodyClr}`}>{n.body}</p>
+                        <p className={`text-[11px] mt-0.5 leading-relaxed ${bodyClr}`}>{nBody}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className={`text-[10px] ${timeClr}`}>{timeAgo(n.created_at)}</span>
                           {n.link && (

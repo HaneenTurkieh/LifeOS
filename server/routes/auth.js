@@ -78,9 +78,16 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
+    // The seeded demo account's actual row is still under the
+    // pre-rebrand demo@aurora.app (renaming it needs a real DB write we
+    // can't safely script here) — this lets the client-facing "try
+    // demo" button use the new demo@nuvora.app without a migration.
+    let loginEmail = email.trim().toLowerCase();
+    if (loginEmail === 'demo@nuvora.app') loginEmail = 'demo@aurora.app';
+
     const result = await db.execute({
       sql:  `SELECT * FROM users WHERE email = ? COLLATE NOCASE`,
-      args: [email.trim().toLowerCase()],
+      args: [loginEmail],
     });
     const user = result.rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });

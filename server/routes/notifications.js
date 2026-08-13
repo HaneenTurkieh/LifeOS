@@ -24,7 +24,7 @@ async function ensureBirthdayTask(userId) {
       // Birthday was cleared — remove any leftover entry rather than
       // leaving it pointing at a birthday that no longer exists.
       await db.execute({
-        sql: `DELETE FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday'`,
+        sql: `DELETE FROM tasks WHERE user_id = ? AND source IN ('aurora','nuvora') AND category = 'Birthday'`,
         args: [userId],
       });
       return;
@@ -46,19 +46,19 @@ async function ensureBirthdayTask(userId) {
     // changed, or it's a new year) or wrong title (display name
     // changed) both mean this isn't the current correct entry anymore.
     await db.execute({
-      sql:  `DELETE FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday' AND (deadline != ? OR title != ?)`,
+      sql:  `DELETE FROM tasks WHERE user_id = ? AND source IN ('aurora','nuvora') AND category = 'Birthday' AND (deadline != ? OR title != ?)`,
       args: [userId, deadline, title],
     });
 
     const existing = (await db.execute({
-      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source = 'aurora' AND category = 'Birthday' AND deadline = ? AND title = ?`,
+      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source IN ('aurora','nuvora') AND category = 'Birthday' AND deadline = ? AND title = ?`,
       args: [userId, deadline, title],
     })).rows[0];
     if (existing) return;
 
     await db.execute({
       sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source)
-             VALUES (?, ?, ?, 'low', 'Birthday', ?, 'aurora')`,
+             VALUES (?, ?, ?, 'low', 'Birthday', ?, 'nuvora')`,
       args: [userId, title, 'Added automatically by Nuvora — happy birthday! 💜', deadline],
     });
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
@@ -116,6 +116,7 @@ async function generateNotifications(userId) {
       title: '⚠️ Task overdue',
       body:  `"${task.title}" was due on ${task.deadline}`,
       link:  `/tasks?task=${task.id}`,
+      data:  { title: task.title, deadline: task.deadline },
     });
   }
 
@@ -128,7 +129,7 @@ async function generateNotifications(userId) {
   // entry, which isn't a real actionable task.
   const stagnantTasks = await db.execute({
     sql:  `SELECT id, title FROM tasks
-           WHERE user_id=? AND status='todo' AND source != 'aurora'
+           WHERE user_id=? AND status='todo' AND source NOT IN ('aurora','nuvora')
              AND COALESCE(time_spent_minutes,0) = 0
              AND date(created_at) <= date(?, '-2 days')
            ORDER BY created_at ASC LIMIT 3`,
@@ -140,6 +141,7 @@ async function generateNotifications(userId) {
       title: '🌱 Still on your list',
       body:  `"${task.title}" has been sitting a couple days — want Lumi to help you start small?`,
       link:  `/tasks?task=${task.id}`,
+      data:  { title: task.title },
     });
   }
 
@@ -154,6 +156,7 @@ async function generateNotifications(userId) {
       title: '🔥 Streak at risk',
       body:  'You haven\'t logged any habits today. Keep your streak alive!',
       link:  '/goals',
+      data:  {},
     });
   }
 
@@ -164,6 +167,7 @@ async function generateNotifications(userId) {
       title: '🎯 Goal deadline approaching',
       body:  `"${goal.title}" is due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
       link:  `/goals?goal=${goal.id}`,
+      data:  { title: goal.title, days: daysLeft },
     });
   }
 
@@ -173,6 +177,7 @@ async function generateNotifications(userId) {
       title: '📅 Milestone due today',
       body:  `"${m.title}" (from "${m.goal_title}") is scheduled for today`,
       link:  `/goals?goal=${m.goal_id}&milestone=${m.id}`,
+      data:  { title: m.title, goal: m.goal_title },
     });
   }
 
@@ -184,6 +189,7 @@ async function generateNotifications(userId) {
       title: '😊 How are you feeling?',
       body:  'You haven\'t logged your mood today. It only takes a second.',
       link:  `/?moodcheck=${currentCheckpoint}`,
+      data:  {},
     });
   }
 
@@ -205,6 +211,7 @@ async function generateNotifications(userId) {
           title: '✨ Your first days are unlimited',
           body:  `No daily limits for your first ${GRACE_PERIOD_DAYS} days — explore exam/slide generation, Deep Think, and Deep Search freely. After that, free accounts get a generous daily allowance, and Premium removes limits for good.`,
           link:  null,
+          data:  { days: GRACE_PERIOD_DAYS },
         });
       }
       if (ageDays >= GRACE_PERIOD_DAYS - 1 && ageDays < GRACE_PERIOD_DAYS) {
@@ -213,6 +220,7 @@ async function generateNotifications(userId) {
           title: '⏳ Your unlimited period ends soon',
           body:  'Daily limits on exam generation, Deep Think, and Deep Search start tomorrow. Loved having no limits? Go Premium and keep it that way — for good.',
           link:  null,
+          data:  {},
         });
       }
     }
@@ -229,15 +237,16 @@ async function generateNotifications(userId) {
     title: '🌳 New: Grace passes',
     body:  "Premium now gets 3 grace passes a week — miss the 10s pause window and one auto-saves your tree instead of losing it. Check Settings → Premium to see how many you have left.",
     link:  null,
+    data:  {},
   });
 
   for (const n of toCreate) {
     const dedupeKey = buildDedupeKey(n.type, n.link, today);
     await db.execute({
-      sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key)
-             VALUES (?,?,?,?,?,?)
+      sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+             VALUES (?,?,?,?,?,?,?)
              ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
-      args: [userId, n.type, n.title, n.body, n.link, dedupeKey],
+      args: [userId, n.type, n.title, n.body, n.link, dedupeKey, JSON.stringify(n.data || {})],
     });
   }
 }
