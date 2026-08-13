@@ -4,7 +4,7 @@
 // existing rows first. Run with `npm run seed` from the server/ folder.
 //
 // Demo login created by this script:
-//   email:    demo@aurora.app
+//   email:    demo@nuvora.app
 //   password: password123
 
 const bcrypt = require('bcryptjs');
@@ -21,11 +21,7 @@ function isoDaysFromNow(n) {
   return d.toISOString().slice(0, 10);
 }
 
-// Deliberately kept at the pre-rebrand address — routes/auth.js aliases
-// a login attempt at demo@nuvora.app (what Login.jsx actually shows/uses
-// now) to this one, so the "try demo" flow works on both the existing
-// production row and any fresh seed without needing a real DB rename.
-const DEMO_EMAIL = 'demo@aurora.app';
+const DEMO_EMAIL = 'demo@nuvora.app';
 const DEMO_PASSWORD = 'password123';
 
 // Child tables first, 'users' last, so a clean re-seed always starts empty.

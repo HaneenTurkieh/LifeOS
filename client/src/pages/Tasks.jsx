@@ -116,10 +116,10 @@ export default function Tasks() {
   const load = useCallback(async () => {
     try {
       const data = await api.get('/tasks');
-      // The Nuvora-added birthday entry (source: 'aurora') belongs on
+      // The Nuvora-added birthday entry (source: 'nuvora') belongs on
       // the Calendar only — it's not something to manage from a task
       // list (mark done, edit, delete), just a date marker.
-      setTasks(data.filter(tk => tk.source !== 'aurora' && tk.source !== 'nuvora').map(tk => ({ ...tk, priority: (tk.priority||'medium').toLowerCase() })));
+      setTasks(data.filter(tk => tk.source !== 'nuvora').map(tk => ({ ...tk, priority: (tk.priority||'medium').toLowerCase() })));
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
@@ -524,7 +524,7 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, onAskLumi,
               <Timer size={10}/> {t('tasks.focusedTime', { n: Number(task.time_spent_minutes) })}
             </span>
           )}
-          {(task.source === 'aurora' || task.source === 'nuvora') && (
+          {task.source === 'nuvora' && (
             <span className="flex items-center gap-1 text-[11px] font-semibold"
               style={{ color: 'rgb(var(--accent-500))' }}>
               ✨ {t('tasks.addedByNuvora')}
