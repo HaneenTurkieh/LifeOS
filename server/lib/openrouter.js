@@ -77,39 +77,69 @@ async function callOpenRouter({
   if (top_p !== undefined) body.top_p = top_p;
   if (tools?.length) body.tools = toolsToOpenAiFormat(tools);
 
-  // Without an explicit timeout, a hung connection to OpenRouter/DeepSeek
-  // (provider slowness, a bad network path) could leave the request open
-  // indefinitely — the user just sees an endless spinner instead of a
-  // clean "couldn't connect, try again" error. 45s covers even a slow
-  // Deep Think call (xhigh reasoning + a 6000-token cap) generously while
-  // still failing fast enough to be honest with the user that something's
-  // wrong, rather than leaving them waiting with no idea if it's working.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45000);
-  let r;
-  try {
-    r = await fetch(OPENROUTER_URL, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${key}`,
-        // Not required for billing, just OpenRouter's own attribution —
-        // harmless to send, helps their leaderboard/analytics.
-        'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
-        'X-Title':       'Nuvora',
-      },
-      body:   JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (err.name === 'AbortError') throw new Error('The AI provider took too long to respond. Please try again.');
-    throw err;
-  } finally {
-    clearTimeout(timeout);
+  // Limiting exposure to the third-party provider (OpenRouter/DeepSeek)
+  // being flaky, in two parts:
+  //  1. A hard timeout — without one, a hung connection could leave the
+  //     request open indefinitely, so the user just sees an endless
+  //     spinner instead of a clean error. 45s generously covers even a
+  //     slow Deep Think call (xhigh reasoning + a 6000-token cap).
+  //  2. One automatic retry on TRANSIENT failures only (timeout, network
+  //     error, or a 5xx from the provider's own infrastructure) — most of
+  //     what would otherwise surface to the user as "failed chat" is a
+  //     one-off blip that succeeds a second later, not a real outage.
+  //     Does NOT retry 4xx errors (bad request, auth, rate limit) —
+  //     retrying those just wastes time on something that won't change.
+  async function attempt() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    try {
+      const r = await fetch(OPENROUTER_URL, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${key}`,
+          // Not required for billing, just OpenRouter's own attribution —
+          // harmless to send, helps their leaderboard/analytics.
+          'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
+          'X-Title':       'Nuvora',
+        },
+        body:   JSON.stringify(body),
+        signal: controller.signal,
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        const err = new Error(data.error?.message || 'OpenRouter API error');
+        err.status = r.status;
+        throw err;
+      }
+      return data;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        const e = new Error('The AI provider took too long to respond.');
+        e.transient = true;
+        throw e;
+      }
+      // No `status` at all means fetch itself failed (network-level, not
+      // an HTTP response) — also transient. A 5xx is the provider's own
+      // infrastructure failing, also worth one retry. A 4xx is not.
+      if (err.status === undefined || err.status >= 500) err.transient = true;
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error?.message || 'OpenRouter API error');
-  return data;
+
+  try {
+    return await attempt();
+  } catch (err) {
+    if (!err.transient) throw err;
+    await new Promise((r) => setTimeout(r, 800));
+    try {
+      return await attempt();
+    } catch (err2) {
+      throw new Error('The AI provider is temporarily unavailable. Please try again.');
+    }
+  }
 }
 
 module.exports = { callOpenRouter, OPENROUTER_MODEL };
