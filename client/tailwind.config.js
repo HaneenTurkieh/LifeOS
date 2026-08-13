@@ -35,7 +35,7 @@ export default {
         },
         coral: { 400: '#FF9C8A', 500: '#FF7A63' },
         midnight: { 950: '#08070F', 900: '#0C0A1A', 800: '#161329', 700: '#1F1A3D' },
-        aurora: {
+        nuvora: {
           purple: '#7C5CFF', violet: '#8B5CF6', indigo: '#6366F1',
           sky: '#60A5FA', emerald: '#34D399', amber: '#FBBF24',
         },

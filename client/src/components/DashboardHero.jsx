@@ -73,7 +73,7 @@ export default function DashboardHero({ data, userName }) {
             <StatTile icon={Sparkles} accent="from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]"
               label={`Lvl ${level.level}`} value={<AnimatedNumber value={level.xp} suffix=" XP" />} delay={0.25} />
             <StatTile icon={remainingTasks + remainingHabits === 0 ? CheckCircle2 : ListTodo}
-              accent={remainingTasks + remainingHabits === 0 ? 'from-emerald-400 to-emerald-600' : 'from-aurora-sky to-blue-500'}
+              accent={remainingTasks + remainingHabits === 0 ? 'from-emerald-400 to-emerald-600' : 'from-nuvora-sky to-blue-500'}
               label="Left today" value={<AnimatedNumber value={remainingTasks + remainingHabits} />} delay={0.3} />
           </div>
           <p className="text-xs text-ink/35 dark:text-white/30 italic mt-6 max-w-md leading-relaxed">

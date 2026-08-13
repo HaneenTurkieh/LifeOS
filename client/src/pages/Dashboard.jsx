@@ -201,8 +201,8 @@ export default function Dashboard() {
                 // early sees "1/1" and reasonably thinks "I did nothing today".
                 // A plain remaining count can't be misread either way.
                 counts.totalTasksToday > 0
-                  ? { icon:'📋', color:'from-aurora-sky to-blue-500', value:String(Math.max(0, counts.totalTasksToday - counts.tasksDoneToday)), label:t('dash.leftToday'), hint:t('dash.leftTodayCountHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
-                  : { icon:'📋', color:'from-aurora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
+                  ? { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(Math.max(0, counts.totalTasksToday - counts.tasksDoneToday)), label:t('dash.leftToday'), hint:t('dash.leftTodayCountHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
+                  : { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
               ].map(({ icon, color, value, label, hint, onClick }) => (
                 <motion.div
                   key={label}
