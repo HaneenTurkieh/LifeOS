@@ -225,8 +225,8 @@ export default function Dashboard() {
                   onClick={onClick}
                   className={`relative flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
                   style={isDark
-                    ? { background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }
-                    : { background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.75)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
+                    ? { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }
+                    : { background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.65)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
                     {icon}
@@ -272,8 +272,8 @@ export default function Dashboard() {
                   initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }}
                   className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2 shrink-0"
                   style={isDark
-                    ? { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(12px)' }
-                    : { background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.70)', backdropFilter:'blur(12px)' }}
+                    ? { background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.10)', backdropFilter:'blur(12px)' }
+                    : { background:'rgba(255,255,255,0.46)', border:'1px solid rgba(255,255,255,0.60)', backdropFilter:'blur(12px)' }}
                 >
                   <span className="text-xl leading-none">{weatherEmoji(weather.condition)}</span>
                   <div>
@@ -347,8 +347,8 @@ export default function Dashboard() {
                     <motion.div key={task.id} layout
                       className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
                       style={isDark
-                        ? { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)', backdropFilter:'blur(12px)' }
-                        : { background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.65)', backdropFilter:'blur(12px)' }}
+                        ? { background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)', backdropFilter:'blur(12px)' }
+                        : { background:'rgba(255,255,255,0.46)', border:'1px solid rgba(255,255,255,0.55)', backdropFilter:'blur(12px)' }}
                     >
                       <button onClick={() => completeTask(task)}
                         className="shrink-0 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">

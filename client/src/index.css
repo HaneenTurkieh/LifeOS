@@ -178,10 +178,10 @@ body {
   @apply clay hover:-translate-y-0.5 hover:shadow-glow-ring cursor-pointer active:translate-y-0 active:shadow-clay;
 }
 .glass-spline {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.15);
   box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
 /* In light mode, 8% white on a light lavender page background gave cards
@@ -190,8 +190,8 @@ body {
    page; dark mode (light-on-dark) already has natural contrast and is
    untouched. */
 html:not(.dark) .glass-spline {
-  background: rgba(255,255,255,0.65);
-  border: 1px solid rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.8);
   box-shadow: 0 4px 20px rgba(60,40,100,0.08);
 }
 .dark .text-ink { color: rgba(255,255,255,0.95) !important; }
