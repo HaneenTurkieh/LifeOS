@@ -44,4 +44,21 @@ router.get('/stats', requireOwner, async (req, res) => {
   }
 });
 
+// ── GET /users — full signup list (name, email, joined), owner-only ────
+router.get('/users', requireOwner, async (req, res) => {
+  try {
+    const result = await db.execute(
+      `SELECT id, name, email, created_at FROM users ORDER BY created_at ASC`
+    );
+    res.json({
+      users: result.rows.map((r) => ({
+        id: r.id, name: r.name, email: r.email, created_at: r.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /admin/users error:', err);
+    res.status(500).json({ error: 'Could not load users' });
+  }
+});
+
 module.exports = router;
