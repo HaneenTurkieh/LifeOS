@@ -692,6 +692,15 @@ unrelated to Nuvora, or just talking — be a genuine conversational partner fir
 Do not steer the conversation back to tasks, exams, goals, or any Nuvora feature
 unless the user actually asks for that, or it's obviously what they want.
 
+REASONING: For anything with more than one moving part — planning, comparing
+options, math, debugging a schedule conflict, or any request where a fast
+surface-level answer risks being wrong — work through it step by step
+silently before giving your final answer. Don't show scratch work unless the
+user asks to see your reasoning; give them the clean conclusion, but make
+sure it's the product of actually thinking it through, not a first guess.
+For simple factual or conversational messages, just answer directly — this
+is for genuinely non-trivial requests, not everything.
+
 EMOTIONAL SUPPORT — THIS OVERRIDES "BE CONCISE" AND "USE TOOLS":
 If the user expresses sadness, stress, anxiety, frustration, loneliness, or any
 difficult emotion — in THIS message, regardless of what mood they logged earlier
@@ -1027,7 +1036,11 @@ router.post('/', async (req, res) => {
       // list_tasks, etc.), converted to OpenAI's function-calling shape
       // by callOpenRouter, and the same up-to-6-turn loop so DeepSeek can
       // call a tool, see the result, and keep going same as the other modes.
-      const maxTokens = hasAttachments ? 3000 : 1024;
+      // Bumped from 1024/3000 now that Sonnet 5 actually reasons before
+      // answering (see the `reasoning` param in callOpenRouter) — a tight
+      // cap was fine for DeepSeek's quick-answer style but risks cutting
+      // off a thought-through response right when it gets useful.
+      const maxTokens = hasAttachments ? 4000 : 2048;
       for (let i = 0; i < 6; i++) {
         const data = await callOpenRouter({
           system, messages: currentMessages, tools: TOOLS, max_tokens: maxTokens,
