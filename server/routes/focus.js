@@ -550,17 +550,38 @@ router.get('/rooms/:code', async (req, res) => {
     // while must never make someone disappear from this list. The old
     // "last_seen >= -N minutes" filter here didn't remove anyone from
     // the room either, but it did hide them from view, which looked and
-    // felt exactly like being kicked out. is_focusing already reflects
-    // real-time activity (it only stays true while a pulse says they're
-    // actively running a timer), so that alone is enough to show who's
-    // active right now without dropping anyone from the roster.
+    // felt exactly like being kicked out. So membership itself still
+    // never filters on last_seen.
+    //
+    // is_focusing is a different story, though — it's just a flag the
+    // client pulses every 30s while its own local timer is running
+    // (FocusContext.jsx). If someone's tab/app disappears mid-session
+    // (closed, phone died, wifi dropped) without ever sending a final
+    // "stopped" pulse, the flag stays true forever — a real bug (user
+    // report: a friend's tree kept showing as running when they weren't
+    // actively focusing). Trusting the raw stored flag isn't safe; it's
+    // only meaningful if a pulse actually arrived recently. STALE_MS
+    // gives one full missed pulse interval (30s) plus generous slack
+    // for network jitter/backgrounding before treating someone as no
+    // longer active — long enough to not flicker false on a slow
+    // connection, short enough that a real disconnect clears within a
+    // minute or two instead of lingering indefinitely.
+    const STALE_MS = 90 * 1000;
     const members = (await db.execute({
-      sql:  `SELECT user_id, display_name, focus_minutes, is_focusing
+      sql:  `SELECT user_id, display_name, focus_minutes, is_focusing, last_seen
              FROM focus_room_members
              WHERE room_id = ?
              ORDER BY focus_minutes DESC`,
       args: [roomRow.id],
-    })).rows.map((r) => ({ ...r, focus_minutes: Number(r.focus_minutes), is_focusing: Boolean(r.is_focusing) }));
+    })).rows.map((r) => {
+      const lastSeenMs = r.last_seen ? new Date(r.last_seen.replace(' ', 'T') + 'Z').getTime() : 0;
+      const fresh = lastSeenMs > 0 && (Date.now() - lastSeenMs) < STALE_MS;
+      return {
+        user_id: r.user_id, display_name: r.display_name,
+        focus_minutes: Number(r.focus_minutes),
+        is_focusing: Boolean(r.is_focusing) && fresh,
+      };
+    });
 
     let timer = null;
     let remainingSeconds = null;
