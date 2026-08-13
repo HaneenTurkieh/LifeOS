@@ -1,21 +1,25 @@
 // server/lib/openrouter.js
 // Thin wrapper around OpenRouter's OpenAI-compatible /chat/completions
-// endpoint, used for the highest-volume, plain-text AI calls in the
-// app (everyday Lumi chat, exam generation).
+// endpoint — now the ONE model behind everyday Lumi chat, exam generation,
+// Deep Think, and Deep Search (Aug 2026). Previously chat/exams ran on
+// Claude Sonnet 5 while Deep Think/Deep Search/vision ran on Gemini
+// flash-lite. Haneen's call: Sonnet was too expensive to run everything
+// on, and Gemini flash-lite was too weak to justify the "Deep" branding —
+// so both got replaced with a single second-place-behind-Sonnet model:
+// DeepSeek V4 Pro. It's ~5-11x cheaper than Sonnet 5, benchmarks strongly
+// on reasoning/math/knowledge/coding (GPQA Diamond 90.1%, HMMT 95.2%,
+// #1 globally on LiveCodeBench), and supports a real reasoning-effort
+// dial (high / xhigh) plus OpenRouter's provider-agnostic web-search
+// plugin — covering Deep Think and Deep Search without needing Gemini
+// at all. Sonnet 5 still objectively wins on tool-augmented reasoning
+// benchmarks, so if Lumi's tool-calling quality ever visibly suffers,
+// that's the tradeoff to revisit.
 //
-// Bumped from deepseek/deepseek-chat (DeepSeek V3.2) to Claude Sonnet 5
-// (Aug 2026) — Haneen asked for Lumi to actually be smarter, not just
-// cheap. Sonnet 5 supports adaptive "thinking" via the `reasoning` param
-// below, which we turn on at a moderate budget so multi-step requests get
-// real reasoning without every single "hey" costing a slow, expensive
-// max-effort pass. If cost ever becomes a real concern at scale, DeepSeek
-// R1 (deepseek/deepseek-r1) is the cheaper reasoning-capable fallback.
-//
-// Deliberately NOT used for: PDF/image extraction in exam.js (needs
-// native document/vision input), Deep Think (needs a native
-// reasoning/thinking budget of its own), or Deep Search (needs a hosted
-// web-search tool). Those three run on Gemini instead (see ../lib/gemini.js).
-const OPENROUTER_MODEL = 'anthropic/claude-sonnet-5';
+// Still NOT used for: PDF/image extraction in exam.js. DeepSeek V4 Pro's
+// vision support is inconsistent across sources/providers as of this
+// writing — not something to gamble document extraction on — so that one
+// path stays on Gemini (see ../lib/gemini.js) until it's been verified.
+const OPENROUTER_MODEL = 'deepseek/deepseek-v4-pro';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Anthropic tool shape ({ name, description, input_schema }) → OpenAI/
@@ -33,7 +37,19 @@ function toolsToOpenAiFormat(tools) {
   }));
 }
 
-async function callOpenRouter({ system, messages, tools, max_tokens = 1024, temperature, top_p }) {
+async function callOpenRouter({
+  system, messages, tools, max_tokens = 1024, temperature, top_p,
+  // 'high' is V4 Pro's normal/baseline reasoning tier (not an expensive
+  // outlier — OpenRouter documents only high/xhigh as supported effort
+  // levels for this model). 'xhigh' maps to its actual max-effort mode —
+  // reserved for Deep Think specifically, since it's slower and pricier
+  // per call. Pass reasoningEffort: null to omit thinking entirely.
+  reasoningEffort = 'high',
+  // Deep Search — OpenRouter's provider-agnostic web plugin (works with
+  // any underlying model, not just Gemini). $4 per 1,000 results, so
+  // cheap per actual use. See https://openrouter.ai/docs/guides/features/plugins/web-search
+  webSearch = false,
+}) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY not set');
 
@@ -41,13 +57,10 @@ async function callOpenRouter({ system, messages, tools, max_tokens = 1024, temp
     model:    OPENROUTER_MODEL,
     messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
     max_tokens,
-    // Moderate thinking budget — enough for Sonnet 5 to actually reason
-    // through non-trivial requests (see the REASONING block in Lumi's
-    // system prompt) without every one-line "hey" eating extra latency
-    // and tokens on max-effort thinking it doesn't need.
-    reasoning: { effort: 'medium' },
   };
-  // Optional — callers doing plain chat leave these unset (DeepSeek's
+  if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
+  if (webSearch) body.plugins = [{ id: 'web', max_results: 5 }];
+  // Optional — callers doing plain chat leave these unset (the model's
   // own default is fine there). Exam generation passes an explicit
   // higher temperature so regenerating from the same source material
   // doesn't produce near-identical output every time.

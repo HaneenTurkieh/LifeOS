@@ -3,7 +3,6 @@ const router  = express.Router();
 const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { callOpenRouter } = require('../lib/openrouter');
-const { callGemini } = require('../lib/gemini');
 const { getHabitStreak } = require('../lib/gamification');
 
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
@@ -909,14 +908,12 @@ const MAX_ATTACHMENT_CHARS = 25000;
 const STAT_CLAIM_RE = /\d[\d,.]*\s?(%|percent|million|billion|thousand)\b/i;
 
 router.post('/', async (req, res) => {
-  // Deep Think and Deep Search need capabilities OpenRouter/DeepSeek
-  // doesn't have (native reasoning, hosted web-search grounding) — routed
-  // to Gemini, which covers both on its free tier. Plain chat — the
-  // everyday, highest-volume path — stays on OpenRouter/DeepSeek.
-  const requestedMode = req.body?.mode || 'chat';
-  const usesGemini = requestedMode === 'think' || requestedMode === 'search';
-  if (usesGemini && !process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set.' });
-  if (!usesGemini && !process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set.' });
+  // Chat, Deep Think, and Deep Search all run on OpenRouter/DeepSeek V4
+  // Pro now (Aug 2026) — Deep Think via a higher reasoning-effort dial,
+  // Deep Search via OpenRouter's own provider-agnostic web-search plugin.
+  // Gemini is no longer used anywhere in this route (still used
+  // separately by exam.js for PDF/image extraction — unaffected by this).
+  if (!process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set.' });
   // no_history: true is for behind-the-scenes uses of this same endpoint
   // that were never meant to be a real conversation with Lumi — the
   // Projects "Break into tasks" breakdown and the CV Builder review both
@@ -991,80 +988,42 @@ router.post('/', async (req, res) => {
     let finalText = '';
     const actions = [];
 
-    if (usesGemini) {
-      // Deep Think / Deep Search — routed to Gemini. Deep Search uses
-      // only the hosted google_search grounding tool (its whole job is
-      // real web lookups, so the app's own function-calling tools are
-      // left out of that request — Gemini doesn't allow combining
-      // grounding with custom tools in one call). Deep Think keeps the
-      // full app tool set plus a thinking budget for step-by-step reasoning.
-      let geminiContents = currentMessages.map((m) => ({
-        role:  m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }],
-      }));
-      const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 3000 : 1024;
-      for (let i = 0; i < 6; i++) {
-        const data = await callGemini({
-          system,
-          contents:        geminiContents,
-          tools:           mode === 'search' ? undefined : TOOLS,
-          useGoogleSearch: mode === 'search',
-          thinkingBudget:  mode === 'think' ? 4000 : undefined,
-          maxOutputTokens: maxTokens,
-        });
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
-        if (!functionCalls.length) {
-          finalText = parts.filter((p) => p.text).map((p) => p.text).join('');
-          break;
-        }
-        geminiContents = [...geminiContents, { role: 'model', parts }];
-        const functionResponseParts = [];
-        for (const fc of functionCalls) {
-          const result = await executeTool(fc.name, fc.args || {}, req.user.id, todayLocal);
-          actions.push({ tool: fc.name, input: fc.args || {}, result });
-          functionResponseParts.push({
-            functionResponse: { name: fc.name, response: { name: fc.name, content: result } },
-          });
-        }
-        geminiContents = [...geminiContents, { role: 'function', parts: functionResponseParts }];
+    // One provider for all three modes now (chat / think / search) — only
+    // the reasoning effort, web-search plugin, and tool set change per mode.
+    // Search stays tool-free (its whole job is grounded web lookups, not
+    // task-creation side effects — same reasoning as before, just no
+    // longer a Gemini API restriction, a deliberate choice to keep it that
+    // way) and skips extended reasoning since it's synthesis, not a hard
+    // multi-step problem. Think gets the highest reasoning effort V4 Pro
+    // supports plus real headroom in max_tokens for both the visible
+    // answer and the (also token-billed) hidden reasoning trace.
+    const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 4000 : 2048;
+    const reasoningEffort = mode === 'think' ? 'xhigh' : 'high';
+    const toolsForCall = mode === 'search' ? undefined : TOOLS;
+    for (let i = 0; i < 6; i++) {
+      const data = await callOpenRouter({
+        system, messages: currentMessages, tools: toolsForCall, max_tokens: maxTokens,
+        reasoningEffort, webSearch: mode === 'search',
+      });
+      const msg = data.choices?.[0]?.message || {};
+      const toolCalls = msg.tool_calls || [];
+      if (!toolCalls.length) {
+        finalText = msg.content || '';
+        break;
       }
-    } else {
-      // Plain chat — the everyday path (also what Projects' "Break into
-      // tasks" and the CV Builder review reuse via no_history) — routed
-      // to OpenRouter/DeepSeek instead. Same tool set (create_task,
-      // list_tasks, etc.), converted to OpenAI's function-calling shape
-      // by callOpenRouter, and the same up-to-6-turn loop so DeepSeek can
-      // call a tool, see the result, and keep going same as the other modes.
-      // Bumped from 1024/3000 now that Sonnet 5 actually reasons before
-      // answering (see the `reasoning` param in callOpenRouter) — a tight
-      // cap was fine for DeepSeek's quick-answer style but risks cutting
-      // off a thought-through response right when it gets useful.
-      const maxTokens = hasAttachments ? 4000 : 2048;
-      for (let i = 0; i < 6; i++) {
-        const data = await callOpenRouter({
-          system, messages: currentMessages, tools: TOOLS, max_tokens: maxTokens,
-        });
-        const msg = data.choices?.[0]?.message || {};
-        const toolCalls = msg.tool_calls || [];
-        if (!toolCalls.length) {
-          finalText = msg.content || '';
-          break;
-        }
-        const toolResults = [];
-        for (const tc of toolCalls) {
-          let input = {};
-          try { input = JSON.parse(tc.function.arguments || '{}'); } catch (_) {}
-          const result = await executeTool(tc.function.name, input, req.user.id, todayLocal);
-          actions.push({ tool: tc.function.name, input, result });
-          toolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
-        }
-        currentMessages = [
-          ...currentMessages,
-          { role: 'assistant', content: msg.content || null, tool_calls: toolCalls },
-          ...toolResults,
-        ];
+      const toolResults = [];
+      for (const tc of toolCalls) {
+        let input = {};
+        try { input = JSON.parse(tc.function.arguments || '{}'); } catch (_) {}
+        const result = await executeTool(tc.function.name, input, req.user.id, todayLocal);
+        actions.push({ tool: tc.function.name, input, result });
+        toolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
       }
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant', content: msg.content || null, tool_calls: toolCalls },
+        ...toolResults,
+      ];
     }
     const responseText = finalText || "Done! Let me know if you need anything else.";
 
