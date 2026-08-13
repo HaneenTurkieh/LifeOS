@@ -61,6 +61,21 @@ const MOOD_OPTIONS = [
   { value:5, emoji:'🤩', label:'mood.great' },
 ];
 
+// Maps a raw day-streak count to one of the same seed → bloom stages the
+// (previously unused) ProductivityTree component defined, so the language
+// stays consistent anywhere we talk about growth. Kept as a plain label +
+// emoji rather than a new animated widget — the Dashboard already has two
+// tree visuals (the score sphere and the species-shop card below); a third
+// moving graphic would add clutter, not clarity. This just gives the
+// existing "Your tree" card a one-line caption tied to the real streak.
+function streakStage(streak) {
+  if (streak <= 0) return 0;
+  if (streak <= 2) return 1;
+  if (streak <= 6) return 2;
+  if (streak <= 13) return 3;
+  return 4;
+}
+
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -166,7 +181,10 @@ export default function Dashboard() {
     ? t('dash.clearSubtitle')
     : t('dash.leftSummary', { tasks: todaysTasks.length, habits: habitsLeft });
   const visibleTasks = isRoughDay ? todaysTasks.slice(0, 2) : todaysTasks;
-  const taskLabel    = isRoughDay ? t('dash.justTwo') : t('dash.todaysTasks');
+  // "Just these two" only makes sense when there actually are tasks to show —
+  // otherwise the title promises 2 tasks while the empty state says "nothing
+  // due today", which read as a bug (it was one).
+  const taskLabel    = isRoughDay && todaysTasks.length > 0 ? t('dash.justTwo') : t('dash.todaysTasks');
   const totalXp      = treeData?.totalXp || 0;
   const nextTree     = NEXT_TREE[equippedTree];
   // The actual designed Mystic Tree (shape/colour/glow), not just the
@@ -266,7 +284,11 @@ export default function Dashboard() {
                   </div>
                 </motion.div>
               )}
-              {quote && (
+              {isRoughDay ? (
+                <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
+                  "{t('dash.roughQuote')}" 💙
+                </p>
+              ) : quote && (
                 <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
                   "{quote.text}" — {quote.author}
                 </p>
@@ -492,6 +514,9 @@ export default function Dashboard() {
                   {isBirthday
                     ? TREE_DESC.christmas
                     : equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
+                </p>
+                <p className="text-[10px] text-sage-600 dark:text-sage-400 font-medium mt-1">
+                  {t(`dash.stage${streakStage(streak)}`)} · {t('goals.dayStreak', { n: streak })}
                 </p>
                 {nextTree && (
                   <div className="mt-2">
