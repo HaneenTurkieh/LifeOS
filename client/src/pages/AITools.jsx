@@ -4,7 +4,7 @@ import {
   Send, Plus, Trash2, Brain, Paperclip, X, FileText,
   Sparkles, Globe, SlidersHorizontal, Check, Pencil, Copy,
 } from 'lucide-react';
-import { api } from '../api/client.js';
+import { api, getToken } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -527,7 +527,7 @@ export default function AITools() {
       formData.append('file', file);
       const res = await fetch(`${BASE_URL}/api/exam/extract`, {
         method:  'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('aurora_auth_token')}` },
+        headers: { Authorization: `Bearer ${getToken()}` },
         body:    formData,
       });
       const data = await res.json();

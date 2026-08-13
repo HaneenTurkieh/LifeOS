@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const CACHE_KEY = 'aurora_weather';
+const CACHE_KEY = 'nuvora_weather'; // just a cache key, no migration needed — worst case is one extra fetch
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 export function useWeather() {

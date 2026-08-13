@@ -31,8 +31,9 @@
     <script>
       (function () {
         try {
-          var KEY      = 'aurora_theme';
-          var stored   = localStorage.getItem(KEY) || 'system';
+          var KEY      = 'nuvora_theme';
+          var OLD_KEY  = 'aurora_theme';
+          var stored   = localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'system';
           var sysDark  = window.matchMedia('(prefers-color-scheme: dark)').matches;
           var isDark   = stored === 'dark' || (stored === 'system' && sysDark);
           if (isDark) {

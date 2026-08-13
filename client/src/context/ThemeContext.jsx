@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { api } from '../api/client.js';
+import { api, getToken } from '../api/client.js';
+import { migrateStorageKey } from '../utils/migrateStorageKey.js';
 
 const ThemeContext = createContext(null);
-const STORAGE_KEY        = 'aurora_theme';
-const ACCENT_STORAGE_KEY = 'aurora_accent';
-const FONT_STORAGE_KEY   = 'aurora_font_scale';
+const STORAGE_KEY        = 'nuvora_theme';
+const ACCENT_STORAGE_KEY = 'nuvora_accent';
+const FONT_STORAGE_KEY   = 'nuvora_font_scale';
+migrateStorageKey(localStorage, 'aurora_theme',       STORAGE_KEY);
+migrateStorageKey(localStorage, 'aurora_accent',      ACCENT_STORAGE_KEY);
+migrateStorageKey(localStorage, 'aurora_font_scale',  FONT_STORAGE_KEY);
 const MODES   = ['light', 'dark', 'system'];
 export const ACCENTS = ['purple', 'orange', 'pink', 'blue'];
 // Percentages applied to the root font-size — every rem-based size in
@@ -128,7 +132,7 @@ export function ThemeProvider({ children }) {
   useEffect(() => { fontScaleRef.current = fontScale; }, [fontScale]);
 
   useEffect(() => {
-    const token = localStorage.getItem('aurora_auth_token');
+    const token = getToken();
     if (!token) return;
     let active = true;
 
@@ -162,7 +166,7 @@ export function ThemeProvider({ children }) {
   const setMode = useCallback((next) => {
     if (!MODES.includes(next)) return;
     setModeState(next);
-    const token = localStorage.getItem('aurora_auth_token');
+    const token = getToken();
     if (token) api.put('/focus/theme-mode', { theme_mode: next }).catch(() => {});
   }, []);
 
@@ -173,7 +177,7 @@ export function ThemeProvider({ children }) {
   const setFontScale = useCallback((next) => {
     if (!FONT_SCALES[next]) return;
     setFontScaleState(next);
-    const token = localStorage.getItem('aurora_auth_token');
+    const token = getToken();
     if (token) api.put('/focus/font-scale', { font_scale: next }).catch(() => {});
   }, []);
 

@@ -6,7 +6,7 @@ import {
   Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
   FileDown, Presentation,
 } from 'lucide-react';
-import { api } from '../api/client.js';
+import { api, getToken } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -949,7 +949,7 @@ export default function ExamAssistant() {
     ...opts,
     headers: {
       ...(opts.body && !(opts.body instanceof FormData) ? { 'Content-Type':'application/json' } : {}),
-      Authorization: `Bearer ${localStorage.getItem('aurora_auth_token')}`,
+      Authorization: `Bearer ${getToken()}`,
       ...(opts.headers || {}),
     },
   }), [BASE_URL]);

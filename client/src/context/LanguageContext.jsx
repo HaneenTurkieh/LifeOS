@@ -8,9 +8,11 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { translations } from '../i18n/translations.js';
+import { migrateStorageKey } from '../utils/migrateStorageKey.js';
 
 const LanguageContext = createContext(null);
-const STORAGE_KEY = 'aurora_lang';
+const STORAGE_KEY = 'nuvora_lang';
+migrateStorageKey(localStorage, 'aurora_lang', STORAGE_KEY);
 
 function detectLanguage() {
   try {

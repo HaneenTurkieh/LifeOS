@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { api } from '../api/client.js';
+import { api, getToken } from '../api/client.js';
 import { useToast } from './ToastContext.jsx';
 import { useLanguage } from './LanguageContext.jsx';
 import { computeFromServer } from '../utils/timerSync.mjs';
 import { localDateStr } from '../utils/birthday.js';
+import { migrateStorageKey } from '../utils/migrateStorageKey.js';
 const FocusContext = createContext(null);
 
 export const MODES = {
@@ -92,7 +93,8 @@ const QUOTES = [
 ];
 export const randQuote = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
 
-const SESSION_KEY = 'aurora_focus_state';
+const SESSION_KEY = 'nuvora_focus_state';
+migrateStorageKey(sessionStorage, 'aurora_focus_state', SESSION_KEY);
 
 function saveState(state) {
   try {
@@ -273,7 +275,7 @@ export function FocusProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('aurora_auth_token');
+    const token = getToken();
     if (!token) return;
     let active = true;
     const load = async () => {

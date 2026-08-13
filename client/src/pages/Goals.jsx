@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import GlassCard from '../components/GlassCard.jsx';
+import StarChartCard from '../components/StarChartCard.jsx';
 import ProgressRing from '../components/ProgressRing.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -343,6 +344,8 @@ export default function Goals() {
             }
           />
         ) : (
+          <>
+          <StarChartCard goals={goals} t={t} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {goals.map((g, i) => (
               <GlassCard key={g.id} delay={i * 0.05} className="p-6">
@@ -430,6 +433,7 @@ export default function Goals() {
               </GlassCard>
             ))}
           </div>
+          </>
         )
       )}
       {tab === 'recurring' && (

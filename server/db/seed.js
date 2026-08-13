@@ -139,7 +139,7 @@ const seed = db.transaction(() => {
     { company: 'DataCore Analytics', role: 'Data Science Intern', status: 'interview', applied_date: isoDaysAgo(10), notes: 'Technical interview scheduled', link: '' },
     { company: 'Nimbus Software', role: 'Frontend Engineering Intern', status: 'applied', applied_date: isoDaysAgo(3), notes: '', link: '' },
     { company: 'Brightline Robotics', role: 'Software Intern', status: 'rejected', applied_date: isoDaysAgo(25), notes: 'Good feedback, reapply next cycle', link: '' },
-    { company: 'Aurora Health Tech', role: 'Backend Intern', status: 'accepted', applied_date: isoDaysAgo(40), notes: 'Starts in summer', link: '' },
+    { company: 'Nuvora Health Tech', role: 'Backend Intern', status: 'accepted', applied_date: isoDaysAgo(40), notes: 'Starts in summer', link: '' },
   ];
   internships.forEach((i) => insertInternship.run({ ...i, user_id: userId }));
 

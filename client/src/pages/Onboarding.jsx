@@ -4,11 +4,14 @@ import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift
 import { api } from '../api/client.js';
 
 export function markOnboarded(userId) {
-  localStorage.setItem(`aurora_onboarded_${userId}`, '1');
+  localStorage.setItem(`nuvora_onboarded_${userId}`, '1');
+  localStorage.removeItem(`aurora_onboarded_${userId}`);
 }
 export function isOnboarded(userId) {
   if (!userId) return true;
-  return !!localStorage.getItem(`aurora_onboarded_${userId}`);
+  // Fall back to the pre-rebrand key so nobody who already finished
+  // onboarding gets sent through it again after the rename.
+  return !!localStorage.getItem(`nuvora_onboarded_${userId}`) || !!localStorage.getItem(`aurora_onboarded_${userId}`);
 }
 
 const card = {

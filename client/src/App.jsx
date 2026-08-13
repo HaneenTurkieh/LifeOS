@@ -219,7 +219,7 @@ function AppShell() {
         case 'l': navigate('/ai');        break;
         case 'a': navigate('/analytics'); break;
         case 'n':
-          window.dispatchEvent(new CustomEvent('aurora:new-task'));
+          window.dispatchEvent(new CustomEvent('nuvora:new-task'));
           if (location.pathname !== '/tasks') navigate('/tasks');
           break;
         case '/':      e.preventDefault(); setSearchOpen(true);         break;
@@ -230,18 +230,19 @@ function AppShell() {
     };
     const customSearch = () => setSearchOpen(true);
     window.addEventListener('keydown', handler);
-    window.addEventListener('aurora:search', customSearch);
+    window.addEventListener('nuvora:search', customSearch);
     return () => {
       window.removeEventListener('keydown', handler);
-      window.removeEventListener('aurora:search', customSearch);
+      window.removeEventListener('nuvora:search', customSearch);
     };
   }, [navigate, location.pathname]);
 
   // One-time tip
   useEffect(() => {
     if (!user?.id) return;
-    const key = `aurora_search_hint_${user.id}`;
-    if (!localStorage.getItem(key)) {
+    const key    = `nuvora_search_hint_${user.id}`;
+    const oldKey = `aurora_search_hint_${user.id}`;
+    if (!localStorage.getItem(key) && !localStorage.getItem(oldKey)) {
       const id = setTimeout(() => {
         toast.success(t('app.searchTip'));
         localStorage.setItem(key, '1');

@@ -126,8 +126,8 @@ export default function Tasks() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     const handler = () => { setEditingTask(null); setForm(emptyForm); setModalOpen(true); };
-    window.addEventListener('aurora:new-task', handler);
-    return () => window.removeEventListener('aurora:new-task', handler);
+    window.addEventListener('nuvora:new-task', handler);
+    return () => window.removeEventListener('nuvora:new-task', handler);
   }, []);
   const today    = localTodayStr();
   const tomorrow = localOffsetStr(1);
