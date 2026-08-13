@@ -93,10 +93,10 @@ body {
 }
 @layer components {
   .glass-panel {
-    @apply bg-white/55 dark:bg-white/[0.04] backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-glass dark:shadow-none;
+    @apply bg-white/75 dark:bg-white/[0.07] backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-glass dark:shadow-none;
   }
   .glass-card {
-    @apply bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl border border-white/70 dark:border-white/10 shadow-glass dark:shadow-none rounded-3xl;
+    @apply bg-white/80 dark:bg-white/[0.07] backdrop-blur-xl border border-white/70 dark:border-white/10 shadow-glass dark:shadow-none rounded-3xl;
   }
   .glass-card-interactive {
     @apply glass-card transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:shadow-glass-lg dark:hover:border-white/20 cursor-pointer;

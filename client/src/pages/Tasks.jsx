@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Plus, Trash2, Pencil, Calendar, Clock, ListChecks,
-  Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Timer,
+  Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Timer, Sparkles,
 } from 'lucide-react';
 import { api }       from '../api/client.js';
 import { useToast }  from '../context/ToastContext.jsx';
@@ -73,6 +73,7 @@ export default function Tasks() {
   const [form,          setForm]          = useState(emptyForm);
   const [editingTask,   setEditingTask]   = useState(null);
   const [completedOpen, setCompletedOpen] = useState(false);
+  const [stuckTask,     setStuckTask]     = useState(null);
   const toast = useToast();
   const { t, lang } = useLanguage();
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
@@ -241,10 +242,10 @@ export default function Tasks() {
         />
       ) : (
         <div className="flex flex-col gap-8">
-          <TaskGroup label={t('common.today')}    tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
-          <TaskGroup label={t('common.tomorrow')} tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
-          <TaskGroup label={t('tasks.next7')}     tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
-          <TaskGroup label={t('tasks.later')}     tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('common.today')}    tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('common.tomorrow')} tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('tasks.next7')}     tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
+          <TaskGroup label={t('tasks.later')}     tasks={groups.later}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
           {completed.length > 0 && (
             <div>
               <button onClick={() => setCompletedOpen(o=>!o)}
@@ -352,10 +353,64 @@ export default function Tasks() {
           </button>
         </form>
       </Modal>
+      <AntiProcrastinationModal task={stuckTask} onClose={() => setStuckTask(null)} t={t} lang={lang} />
     </div>
   );
 }
-function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, recurrenceLabel }) {
+// Anti-procrastination helper — no penalty, no coins taken, nothing
+// tracked against the user. Purely Lumi offering three differently-sized
+// on-ramps (5 min / 15 min / 1 hour) for a task that's been sitting
+// untouched, reusing the existing rule-based /ai/anti-procrastination
+// endpoint (already built, just never had UI wired to it before).
+function AntiProcrastinationModal({ task, onClose, t, lang }) {
+  const [loading, setLoading] = useState(false);
+  const [versions, setVersions] = useState(null);
+  useEffect(() => {
+    if (!task) { setVersions(null); return; }
+    setLoading(true);
+    setVersions(null);
+    api.post('/ai/anti-procrastination', { title: task.title })
+      .then(setVersions)
+      .catch(() => setVersions(null))
+      .finally(() => setLoading(false));
+  }, [task]);
+  const OPTIONS = versions ? [
+    { key: 'five_minute',    label: t('tasks.stuck5min'),  text: versions.five_minute },
+    { key: 'fifteen_minute', label: t('tasks.stuck15min'), text: versions.fifteen_minute },
+    { key: 'one_hour',       label: t('tasks.stuck1hr'),   text: versions.one_hour },
+  ] : [];
+  return (
+    <Modal open={!!task} onClose={onClose} title={t('tasks.stuckTitle')}>
+      <div className="flex items-start gap-2.5 mb-4">
+        <Sparkles size={16} className="shrink-0 mt-0.5" style={{ color: 'rgb(var(--accent-500))' }} />
+        <p className="text-sm text-ink/60 dark:text-white/50 leading-relaxed">
+          {t('tasks.stuckIntro', { title: task?.title || '' })}
+        </p>
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-6">
+          <div className="h-5 w-5 rounded-full border-2 border-lavender-400/30 border-t-lavender-500 animate-spin" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {OPTIONS.map(opt => (
+            <div key={opt.key} className="rounded-2xl p-3.5"
+              style={{ background: 'rgb(var(--accent-500) / 0.06)', border: '1px solid rgb(var(--accent-500) / 0.16)' }}>
+              <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'rgb(var(--accent-500))' }}>
+                {opt.label}
+              </p>
+              <p className="text-sm text-ink/70 dark:text-white/60 leading-relaxed">{opt.text}</p>
+            </div>
+          ))}
+          {!OPTIONS.length && (
+            <p className="text-sm text-ink/40 dark:text-white/30 text-center py-4">{t('tasks.stuckError')}</p>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, onAskLumi, t, formatTime, recurrenceLabel }) {
   if (!tasks.length) return null;
   return (
     <div>
@@ -365,12 +420,12 @@ function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, t, formatTime, 
         <div className="flex-1 h-px bg-ink/5 dark:bg-white/5" />
       </div>
       <div className="flex flex-col gap-2">
-        {tasks.map(task => <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} onMarkDone={onMarkDone} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />)}
+        {tasks.map(task => <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} onMarkDone={onMarkDone} onAskLumi={onAskLumi} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />)}
       </div>
     </div>
   );
 }
-function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = false, t, formatTime, recurrenceLabel, formatCompletedTime }) {
+function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, onAskLumi, done = false, t, formatTime, recurrenceLabel, formatCompletedTime }) {
   // Completed tasks get a deliberately quiet, compact treatment —
   // no priority pill, no "Overdue" alarm (misleading once it's done),
   // no recurrence badge. Just what got done and, since it's already
@@ -421,6 +476,10 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, done = fal
             {task.title}
           </p>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+            <button onClick={() => onAskLumi(task)} title={t('tasks.feelingStuck')}
+              className="text-ink/30 dark:text-white/25 hover:text-lavender-600 transition">
+              <Sparkles size={14}/>
+            </button>
             <button onClick={() => onEdit(task)} className="text-ink/30 dark:text-white/25 hover:text-lavender-600 transition">
               <Pencil size={14}/>
             </button>
