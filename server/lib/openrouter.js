@@ -49,6 +49,14 @@ async function callOpenRouter({
   // any underlying model, not just Gemini). $4 per 1,000 results, so
   // cheap per actual use. See https://openrouter.ai/docs/guides/features/plugins/web-search
   webSearch = false,
+  // Pass 'json' when a caller needs the reply to actually BE parseable
+  // JSON and nothing else — e.g. anti-procrastination suggestions. A
+  // plain "return only JSON" instruction in the prompt is a suggestion,
+  // not a guarantee; models regularly wrap it in a code fence or add a
+  // sentence before/after it anyway, which breaks a naive JSON.parse and
+  // silently falls back to a worse response. This forces the provider to
+  // actually constrain output to valid JSON.
+  jsonMode = false,
 }) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY not set');
@@ -60,6 +68,7 @@ async function callOpenRouter({
   };
   if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
   if (webSearch) body.plugins = [{ id: 'web', max_results: 5 }];
+  if (jsonMode) body.response_format = { type: 'json_object' };
   // Optional — callers doing plain chat leave these unset (the model's
   // own default is fine there). Exam generation passes an explicit
   // higher temperature so regenerating from the same source material
