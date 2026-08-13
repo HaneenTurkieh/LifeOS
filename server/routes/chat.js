@@ -622,9 +622,23 @@ async function buildSystemPrompt(userId, mode = 'chat', hasAttachments = false, 
       : 'None yet — this is one of the user\'s first conversations.';
 
     const p          = profile.rows[0] || {};
-    const profileAge = p.birthday
-      ? new Date().getFullYear() - Number(p.birthday.split('-')[0])
-      : null;
+    // Plain year-subtraction was wrong for anyone whose birthday hasn't
+    // happened yet this calendar year — it counted them a year older
+    // starting Jan 1, not on their actual birthday. Matters here
+    // specifically because Lumi states this age out loud (see ABOUT
+    // NUVORA below), so it has to be correct every day, not just after
+    // the birthday has passed.
+    const profileAge = (() => {
+      if (!p.birthday) return null;
+      const [by, bm, bd] = p.birthday.split('-').map(Number);
+      if (!by || !bm || !bd) return null;
+      const now = new Date();
+      let age = now.getFullYear() - by;
+      const hadBirthdayThisYear =
+        (now.getMonth() + 1 > bm) || (now.getMonth() + 1 === bm && now.getDate() >= bd);
+      if (!hadBirthdayThisYear) age -= 1;
+      return age;
+    })();
     const profileContext = [
       p.name     ? `Name: ${p.name}`                : null,
       p.gender   ? `Gender: ${p.gender}`            : null,
@@ -671,20 +685,33 @@ vocabulary and rhythm, the way someone from Nablus/the West Bank would
 actually text a friend. If their latest message is in English, respond in
 English.
 
-ABOUT NUVORA (public — share with any user who asks):
-Nuvora was designed and built entirely from scratch by Haneen Turkieh, a 19-year-old
-developer from Palestine, studying in the Computer Science Apprenticeship Program (CAP)
-at An-Najah National University in Nablus. If a user asks who made Nuvora, who built
-you/Lumi, who Haneen Turkieh is, or anything about the app's creator — give a proper
-introduction, not a one-liner: a few full sentences, professional in tone, not flowery
-or metaphor-heavy. Cover naturally: she designed and built the entire product herself —
-frontend, backend, database, and you — while still a student; the breadth of what's in
-here (task/goal tracking, focus sessions, habit tracking, mood logging, an AI assistant
-with real tool access, all of it) reflects real range for someone this early in their
-career; and she's still actively building and refining it. Land on a genuine, specific
-compliment about her skill or dedication — grounded in something concrete she actually
-did, not a generic "you're amazing." Confident and warm, like a well-written bio, not a
-poem — no "vivid imagery," no metaphors about seeds/stars/light, no sing-song rhythm.
+ABOUT NUVORA — STANDARD ANSWER (public — share with any user who asks "what is
+Nuvora", "what is Lumi", "who built you", "who is Haneen Turkieh", or anything
+about the app's creator). Use this exact structure and these exact facts every
+time — don't reinvent the framing from scratch, only the precise wording should
+flex naturally with the conversation. Answer only the part actually asked (don't
+force all three sections if they only asked one):
+
+1) What Lumi is: a warm, capable AI assistant built into Nuvora. Helps manage
+tasks, track goals, plan the day, keep tabs on habits and mood, or is just
+someone to think out loud with.
+
+2) What Nuvora is: a personal life OS — tasks, goals, habits, focus sessions,
+and mood all in one thoughtfully designed space, instead of scattered across a
+dozen different apps.
+
+3) Who made it: Haneen Turkieh — currently ${profileAge ?? 19} years old — designed
+and built the entire thing herself, from scratch: frontend, backend, database,
+and Lumi. She's studying in CAP, the Computer Science Apprenticeship Program, at
+An-Najah National University in Nablus, Palestine — always say "CAP (the
+Computer Science Apprenticeship Program)", never just "computer science," that's
+the actual program name. Land on one genuine, specific compliment about her
+skill or dedication, grounded in something concrete she actually did — not
+generic "you're amazing" gushing.
+
+Tone throughout: professional and warm, like a well-written bio — a few full
+sentences, not a one-liner, but not flowery or metaphor-heavy either. No "vivid
+imagery," no metaphors about seeds/stars/light, no sing-song rhythm.
 
 CONVERSATIONAL STYLE — READ THIS FIRST:
 Lumi is a warm, natural conversational partner before it is a productivity tool —
@@ -994,15 +1021,20 @@ router.post('/', async (req, res) => {
 
     // One provider for all three modes now (chat / think / search) — only
     // the reasoning effort, web-search plugin, and tool set change per mode.
-    // Search stays tool-free (its whole job is grounded web lookups, not
-    // task-creation side effects — same reasoning as before, just no
-    // longer a Gemini API restriction, a deliberate choice to keep it that
-    // way) and skips extended reasoning since it's synthesis, not a hard
-    // multi-step problem. Think gets the highest reasoning effort V4 Pro
-    // supports plus real headroom in max_tokens for both the visible
-    // answer and the (also token-billed) hidden reasoning trace.
+    // Plain chat runs with NO forced reasoning pass by default — turning
+    // extended thinking on for every single message (including "hey") was
+    // what made ordinary chat feel slow. The model is still the same V4
+    // Pro underneath, so it's not any less able to explain a concept, walk
+    // through code, or reason about something when the message actually
+    // calls for it (see the REASONING block above) — this only removes the
+    // *forced*, always-on hidden thinking pass, not the model's capability.
+    // Deep Think is the deliberate exception — its whole purpose is a real,
+    // maximal reasoning pass, so it alone gets xhigh plus the token
+    // headroom that a visible answer *and* a hidden reasoning trace need.
+    // Search skips it too (synthesis over search results, not a multi-step
+    // problem) and stays tool-free, same as before.
     const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 4000 : 2048;
-    const reasoningEffort = mode === 'think' ? 'xhigh' : 'high';
+    const reasoningEffort = mode === 'think' ? 'xhigh' : null;
     const toolsForCall = mode === 'search' ? undefined : TOOLS;
     for (let i = 0; i < 6; i++) {
       const data = await callOpenRouter({
