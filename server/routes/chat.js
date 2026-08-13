@@ -48,14 +48,14 @@ by name, and clearly separate facts from your own suggestions. Never invent sear
 const TOOLS = [
   {
     name: 'create_task',
-    description: 'Create a new task for the user in Nuvora.',
+    description: 'Create a new task for the user in Nuvora. Tasks only support a due DATE, not a specific time of day — there is no due-time field yet, so if the user gives a time (e.g. "today at 23:00"), put the date in `deadline` and mention the time back to them in your reply (e.g. in the title or description) since the app itself won\'t store or show it.',
     input_schema: {
       type: 'object',
       properties: {
         title:       { type: 'string' },
         description: { type: 'string' },
         priority:    { type: 'string', enum: ['low','medium','high'] },
-        deadline:    { type: 'string', description: 'YYYY-MM-DD' },
+        deadline:    { type: 'string', description: 'Date only, strictly YYYY-MM-DD — no time component, that field is not supported.' },
         category:    { type: 'string' },
       },
       required: ['title'],
@@ -217,6 +217,21 @@ async function executeTool(name, input, userId, todayLocal) {
   const today = todayLocal || new Date().toISOString().slice(0, 10);
   switch (name) {
     case 'create_task': {
+      // Every date-filtered view in the app (Dashboard's "today" list,
+      // daysUntil() on the Tasks page, etc.) expects deadline to be a
+      // clean YYYY-MM-DD string and breaks silently on anything else —
+      // not an error, just quietly stops matching, so the task looks
+      // like it was never created even though the row exists. This came
+      // up for real: a request like "today at 23:00" could get the model
+      // to stuff a time fragment into deadline, corrupting it. Since
+      // there's no due-time field to put that in yet, strip anything
+      // that isn't a plain date rather than let a malformed value in.
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      let deadline = input.deadline || null;
+      if (deadline && !DATE_RE.test(deadline)) {
+        const match = String(deadline).match(/\d{4}-\d{2}-\d{2}/);
+        deadline = match ? match[0] : null;
+      }
       const maxPos = await db.execute({
         sql:  `SELECT COALESCE(MAX(position),-1) m FROM tasks WHERE user_id=? AND status='todo'`,
         args: [userId],
@@ -225,9 +240,9 @@ async function executeTool(name, input, userId, todayLocal) {
         sql:  `INSERT INTO tasks (user_id,title,description,priority,category,deadline,status,progress,position)
                VALUES (?,?,?,?,?,?,'todo',0,?)`,
         args: [userId, input.title, input.description||'', input.priority||'medium',
-               input.category||'General', input.deadline||null, Number(maxPos.rows[0].m)+1],
+               input.category||'General', deadline, Number(maxPos.rows[0].m)+1],
       });
-      return { success: true, task_id: Number(res.lastInsertRowid), title: input.title, priority: input.priority||'medium' };
+      return { success: true, task_id: Number(res.lastInsertRowid), title: input.title, priority: input.priority||'medium', deadline };
     }
     case 'list_tasks': {
       const status = input.status || 'all';
@@ -1032,9 +1047,14 @@ router.post('/', async (req, res) => {
     // maximal reasoning pass, so it alone gets xhigh plus the token
     // headroom that a visible answer *and* a hidden reasoning trace need.
     // Search skips it too (synthesis over search results, not a multi-step
-    // problem) and stays tool-free, same as before.
+    // problem) and stays tool-free, same as before. 'review' is the CV
+    // Builder review and Projects "break into tasks" — both internal
+    // no_history calls reusing this same route, and both a real judgment
+    // call (what's actually weak on this CV, what tasks actually make
+    // sense next) rather than a quick reply, so they keep real reasoning
+    // on instead of inheriting plain chat's fast/no-reasoning default.
     const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 4000 : 2048;
-    const reasoningEffort = mode === 'think' ? 'xhigh' : null;
+    const reasoningEffort = mode === 'think' ? 'xhigh' : mode === 'review' ? 'high' : null;
     const toolsForCall = mode === 'search' ? undefined : TOOLS;
     for (let i = 0; i < 6; i++) {
       const data = await callOpenRouter({

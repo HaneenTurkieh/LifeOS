@@ -1,20 +1,21 @@
 // server/lib/gemini.js
 // Thin wrapper around Google's Gemini generateContent REST API — used for
-// the three paths that need capabilities OpenRouter/DeepSeek doesn't have:
-// PDF/image extraction (native vision/document input), Deep Think (native
-// "thinking" reasoning), and Deep Search (hosted Google Search grounding
-// tool). Covers all three, is free-tier eligible, and per public
-// benchmarks runs far cheaper than Claude Haiku on paid usage — so this
-// fully replaces ANTHROPIC_API_KEY across the app.
+// exactly one path now (Aug 2026): PDF/image extraction in exam.js. Chat,
+// Deep Think, and Deep Search all moved to DeepSeek V4 Pro via OpenRouter
+// (see ../lib/openrouter.js) — Gemini's only remaining job is reading
+// documents/images accurately before that text gets handed off.
 //
-// Model pinned to gemini-3.1-flash-lite (stable, not preview) — the
-// original gemini-2.5-flash choice started throwing "no longer available
-// to new users" once Google rolled out the Gemini 3 line as the default
-// for new AI Studio projects. If this ever needs bumping again, check
-// https://ai.google.dev/gemini-api/docs/models for the current "Stable"
-// list before picking a replacement — "Preview" models get deprecated
-// on much shorter notice.
-const GEMINI_MODEL = 'gemini-3.1-flash-lite';
+// Bumped from gemini-3.1-flash-lite to gemini-3.6-flash — Haneen wanted a
+// stronger model here (extraction accuracy directly affects exam question
+// quality), and this is low-volume enough (only fires on PDF/image
+// uploads, not every chat message) that the jump from Flash-Lite to full
+// Flash is cheap in absolute terms even though it's pricier per token.
+// Still pinned to a "Stable" release, not "Preview" — confirmed against
+// https://ai.google.dev/gemini-api/docs/models (checked Aug 2026). The
+// original gemini-2.5-flash choice broke once before when Google rolled
+// the Gemini 3 line out as the new default and deprecated it — re-check
+// that same page for the current Stable list before bumping this again.
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const GEMINI_URL    = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Anthropic-style JSON schema ({ type: 'object', properties: {...} }, all
