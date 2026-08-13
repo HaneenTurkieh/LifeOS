@@ -638,8 +638,27 @@ export function FocusProvider({ children }) {
           ? '⏸ أوقفت الجلسة مؤقتًا — استأنف خلال 10 ثوانٍ وإلا ماتت شجرتك 🥀'
           : "⏸ Paused — resume within 10s or your tree dies 🥀");
         clearPauseGrace();
-        pauseGraceTimeoutRef.current = setTimeout(() => {
+        pauseGraceTimeoutRef.current = setTimeout(async () => {
           pauseGraceTimeoutRef.current = null;
+
+          // Premium's weekly leniency (Duolingo-streak-freeze style):
+          // try to auto-save the tree before actually killing it. Any
+          // failure here — not Premium, no passes left this week, or
+          // just offline — silently falls through to the normal kill
+          // below, exactly as if this didn't exist.
+          let saved = false;
+          try {
+            const result = await api.post('/focus/grace-passes/use');
+            if (result?.ok) {
+              saved = true;
+              toast.success(lang === 'ar'
+                ? `🌳 نجت الشجرة — استُخدمت بطاقة سماح (${result.remaining} متبقية هذا الأسبوع)`
+                : `🌳 Tree saved — grace pass used (${result.remaining} left this week)`);
+            }
+          } catch (_) { /* not premium / no passes left / offline */ }
+
+          if (saved) return; // still paused, tree alive — resume whenever
+
           killTree(elapsedMin, 'pause');
           const mins = customMinRef.current[modeRef.current];
           clearInterval(intervalRef.current);

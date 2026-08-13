@@ -542,6 +542,21 @@ async function initDb() {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_status TEXT DEFAULT NULL`);
   }
 
+  // ── Grace passes (Premium) ───────────────────────────────────
+  // A weekly-refilling allowance that auto-saves a Premium user's tree
+  // if they pause a focus session past the normal 10s grace window,
+  // instead of letting it die. grace_passes_used counts how many of
+  // this week's allowance have been spent; grace_passes_week_start
+  // marks which week that count belongs to, so a lazy reset (same
+  // pattern as focus_room_members.week_start elsewhere) can zero it
+  // out the first time it's checked after Sunday rolls over.
+  if (!(await hasColumn('user_premium', 'grace_passes_used'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN grace_passes_used INTEGER DEFAULT 0`);
+  }
+  if (!(await hasColumn('user_premium', 'grace_passes_week_start'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN grace_passes_week_start TEXT DEFAULT NULL`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 
