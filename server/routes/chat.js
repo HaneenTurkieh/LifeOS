@@ -157,7 +157,7 @@ const TOOLS = [
   },
   {
     name: 'generate_daily_plan',
-    description: 'Generate a prioritized daily plan based on tasks and available time.',
+    description: 'Generate a prioritized plan across the user\'s WHOLE task list (all open tasks, sorted by priority/deadline) — this is for a general "plan my day/week" request. Do NOT use this when the user is asking about ONE specific thing (e.g. "help me plan for my exam", "how should I study for X") — that\'s a narrower request than this tool can express (it has no way to scope to a single topic and will pull in every unrelated open task), so just write a focused plan for that one thing directly instead.',
     input_schema: {
       type: 'object',
       properties: {
