@@ -61,21 +61,6 @@ const MOOD_OPTIONS = [
   { value:5, emoji:'🤩', label:'mood.great' },
 ];
 
-// Maps a raw day-streak count to one of the same seed → bloom stages the
-// (previously unused) ProductivityTree component defined, so the language
-// stays consistent anywhere we talk about growth. Kept as a plain label +
-// emoji rather than a new animated widget — the Dashboard already has two
-// tree visuals (the score sphere and the species-shop card below); a third
-// moving graphic would add clutter, not clarity. This just gives the
-// existing "Your tree" card a one-line caption tied to the real streak.
-function streakStage(streak) {
-  if (streak <= 0) return 0;
-  if (streak <= 2) return 1;
-  if (streak <= 6) return 2;
-  if (streak <= 13) return 3;
-  return 4;
-}
-
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -225,8 +210,8 @@ export default function Dashboard() {
                   onClick={onClick}
                   className={`relative flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
                   style={isDark
-                    ? { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }
-                    : { background:'rgba(255,255,255,0.55)', border:'1px solid rgba(255,255,255,0.65)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
+                    ? { background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.10)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }
+                    : { background:'rgba(255,255,255,0.32)', border:'1px solid rgba(255,255,255,0.90)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
                     {icon}
@@ -272,8 +257,8 @@ export default function Dashboard() {
                   initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }}
                   className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2 shrink-0"
                   style={isDark
-                    ? { background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.10)', backdropFilter:'blur(12px)' }
-                    : { background:'rgba(255,255,255,0.46)', border:'1px solid rgba(255,255,255,0.60)', backdropFilter:'blur(12px)' }}
+                    ? { background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.08)', backdropFilter:'blur(12px)' }
+                    : { background:'rgba(255,255,255,0.28)', border:'1px solid rgba(255,255,255,0.85)', backdropFilter:'blur(12px)' }}
                 >
                   <span className="text-xl leading-none">{weatherEmoji(weather.condition)}</span>
                   <div>
@@ -347,8 +332,8 @@ export default function Dashboard() {
                     <motion.div key={task.id} layout
                       className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
                       style={isDark
-                        ? { background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)', backdropFilter:'blur(12px)' }
-                        : { background:'rgba(255,255,255,0.46)', border:'1px solid rgba(255,255,255,0.55)', backdropFilter:'blur(12px)' }}
+                        ? { background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', backdropFilter:'blur(12px)' }
+                        : { background:'rgba(255,255,255,0.28)', border:'1px solid rgba(255,255,255,0.80)', backdropFilter:'blur(12px)' }}
                     >
                       <button onClick={() => completeTask(task)}
                         className="shrink-0 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
@@ -515,8 +500,13 @@ export default function Dashboard() {
                     ? TREE_DESC.christmas
                     : equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
                 </p>
-                <p className="text-[10px] text-sage-600 dark:text-sage-400 font-medium mt-1">
-                  {t(`dash.stage${streakStage(streak)}`)} · {t('goals.dayStreak', { n: streak })}
+                {/* Deliberately plain — "First sprout" etc. right under a
+                    named, purchased species like "Cherry Blossom" read as
+                    a contradiction (is it a cherry blossom or a sprout?).
+                    Streak stays visible, just without pretending it's a
+                    growth stage of the specific tree you already own. */}
+                <p className="text-[10px] text-sage-600 dark:text-sage-400 font-medium mt-1 flex items-center gap-1">
+                  <span>🔥</span> {t('goals.dayStreak', { n: streak })}
                 </p>
                 {nextTree && (
                   <div className="mt-2">

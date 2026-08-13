@@ -178,21 +178,21 @@ body {
   @apply clay hover:-translate-y-0.5 hover:shadow-glow-ring cursor-pointer active:translate-y-0 active:shadow-clay;
 }
 .glass-spline {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.045);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.16);
   box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
-/* In light mode, 8% white on a light lavender page background gave cards
-   almost no visible edge — everything read as one flat surface. Bump the
-   fill + border in light mode only so cards actually separate from the
-   page; dark mode (light-on-dark) already has natural contrast and is
-   untouched. */
+/* Definition should come from the border + shadow, not from piling on
+   white fill — a heavy fill is what reads as a "tinted/milky" card
+   instead of actual glass. Light mode keeps a low fill (genuinely
+   see-through) and leans on a crisp near-opaque border for the edge
+   that makes it readable against the page. */
 html:not(.dark) .glass-spline {
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(255,255,255,0.8);
-  box-shadow: 0 4px 20px rgba(60,40,100,0.08);
+  background: rgba(255,255,255,0.32);
+  border: 1px solid rgba(255,255,255,0.95);
+  box-shadow: 0 4px 20px rgba(60,40,100,0.10);
 }
 .dark .text-ink { color: rgba(255,255,255,0.95) !important; }
 .dark .text-ink\/80, .dark .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
