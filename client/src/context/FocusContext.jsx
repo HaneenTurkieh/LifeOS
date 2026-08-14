@@ -263,7 +263,15 @@ export function FocusProvider({ children }) {
 
   const applyServerState = useCallback((d) => {
     const computed = computeFromServer(d);
-    setMode(d.mode);
+    // d.mode comes straight from the server/DB with no validation — every
+    // consumer of `mode` (here and in Focus.jsx) does a bare object-key
+    // lookup like MODES[mode].color with no fallback, so any unexpected
+    // value (a stale row from an old app version, a bad manual DB edit,
+    // a future mode that got removed) throws on render with no
+    // ErrorBoundary anywhere in the tree to catch it — the whole app
+    // whitescreens, not just this page. Falling back to 'focus' here is
+    // the one place that actually stops that class of crash at the source.
+    setMode(d.mode in MODES ? d.mode : 'focus');
     setCustomMin(d.custom_min);
     setTaskNameRaw(d.task_name || '');
     setTaskIdRaw(d.task_id ?? null);
@@ -596,7 +604,7 @@ export function FocusProvider({ children }) {
     if (isRunning) {
       const mm = String(Math.floor(timeLeft / 60)).padStart(2, '0');
       const ss = String(timeLeft % 60).padStart(2, '0');
-      document.title = `${mm}:${ss} · ${MODES[mode].emoji} Flow`;
+      document.title = `${mm}:${ss} · ${MODES[mode]?.emoji || MODES.focus.emoji} Flow`;
     } else {
       document.title = 'Nuvora';
     }
