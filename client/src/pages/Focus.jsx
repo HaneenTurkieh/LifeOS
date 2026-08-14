@@ -237,7 +237,6 @@ export default function Flow() {
   const [forest,    setForest]    = useState(null);
   const [liveRoom,  setLiveRoom]  = useState(null);
   const lastTimerStartRef = useRef(null);
-  const seededRef         = useRef(false); // true once this device has polled the room at least once
   const isRunningRef      = useRef(isRunning);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
 
@@ -256,25 +255,11 @@ export default function Flow() {
     if (!room?.code) { setLiveRoom(null); return; }
     const code = room.code;
     let active = true;
-    // Fresh mount (page load, or switching to a different room) — the
-    // very first poll must only record a baseline, never auto-join.
-    // Without this, opening the app on a second device while a group
-    // session is already in progress looked like "if (new started_at)
-    // → toggleTimer()", which stamps a brand-new started_at for the
-    // account-wide personal timer and clobbers whatever was already
-    // ticking down there (that's what reset the in-progress session on
-    // the other device instead of just picking it up).
-    //
     // This must key off room.code alone, NOT the whole `room` object —
     // FocusContext replaces `room` with a brand-new object reference on
     // every 5s metadata poll (name/members/timer refresh) even when
     // nothing actually changed. Keying this effect on the full object
-    // meant it tore down and remounted every ~5s too, which reset the
-    // guard above right as it mattered: the poll that would have caught
-    // the host's start kept landing right after a reset and got treated
-    // as "first poll" again, so the local timer never joined live — it
-    // only ever caught up after a real remount (i.e. refreshing).
-    seededRef.current = false;
+    // meant it tore down and remounted every ~5s too.
     lastTimerStartRef.current = null;
     const poll = async () => {
       try {
@@ -282,14 +267,21 @@ export default function Flow() {
         if (!active) return;
         setLiveRoom(d);
         const tm = d.timer;
-        const isFirstPoll = !seededRef.current;
-        seededRef.current = true;
         if (tm?.running && tm.started_at && lastTimerStartRef.current !== tm.started_at) {
-          if (isFirstPoll) {
-            // Baseline only on mount/room-switch — never auto-join off the
-            // very first poll (see comment above).
-            lastTimerStartRef.current = tm.started_at;
-          } else if (tm.remaining_seconds <= 20) {
+          // Real bug this used to hit: the very first poll after a mount
+          // (page load, room switch, or someone arriving/refreshing after
+          // the host already clicked start) used to ALWAYS just record a
+          // baseline and skip joining outright — which meant only members
+          // already sitting on this page at the exact moment the host
+          // started never missed it, and everyone else (elsewhere in the
+          // app, or arriving/refreshing even a second late) silently never
+          // synced into that round at all. The actual protection this was
+          // trying to provide — don't clobber a session THIS device
+          // already joined by re-stamping it on a routine remount — comes
+          // from the isRunningRef.current check below, which already
+          // covers that on every poll including the first one. So there's
+          // no need to special-case "first poll" at all anymore.
+          if (tm.remaining_seconds <= 20) {
             // Too little of the session left to bother joining — stop
             // watching this round so it doesn't keep re-checking it.
             lastTimerStartRef.current = tm.started_at;
@@ -304,9 +296,10 @@ export default function Flow() {
             toast.success(t('flow.hostStarted', { name: d.name, n: Math.max(1, Math.round(tm.duration_seconds / 60)) }));
           }
           // else: this device's own timer is busy right now (e.g. mid
-          // break) — deliberately leave lastTimerStartRef unset for this
-          // started_at, so the next poll (3s later) retries the same
-          // round and can still join once it frees up, instead of
+          // break, or it already joined this exact round before a
+          // routine remount) — deliberately leave lastTimerStartRef unset
+          // for this started_at, so the next poll (3s later) retries the
+          // same round and can still join once it frees up, instead of
           // silently missing the whole session forever.
         }
       } catch (_) {}
@@ -415,7 +408,7 @@ export default function Flow() {
   const taskTotalMin    = (taskTimeSpent || 0) + elapsedFocusMin;
   const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const dashOffset = CIRC * (1 - progress);
-  const modeColor  = mode === 'focus' ? (ACCENT_HEX[accent] || ACCENT_HEX.purple) : MODES[mode].color;
+  const modeColor  = mode === 'focus' ? (ACCENT_HEX[accent] || ACCENT_HEX.purple) : (MODES[mode]?.color || MODES.focus.color);
   const now        = new Date();
   const endsAt     = new Date(now.getTime() + timeLeft * 1000);
   const timeRange  = startedAt
@@ -655,7 +648,7 @@ export default function Flow() {
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-center mb-3"
                 style={{ color: muted(0.30) }}>{t('flow.duration')}</p>
               <div className="flex flex-wrap gap-2 justify-center">
-                {OPTIONS[mode].map((min) => (
+                {(OPTIONS[mode] || OPTIONS.focus).map((min) => (
                   <motion.button key={min}
                     whileHover={{ y: -1 }} whileTap={{ scale: 0.95 }}
                     onClick={() => setDuration(min)} disabled={isRunning}
