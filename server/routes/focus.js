@@ -27,6 +27,28 @@ async function getEquippedTree(userId) {
   } catch (_) { return 'seedling'; }
 }
 
+// A Mystic Tree design (shape_key/color_hex/glow_hex) lives in whoever
+// designed it's own user_mystic_tree rows, keyed by id — but the tree_key
+// itself ('mystic:<id>') can end up planted in someone ELSE's land (a
+// room session now plants the host's tree into every member's land, see
+// the room-session paths below), and only that design's actual owner's
+// own /trees response would ever resolve it locally on the client.
+// Anywhere a tree_key might be shown to someone other than its designer
+// needs the real shape/color handed to them directly, or they just see
+// the generic 🔮 fallback instead of the actual design. Returns null for
+// non-mystic keys or if the design row is gone (e.g. deleted).
+async function resolveMysticDesign(treeKey) {
+  if (!treeKey || !treeKey.startsWith('mystic:')) return null;
+  try {
+    const id = Number(treeKey.slice('mystic:'.length));
+    const design = (await db.execute({
+      sql: `SELECT shape_key, color_hex, glow_hex FROM user_mystic_tree WHERE id = ?`,
+      args: [id],
+    })).rows[0];
+    return design || null;
+  } catch (_) { return null; }
+}
+
 // Birthday tree — exclusive to the day itself, not something anyone
 // can buy or equip from the shop. Whatever's actually equipped gets
 // swapped out for a Christmas tree just for today's sessions, then
@@ -98,6 +120,24 @@ async function reconcileRoomSession(roomId) {
     // everyone in it.
     const roomBday = await roomHasBirthdayToday(roomId);
 
+    // The tree planted in EVERY member's own land for this session is
+    // the room's one shared tree (whoever's equipped design it was when
+    // the host started the round) — not each individual member's own
+    // equipped tree. It's the same tree everyone just watched grow
+    // together, so that's what should land in everyone's personal forest
+    // as the record of it, not a silently-substituted personal design.
+    // Reads the already-recorded focus_room_tree row directly (rather
+    // than re-deriving "the host's current equipped tree") so this
+    // matches exactly what was actually displayed growing, even if the
+    // host has since changed their equipped tree.
+    let roomTreeKey = roomBday ? 'christmas' : null;
+    if (!roomTreeKey) {
+      const rt = (await db.execute({
+        sql: `SELECT tree_key FROM focus_room_tree WHERE room_id = ?`, args: [roomId],
+      })).rows[0];
+      roomTreeKey = rt?.tree_key || 'seedling';
+    }
+
     for (const m of stragglers) {
       try {
         await db.execute({
@@ -111,7 +151,7 @@ async function reconcileRoomSession(roomId) {
             args: [m.user_id, xpAmount, 'Focus: Room session'],
           });
         }
-        const treeKey = roomBday ? 'christmas' : await getEquippedTree(m.user_id);
+        const treeKey = roomTreeKey;
         await db.execute({
           sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
                  VALUES (?, ?, 'alive', 'Room session', ?)`,
@@ -281,6 +321,7 @@ router.post('/sessions', async (req, res) => {
       });
     }
     let treePlanted = null;
+    let treePlantedDesign = null;
     try {
       // A room session completing on this device's own countdown lands
       // here too (not just reconcileRoomSession's straggler sweep) —
@@ -292,7 +333,23 @@ router.post('/sessions', async (req, res) => {
         const roomRow = (await db.execute({
           sql: `SELECT id FROM focus_rooms WHERE code = ?`, args: [String(room_code).toUpperCase()],
         })).rows[0];
-        if (roomRow && await roomHasBirthdayToday(roomRow.id, client_date)) treeKey = 'christmas';
+        if (roomRow) {
+          if (await roomHasBirthdayToday(roomRow.id, client_date)) {
+            treeKey = 'christmas';
+          } else {
+            // The tree planted in THIS member's land is the room's one
+            // shared tree (whoever's equipped design it was when the host
+            // started the round), not this member's own equipped tree —
+            // same fix as reconcileRoomSession's straggler path below,
+            // so a room session credits everyone with the same tree
+            // regardless of which path (self-report vs. straggler sweep)
+            // ends up crediting them.
+            const rt = (await db.execute({
+              sql: `SELECT tree_key FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id],
+            })).rows[0];
+            if (rt?.tree_key) treeKey = rt.tree_key;
+          }
+        }
       }
       if (!treeKey) treeKey = await getPlantTreeKey(req.user.id, client_date);
       await db.execute({
@@ -301,13 +358,18 @@ router.post('/sessions', async (req, res) => {
         args: [req.user.id, treeKey, task_name, duration_minutes, task_id != null ? Number(task_id) : null],
       });
       treePlanted = treeKey;
+      // Lets the "tree planted!" popup render the real shape/color even
+      // when it's a Mystic Tree design that belongs to someone else in
+      // the room (the host) rather than this device's own account —
+      // without this it falls back to the generic 🔮 placeholder.
+      treePlantedDesign = await resolveMysticDesign(treeKey);
     } catch (e) { console.error('plant tree failed (non-fatal):', e.message); }
 
     let task = null;
     try { task = await logMinutesOnTask(req.user.id, task_id, duration_minutes); }
     catch (e) { console.error('logMinutesOnTask failed (non-fatal):', e.message); }
 
-    res.json({ ok: true, xpAwarded: xpAmount, treePlanted, task });
+    res.json({ ok: true, xpAwarded: xpAmount, treePlanted, treePlantedDesign, task });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -348,15 +410,42 @@ router.get('/forest', async (req, res) => {
       const utcMs = new Date(String(utcStr).replace(' ', 'T') + 'Z').getTime();
       return new Date(utcMs - offsetMin * 60000).toISOString().slice(0, 10);
     };
+    // Room sessions now plant the room's shared (often the host's) tree
+    // into every member's own land, not just their own equipped design —
+    // so this account's forest history can contain Mystic Tree keys this
+    // account didn't design. Resolve every distinct one up front (one
+    // batched query, not N+1) so the client can render the real
+    // shape/color instead of falling back to the generic 🔮 placeholder
+    // for anything it doesn't personally own.
+    const mysticIds = [...new Set(
+      result.rows
+        .map((r) => r.tree_key)
+        .filter((k) => k && k.startsWith('mystic:'))
+        .map((k) => Number(k.slice('mystic:'.length)))
+    )];
+    let designById = {};
+    if (mysticIds.length) {
+      const placeholders = mysticIds.map(() => '?').join(',');
+      const rows = (await db.execute({
+        sql: `SELECT id, shape_key, color_hex, glow_hex FROM user_mystic_tree WHERE id IN (${placeholders})`,
+        args: mysticIds,
+      })).rows;
+      designById = Object.fromEntries(rows.map((d) => [d.id, d]));
+    }
     const days = [];
     const byDay = {};
     for (const r of result.rows) {
       const day = localDay(r.planted_at);
       if (!byDay[day]) { byDay[day] = []; days.push(day); }
-      byDay[day].push({
+      const entry = {
         tree_key: r.tree_key, status: r.status,
         task_name: r.task_name, duration_minutes: Number(r.duration_minutes),
-      });
+      };
+      if (r.tree_key && r.tree_key.startsWith('mystic:')) {
+        const design = designById[Number(r.tree_key.slice('mystic:'.length))];
+        if (design) { entry.shape_key = design.shape_key; entry.color_hex = design.color_hex; entry.glow_hex = design.glow_hex; }
+      }
+      byDay[day].push(entry);
     }
     const alive = result.rows.filter(r => r.status === 'alive').length;
     const dead  = result.rows.filter(r => r.status === 'dead').length;
@@ -625,12 +714,8 @@ router.get('/rooms/:code', async (req, res) => {
         // so every other viewer needs the actual shape/color handed to
         // them directly. Without this, everyone but the tree's owner just
         // sees the generic 🔮 fallback instead of the real design.
-        if (tr.tree_key && tr.tree_key.startsWith('mystic:')) {
-          const mysticId = Number(tr.tree_key.slice('mystic:'.length));
-          const design = (await db.execute({
-            sql: `SELECT shape_key, color_hex, glow_hex FROM user_mystic_tree WHERE id = ?`,
-            args: [mysticId],
-          })).rows[0];
+        {
+          const design = await resolveMysticDesign(tr.tree_key);
           if (design) {
             tree.shape_key = design.shape_key;
             tree.color_hex = design.color_hex;

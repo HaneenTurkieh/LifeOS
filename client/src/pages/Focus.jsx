@@ -222,11 +222,14 @@ export default function Flow() {
     }
     return <>{treeEmoji(treeKey)}</>;
   }
-  // Builds the mysticDesign prop for a room-tree object (which carries
-  // shape_key/color_hex/glow_hex directly from the server, see
-  // GET /rooms/:code) — null for non-mystic keys, letting TreeIcon fall
-  // through to its normal emoji lookup.
-  const roomMysticDesign = (rt) =>
+  // Builds the mysticDesign prop for any tree object the server has
+  // already resolved shape_key/color_hex/glow_hex onto directly (room
+  // trees from GET /rooms/:code, and forest/land history entries from
+  // GET /forest — both can now hold a Mystic Tree design that belongs to
+  // someone other than the viewer, e.g. a room's shared tree planted
+  // into every member's own land) — null for non-mystic keys, letting
+  // TreeIcon fall through to its normal local-ownership/emoji lookup.
+  const resolvedMysticDesign = (rt) =>
     rt?.tree_key?.startsWith('mystic:') && rt.shape_key
       ? { shape_key: rt.shape_key, color_hex: rt.color_hex, glow_hex: rt.glow_hex }
       : null;
@@ -534,7 +537,7 @@ export default function Flow() {
                     // had ended and this member was back on their own.
                     roomTree.status === 'dead'
                       ? <>{DEAD_EMOJI}</>
-                      : <TreeIcon treeKey={roomTree.tree_key} size={36} mysticDesign={roomMysticDesign(roomTree)} />
+                      : <TreeIcon treeKey={roomTree.tree_key} size={36} mysticDesign={resolvedMysticDesign(roomTree)} />
                   ) : (
                     <TreeIcon treeKey={isBirthday ? 'christmas' : equippedTree} size={36} />
                   )}
@@ -734,7 +737,7 @@ export default function Flow() {
                   <div className="flex items-center gap-2 rounded-xl px-3 py-2 mb-3"
                     style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
                     <span className="text-lg shrink-0">
-                      {roomTree.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={roomTree.tree_key} size={18} mysticDesign={roomMysticDesign(roomTree)} />}
+                      {roomTree.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={roomTree.tree_key} size={18} mysticDesign={resolvedMysticDesign(roomTree)} />}
                     </span>
                     <span className="text-[11px] font-semibold leading-snug" style={{ color: treeStatusColor() }}>
                       {treeStatusLabel()}
@@ -856,7 +859,7 @@ export default function Flow() {
                 <div className="flex items-center gap-2.5 rounded-2xl px-5 py-3 mb-4"
                   style={{ background: `${treeStatusColor()}12`, border: `1px solid ${treeStatusColor()}28` }}>
                   <span className="text-xl shrink-0">
-                    {roomTree.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={roomTree.tree_key} size={22} mysticDesign={roomMysticDesign(roomTree)} />}
+                    {roomTree.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={roomTree.tree_key} size={22} mysticDesign={resolvedMysticDesign(roomTree)} />}
                   </span>
                   <span className="text-xs font-semibold leading-snug" style={{ color: treeStatusColor() }}>
                     {treeStatusLabel()}
@@ -994,7 +997,7 @@ export default function Flow() {
                             ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
                             : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
                         >
-                          {tr.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={tr.tree_key} size={26} />}
+                          {tr.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={tr.tree_key} size={26} mysticDesign={resolvedMysticDesign(tr)} />}
                         </motion.div>
                       ))}
                     </div>
@@ -1167,16 +1170,16 @@ export default function Flow() {
                 className="text-6xl mb-4">🎉</motion.div>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <motion.span animate={{ rotate: [-10, 10, -10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={30} />
+                  <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={30} mysticDesign={congrats.treePlantedDesign} />
                 </motion.span>
                 <h2 className="font-display text-2xl font-bold text-ink dark:text-white">{t('flow.complete')}</h2>
                 <motion.span animate={{ rotate: [10, -10, 10] }} transition={{ duration: 0.5, repeat: 2 }} className="text-3xl">
-                  <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={30} />
+                  <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={30} mysticDesign={congrats.treePlantedDesign} />
                 </motion.span>
               </div>
               <p className="text-ink/50 dark:text-white/40 mb-1">{t('flow.minFocused', { n: congrats.minutes })}</p>
               <p className="text-xs text-sage-600 dark:text-sage-400 font-semibold mb-3 flex items-center justify-center gap-1">
-                <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={14} /> {t('flow.treePlanted')}
+                <TreeIcon treeKey={congrats.treePlanted || equippedTree} size={14} mysticDesign={congrats.treePlantedDesign} /> {t('flow.treePlanted')}
               </p>
               {congrats.xpAwarded > 0 && (
                 <span className="inline-block rounded-full px-3 py-1 text-sm font-bold mb-4"
