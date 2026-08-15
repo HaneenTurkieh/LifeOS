@@ -513,6 +513,12 @@ export function FocusProvider({ children }) {
         setCongrats({
           quote, xpAwarded: res.xpAwarded || 0, minutes: min.focus, task: res.task || null,
           treePlanted: res.treePlanted || null,
+          // The tree planted for a room session can be someone else's
+          // (the room's, usually the host's) Mystic Tree design — the
+          // server resolves its real shape/color for us here since only
+          // that design's actual owner's own account could look it up
+          // locally otherwise.
+          treePlantedDesign: res.treePlantedDesign || null,
           nextBreak: { type: nextBreak, minutes: breakMins },
         });
         setMode(nextBreak);

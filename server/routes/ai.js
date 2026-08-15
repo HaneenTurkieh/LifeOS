@@ -89,7 +89,15 @@ Return a JSON object with exactly these three keys (five_minute, fifteen_minute,
       }],
       reasoningEffort: null,
       jsonMode: true,
-      max_tokens: 400,
+      // Was 400 — real production errors (visible in the owner Stats tab,
+      // "Unexpected end of JSON input") confirmed the model was
+      // occasionally getting cut off mid-object before it could close the
+      // JSON, which throws on parse (and the regex fallback below can't
+      // rescue it either, since there's no closing brace to match against
+      // in a truncated string). Three sentences worth of content plus
+      // JSON structure overhead just doesn't reliably fit in 400 — this
+      // is still a short, cheap, low-volume call either way.
+      max_tokens: 800,
       temperature: 0.8,
     });
     const raw = data.choices?.[0]?.message?.content || '';
