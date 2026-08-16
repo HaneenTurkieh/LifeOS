@@ -132,11 +132,24 @@ export function ThemeProvider({ children }) {
   useEffect(() => { fontScaleRef.current = fontScale; }, [fontScale]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
     let active = true;
 
+    // Real bug that used to live here: the token was only checked once,
+    // right when this effect first ran ([] deps — never re-runs). Logging
+    // in mid-session (no full page reload, just navigating from the
+    // Login page) meant there was no token yet at that first check, so
+    // this poll never started at all — premium theme/accent/font-scale
+    // sync from the server stayed broken for the rest of the session,
+    // only recovering after a manual refresh. ThemeProvider sits outside
+    // AuthProvider in main.jsx, so it can't just depend on useAuth()'s
+    // user object here — instead, the interval itself always runs, and
+    // each tick re-checks getToken() fresh, so it picks up a freshly-set
+    // token within one poll interval of logging in, and just as
+    // naturally stops making calls (falls through to the token-less
+    // no-op below) within the same window after logging out.
     const pull = async () => {
+      const token = getToken();
+      if (!token) return;
       try {
         const d = await api.get('/focus/theme-mode');
         if (active && d?.theme_mode && MODES.includes(d.theme_mode) && d.theme_mode !== modeRef.current) {

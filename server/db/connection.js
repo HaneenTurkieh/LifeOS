@@ -603,6 +603,50 @@ async function initDb() {
     created_at TEXT DEFAULT (datetime('now'))
   )`);
 
+  // Same class of bug as tasks.first_completed_at above: habit_logs rows
+  // are deleted on untoggle (every other query in the app — analytics,
+  // notifications, dashboard, chat.js — relies on "row exists" meaning
+  // "done that day", so that behavior stays as-is), which meant nothing
+  // recorded that XP had already been paid for a given (habit, date) —
+  // toggle on → off → on → off... farmed +5 XP every single time. This
+  // table is a separate, append-only record of which (habit_id, date)
+  // pairs have ever been paid out for, so the /toggle route can gate the
+  // grant without touching habit_logs' existing delete-on-untoggle shape.
+  await db.execute(`CREATE TABLE IF NOT EXISTS habit_xp_grants (
+    habit_id INTEGER NOT NULL,
+    date     TEXT NOT NULL,
+    PRIMARY KEY (habit_id, date)
+  )`);
+
+  // Same one-way-flag pattern as tasks.first_completed_at, applied to the
+  // same bug in goals: toggling status active → completed → active →
+  // completed... used to pay out +100 XP every single time it landed back
+  // on "completed", with nothing recording it had already been paid.
+  if (!(await hasColumn('goals', 'first_completed_at'))) {
+    await db.execute(`ALTER TABLE goals ADD COLUMN first_completed_at TEXT DEFAULT NULL`);
+    // Goals already completed at migration time already had their XP paid
+    // under the old logic — backfill so they don't re-pay on the next
+    // active → completed toggle.
+    await db.execute(`UPDATE goals SET first_completed_at = datetime('now') WHERE status = 'completed' AND first_completed_at IS NULL`);
+  }
+
+  // The solo Focus timer is explicitly designed to sync across every
+  // device/tab on an account (see focus_solo_timer above) — which meant
+  // two open tabs that both independently noticed the same countdown hit
+  // zero could both call POST /focus/sessions for what is really the same
+  // completed round, each awarding its own XP and planting its own tree
+  // for one real session. (user_id, started_at) identifies one specific
+  // round of the timer (a fresh value is set every time it's started or
+  // resumed — see toggleTimer/startTimer in FocusContext.jsx), so it's
+  // used here as an idempotency key: the first request to report a given
+  // round wins, any later report of that same round is a no-op.
+  await db.execute(`CREATE TABLE IF NOT EXISTS focus_session_credits (
+    user_id    INTEGER NOT NULL,
+    started_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, started_at)
+  )`);
+
   console.log('✅ Database connected and migrations applied.');
 }
 

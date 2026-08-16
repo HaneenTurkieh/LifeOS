@@ -58,6 +58,15 @@ CREATE TABLE IF NOT EXISTS habit_logs (
   UNIQUE(habit_id, date)
 );
 
+-- Append-only record of which (habit_id, date) pairs have ever had XP paid
+-- out for them, so toggling a habit on/off repeatedly on the same day
+-- can't farm XP — see connection.js migrations for the full explanation.
+CREATE TABLE IF NOT EXISTS habit_xp_grants (
+  habit_id INTEGER NOT NULL,
+  date     TEXT NOT NULL,
+  PRIMARY KEY (habit_id, date)
+);
+
 CREATE TABLE IF NOT EXISTS goals (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -213,6 +222,17 @@ CREATE TABLE IF NOT EXISTS planted_trees (
   planted_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_planted_trees_user ON planted_trees(user_id);
+
+-- Idempotency guard for POST /focus/sessions — see connection.js
+-- migrations for the full explanation (two devices open on the same
+-- account both reporting the same completed timer round used to double
+-- the XP/tree credit for it).
+CREATE TABLE IF NOT EXISTS focus_session_credits (
+  user_id    INTEGER NOT NULL,
+  started_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, started_at)
+);
 
 -- ── Premium tier (no payments yet — backend flag + streak freeze)
 CREATE TABLE IF NOT EXISTS user_premium (

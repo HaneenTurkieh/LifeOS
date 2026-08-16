@@ -110,7 +110,14 @@ function ProfileTab() {
               <Camera size={13}/>
             </button>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
-              onChange={e => handleFile(e.target.files[0])} />
+              // Real bug that used to live here: without resetting the
+              // input's value, selecting a file, then canceling the
+              // cropper without saving, then trying to reselect that
+              // exact same file again did nothing — the browser only
+              // fires onChange when the selected file actually changes,
+              // and from the input's own perspective nothing had (same
+              // CVBuilder.jsx already resets its own photo input this way).
+              onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} />
           </div>
           <div>
             <p className="font-semibold text-ink dark:text-white text-sm">{user?.name}</p>
@@ -818,12 +825,6 @@ function DangerTab({ onClose }) {
   );
 }
 
-// Owner-only — mirrors server/routes/admin.js's OWNER_EMAILS. This is
-// purely a UI gate (hide the tab from everyone else); the real
-// protection is the server route itself checking req.user.email, so
-// nothing sensitive leaks even if someone forces this tab open.
-const OWNER_EMAILS = ['haneenturkieh@hotmail.com', '20tasbeeh06@gmail.com'];
-
 function StatCard({ icon: Icon, label, value, isDark }) {
   return (
     <div className="flex-1 rounded-2xl px-4 py-3.5"
@@ -1015,7 +1016,14 @@ export default function SettingsModal({ open, onClose }) {
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
   const closeAndReset = () => { setTab('profile'); onClose(); };
-  const isOwner = OWNER_EMAILS.map((e) => e.toLowerCase()).includes((user?.email || '').toLowerCase());
+  // Was its own hand-duplicated copy of server/routes/admin.js's owner
+  // allowlist — now just reads the flag the server already computes from
+  // its own single source of truth (see server/lib/ownerEmails.js) and
+  // returns on the user object. This is purely a UI gate (hide the tab
+  // from everyone else) either way; the real protection is still the
+  // server route itself checking req.user.email, so nothing sensitive
+  // leaks even if someone forces this tab open.
+  const isOwner = Boolean(user?.isOwner);
   const navItems = isOwner
     ? [...NAV_ITEMS.slice(0, -1), { key:'stats', label:'settings.stats', icon:BarChart3 }, NAV_ITEMS[NAV_ITEMS.length - 1]]
     : NAV_ITEMS;

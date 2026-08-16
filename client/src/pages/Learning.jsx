@@ -28,6 +28,16 @@ export default function Learning() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  // Real bug that used to live here: the progress slider's onChange fired
+  // a full network PUT on every single drag tick (React normalizes range
+  // input onChange to fire continuously while dragging, not just on
+  // release), which meant dragging from 0 to 100 could fire dozens of
+  // overlapping requests — request spam, and a real revert race if two of
+  // those responses landed out of order (an earlier tick's response
+  // arriving after a later one would visually snap the slider backward
+  // mid-drag). dragProgress holds a purely local, instant value per item
+  // while actively dragging; the actual save only fires once, on release.
+  const [dragProgress, setDragProgress] = useState({});
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -50,11 +60,20 @@ export default function Learning() {
 
   const updateProgress = async (item, progress) => {
     const status = progress >= 100 ? 'completed' : progress > 0 ? 'in_progress' : 'planned';
-    await api.put(`/learning/${item.id}`, { progress, status });
-    load();
+    try { await api.put(`/learning/${item.id}`, { progress, status }); await load(); }
+    catch (err) { toast.error(err.message); }
+    finally {
+      // Whether it saved or failed, drop the local drag override so the
+      // slider goes back to reflecting the real, server-confirmed value
+      // instead of getting stuck showing whatever was last dragged to.
+      setDragProgress((d) => { const next = { ...d }; delete next[item.id]; return next; });
+    }
   };
 
-  const removeItem = async (id) => { await api.del(`/learning/${id}`); toast.success('Removed'); load(); };
+  const removeItem = async (id) => {
+    try { await api.del(`/learning/${id}`); toast.success('Removed'); load(); }
+    catch (err) { toast.error(err.message); }
+  };
 
   if (loading) return <PageLoader />;
 
@@ -90,11 +109,14 @@ export default function Learning() {
                       <span className={`pill mt-3 ${STATUS_STYLES[item.status]} capitalize`}>{item.status.replace('_', ' ')}</span>
                       <div className="mt-3">
                         <div className="flex items-center justify-between text-xs text-ink/45 mb-1">
-                          <span>Progress</span><span>{item.progress}%</span>
+                          <span>Progress</span><span>{dragProgress[item.id] ?? item.progress}%</span>
                         </div>
                         <input
-                          type="range" min="0" max="100" value={item.progress}
-                          onChange={(e) => updateProgress(item, Number(e.target.value))}
+                          type="range" min="0" max="100" value={dragProgress[item.id] ?? item.progress}
+                          onChange={(e) => setDragProgress((d) => ({ ...d, [item.id]: Number(e.target.value) }))}
+                          onMouseUp={(e) => { updateProgress(item, Number(e.target.value)); }}
+                          onTouchEnd={(e) => { updateProgress(item, Number(e.target.value)); }}
+                          onKeyUp={(e) => { if (dragProgress[item.id] !== undefined) updateProgress(item, Number(e.target.value)); }}
                           className="w-full accent-lavender-600"
                         />
                       </div>

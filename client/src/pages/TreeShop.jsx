@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Lock, Check, Pencil } from 'lucide-react';
 import { api } from '../api/client.js';
@@ -296,7 +296,19 @@ function MysticTreeCard({ tree, onEdit, onEquip, loading, t }) {
 
 function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
   const [form, setForm] = useState(initial);
-  useEffect(() => { if (open) setForm(initial); }, [open, initial]);
+  // Real bug that used to live here: resetting on [open, initial] meant
+  // ANY change to `initial` while the modal was already open reset the
+  // form — not just the moment it opened. `initial` is now memoized
+  // upstream (see TreeShop's mysticInitial) so this alone would already
+  // help, but resetting only on the open:false→true transition is the
+  // actually-correct behavior regardless of whether the parent object
+  // happens to be stable — a form shouldn't silently reset while someone
+  // is actively editing it, full stop.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpenRef.current) setForm(initial);
+    wasOpenRef.current = open;
+  }, [open, initial]);
   if (!open) return null;
 
   return (
@@ -446,12 +458,57 @@ export default function TreeShop() {
     finally { setMysticActing(false); }
   };
   if (loading) return <PageLoader />;
+  // Real bug that used to live here: if the /trees fetch failed, `data`
+  // stayed null (the catch block only toasts, it never set any fallback),
+  // but every `data?.trees.find/.filter/.map` below only guards the
+  // `data` access itself — `?.trees` becomes `undefined`, and calling
+  // `.find`/`.filter`/`.map` on `undefined` throws immediately. With only
+  // one ErrorBoundary for the whole app, a single failed request here
+  // used to blank the entire page, not just this one. Now it just shows
+  // a retry state on this page instead.
+  if (!data) {
+    return (
+      <div>
+        <PageHeader eyebrow={t('shop.eyebrow')} title={t('shop.title')} subtitle={t('shop.subtitle')} />
+        <div className="rounded-2xl px-5 py-6 text-sm text-ink/60 dark:text-white/50 text-center"
+          style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.65)' }}>
+          {t('shop.loadFailed')}
+          <button
+            onClick={() => { setLoading(true); load(); }}
+            className="block mx-auto mt-3 px-4 py-2 rounded-xl font-semibold text-sm bg-lavender-500 text-white"
+          >
+            {t('exam.tryAgain')}
+          </button>
+        </div>
+      </div>
+    );
+  }
   const editingMysticTree = mysticEditingId != null
     ? data?.mystic?.trees.find((mt) => mt.id === mysticEditingId)
     : null;
-  const mysticInitial = editingMysticTree
-    ? { shape_key: editingMysticTree.shape_key, color_hex: editingMysticTree.color_hex, glow_hex: editingMysticTree.glow_hex, custom_name: editingMysticTree.custom_name }
-    : { shape_key: MYSTIC_SHAPES[0], color_hex: MYSTIC_COLORS[0], glow_hex: MYSTIC_COLORS[1], custom_name: '' };
+  // Real bug that used to live here: this was a brand-new object literal
+  // on every single render of TreeShop, not just when the editing target
+  // actually changed. MysticModal's own effect resets its form whenever
+  // `initial` changes by reference (see MysticModal below) — so ANY
+  // re-render of TreeShop while the edit modal was open (a data reload,
+  // an unrelated state toggle, even just ToastContext's own unmemoized
+  // value causing extra re-renders app-wide) silently wiped out whatever
+  // the user had already changed mid-edit, snapping back to the
+  // originally-saved design. useMemo, keyed on the actual field values
+  // (not the tree object's reference, which also changes every reload),
+  // means this only produces a new object when the real editing target
+  // changes.
+  const mysticInitial = useMemo(() => (
+    editingMysticTree
+      ? { shape_key: editingMysticTree.shape_key, color_hex: editingMysticTree.color_hex, glow_hex: editingMysticTree.glow_hex, custom_name: editingMysticTree.custom_name }
+      : { shape_key: MYSTIC_SHAPES[0], color_hex: MYSTIC_COLORS[0], glow_hex: MYSTIC_COLORS[1], custom_name: '' }
+  ), [
+    mysticEditingId,
+    editingMysticTree?.shape_key,
+    editingMysticTree?.color_hex,
+    editingMysticTree?.glow_hex,
+    editingMysticTree?.custom_name,
+  ]);
   const equippedTree = data?.trees.find(tr => tr.equipped);
   const equippedMystic = data?.mystic?.trees.find((mt) => mt.equipped);
   const ownedCount   = data?.trees.filter(tr => tr.owned).length || 0;

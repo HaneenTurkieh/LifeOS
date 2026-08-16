@@ -162,13 +162,13 @@ export default function Projects({ openTrigger = 0 }) {
 
   const setStage = async (item, stage) => {
     const s = STAGES.find((s) => s.key === stage);
-    await api.put(`/projects/${item.id}`, { stage, progress: s.progress });
-    load();
+    try { await api.put(`/projects/${item.id}`, { stage, progress: s.progress }); load(); }
+    catch (err) { toast.error(err.message); }
   };
 
   const removeItem = async (id) => {
-    await api.del(`/projects/${id}`);
-    toast.success('Removed'); load();
+    try { await api.del(`/projects/${id}`); toast.success('Removed'); load(); }
+    catch (err) { toast.error(err.message); }
   };
 
   // ── AI: break project into tasks ─────────────────────────────

@@ -18,9 +18,24 @@ export function AuthProvider({ children }) {
     try {
       const { user: me } = await api.get('/auth/me');
       setUser(me);
-    } catch {
-      setToken(null);
-      setUser(null);
+    } catch (err) {
+      // Real bug that used to live here: ANY failure — a genuinely
+      // expired/invalid token, but also a transient network error, or
+      // Render's free tier still waking up even after api/client.js's own
+      // one-time retry — cleared the token and logged the user out. A
+      // blip during initial load shouldn't discard a perfectly valid
+      // session. Only a real 401 means the token itself was rejected;
+      // client.js already clears it and fires auth:unauthorized for that
+      // case (see the listener below), so this only needs to handle it
+      // here too for the very first load (before any other request has
+      // had a chance to trigger that event). Anything else leaves the
+      // token in place — `user` just stays null for this load, and the
+      // next successful request (or a refresh) can recover normally
+      // instead of forcing a fresh login over a flaky connection.
+      if (err?.status === 401) {
+        setToken(null);
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }

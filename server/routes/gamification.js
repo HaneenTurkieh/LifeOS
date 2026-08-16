@@ -45,7 +45,17 @@ router.post('/birthday-claim', async (req, res) => {
       return res.status(400).json({ error: "It's not your birthday today" });
     }
 
-    const year   = clientDate ? Number(clientDate.slice(0, 4)) : new Date().getFullYear();
+    // Real bug that used to live here: `year` was taken straight from the
+    // client-supplied `client_date` and used as the dedupe key below — so
+    // a request with a fabricated client_date (real month/day, made-up
+    // year) passed the isTodayBirthday check AND looked like a brand new,
+    // never-claimed year every time, farming +100 XP with no real limit.
+    // client_date is only trustworthy for the month/day comparison above
+    // (that's the whole point of it — a browser a few hours ahead of this
+    // server near midnight); which *year* it is is never something the
+    // client needs to tell the server, so the dedupe key always uses the
+    // server's own clock, unattacker-controlled.
+    const year   = new Date().getFullYear();
     const reason = `Birthday gift ${year}`;
     const already = (await db.execute({
       sql: `SELECT 1 FROM xp_log WHERE user_id = ? AND reason = ?`, args: [userId, reason],

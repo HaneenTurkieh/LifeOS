@@ -8,12 +8,32 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // In production, ALWAYS set a real JWT_SECRET environment variable.
-// This fallback only exists so the app still runs out of the box in dev.
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret-change-me';
+//
+// This used to fall back to a hardcoded string
+// ('dev-only-insecure-secret-change-me') if the env var was ever missing,
+// with only a console warning — nothing that actually stopped the server
+// from starting. That string is sitting in the public GitHub repo, so if
+// JWT_SECRET were ever accidentally unset on Render, anyone who'd read
+// the source could forge a valid login token for ANY user account,
+// including impersonating the owner. There's no reliable NODE_ENV
+// convention set up anywhere in this app to safely distinguish "this is
+// definitely production, refuse to start" from "this is definitely local
+// dev, a fallback is fine" (npm start and npm run dev both leave NODE_ENV
+// unset) — so refusing to start isn't a safe fail-fast here, it risks
+// crashing a real deployment over a config-detection guess.
+//
+// A fresh, unpredictable secret generated once per process instead closes
+// the actual hole either way: even if JWT_SECRET is missing in
+// production, nobody can forge tokens against it, since nothing in the
+// source predicts this value. The only user-visible cost is that
+// existing sessions get invalidated on every server restart until
+// JWT_SECRET is actually set — a real inconvenience, but a completely
+// different class of problem than a forgeable auth token.
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(48).toString('hex');
 const TOKEN_EXPIRY = '7d';
 
 if (process.env.NODE_ENV !== 'test' && !process.env.JWT_SECRET) {
-  console.warn('⚠️  JWT_SECRET is not set — using an insecure development default. Set JWT_SECRET in server/.env before deploying.');
+  console.warn('⚠️  JWT_SECRET is not set — using a random secret generated for this process only. Everyone will be logged out on the next restart. Set JWT_SECRET in server/.env (or your host\'s environment variables) to fix this permanently.');
 }
 
 async function hashPassword(plainPassword) {

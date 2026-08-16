@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sparkles, Trophy, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
 import { useLanguage } from './LanguageContext.jsx';
@@ -39,13 +39,24 @@ export function ToastProvider({ children }) {
     setToasts((prev) => prev.map((x) => (x.id === id ? { ...x, expanded: !x.expanded } : x)));
   }, []);
 
-  const value = {
+  // Real bug that used to live here: this was a brand-new object (with
+  // brand-new function references) on every single render of
+  // ToastProvider, which sits near the root of the whole app — so every
+  // component anywhere that calls useToast() re-rendered on every toast
+  // push/expiry, not just the toasts themselves. Harmless on its own most
+  // of the time, but it compounds with anything downstream that resets
+  // state based on a prop's *reference* changing rather than its actual
+  // content (see TreeShop's mysticInitial/MysticModal fix) — this was one
+  // of the two contributing causes there. push itself is already stable
+  // (useCallback with no deps), so memoizing on it keeps `value` stable
+  // across re-renders too.
+  const value = useMemo(() => ({
     push,
     xp: (amount, reason) => push({ type: 'xp', title: `+${amount} XP`, message: reason }),
     achievement: (title) => push({ type: 'achievement', title: 'Achievement unlocked!', message: title }),
     success: (message) => push({ type: 'success', title: 'Done', message }),
     error: (message) => push({ type: 'error', title: 'Something went wrong', message }),
-  };
+  }), [push]);
 
   return (
     <ToastContext.Provider value={value}>

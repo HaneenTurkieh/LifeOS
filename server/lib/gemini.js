@@ -82,14 +82,57 @@ async function callGemini({ system, contents, tools, useGoogleSearch = false, th
   if (thinkingBudget != null) generationConfig.thinkingConfig = { thinkingBudget };
   body.generationConfig = generationConfig;
 
-  const r = await fetch(`${GEMINI_URL}?key=${key}`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error?.message || 'Gemini API error');
-  return data;
+  // Same defense-in-depth as callOpenRouter (see ../lib/openrouter.js for
+  // the full reasoning) — this used to be a completely bare fetch with no
+  // timeout and no retry at all, unlike every other AI-call wrapper in
+  // the app. A hung connection to Gemini here left exam.js's /extract
+  // request open indefinitely (an endless spinner on the upload, not a
+  // clean error), and a one-off transient blip (network hiccup, a 5xx
+  // from Google's own infrastructure) failed the whole extraction outright
+  // instead of quietly succeeding on one retry.
+  async function attempt() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    try {
+      const r = await fetch(`${GEMINI_URL}?key=${key}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+        signal:  controller.signal,
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        const err = new Error(data.error?.message || 'Gemini API error');
+        err.status = r.status;
+        throw err;
+      }
+      return data;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        const e = new Error('The extraction service took too long to respond.');
+        e.transient = true;
+        throw e;
+      }
+      if (err.status === undefined || err.status >= 500) err.transient = true;
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  try {
+    return await attempt();
+  } catch (err) {
+    if (!err.transient) throw err;
+    await new Promise((r) => setTimeout(r, 800));
+    try {
+      return await attempt();
+    } catch (err2) {
+      const e = new Error(`The extraction service is temporarily unavailable. Please try again. (${err2.message})`);
+      e.cause = err2;
+      throw e;
+    }
+  }
 }
 
 module.exports = { callGemini, GEMINI_MODEL };

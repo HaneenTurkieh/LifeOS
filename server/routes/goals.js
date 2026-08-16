@@ -42,9 +42,20 @@ router.put('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Goal not found' });
     const updates = { ...existing, ...req.body };
     const wasCompleted = existing.status === 'completed';
-    await db.execute({ sql: `UPDATE goals SET title=?, description=?, category=?, target_date=?, status=?, day_planner_enabled=?, star_style=? WHERE id=? AND user_id=?`, args: [updates.title, updates.description, updates.category, updates.target_date, updates.status, updates.day_planner_enabled ? 1 : 0, updates.star_style ?? null, req.params.id, req.user.id] });
+    // Same farming bug as tasks.js used to have (see first_completed_at
+    // there): toggling active → completed → active → completed... used
+    // to pay +100 XP every time it landed back on "completed", with
+    // nothing recording it had already been paid once. This flag is
+    // never cleared once set, so re-completing a goal after reopening it
+    // never pays out again.
+    const alreadyEarnedXp = Boolean(existing.first_completed_at);
+    const isNowCompleted  = updates.status === 'completed';
+    const firstCompletedAt = isNowCompleted
+      ? (existing.first_completed_at || new Date().toISOString())
+      : (existing.first_completed_at || null);
+    await db.execute({ sql: `UPDATE goals SET title=?, description=?, category=?, target_date=?, status=?, day_planner_enabled=?, star_style=?, first_completed_at=? WHERE id=? AND user_id=?`, args: [updates.title, updates.description, updates.category, updates.target_date, updates.status, updates.day_planner_enabled ? 1 : 0, updates.star_style ?? null, firstCompletedAt, req.params.id, req.user.id] });
     let xpAwarded = 0;
-    if (!wasCompleted && updates.status === 'completed') {
+    if (!wasCompleted && isNowCompleted && !alreadyEarnedXp) {
       await addXp(req.user.id, 100, `Finished goal: ${updates.title}`); // needs gamification.js migrated
       xpAwarded = 100;
     }

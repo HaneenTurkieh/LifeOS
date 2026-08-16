@@ -10,6 +10,13 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
   const [offsetY,  setOffsetY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  // Real bug that used to live here: nothing ever handled the <img>
+  // failing to decode (a corrupt file, or a format FileReader could still
+  // read as a data URL but the browser can't actually render) — onLoad
+  // just never fired, draw() never ran, and "Use photo" stayed fully
+  // clickable regardless. Clicking it saved a blank circle as the actual
+  // avatar with zero indication anything had gone wrong.
+  const [imgError, setImgError] = useState(false);
   const SIZE = 280;
 
   const draw = useCallback(() => {
@@ -60,6 +67,7 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
     setOffsetY(t.clientY - dragStart.y);
   };
   const handleSave = () => {
+    if (imgError) return;
     const canvas = canvasRef.current;
     const out = document.createElement('canvas');
     out.width  = 400;
@@ -103,6 +111,7 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               alt=""
               className="hidden"
               onLoad={draw}
+              onError={() => setImgError(true)}
             />
             <canvas
               ref={canvasRef}
@@ -122,9 +131,15 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               onTouchMove={handleTouchMove}
               onTouchEnd={handleMouseUp}
             />
-            <p className="absolute -bottom-6 left-0 right-0 text-center text-[11px] text-white/30">
-              Drag to reposition
-            </p>
+            {imgError ? (
+              <p className="absolute -bottom-6 left-0 right-0 text-center text-[11px]" style={{ color: '#FF7A63' }}>
+                Couldn't load that image — try a different file.
+              </p>
+            ) : (
+              <p className="absolute -bottom-6 left-0 right-0 text-center text-[11px] text-white/30">
+                Drag to reposition
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3 w-full mt-4">
             <button onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}
@@ -149,9 +164,10 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
               Cancel
             </button>
             <motion.button
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              whileHover={imgError ? {} : { scale: 1.02 }} whileTap={imgError ? {} : { scale: 0.97 }}
               onClick={handleSave}
-              className="flex-1 flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-white"
+              disabled={imgError}
+              className="flex-1 flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-white disabled:opacity-40"
               style={{
                 background: 'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))',
                 boxShadow:  '0 4px 14px rgb(var(--accent-500) / 0.40)',

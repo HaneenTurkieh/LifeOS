@@ -47,8 +47,14 @@ export default function Internships({ openTrigger = 0 }) {
     } catch (err) { toast.error(err.message); }
   };
 
-  const setStatus   = async (item, status) => { await api.put(`/internships/${item.id}`, { status }); load(); };
-  const removeItem  = async (id)            => { await api.del(`/internships/${id}`); toast.success('Removed'); load(); };
+  const setStatus   = async (item, status) => {
+    try { await api.put(`/internships/${item.id}`, { status }); load(); }
+    catch (err) { toast.error(err.message); }
+  };
+  const removeItem  = async (id) => {
+    try { await api.del(`/internships/${id}`); toast.success('Removed'); load(); }
+    catch (err) { toast.error(err.message); }
+  };
 
   if (loading) return <PageLoader />;
 

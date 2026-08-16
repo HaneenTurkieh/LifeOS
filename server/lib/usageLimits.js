@@ -13,16 +13,38 @@ const { isPremium } = require('./premium');
 //     the app, so it gets the tightest cap.
 // Regular chat is deliberately not in this list — it's cheap and it's
 // the daily-habit feature, so it stays unlimited for everyone.
+//   - ai_review:     'review' mode on /chat — the CV Builder review and
+//     Projects "break into tasks" both reuse the chat endpoint with
+//     forced 'high' reasoning effort (see chat.js). This used to have NO
+//     limit at all: 'review' isn't a mode either of those pages' own UI
+//     ever exposes a picker for, but the /chat endpoint itself can't tell
+//     an internal call from any other authenticated request with
+//     mode:'review' in the body — so it was a free, unmetered path to
+//     forced extended reasoning for anyone who knew to send it directly.
+//   - file_extract:  /exam/extract's PDF and image branches call Gemini
+//     directly (up to 8192 output tokens) — real AI cost with no cap
+//     before this. Its txt/docx/pptx branches parse locally with no AI
+//     call at all, so those stay ungated; only the two Gemini-calling
+//     paths count against this.
+//   - anti_proc:     /ai/anti-procrastination — cheap and meant to be
+//     low-volume (one click on one stuck task), but had zero limit at
+//     all, unlike every other real AI-cost route in the app.
 const LIMITS = {
   exam_generate: 5,
   deep_think:    4,
   deep_search:   2,
+  ai_review:     6,
+  file_extract:  8,
+  anti_proc:     15,
 };
 
 const FEATURE_LABEL = {
   exam_generate: 'exam and slide generation',
   deep_think:    'Deep Think',
   deep_search:   'Deep Search',
+  ai_review:     'AI review',
+  file_extract:  'file extraction',
+  anti_proc:     "feeling stuck? suggestions",
 };
 
 function todayIso() {
