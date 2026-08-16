@@ -93,6 +93,14 @@ export default function Dashboard() {
   // hover — phones and iPads have no hover, so those explanations were
   // simply unreachable there. Tap-to-open popover works on every device.
   const [openHint,     setOpenHint]     = useState(null);
+  // Real bug that used to live here: the rough/meh-mood quote was a
+  // single hardcoded string (t('dash.roughQuote')), so it looked
+  // identical literally every time someone had a low mood day. Now a
+  // pool of 6 (see translations.js), and this picks one at random once
+  // per mount — a lazy useState initializer so it doesn't re-roll (and
+  // visibly flicker) on every re-render, but does vary the next time the
+  // page loads or mood changes.
+  const [roughQuoteIndex] = useState(() => Math.floor(Math.random() * 6) + 1);
   const statsRef = useRef(null);
   useEffect(() => {
     if (!openHint) return;
@@ -271,7 +279,7 @@ export default function Dashboard() {
               )}
               {isRoughDay ? (
                 <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
-                  "{t('dash.roughQuote')}" 💙
+                  "{t(`dash.roughQuote${roughQuoteIndex}`)}" 💙
                 </p>
               ) : quote && (
                 <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
@@ -549,7 +557,7 @@ export default function Dashboard() {
             <GlassCard className="p-5"
               style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
               <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
-                "{t('dash.roughQuote')}"
+                "{t(`dash.roughQuote${roughQuoteIndex}`)}"
               </p>
               <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Nuvora</p>
             </GlassCard>
