@@ -22,7 +22,11 @@ export default function FocusBar() {
   const mm         = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const ss         = String(timeLeft % 60).padStart(2, '0');
   const progress   = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
-  const modeColor  = MODES[mode].color;
+  // Defensive fallback — MODES[mode] should always exist now that
+  // FocusContext validates `mode` on load, but this is the same
+  // unguarded-lookup crash pattern that broke the whole app, so it gets
+  // a fallback here too rather than trusting every future caller.
+  const modeColor  = MODES[mode]?.color || MODES.focus.color;
   const R          = 13, CIRC = 2 * Math.PI * R;
 
   return (
@@ -66,7 +70,7 @@ export default function FocusBar() {
             {mm}:{ss}
           </span>
           <span className="text-[10px] text-ink/45 dark:text-white/35 truncate max-w-[100px]">
-  {taskName.trim() ? taskName.trim() : `${MODES[mode].emoji} ${MODES[mode].label}`}
+  {taskName.trim() ? taskName.trim() : `${MODES[mode]?.emoji || MODES.focus.emoji} ${MODES[mode]?.label || MODES.focus.label}`}
 </span>
         </div>
 

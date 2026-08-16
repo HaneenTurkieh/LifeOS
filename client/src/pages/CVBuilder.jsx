@@ -272,12 +272,16 @@ ${cvSummary}`,
 
       {/* ── Top bar: tabs + action buttons ──────────────────── */}
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-        <div className="flex gap-2">
+        {/* Was a plain non-wrapping flex row — with 5 tabs (each icon +
+            label) it had no way to fit on an iPhone-width screen, so every
+            button just got squeezed/overlapped. Now scrolls horizontally
+            on narrow screens instead of crushing itself. */}
+        <div className="flex gap-2 overflow-x-auto max-w-full -mx-1 px-1 py-0.5" style={{ scrollbarWidth: 'thin' }}>
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition shrink-0 whitespace-nowrap ${
                 tab === key
                   ? 'bg-lavender-600 text-white shadow-glow'
                   : 'bg-white/60 dark:bg-white/[0.06] text-ink/50 dark:text-white/40 hover:bg-white dark:hover:bg-white/10'
