@@ -1277,6 +1277,7 @@ router.post('/', async (req, res) => {
       }
     }
     let finalText = '';
+    let truncated = false;
     const actions = [];
 
     // One provider for all three modes now (chat / think / search) — only
@@ -1310,6 +1311,13 @@ router.post('/', async (req, res) => {
       const toolCalls = msg.tool_calls || [];
       if (!toolCalls.length) {
         finalText = msg.content || '';
+        // Real bug this fixes: "Lumi's messages are cut off". The model
+        // was hitting max_tokens mid-answer on longer replies (code,
+        // study plans, longer explanations) and finish_reason was never
+        // even read — the truncated text just got shipped to the user as
+        // if it were the complete answer. OpenAI-compatible APIs (which
+        // OpenRouter is) report this as finish_reason: 'length'.
+        truncated = data.choices?.[0]?.finish_reason === 'length';
         break;
       }
       const toolResults = [];
@@ -1325,6 +1333,28 @@ router.post('/', async (req, res) => {
         { role: 'assistant', content: msg.content || null, tool_calls: toolCalls },
         ...toolResults,
       ];
+    }
+    // The reply got cut off mid-answer by the token cap — ask the model
+    // to finish the thought in one more call instead of silently handing
+    // the user a sentence that stops mid-word. Best-effort: if this call
+    // itself fails, the user still gets the real (if truncated) partial
+    // answer rather than an error, which is strictly better than before.
+    if (truncated && finalText) {
+      try {
+        const contData = await callOpenRouter({
+          system,
+          messages: [
+            ...currentMessages,
+            { role: 'assistant', content: finalText },
+            { role: 'user', content: 'Continue exactly where you left off — do not repeat anything you already said, and do not add any preamble like "continuing" or "sure". Just resume the text directly.' },
+          ],
+          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search',
+        });
+        const contMsg = contData.choices?.[0]?.message || {};
+        if (contMsg.content) finalText += contMsg.content;
+      } catch (err) {
+        console.error('Lumi continuation call failed:', err.message);
+      }
     }
     const responseText = finalText || "Done! Let me know if you need anything else.";
 
