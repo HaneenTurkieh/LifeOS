@@ -40,14 +40,14 @@ export default function Launchpad() {
         }
       />
 
-      <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-white/40 dark:bg-white/[0.04] rounded-2xl p-1 max-w-full overflow-x-auto">
         {TABS.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
             onClick={() => setTab(key)}
             whileHover={tab !== key ? { y: -2, scale: 1.04, transition: { type: 'spring', stiffness: 500, damping: 22 } } : {}}
             whileTap={{ scale: 0.96 }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 whitespace-nowrap ${
               tab === key
                 ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-sm'
                 : 'text-ink/50 dark:text-white/40 hover:text-ink/80 dark:hover:text-white/60'

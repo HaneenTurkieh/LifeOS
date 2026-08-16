@@ -172,7 +172,17 @@ export function FocusProvider({ children }) {
   const { lang }   = useLanguage();
 
   const saved = loadState();
-  const [mode,      setMode]      = useState(saved?.mode      || 'focus');
+  // Found the actual production crash here: this used `saved?.mode ||
+  // 'focus'` with no validation against MODES, unlike the server-restore
+  // path below (line ~276, `d.mode in MODES ? d.mode : 'focus'`) which
+  // already guards this. Any stale/incompatible mode string left over in
+  // sessionStorage (e.g. from the old Aurora-era focus state migrated in
+  // via migrateStorageKey below) loaded straight into `mode`, and
+  // FocusBar.jsx's unguarded `MODES[mode].color` lookup then threw on
+  // every render — crashing the whole app, on every route, every reload,
+  // since FocusBar mounts globally in AppShell. Now validated the same
+  // way the restore path already was.
+  const [mode,      setMode]      = useState(saved?.mode in MODES ? saved.mode : 'focus');
   const [customMin, setCustomMin] = useState(saved?.customMin || { focus: 25, short: 5, long: 15 });
   const [timeLeft,  setTimeLeft]  = useState(saved?.timeLeft  ?? 25 * 60);
   const [totalTime, setTotalTime] = useState(saved?.totalTime ?? 25 * 60);
