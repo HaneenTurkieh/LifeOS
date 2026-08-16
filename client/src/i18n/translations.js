@@ -317,7 +317,16 @@ export const translations = {
       'dash.next':            'Next',
       'dash.fullCollection':  '✨ Full collection!',
       'dash.moreTasks':       '+{n} more',
-      'dash.roughQuote':      "You don't have to be productive every day. Rest is part of the process.",
+      // Used to be a single key — every rough/meh mood day showed the
+      // exact same sentence, no matter how many times someone logged a
+      // low mood. Now a small pool; Dashboard.jsx picks one at random
+      // each time the rough-day state shows up instead of always index 0.
+      'dash.roughQuote1':     "You don't have to be productive every day. Rest is part of the process.",
+      'dash.roughQuote2':     "Some days are for surviving, not thriving. That still counts.",
+      'dash.roughQuote3':     "You're allowed to do less today. Tomorrow gets another shot.",
+      'dash.roughQuote4':     "Showing up at all, even like this, is still showing up.",
+      'dash.roughQuote5':     "Be as patient with yourself as you would be with a friend having a hard day.",
+      'dash.roughQuote6':     "Slow isn't the same as behind. Take what today can actually give.",
       'dash.stage0':          'Planting a seed 🌱',
       'dash.stage1':          'First sprout 🌿',
       'dash.stage2':          'Sapling 🪴',
@@ -1046,7 +1055,12 @@ export const translations = {
       'dash.next':            'التالي',
       'dash.fullCollection':  '✨ اكتملت المجموعة!',
       'dash.moreTasks':       '+{n} أخرى',
-      'dash.roughQuote':      'لست مضطرًا للإنتاجية كل يوم. الراحة جزء من الرحلة.',
+      'dash.roughQuote1':     'لست مضطرًا للإنتاجية كل يوم. الراحة جزء من الرحلة.',
+      'dash.roughQuote2':     'بعض الأيام للصمود فقط، مش للتفوق. وهاد كمان بيحسب.',
+      'dash.roughQuote3':     'مسموحلك تعمل أقل اليوم. بكرا في فرصة تانية.',
+      'dash.roughQuote4':     'إنك موجود أصلاً، حتى بهيك حال، هاد إنجاز.',
+      'dash.roughQuote5':     'كون صبور مع حالك متل ما بتكون صبور مع صاحبك بيوم صعب.',
+      'dash.roughQuote6':     'البطء مش تأخر. خد يلي بيقدر يعطيك اليوم بس.',
       'dash.stage0':          'بذرة تُزرع 🌱',
       'dash.stage1':          'أول براعم 🌿',
       'dash.stage2':          'شتلة 🪴',
