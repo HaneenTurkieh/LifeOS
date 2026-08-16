@@ -23,7 +23,19 @@ function last30Dates() {
   const out = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    out.push(d.toISOString().slice(0, 10));
+    // Real bug that used to live here: toISOString() converts to UTC
+    // before slicing the date out, which is a different calendar day than
+    // the user's own local day for part of every day in any UTC+
+    // timezone. habit_logs dates are the user's own local dates (the
+    // client sends them explicitly when checking a habit off), so
+    // building this list from UTC dates instead meant the heatmap below
+    // could be shifted by a day — a habit checked off "today" not
+    // lighting up, or the wrong day lighting up — right around local
+    // midnight for this app's audience (skews UTC+2/+3).
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    out.push(`${y}-${m}-${day}`);
   }
   return out;
 }
@@ -209,20 +221,22 @@ export default function Goals() {
     } catch (err) { toast.error(err.message); }
   };
   const toggleMilestone = async (goal, m) => {
-    await api.put(`/goals/${goal.id}/milestones/${m.id}`, { done: !m.done });
-    loadGoals();
+    try { await api.put(`/goals/${goal.id}/milestones/${m.id}`, { done: !m.done }); loadGoals(); }
+    catch (err) { toast.error(err.message); }
   };
   const markComplete = async (goal) => {
     const completing = goal.status !== 'completed';
-    const { xpAwarded, unlocked } = await api.put(`/goals/${goal.id}`, {
-      status: completing ? 'completed' : 'active',
-    });
-    if (xpAwarded) toast.xp(xpAwarded, goal.title);
-    unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
-    // The star-picker is the reward moment for finishing, not for
-    // un-completing something you'd marked done by mistake.
-    if (completing) setPickingStar(goal);
-    loadGoals();
+    try {
+      const { xpAwarded, unlocked } = await api.put(`/goals/${goal.id}`, {
+        status: completing ? 'completed' : 'active',
+      });
+      if (xpAwarded) toast.xp(xpAwarded, goal.title);
+      unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
+      // The star-picker is the reward moment for finishing, not for
+      // un-completing something you'd marked done by mistake.
+      if (completing) setPickingStar(goal);
+      loadGoals();
+    } catch (err) { toast.error(err.message); }
   };
   const pickStar = async (styleKey) => {
     if (!pickingStar) return;
@@ -231,7 +245,10 @@ export default function Goals() {
     setPickingStar(null);
     loadGoals();
   };
-  const removeGoal = async (id) => { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); };
+  const removeGoal = async (id) => {
+    try { await api.del(`/goals/${id}`); toast.success(t('goals.removed')); loadGoals(); }
+    catch (err) { toast.error(err.message); }
+  };
   const togglePlanner = async (goal) => {
     try { await api.put(`/goals/${goal.id}`, { day_planner_enabled: !goal.day_planner_enabled }); loadGoals(); }
     catch (err) { toast.error(err.message); }
@@ -296,12 +313,17 @@ export default function Goals() {
     } catch (err) { toast.error(err.message); }
   };
   const toggleToday = async (habit) => {
-    const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, {});
-    if (xpAwarded) toast.xp(xpAwarded, habit.name);
-    unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
-    loadHabits();
+    try {
+      const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, {});
+      if (xpAwarded) toast.xp(xpAwarded, habit.name);
+      unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
+      loadHabits();
+    } catch (err) { toast.error(err.message); }
   };
-  const removeHabit = async (id) => { await api.del(`/habits/${id}`); toast.success(t('goals.recurRemoved')); loadHabits(); };
+  const removeHabit = async (id) => {
+    try { await api.del(`/habits/${id}`); toast.success(t('goals.recurRemoved')); loadHabits(); }
+    catch (err) { toast.error(err.message); }
+  };
 
   if (loading) return <PageLoader />;
   const TABS = [

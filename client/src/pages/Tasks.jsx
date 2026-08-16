@@ -368,12 +368,21 @@ function AntiProcrastinationModal({ task, onClose, t, lang }) {
   const [versions, setVersions] = useState(null);
   useEffect(() => {
     if (!task) { setVersions(null); return; }
+    // Real bug that used to live here: switching from one "stuck?" task
+    // to another before the first request finished had no guard against
+    // the responses landing out of order — whichever network response
+    // arrived LAST won via setVersions, even if it was for the task that
+    // was no longer showing. `ignore` (the standard React pattern for
+    // this) makes a stale response for an already-superseded task a
+    // no-op instead.
+    let ignore = false;
     setLoading(true);
     setVersions(null);
     api.post('/ai/anti-procrastination', { title: task.title, description: task.description || '' })
-      .then(setVersions)
-      .catch(() => setVersions(null))
-      .finally(() => setLoading(false));
+      .then((res) => { if (!ignore) setVersions(res); })
+      .catch(() => { if (!ignore) setVersions(null); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, [task]);
   const OPTIONS = versions ? [
     { key: 'five_minute',    label: t('tasks.stuck5min'),  text: versions.five_minute },

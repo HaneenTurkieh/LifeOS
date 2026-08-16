@@ -68,7 +68,28 @@ app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: 'Server error', detail: err.message });
+  // Used to send back `detail: err.message` — the one place in the app
+  // that leaked a raw internal error string to the client (every
+  // hand-written route catch block elsewhere returns a generic message
+  // instead). Concretely reachable via multer's file-size-limit error on
+  // an oversized upload, which skips every route's own try/catch and
+  // lands here directly.
+  res.status(500).json({ error: 'Server error' });
+});
+
+// Safety net for the exact class of bug that used to crash the whole
+// server on a single bad request (see auth.js PATCH /me — a synchronous
+// throw outside any try/catch inside an async handler becomes an
+// unhandled rejection, which Node terminates the process on by default).
+// This can't save the request that caused it (that one still fails), but
+// it stops one bad request from taking down every other user's session
+// too. The real fix is still "wrap every handler in try/catch" — this is
+// the backstop for whichever one gets missed next.
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled promise rejection (server stayed up):', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception (server stayed up):', err);
 });
 
 // ← CHANGED: initDb() runs first, then the server starts listening.

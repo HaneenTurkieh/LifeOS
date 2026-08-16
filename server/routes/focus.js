@@ -140,9 +140,37 @@ async function reconcileRoomSession(roomId) {
 
     for (const m of stragglers) {
       try {
+        // Real race that used to live here: this loop used to INSERT the
+        // session/XP/tree credit first and only stamp credited_started_at
+        // at the very end. reconcileRoomSession is called from four
+        // different, unsynchronized places (this member's own poll, any
+        // OTHER member's poll via GET /rooms/:code, /pulse, timer
+        // start/stop) — if two of those landed for the same room around
+        // the same moment, both could run this loop, both would still see
+        // this member as an uncredited straggler (nothing had stamped
+        // credited_started_at yet), and both would credit them: double
+        // XP, double tree, double session row for one real round. The
+        // claim itself now happens FIRST, as a single atomic UPDATE
+        // guarded by the same "not already credited for this exact
+        // started_at" condition — only one concurrent caller can ever see
+        // rowsAffected > 0 for a given (member, started_at) pair, since
+        // SQLite serializes the UPDATE. Anyone who loses the race just
+        // skips this member entirely instead of crediting them again.
+        const weekStart = getWeekStart();
+        const claim = await db.execute({
+          sql:  `UPDATE focus_room_members
+                 SET is_focusing = 0, credited_started_at = ?,
+                     focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
+                     week_start = ?
+                 WHERE room_id = ? AND user_id = ?
+                   AND (credited_started_at IS NULL OR credited_started_at != ?)`,
+          args: [t.started_at, weekStart, durationMinutes, durationMinutes, weekStart, roomId, m.user_id, t.started_at],
+        });
+        if (claim.rowsAffected === 0) continue; // lost the race — someone else already credited this member for this round
+
         await db.execute({
           sql:  `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start, task_id) VALUES (?, ?, ?, ?, NULL)`,
-          args: [m.user_id, 'Room session', durationMinutes, getWeekStart()],
+          args: [m.user_id, 'Room session', durationMinutes, weekStart],
         });
         const xpAmount = Math.floor(durationMinutes / 5) * 2;
         if (xpAmount > 0) {
@@ -151,24 +179,10 @@ async function reconcileRoomSession(roomId) {
             args: [m.user_id, xpAmount, 'Focus: Room session'],
           });
         }
-        const treeKey = roomTreeKey;
         await db.execute({
           sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
                  VALUES (?, ?, 'alive', 'Room session', ?)`,
-          args: [m.user_id, treeKey, durationMinutes],
-        });
-        // Same reset-then-increment as the pulse handler — a straggler
-        // can get credited here on the first request of a new week,
-        // before the lazy-reset UPDATE in GET /rooms/:code runs, so this
-        // has to carry its own week check rather than assume a fresh row.
-        const weekStart = getWeekStart();
-        await db.execute({
-          sql:  `UPDATE focus_room_members
-                 SET is_focusing = 0,
-                     focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
-                     week_start = ?, credited_started_at = ?
-                 WHERE room_id = ? AND user_id = ?`,
-          args: [weekStart, durationMinutes, durationMinutes, weekStart, t.started_at, roomId, m.user_id],
+          args: [m.user_id, roomTreeKey, durationMinutes],
         });
       } catch (e) { console.error('reconcileRoomSession: member credit failed (non-fatal):', m.user_id, e.message); }
     }
@@ -305,9 +319,69 @@ async function logMinutesOnTask(userId, taskId, minutes) {
 
 router.post('/sessions', async (req, res) => {
   try {
-    const { task_name = 'Focus Session', duration_minutes, task_id = null, room_code = null, client_date = null } = req.body;
+    const { task_name = 'Focus Session', duration_minutes, task_id = null, room_code = null, client_date = null, session_started_at = null } = req.body;
     if (!duration_minutes || duration_minutes < 1)
       return res.status(400).json({ error: 'Invalid duration' });
+    // Real bug that used to live here: the solo timer is explicitly
+    // server-synced across every device/tab on an account, so two open
+    // tabs both noticing the same countdown hit zero could each call this
+    // route for what's really one completed round — double XP, double
+    // tree planted, double minutes logged on the linked task. When the
+    // client sends session_started_at (the started_at of the specific
+    // round it's reporting — a fresh value every time the timer is
+    // started or resumed), only the first report of that exact round is
+    // allowed through; a second report of the same round is a no-op.
+    // Older clients that don't send it yet fall back to the old
+    // ungated behavior rather than being blocked outright.
+    if (session_started_at) {
+      const claimed = await db.execute({
+        sql:  `INSERT INTO focus_session_credits (user_id, started_at) VALUES (?, ?) ON CONFLICT (user_id, started_at) DO NOTHING`,
+        args: [req.user.id, session_started_at],
+      });
+      if (claimed.rowsAffected === 0) {
+        return res.json({ ok: true, duplicate: true, xpAwarded: 0, treePlanted: null, treePlantedDesign: null, task: null });
+      }
+    }
+    // Real race that used to live here: this same completion also fires
+    // POST /rooms/:code/pulse afterward (fire-and-forget, not awaited —
+    // see FocusContext.jsx) to stamp focus_room_members.credited_started_at
+    // for THIS member, which is what stops reconcileRoomSession's
+    // straggler sweep from crediting them a second time. In the window
+    // between this request finishing and that later /pulse call actually
+    // landing, credited_started_at was still stale — so if ANOTHER
+    // member's poll triggered reconcileRoomSession during that window, it
+    // could see this member as an uncredited straggler and credit them
+    // again for the same round. The claim now happens right here, in the
+    // same request that's about to award XP/tree, instead of being
+    // deferred to a later, unawaited call — closing the window entirely.
+    // /pulse's own credited_started_at update is now guarded the same way
+    // reconcileRoomSession's is, so it becomes a safe no-op once this has
+    // already claimed the round.
+    if (room_code) {
+      const roomRowForClaim = (await db.execute({
+        sql: `SELECT id FROM focus_rooms WHERE code = ?`, args: [String(room_code).toUpperCase()],
+      })).rows[0];
+      if (roomRowForClaim) {
+        const timerRow = (await db.execute({
+          sql: `SELECT started_at FROM focus_room_timer WHERE room_id = ?`, args: [roomRowForClaim.id],
+        })).rows[0];
+        if (timerRow?.started_at) {
+          const weekStartClaim = getWeekStart();
+          const roomClaim = await db.execute({
+            sql:  `UPDATE focus_room_members
+                   SET is_focusing = 0, credited_started_at = ?,
+                       focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
+                       week_start = ?, last_seen = datetime('now')
+                   WHERE room_id = ? AND user_id = ?
+                     AND (credited_started_at IS NULL OR credited_started_at != ?)`,
+            args: [timerRow.started_at, weekStartClaim, duration_minutes, duration_minutes, weekStartClaim, roomRowForClaim.id, req.user.id, timerRow.started_at],
+          });
+          if (roomClaim.rowsAffected === 0) {
+            return res.json({ ok: true, duplicate: true, xpAwarded: 0, treePlanted: null, treePlantedDesign: null, task: null });
+          }
+        }
+      }
+    }
     const week_start = getWeekStart();
     await db.execute({
       sql:  `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start, task_id) VALUES (?, ?, ?, ?, ?)`,
@@ -625,6 +699,20 @@ router.get('/rooms/:code', async (req, res) => {
   try {
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
+    // Real bug that used to live here: this only checked the room code
+    // existed, never that the requester was actually in it. Room codes
+    // are only 6 characters — any authenticated user who knew or guessed
+    // one could view full room state (every member's name and focus
+    // minutes, live timer, tree status) and even trigger the
+    // side-effecting reconcileRoomSession call below, without ever having
+    // joined. /rooms/join is the only place that inserts into
+    // focus_room_members, so checking membership there is the same check
+    // every other room mutation route in this file already makes.
+    const membership = (await db.execute({
+      sql: `SELECT 1 FROM focus_room_members WHERE room_id = ? AND user_id = ?`,
+      args: [roomRow.id, req.user.id],
+    })).rows[0];
+    if (!membership) return res.status(403).json({ error: 'You are not a member of this room' });
     await reconcileRoomSession(roomRow.id); // catch anyone whose room session just finished but never self-reported
     // Same weekly reset as the leaderboard/spotlights — lazily zero out
     // anyone whose focus_minutes are still tagged to a previous week,
@@ -803,7 +891,7 @@ router.post('/rooms/:code/timer/stop', async (req, res) => {
     if (stoppedEarly) {
       try {
         const tr = (await db.execute({
-          sql: `SELECT status FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id],
+          sql: `SELECT status, tree_key FROM focus_room_tree WHERE room_id = ?`, args: [roomRow.id],
         })).rows[0];
         if (tr && tr.status === 'alive') {
           await db.execute({
@@ -829,13 +917,22 @@ router.post('/rooms/:code/timer/stop', async (req, res) => {
               sql: `SELECT user_id FROM focus_room_members WHERE room_id = ? AND is_focusing = 1`,
               args: [roomRow.id],
             })).rows;
+            // Same tree-ownership fix as reconcileRoomSession and
+            // POST /focus/sessions: the tree that just died was the
+            // room's one shared tree (tr.tree_key, whoever's equipped
+            // design it was when the host started the round), not each
+            // individual member's own currently-equipped tree. This path
+            // was the one sibling spot that still called getEquippedTree
+            // per member — everyone else in the room would have seen the
+            // real shared tree wilt, but a straggler's own Forest history
+            // got a mirror of THEIR OWN unrelated tree dying instead.
+            const roomTreeKey = tr.tree_key || 'seedling';
             for (const m of focusingMembers) {
               try {
-                const treeKey = await getEquippedTree(m.user_id);
                 await db.execute({
                   sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes)
                          VALUES (?, ?, 'dead', 'Room session', ?)`,
-                  args: [m.user_id, treeKey, elapsedMinutes],
+                  args: [m.user_id, roomTreeKey, elapsedMinutes],
                 });
               } catch (e) { console.error('room-death planted_trees insert failed (non-fatal):', m.user_id, e.message); }
             }
@@ -859,24 +956,35 @@ router.post('/rooms/:code/pulse', async (req, res) => {
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
 
     if (add_minutes > 0) {
-      // This member's own device just self-reported a completed
-      // session (already logged to /focus/sessions on their end) —
-      // stamp which room-timer session that credit belongs to so
-      // reconcileRoomSession never re-credits them for the same one.
+      // POST /focus/sessions (called just before this, on completion) now
+      // claims credited_started_at itself, atomically, in the same
+      // request that awards XP/tree — that's the fix for the real
+      // double-credit race that used to exist here (see its comment for
+      // the full explanation). This call used to be the ONLY place that
+      // stamped credited_started_at, deferred and unawaited, which left a
+      // window where a concurrent reconcileRoomSession could double-credit
+      // this member. It's now guarded the same way reconcileRoomSession's
+      // own claim is, so if /focus/sessions (or reconcile) already
+      // claimed this round, this UPDATE's WHERE just won't match and it
+      // safely no-ops instead of adding the minutes a second time.
       const t = (await db.execute({
         sql: `SELECT started_at FROM focus_room_timer WHERE room_id = ?`, args: [roomRow.id],
       })).rows[0];
       const weekStart = getWeekStart();
       await db.execute({
         sql:  `UPDATE focus_room_members
-               SET last_seen = datetime('now'), is_focusing = ?,
-                   focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
+               SET focus_minutes = CASE WHEN week_start = ? THEN focus_minutes + ? ELSE ? END,
                    week_start = ?, credited_started_at = ?
-               WHERE room_id = ? AND user_id = ?`,
+               WHERE room_id = ? AND user_id = ?
+                 AND (credited_started_at IS NULL OR credited_started_at != ?)`,
         args: [
-          is_focusing ? 1 : 0, weekStart, add_minutes, add_minutes,
-          weekStart, t?.started_at || null, roomRow.id, req.user.id,
+          weekStart, add_minutes, add_minutes,
+          weekStart, t?.started_at || null, roomRow.id, req.user.id, t?.started_at || null,
         ],
+      });
+      await db.execute({
+        sql:  `UPDATE focus_room_members SET last_seen = datetime('now'), is_focusing = ? WHERE room_id = ? AND user_id = ?`,
+        args: [is_focusing ? 1 : 0, roomRow.id, req.user.id],
       });
     } else {
       await db.execute({
@@ -997,23 +1105,29 @@ router.get('/premium/status', async (req, res) => {
   try { res.json(await getPremium(req.user.id)); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
+// Despite the name, this is a one-way "back to Free" action, not a real
+// toggle — the client only ever calls it from the button shown when
+// status.is_premium is ALREADY true (SettingsModal.jsx's PremiumTab), for
+// someone who wants to voluntarily drop back to Free. It used to also
+// flip Free → Premium when called with is_premium already false, with
+// nothing checking who was calling it or why — a real, serious bug: any
+// logged-in user could grant themselves Premium forever with a single
+// unauthenticated-by-anything-but-login API call, completely bypassing
+// Paddle. Real Premium grants must only ever come from a verified Paddle
+// webhook (routes/paddle.js) or the owner's own admin action — never
+// from this route. Now hard-blocked to the one direction the UI actually
+// uses.
 router.post('/premium/toggle', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);
-    const next = current.is_premium ? 0 : 1;
-    if (next === 0) {
-      await db.execute({
-        sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, plan) VALUES (?, 0, 'purple', NULL)
-              ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple', plan = NULL`,
-        args: [req.user.id],
-      });
-    } else {
-      await db.execute({
-        sql: `INSERT INTO user_premium (user_id, is_premium) VALUES (?, ?)
-              ON CONFLICT(user_id) DO UPDATE SET is_premium = excluded.is_premium`,
-        args: [req.user.id, next],
-      });
+    if (!current.is_premium) {
+      return res.status(403).json({ error: 'Premium can only be granted through a real purchase.' });
     }
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, plan) VALUES (?, 0, 'purple', NULL)
+            ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple', plan = NULL`,
+      args: [req.user.id],
+    });
     res.json(await getPremium(req.user.id));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });

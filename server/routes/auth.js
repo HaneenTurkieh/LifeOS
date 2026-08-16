@@ -12,6 +12,7 @@ const {
 const { sendPasswordResetEmail } = require('../lib/email');
 const { rateLimit }              = require('../lib/rateLimit');
 const { addXp }                  = require('../lib/gamification');
+const { isOwnerEmail }           = require('../lib/ownerEmails');
 
 const EMAIL_RE               = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MINUTES = 30;
@@ -27,6 +28,11 @@ function publicUser(row) {
     gender:   row.gender   || null,
     birthday: row.birthday || null,
     bio:      row.bio      || null,
+    // Lets the client show/hide the owner-only Stats tab without keeping
+    // its own separate copy of the owner allowlist (see
+    // lib/ownerEmails.js) — the server is the only place that ever
+    // decides this now.
+    isOwner:  isOwnerEmail(row.email),
   };
 }
 
@@ -60,9 +66,17 @@ router.post('/register', async (req, res) => {
     // Welcome gift — one-time, brand new account only. addXp writes to
     // xp_log itself, so there's nothing to dedup here (a user only ever
     // registers once for a given row).
-    try { await addXp(user.id, WELCOME_XP, 'Welcome gift'); } catch (e) { console.error('Welcome XP grant failed:', e); }
+    //
+    // Real bug that used to live here: the response always reported
+    // welcomeXp: WELCOME_XP regardless of whether the grant above actually
+    // succeeded — so a silent addXp failure told a brand-new user they'd
+    // gotten 100 XP for a welcome gift they never actually received,
+    // right at the very first moment of using the app.
+    let welcomeXpAwarded = 0;
+    try { await addXp(user.id, WELCOME_XP, 'Welcome gift'); welcomeXpAwarded = WELCOME_XP; }
+    catch (e) { console.error('Welcome XP grant failed:', e); }
 
-    res.status(201).json({ token: signToken(user), user: publicUser(user), welcomeXp: WELCOME_XP });
+    res.status(201).json({ token: signToken(user), user: publicUser(user), welcomeXp: welcomeXpAwarded });
   } catch (err) {
     if (err.message?.includes('UNIQUE constraint')) {
       return res.status(409).json({ error: 'An account with that email already exists' });
@@ -115,25 +129,38 @@ router.get('/me', authenticate, async (req, res) => {
 
 // ── PATCH /me — update profile ────────────────────────────────
 router.patch('/me', authenticate, async (req, res) => {
-  const { name, gender, birthday, bio, avatar } = req.body;
-
-  // Limit avatar to ~300KB base64
-  if (avatar && avatar.length > 400000) {
-    return res.status(400).json({ error: 'Avatar image is too large. Use an image under 300KB.' });
-  }
-
-  const setClauses = [];
-  const args       = [];
-
-  if (name     !== undefined) { setClauses.push('name = ?');     args.push(name.trim()); }
-  if (gender   !== undefined) { setClauses.push('gender = ?');   args.push(gender);      }
-  if (birthday !== undefined) { setClauses.push('birthday = ?'); args.push(birthday);    }
-  if (bio      !== undefined) { setClauses.push('bio = ?');      args.push(bio);         }
-  if (avatar   !== undefined) { setClauses.push('avatar = ?');   args.push(avatar);      }
-
-  if (!setClauses.length) return res.status(400).json({ error: 'Nothing to update' });
-
   try {
+    const { name, gender, birthday, bio, avatar } = req.body;
+
+    // Real bug that used to live here: `name !== undefined` is true for
+    // `name: null` (a client sending `{"name": null}` — a malformed
+    // request, or an attempt to clear the field), and `null.trim()`
+    // throws SYNCHRONOUSLY. That used to happen entirely outside any
+    // try/catch, so it became an unhandled promise rejection — which
+    // Node terminates the whole process on by default, not just the one
+    // request. A single bad request could crash the server for every
+    // user. Everything now runs inside this try block, and `name`
+    // specifically is type-checked before `.trim()` ever touches it.
+    if (name !== undefined && typeof name !== 'string') {
+      return res.status(400).json({ error: 'Name must be text.' });
+    }
+
+    // Limit avatar to ~300KB base64
+    if (avatar && avatar.length > 400000) {
+      return res.status(400).json({ error: 'Avatar image is too large. Use an image under 300KB.' });
+    }
+
+    const setClauses = [];
+    const args       = [];
+
+    if (name     !== undefined) { setClauses.push('name = ?');     args.push(name.trim()); }
+    if (gender   !== undefined) { setClauses.push('gender = ?');   args.push(gender);      }
+    if (birthday !== undefined) { setClauses.push('birthday = ?'); args.push(birthday);    }
+    if (bio      !== undefined) { setClauses.push('bio = ?');      args.push(bio);         }
+    if (avatar   !== undefined) { setClauses.push('avatar = ?');   args.push(avatar);      }
+
+    if (!setClauses.length) return res.status(400).json({ error: 'Nothing to update' });
+
     args.push(req.user.id);
     await db.execute({
       sql:  `UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`,

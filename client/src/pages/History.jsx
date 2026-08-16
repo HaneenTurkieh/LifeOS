@@ -9,6 +9,7 @@ import GlassCard from '../components/GlassCard.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
 import PageLoader from '../components/Loader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import { localDateStr } from '../utils/birthday.js';
 
 export default function History() {
   const [data, setData] = useState(null);
@@ -21,7 +22,16 @@ export default function History() {
   const formatDayLabel = (dateStr, isToday) => {
     if (isToday) return t('common.today');
     const d = new Date(dateStr + 'T00:00:00');
-    const diffDays = Math.round((d - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00')) / 86400000);
+    // Real bug that used to live here: toISOString() converts "now" to
+    // UTC before slicing out the date, which is a different calendar day
+    // than the user's own local "today" for roughly a third of the day in
+    // any UTC+ timezone (this app's audience skews UTC+2/+3) — near local
+    // midnight this mislabeled yesterday as "today" or shifted every
+    // diffDays comparison by one, showing the wrong day as
+    // Today/Yesterday/Tomorrow. localDateStr() (already used for the same
+    // reason elsewhere in the app) reads the browser's own local calendar
+    // date instead.
+    const diffDays = Math.round((d - new Date(localDateStr() + 'T00:00:00')) / 86400000);
     if (diffDays === -1) return t('common.yesterday');
     if (diffDays === 1) return t('common.tomorrow');
     return d.toLocaleDateString(dateLocale, { weekday: 'long', month: 'short', day: 'numeric' });

@@ -62,7 +62,17 @@ export default function GlobalSearch({ open, onClose }) {
     }
   }, [open]);
 
+  // Real bug that used to live here: the 150ms debounce only delays when
+  // a search *starts*, it doesn't stop an earlier one already in flight —
+  // typing fast enough (or a slow response for an earlier keystroke) let
+  // multiple searches overlap, and whichever network response landed LAST
+  // won, even if it was for a query the user had already typed past. This
+  // showed stale/wrong results at the tail end of fast typing. requestRef
+  // tags each call with its own id; a response only gets applied if it's
+  // still the most recent request by the time it comes back.
+  const requestRef = useRef(0);
   const search = useCallback(async (q) => {
+    const requestId = ++requestRef.current;
     const trimmed = q.trim().toLowerCase();
     const pageMatches = PAGES_T
       .filter((p) =>
@@ -78,6 +88,7 @@ export default function GlobalSearch({ open, onClose }) {
         api.get('/goals'),
         api.get('/chat/conversations'),
       ]);
+      if (requestId !== requestRef.current) return; // a newer search already superseded this one
       const priorityLabel = (p) => t(p === 'high' ? 'tasks.high' : p === 'low' ? 'tasks.low' : 'tasks.medium');
       const statusLabel   = (s) => t(s === 'doing' ? 'search.statusDoing' : s === 'done' ? 'search.statusDone' : 'search.statusTodo');
       const taskResults = tasks
@@ -94,9 +105,9 @@ export default function GlobalSearch({ open, onClose }) {
         .map((c) => ({ type:'conversation', label:c.title, subtitle: t('search.chatSubtitle'), path:'/ai' }));
       setResults([...taskResults, ...goalResults, ...convoResults, ...pageMatches.slice(0, 3)]);
     } catch (_) {
-      setResults(pageMatches);
+      if (requestId === requestRef.current) setResults(pageMatches);
     } finally {
-      setLoading(false);
+      if (requestId === requestRef.current) setLoading(false);
     }
   }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {

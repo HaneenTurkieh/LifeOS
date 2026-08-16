@@ -1,15 +1,10 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
-
-// Same "owner-only" allowlist pattern used in db/connection.js for the
-// free-Premium override — anyone else hitting this route gets a plain
-// 403, no matter how they authenticated.
-const OWNER_EMAILS = ['haneenturkieh@hotmail.com', '20tasbeeh06@gmail.com'];
+const { isOwnerEmail } = require('../lib/ownerEmails');
 
 function requireOwner(req, res, next) {
-  const email = (req.user?.email || '').toLowerCase();
-  if (!OWNER_EMAILS.map((e) => e.toLowerCase()).includes(email)) {
+  if (!isOwnerEmail(req.user?.email)) {
     return res.status(403).json({ error: 'Not authorized' });
   }
   next();

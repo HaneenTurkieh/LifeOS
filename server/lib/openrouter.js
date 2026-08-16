@@ -137,7 +137,19 @@ async function callOpenRouter({
     try {
       return await attempt();
     } catch (err2) {
-      throw new Error('The AI provider is temporarily unavailable. Please try again.');
+      // Real bug that used to live here: this discarded err2 entirely and
+      // threw a brand-new, generic message — every caller's own
+      // console.error/logError (the admin Stats "Recent failures" panel
+      // this exact wrapper's retry logic exists to make visible) only
+      // ever saw "temporarily unavailable", never the actual timeout /
+      // network error / 5xx detail that caused it. Callers only ever log
+      // err.message or console.error the whole error — none of them
+      // relay it straight to the end user (that's always a separate,
+      // fixed, friendly response) — so there's no safety reason to throw
+      // away the real detail here.
+      const e = new Error(`The AI provider is temporarily unavailable. Please try again. (${err2.message})`);
+      e.cause = err2;
+      throw e;
     }
   }
 }

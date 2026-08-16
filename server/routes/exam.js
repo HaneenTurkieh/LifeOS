@@ -33,6 +33,17 @@ router.post('/extract', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: `Unsupported type. Supported: ${SUPPORTED.join(', ')}` });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+  // Only pdf/image extraction actually calls Gemini (real, metered AI
+  // cost) — txt/docx/pptx parse locally below with no AI call, so they
+  // don't need gating. This route used to have no limit at all on the
+  // Gemini-calling paths.
+  const callsGemini = ext === 'pdf' || ['png','jpg','jpeg','webp','gif'].includes(ext);
+  if (callsGemini) {
+    const gate = await checkLimit(req.user.id, 'file_extract');
+    if (!gate.allowed) {
+      return res.status(403).json({ error: limitMessage('file_extract', gate.limit), code: 'DAILY_LIMIT', feature: 'file_extract' });
+    }
+  }
   try {
     let text = '';
     if (ext === 'pdf') {
@@ -86,6 +97,7 @@ router.post('/extract', upload.single('file'), async (req, res) => {
     }
     if (!text.trim())
       return res.status(422).json({ error: 'Could not extract text. Try pasting content directly.' });
+    if (callsGemini) await recordUsage(req.user.id, 'file_extract');
     res.json({ text: text.trim(), filename: file.originalname, wordCount: text.split(/\s+/).filter(Boolean).length });
   } catch (err) {
     console.error('Exam extract error:', err);
@@ -145,8 +157,20 @@ router.post('/generate', async (req, res) => {
       temperature: 1.0,
       top_p:       0.95,
     });
+    const text = data.choices?.[0]?.message?.content || '';
+    // Real bug that used to live here: recordUsage ran unconditionally
+    // right after the API call didn't throw, even when the model's
+    // response was empty/malformed — burning one of the user's 5 daily
+    // exam_generate credits for a generation that produced nothing
+    // usable, violating usageLimits.js's own documented contract
+    // ("Only call after the AI request actually succeeded"). A failed
+    // generation now doesn't cost anything, matching every other gated
+    // route in the app.
+    if (!text.trim()) {
+      return res.status(502).json({ error: 'Generation failed. Please try again.' });
+    }
     await recordUsage(req.user.id, 'exam_generate');
-    res.json({ text: data.choices?.[0]?.message?.content || '', remaining: gate.remaining - 1 });
+    res.json({ text, remaining: gate.remaining - 1 });
   } catch (err) {
     console.error('Exam generate error:', err);
     res.status(500).json({ error: 'Generation failed. Please try again.' });

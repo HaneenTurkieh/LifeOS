@@ -14,15 +14,34 @@ const TEMPLATES = [
 ];
 
 // ── Shared helpers ─────────────────────────────────────────────
+// Every field below (role, company, description, project links, summary,
+// skill names, etc.) is free text the person typed into the CV Builder —
+// none of it was ever escaped before landing straight in a template
+// string that gets rendered two ways: dangerouslySetInnerHTML for the
+// live preview, and document.write() for the print/PDF window. Either
+// way, a stray `<` or an unclosed tag in someone's own job description
+// broke the generated document's structure (and in the preview path,
+// dangerouslySetInnerHTML would happily execute anything script-shaped).
+// Every user-entered value below is now run through this before it's
+// interpolated into a template.
+function esc(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Building a "contact line" (email · phone · location) is the same
 // three-way join across all three templates, so it lives here once.
 function contactLine(userEmail, profile) {
-  return [userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).join('  ·  ');
+  return [userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).map(esc).join('  ·  ');
 }
 function dateRange(start, end, isCurrent) {
   const from = start || '';
   const to   = isCurrent ? 'Present' : (end || '');
-  return [from, to].filter(Boolean).join(' – ');
+  return esc([from, to].filter(Boolean).join(' – '));
 }
 
 // ── Word (.docx) generator ──────────────────────────────────────
@@ -178,8 +197,8 @@ function buildMinimal(userName, userEmail, profile, data) {
   <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #111827;display:flex;align-items:center;gap:20px">
     ${profile.cv_photo ? `<img src="${profile.cv_photo}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;flex-shrink:0" />` : ''}
     <div>
-      <div style="font-size:26px;font-weight:700;letter-spacing:-0.5px">${userName || 'Your Name'}</div>
-      ${profile.cv_headline ? `<div style="font-size:14px;color:#374151;margin-top:3px;font-weight:600">${profile.cv_headline}</div>` : ''}
+      <div style="font-size:26px;font-weight:700;letter-spacing:-0.5px">${esc(userName) || 'Your Name'}</div>
+      ${profile.cv_headline ? `<div style="font-size:14px;color:#374151;margin-top:3px;font-weight:600">${esc(profile.cv_headline)}</div>` : ''}
       <div style="font-size:11.5px;color:#6B7280;margin-top:6px">${contactLine(userEmail, profile)}</div>
     </div>
   </div>
@@ -187,7 +206,7 @@ function buildMinimal(userName, userEmail, profile, data) {
   ${profile.cv_summary ? `
   <div style="margin-bottom:28px">
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#6B7280;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #E5E7EB">Professional Summary</div>
-    <div style="font-size:12.5px;color:#374151">${profile.cv_summary}</div>
+    <div style="font-size:12.5px;color:#374151">${esc(profile.cv_summary)}</div>
   </div>` : ''}
 
   ${experience.length ? `
@@ -196,11 +215,11 @@ function buildMinimal(userName, userEmail, profile, data) {
     ${experience.map(x=>`
     <div style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
-        <div style="font-weight:600;font-size:13.5px">${x.role}${x.company?` · ${x.company}`:''}</div>
+        <div style="font-weight:600;font-size:13.5px">${esc(x.role)}${x.company?` · ${esc(x.company)}`:''}</div>
         <div style="font-size:11px;color:#9CA3AF">${dateRange(x.start_date, x.end_date, x.is_current)}</div>
       </div>
-      ${x.location?`<div style="font-size:11px;color:#9CA3AF;margin-top:1px">${x.location}</div>`:''}
-      ${x.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px;white-space:pre-line">${x.description}</div>`:''}
+      ${x.location?`<div style="font-size:11px;color:#9CA3AF;margin-top:1px">${esc(x.location)}</div>`:''}
+      ${x.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px;white-space:pre-line">${esc(x.description)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -210,11 +229,11 @@ function buildMinimal(userName, userEmail, profile, data) {
     ${education.map(ed=>`
     <div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
-        <div style="font-weight:600;font-size:13.5px">${ed.school}</div>
+        <div style="font-weight:600;font-size:13.5px">${esc(ed.school)}</div>
         <div style="font-size:11px;color:#9CA3AF">${dateRange(ed.start_date, ed.end_date)}</div>
       </div>
-      ${ed.degree||ed.field?`<div style="font-size:12px;color:#6B7280;margin-top:1px">${[ed.degree,ed.field].filter(Boolean).join(', ')}</div>`:''}
-      ${ed.description?`<div style="font-size:12px;color:#4B5563;margin-top:3px">${ed.description}</div>`:''}
+      ${ed.degree||ed.field?`<div style="font-size:12px;color:#6B7280;margin-top:1px">${esc([ed.degree,ed.field].filter(Boolean).join(', '))}</div>`:''}
+      ${ed.description?`<div style="font-size:12px;color:#4B5563;margin-top:3px">${esc(ed.description)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -223,10 +242,10 @@ function buildMinimal(userName, userEmail, profile, data) {
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#6B7280;margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid #E5E7EB">Projects</div>
     ${projects.map(p=>`
     <div style="margin-bottom:16px">
-      <div style="font-weight:600;font-size:13.5px">${p.title}</div>
-      ${p.tech?`<div style="display:inline-block;font-size:11px;font-weight:500;background:#F3F4F6;padding:2px 8px;border-radius:4px;margin:4px 0">${p.tech}</div>`:''}
-      ${p.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:3px">${p.description}</div>`:''}
-      ${p.link?`<div style="font-size:11px;color:#6B7280;margin-top:2px">${p.link}</div>`:''}
+      <div style="font-weight:600;font-size:13.5px">${esc(p.title)}</div>
+      ${p.tech?`<div style="display:inline-block;font-size:11px;font-weight:500;background:#F3F4F6;padding:2px 8px;border-radius:4px;margin:4px 0">${esc(p.tech)}</div>`:''}
+      ${p.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:3px">${esc(p.description)}</div>`:''}
+      ${p.link?`<div style="font-size:11px;color:#6B7280;margin-top:2px">${esc(p.link)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -236,7 +255,7 @@ function buildMinimal(userName, userEmail, profile, data) {
     <div style="display:flex;flex-wrap:wrap;gap:8px">
       ${skills.map(s=>`
       <div style="display:flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:12px;font-weight:500">
-        ${s.name}
+        ${esc(s.name)}
         <div style="display:flex;gap:3px">
           ${[1,2,3].map(d=>`<div style="width:5px;height:5px;border-radius:50%;background:${d<=(LD[s.level]||1)?'#111827':'#D1D5DB'}"></div>`).join('')}
         </div>
@@ -250,10 +269,10 @@ function buildMinimal(userName, userEmail, profile, data) {
     ${certifications.map(c=>`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div>
-        <div style="font-weight:600;font-size:13px">${c.title}</div>
-        <div style="font-size:12px;color:#6B7280">${c.issuer}</div>
+        <div style="font-weight:600;font-size:13px">${esc(c.title)}</div>
+        <div style="font-size:12px;color:#6B7280">${esc(c.issuer)}</div>
       </div>
-      ${c.date?`<div style="font-size:11px;color:#9CA3AF">${c.date}</div>`:''}
+      ${c.date?`<div style="font-size:11px;color:#9CA3AF">${esc(c.date)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -278,18 +297,18 @@ function buildModern(userName, userEmail, profile, data) {
     ${profile.cv_photo
       ? `<img src="${profile.cv_photo}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1.5px solid ${accent}44;margin-bottom:16px" />`
       : `<div style="width:64px;height:64px;border-radius:50%;background:${accent}1A;border:1.5px solid ${accent}44;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:${accent};margin-bottom:16px">
-      ${(userName||'?')[0].toUpperCase()}
+      ${esc((userName||'?')[0].toUpperCase())}
     </div>`}
-    <div style="font-size:17px;font-weight:700;line-height:1.2;margin-bottom:4px;color:#111827">${userName||'Your Name'}</div>
-    ${profile.cv_headline ? `<div style="font-size:11.5px;font-weight:600;margin-bottom:8px;color:${accent}">${profile.cv_headline}</div>` : ''}
-    <div style="font-size:10.5px;color:#6B7280;margin-bottom:32px;line-height:1.6">${[userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).join('<br/>')}</div>
+    <div style="font-size:17px;font-weight:700;line-height:1.2;margin-bottom:4px;color:#111827">${esc(userName)||'Your Name'}</div>
+    ${profile.cv_headline ? `<div style="font-size:11.5px;font-weight:600;margin-bottom:8px;color:${accent}">${esc(profile.cv_headline)}</div>` : ''}
+    <div style="font-size:10.5px;color:#6B7280;margin-bottom:32px;line-height:1.6">${[userEmail, profile.cv_phone, profile.cv_location].filter(Boolean).map(esc).join('<br/>')}</div>
 
     ${skills.length ? `
     <div style="margin-bottom:28px">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#9CA3AF;margin-bottom:12px">Skills</div>
       ${skills.map(s=>`
       <div style="margin-bottom:10px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#111827">${s.name}</div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#111827">${esc(s.name)}</div>
         <div style="display:flex;gap:3px">
           ${[1,2,3].map(d=>`<div style="flex:1;height:3px;border-radius:2px;background:${d<=(LD[s.level]||1)?accent:'#E5E7EB'}"></div>`).join('')}
         </div>
@@ -301,8 +320,8 @@ function buildModern(userName, userEmail, profile, data) {
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#9CA3AF;margin-bottom:12px">Certifications</div>
       ${certifications.map(c=>`
       <div style="margin-bottom:10px">
-        <div style="font-size:12px;font-weight:600;color:#111827">${c.title}</div>
-        <div style="font-size:11px;color:#6B7280">${c.issuer}${c.date?` · ${c.date}`:''}</div>
+        <div style="font-size:12px;font-weight:600;color:#111827">${esc(c.title)}</div>
+        <div style="font-size:11px;color:#6B7280">${esc(c.issuer)}${c.date?` · ${esc(c.date)}`:''}</div>
       </div>`).join('')}
     </div>` : ''}
   </div>
@@ -312,7 +331,7 @@ function buildModern(userName, userEmail, profile, data) {
     ${profile.cv_summary ? `
     <div style="margin-bottom:32px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:${accent};margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid ${accent}">Summary</div>
-      <div style="font-size:12.5px;color:#374151">${profile.cv_summary}</div>
+      <div style="font-size:12.5px;color:#374151">${esc(profile.cv_summary)}</div>
     </div>` : ''}
 
     ${experience.length ? `
@@ -321,11 +340,11 @@ function buildModern(userName, userEmail, profile, data) {
       ${experience.map(x=>`
       <div style="margin-bottom:18px;padding-left:12px;border-left:3px solid #EDE9FE">
         <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
-          <div style="font-weight:700;font-size:14px;color:#111827">${x.role}</div>
+          <div style="font-weight:700;font-size:14px;color:#111827">${esc(x.role)}</div>
           <div style="font-size:11px;color:#9CA3AF">${dateRange(x.start_date, x.end_date, x.is_current)}</div>
         </div>
-        <div style="font-size:11.5px;font-weight:600;color:${accent};margin:2px 0">${[x.company, x.location].filter(Boolean).join(' · ')}</div>
-        ${x.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px;white-space:pre-line">${x.description}</div>`:''}
+        <div style="font-size:11.5px;font-weight:600;color:${accent};margin:2px 0">${[x.company, x.location].filter(Boolean).map(esc).join(' · ')}</div>
+        ${x.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px;white-space:pre-line">${esc(x.description)}</div>`:''}
       </div>`).join('')}
     </div>` : ''}
 
@@ -335,11 +354,11 @@ function buildModern(userName, userEmail, profile, data) {
       ${education.map(ed=>`
       <div style="margin-bottom:16px;padding-left:12px;border-left:3px solid #EDE9FE">
         <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap">
-          <div style="font-weight:700;font-size:14px;color:#111827">${ed.school}</div>
+          <div style="font-weight:700;font-size:14px;color:#111827">${esc(ed.school)}</div>
           <div style="font-size:11px;color:#9CA3AF">${dateRange(ed.start_date, ed.end_date)}</div>
         </div>
-        ${ed.degree||ed.field?`<div style="font-size:11.5px;font-weight:600;color:${accent};margin:2px 0">${[ed.degree,ed.field].filter(Boolean).join(', ')}</div>`:''}
-        ${ed.description?`<div style="font-size:12px;color:#4B5563;margin-top:3px">${ed.description}</div>`:''}
+        ${ed.degree||ed.field?`<div style="font-size:11.5px;font-weight:600;color:${accent};margin:2px 0">${esc([ed.degree,ed.field].filter(Boolean).join(', '))}</div>`:''}
+        ${ed.description?`<div style="font-size:12px;color:#4B5563;margin-top:3px">${esc(ed.description)}</div>`:''}
       </div>`).join('')}
     </div>` : ''}
 
@@ -348,10 +367,10 @@ function buildModern(userName, userEmail, profile, data) {
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:${accent};margin-bottom:16px;padding-bottom:6px;border-bottom:2px solid ${accent}">Projects</div>
       ${projects.map(p=>`
       <div style="margin-bottom:20px;padding-left:12px;border-left:3px solid #EDE9FE">
-        <div style="font-weight:700;font-size:14px;color:#111827">${p.title}</div>
-        ${p.tech?`<div style="font-size:11px;font-weight:600;color:${accent};margin:3px 0">${p.tech}</div>`:''}
-        ${p.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px">${p.description}</div>`:''}
-        ${p.link?`<div style="font-size:11px;color:#9CA3AF;margin-top:3px">${p.link}</div>`:''}
+        <div style="font-weight:700;font-size:14px;color:#111827">${esc(p.title)}</div>
+        ${p.tech?`<div style="font-size:11px;font-weight:600;color:${accent};margin:3px 0">${esc(p.tech)}</div>`:''}
+        ${p.description?`<div style="font-size:12.5px;color:#4B5563;margin-top:4px">${esc(p.description)}</div>`:''}
+        ${p.link?`<div style="font-size:11px;color:#9CA3AF;margin-top:3px">${esc(p.link)}</div>`:''}
       </div>`).join('')}
     </div>` : ''}
 
@@ -375,8 +394,8 @@ function buildAcademic(userName, userEmail, profile, data) {
   <!-- Header — centred -->
   <div style="text-align:center;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #1a1a1a">
     ${profile.cv_photo ? `<img src="${profile.cv_photo}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;margin:0 auto 16px;display:block" />` : ''}
-    <div style="font-size:30px;font-weight:700;letter-spacing:1px;text-transform:uppercase">${userName||'Your Name'}</div>
-    ${profile.cv_headline ? `<div style="font-size:13px;color:#333;margin-top:8px;font-style:italic">${profile.cv_headline}</div>` : ''}
+    <div style="font-size:30px;font-weight:700;letter-spacing:1px;text-transform:uppercase">${esc(userName)||'Your Name'}</div>
+    ${profile.cv_headline ? `<div style="font-size:13px;color:#333;margin-top:8px;font-style:italic">${esc(profile.cv_headline)}</div>` : ''}
     <div style="font-size:11px;color:#555;margin-top:8px;letter-spacing:1px">
       ${contactLine(userEmail, profile)}
     </div>
@@ -385,7 +404,7 @@ function buildAcademic(userName, userEmail, profile, data) {
   ${profile.cv_summary ? `
   <div style="margin-bottom:32px">
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#1a1a1a;text-align:center;margin-bottom:16px">Summary</div>
-    <div style="font-size:13px;color:#333;text-align:justify">${profile.cv_summary}</div>
+    <div style="font-size:13px;color:#333;text-align:justify">${esc(profile.cv_summary)}</div>
   </div>` : ''}
 
   ${education.length ? `
@@ -394,11 +413,11 @@ function buildAcademic(userName, userEmail, profile, data) {
     ${education.map(ed=>`
     <div style="margin-bottom:18px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-weight:700;font-size:14px;font-style:italic">${ed.school}</div>
+        <div style="font-weight:700;font-size:14px;font-style:italic">${esc(ed.school)}</div>
         <div style="font-size:11px;color:#555">${dateRange(ed.start_date, ed.end_date)}</div>
       </div>
-      ${ed.degree||ed.field?`<div style="font-size:12.5px;color:#555;margin-top:2px">${[ed.degree,ed.field].filter(Boolean).join(', ')}</div>`:''}
-      ${ed.description?`<div style="font-size:12.5px;color:#333;margin-top:4px;text-align:justify">${ed.description}</div>`:''}
+      ${ed.degree||ed.field?`<div style="font-size:12.5px;color:#555;margin-top:2px">${esc([ed.degree,ed.field].filter(Boolean).join(', '))}</div>`:''}
+      ${ed.description?`<div style="font-size:12.5px;color:#333;margin-top:4px;text-align:justify">${esc(ed.description)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -408,11 +427,11 @@ function buildAcademic(userName, userEmail, profile, data) {
     ${experience.map(x=>`
     <div style="margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-weight:700;font-size:14px;font-style:italic">${x.role}${x.company?`, ${x.company}`:''}</div>
+        <div style="font-weight:700;font-size:14px;font-style:italic">${esc(x.role)}${x.company?`, ${esc(x.company)}`:''}</div>
         <div style="font-size:11px;color:#555">${dateRange(x.start_date, x.end_date, x.is_current)}</div>
       </div>
-      ${x.location?`<div style="font-size:11px;color:#777;margin-top:2px">${x.location}</div>`:''}
-      ${x.description?`<div style="font-size:13px;color:#333;margin-top:4px;text-align:justify;white-space:pre-line">${x.description}</div>`:''}
+      ${x.location?`<div style="font-size:11px;color:#777;margin-top:2px">${esc(x.location)}</div>`:''}
+      ${x.description?`<div style="font-size:13px;color:#333;margin-top:4px;text-align:justify;white-space:pre-line">${esc(x.description)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -422,11 +441,11 @@ function buildAcademic(userName, userEmail, profile, data) {
     ${projects.map(p=>`
     <div style="margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div style="font-weight:700;font-size:14px;font-style:italic">${p.title}</div>
-        ${p.tech?`<div style="font-size:11px;color:#555">${p.tech}</div>`:''}
+        <div style="font-weight:700;font-size:14px;font-style:italic">${esc(p.title)}</div>
+        ${p.tech?`<div style="font-size:11px;color:#555">${esc(p.tech)}</div>`:''}
       </div>
-      ${p.description?`<div style="font-size:13px;color:#333;margin-top:4px;text-align:justify">${p.description}</div>`:''}
-      ${p.link?`<div style="font-size:11px;color:#777;margin-top:3px">${p.link}</div>`:''}
+      ${p.description?`<div style="font-size:13px;color:#333;margin-top:4px;text-align:justify">${esc(p.description)}</div>`:''}
+      ${p.link?`<div style="font-size:11px;color:#777;margin-top:3px">${esc(p.link)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -436,8 +455,8 @@ function buildAcademic(userName, userEmail, profile, data) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 32px">
       ${skills.map(s=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #D1D5DB">
-        <div style="font-size:13px">${s.name}</div>
-        <div style="font-size:11px;color:#555;font-style:italic;text-transform:capitalize">${s.level}</div>
+        <div style="font-size:13px">${esc(s.name)}</div>
+        <div style="font-size:11px;color:#555;font-style:italic;text-transform:capitalize">${esc(s.level)}</div>
       </div>`).join('')}
     </div>
   </div>` : ''}
@@ -448,10 +467,10 @@ function buildAcademic(userName, userEmail, profile, data) {
     ${certifications.map(c=>`
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dotted #E5E7EB">
       <div>
-        <span style="font-weight:700;font-size:13px;font-style:italic">${c.title}</span>
-        <span style="color:#555;font-size:12px;margin-left:8px">— ${c.issuer}</span>
+        <span style="font-weight:700;font-size:13px;font-style:italic">${esc(c.title)}</span>
+        <span style="color:#555;font-size:12px;margin-left:8px">— ${esc(c.issuer)}</span>
       </div>
-      ${c.date?`<div style="font-size:11px;color:#9CA3AF">${c.date}</div>`:''}
+      ${c.date?`<div style="font-size:11px;color:#9CA3AF">${esc(c.date)}</div>`:''}
     </div>`).join('')}
   </div>` : ''}
 
@@ -497,7 +516,7 @@ export default function CVExportModal({ data, profile = EMPTY_PROFILE, userName,
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>${userName} — CV</title>
+  <title>${esc(userName)} — CV</title>
   <style>
     ${PRINT_FONTS[template]}
     * { margin:0; padding:0; box-sizing:border-box; }

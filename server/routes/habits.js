@@ -56,8 +56,22 @@ router.post('/:id/toggle', async (req, res) => {
       await db.execute({ sql: `DELETE FROM habit_logs WHERE id = ?`, args: [existing.id] });
     } else {
       await db.execute({ sql: `INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)`, args: [habit.id, date] });
-      await addXp(req.user.id, 5, `Completed habit: ${habit.name}`); // needs gamification.js migrated
-      xpAwarded = 5;
+      // Real bug that used to live here: toggling a habit on/off/on/off on
+      // the same day re-ran this INSERT branch every time it landed back
+      // on "on" and paid out +5 XP each time, with no cap — unlimited XP
+      // farming for zero real habit progress. habit_xp_grants is a
+      // separate append-only table (never deleted from, unlike
+      // habit_logs) recording which (habit_id, date) pairs have ever been
+      // paid — so a given day only ever pays out once, no matter how many
+      // times it gets toggled after that.
+      const grantResult = await db.execute({
+        sql:  `INSERT INTO habit_xp_grants (habit_id, date) VALUES (?, ?) ON CONFLICT (habit_id, date) DO NOTHING`,
+        args: [habit.id, date],
+      });
+      if (grantResult.rowsAffected > 0) {
+        await addXp(req.user.id, 5, `Completed habit: ${habit.name}`); // needs gamification.js migrated
+        xpAwarded = 5;
+      }
     }
     const unlocked = await evaluateAchievements(req.user.id);
     res.json({ habit: await withMeta(habit), xpAwarded, unlocked });

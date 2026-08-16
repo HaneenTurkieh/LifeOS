@@ -578,7 +578,14 @@ export default function AITools() {
     // send, so there'd be nothing left to resend). Plain typing still
     // just uses whatever's currently in the compose box.
     const sendAttachments = attachmentsOverride ?? attachments;
-    if ((!content && sendAttachments.length === 0) || loading) return;
+    // Real bug that used to live here: neither this guard, the Send
+    // button, nor Enter-to-send checked `attaching` — so sending while a
+    // file upload was still in flight went through immediately using
+    // whatever was already in `attachments` (not yet including the
+    // upload that hadn't finished appending to it), silently dropping
+    // that file from the message with no error and no indication it
+    // never made it in.
+    if ((!content && sendAttachments.length === 0) || loading || attaching) return;
     const finalContent = content || (sendAttachments.length > 1 ? t('lumi.summarizeFiles') : t('lumi.summarizeFile'));
     const base = historyBase ?? messages; // editAndResend passes the
     // already-truncated history explicitly, since `messages` here would
@@ -634,7 +641,7 @@ export default function AITools() {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, messages, activeConvId, loadConvos, mode, attachments, t]);
+  }, [input, loading, messages, activeConvId, loadConvos, mode, attachments, attaching, t]);
 
   // Edit-and-resend — deletes the edited message and everything after it
   // (both locally and, if it was already persisted, on the server) then
@@ -660,7 +667,7 @@ export default function AITools() {
   }, [messages, activeConvId, sendMessage]);
 
   const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Enter' && !e.shiftKey && !attaching) { e.preventDefault(); sendMessage(); }
   };
 
   const isFirstMessage = messages.length === 0;
@@ -894,7 +901,7 @@ export default function AITools() {
               <motion.button
                 whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={() => sendMessage()}
-                disabled={(!input.trim() && attachments.length === 0) || loading}
+                disabled={(!input.trim() && attachments.length === 0) || loading || attaching}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
                 style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 12px rgb(var(--accent-500) / 0.35)' }}
               >

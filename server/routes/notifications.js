@@ -50,16 +50,23 @@ async function ensureBirthdayTask(userId) {
       args: [userId, deadline, title],
     });
 
-    const existing = (await db.execute({
-      sql:  `SELECT id FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' AND deadline = ? AND title = ?`,
-      args: [userId, deadline, title],
-    })).rows[0];
-    if (existing) return;
-
+    // Real bug that used to live here: a separate SELECT-then-INSERT is
+    // the same check-then-insert race already fixed elsewhere for
+    // notifications (via UNIQUE(user_id, dedupe_key) + ON CONFLICT DO
+    // NOTHING) but never applied here — two concurrent calls (e.g. two
+    // open tabs both loading notifications around the same time) could
+    // both pass the "does it already exist" check before either INSERT
+    // landed, producing two duplicate birthday task rows. Folding the
+    // existence check into the INSERT itself (INSERT ... SELECT ... WHERE
+    // NOT EXISTS) makes it one atomic statement instead of two separate
+    // round-trips, closing the window entirely.
     await db.execute({
       sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source)
-             VALUES (?, ?, ?, 'low', 'Birthday', ?, 'nuvora')`,
-      args: [userId, title, 'Added automatically by Nuvora — happy birthday! 💜', deadline],
+             SELECT ?, ?, ?, 'low', 'Birthday', ?, 'nuvora'
+             WHERE NOT EXISTS (
+               SELECT 1 FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' AND deadline = ? AND title = ?
+             )`,
+      args: [userId, title, 'Added automatically by Nuvora — happy birthday! 💜', deadline, userId, deadline, title],
     });
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
 }

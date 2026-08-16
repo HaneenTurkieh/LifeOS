@@ -225,7 +225,7 @@ async function exportPdfSnapshot(mode, data, t, isRtl, isPremium) {
         ]));
       } else {
         rows.push(block(i + 1, q.question, [
-          ...q.options.map((opt, j) => ({
+          ...(q.options || []).map((opt, j) => ({
             text: `${['A','B','C','D'][j]}) ${opt}`,
             color: j === q.correct ? '#2DA76E' : '#444',
             bold: j === q.correct,
@@ -383,7 +383,7 @@ async function exportPptx(mode, data, t, isPremium) {
         ]);
       } else {
         addContentSlide(`${i + 1}. ${q.question}`, [
-          ...q.options.map((opt, j) => ({
+          ...(q.options || []).map((opt, j) => ({
             text:  `${['A', 'B', 'C', 'D'][j]}) ${opt}`,
             color: j === q.correct ? '2DA76E' : '333333',
             bold:  j === q.correct,
@@ -467,7 +467,12 @@ function MCQQuestion({ q, idx, selected, revealed, onChoose, onReveal, t }) {
         {q.question}
       </p>
       <div className="flex flex-col gap-2.5 mb-4">
-        {q.options.map((opt, i) => {
+        {/* Real bug that used to live here: a malformed AI-generated quiz
+            item missing `options` (rare, but a bad model response is
+            always possible) threw on .map() with no guard — and with only
+            one ErrorBoundary for the whole app, that crashed everything,
+            not just this one question. */}
+        {(q.options || []).map((opt, i) => {
           const isSelected = selected === i;
           const isCorrect  = q.correct === i;
           let bg='rgba(255,255,255,0.50)', border='1px solid rgba(255,255,255,0.65)', color='rgba(30,34,51,0.70)';

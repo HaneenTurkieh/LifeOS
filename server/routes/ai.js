@@ -4,6 +4,7 @@ const { db } = require('../db/connection');
 const ai = require('../lib/ai');
 const { callOpenRouter } = require('../lib/openrouter');
 const { logError } = require('../lib/errorLog');
+const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 
 router.get('/quote', (req, res) => res.json(ai.quoteOfTheDay()));
 
@@ -72,6 +73,14 @@ router.get('/coach', async (req, res) => {
 router.post('/anti-procrastination', async (req, res) => {
   const { title, description = '' } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: 'A task title is required' });
+  // A real, unmetered AI-cost call with no cap at all — unlike every
+  // other AI route in the app. Capped generously since this is meant to
+  // be low-volume by design (one click per stuck task), so a real user
+  // should never actually hit it.
+  const gate = await checkLimit(req.user.id, 'anti_proc');
+  if (!gate.allowed) {
+    return res.status(403).json({ error: limitMessage('anti_proc', gate.limit), code: 'DAILY_LIMIT', feature: 'anti_proc' });
+  }
   try {
     const data = await callOpenRouter({
       messages: [{
@@ -100,6 +109,10 @@ Return a JSON object with exactly these three keys (five_minute, fifteen_minute,
       max_tokens: 800,
       temperature: 0.8,
     });
+    // Cost is incurred by the call above regardless of whether the
+    // response ends up parseable — record it here, not after the parse,
+    // so a malformed response doesn't refund the quota it already spent.
+    await recordUsage(req.user.id, 'anti_proc');
     const raw = data.choices?.[0]?.message?.content || '';
     // response_format:json_object should already guarantee this, but a
     // provider hiccup shouldn't take the whole feature down with it —

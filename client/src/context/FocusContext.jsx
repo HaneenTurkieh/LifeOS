@@ -215,9 +215,11 @@ export function FocusProvider({ children }) {
   const taskRef            = useRef(taskName);
   const taskIdRef          = useRef(taskId);
   const roomRef            = useRef(room);
+  const startedAtRef       = useRef(startedAt);
   const prevTreeStatusRef  = useRef(null);
   useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
+  useEffect(() => { startedAtRef.current = startedAt;  }, [startedAt]);
   useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
   useEffect(() => { taskIdRef.current    = taskId;    }, [taskId]);
   useEffect(() => { roomRef.current      = room;      }, [room]);
@@ -474,7 +476,7 @@ export function FocusProvider({ children }) {
     }
   }, [room, loadMyRooms]);
 
-  const handleComplete = useCallback(async () => {
+  const handleComplete = useCallback(async (sessionStartedAt) => {
     const m   = modeRef.current;
     const min = customMinRef.current;
     const t   = taskRef.current;
@@ -488,6 +490,10 @@ export function FocusProvider({ children }) {
         const res = await api.post('/focus/sessions', {
           task_name: t.trim() || 'Flow Session', duration_minutes: min.focus, task_id: tid || null,
           room_code: r?.code || null, client_date: localDateStr(),
+          // Idempotency token so a second device finishing the same
+          // round can't double-credit XP/tree/task minutes — see
+          // server-side handling in routes/focus.js.
+          session_started_at: sessionStartedAt ? sessionStartedAt.toISOString() : null,
         });
         if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
         // Session just banked its minutes onto the task server-side —
@@ -599,8 +605,14 @@ export function FocusProvider({ children }) {
       if (remaining <= 0) {
         clearInterval(intervalRef.current);
         setIsRunning(false);
+        // Captured before clearing — this is the idempotency token for
+        // the round that just finished, so it has to be grabbed before
+        // setStartedAt(null) below wipes it. See POST /focus/sessions'
+        // session_started_at handling for why this matters (two open
+        // tabs both finishing the same round used to double-credit it).
+        const finishedStartedAt = startedAtRef.current;
         setStartedAt(null);
-        setTimeout(handleComplete, 50);
+        setTimeout(() => handleComplete(finishedStartedAt), 50);
       }
     }, 500);
     return () => clearInterval(intervalRef.current);

@@ -116,9 +116,8 @@ export default function CVBuilder({ openTrigger = 0 }) {
   };
 
   const removeItem = async (which, id) => {
-    await api.del(`/cv/${which}/${id}`);
-    toast.success('Removed');
-    load();
+    try { await api.del(`/cv/${which}/${id}`); toast.success('Removed'); load(); }
+    catch (err) { toast.error(err.message); }
   };
 
   const profileDirty = JSON.stringify(profile) !== JSON.stringify(profileDraft);
@@ -135,6 +134,11 @@ export default function CVBuilder({ openTrigger = 0 }) {
   const handlePhotoFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Same cap as SettingsModal.jsx's avatar upload — was missing here
+    // entirely, so a huge image could be read into a data URL with no
+    // limit at all before landing in profile.cv_photo (which also gets
+    // embedded directly in the exported Word doc and printed PDF).
+    if (file.size > 10 * 1024 * 1024) { toast.error('Image must be under 10MB'); e.target.value = ''; return; }
     const reader = new FileReader();
     reader.onload = () => setCropSrc(reader.result);
     reader.readAsDataURL(file);

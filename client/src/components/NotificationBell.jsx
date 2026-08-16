@@ -44,7 +44,14 @@ export default function NotificationBell() {
   const [unread,        setUnread]        = useState(0);
 
   const timeAgo = (dateStr) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    // created_at is a SQLite datetime('now') string — zone-less but
+    // always UTC. Without the T/Z fix, new Date(...) parses it as local
+    // time instead, which skews every "time ago" label by the local UTC
+    // offset (wrong direction and magnitude depending on the sign) —
+    // same fix already applied everywhere else in the app that parses
+    // one of these strings.
+    const iso  = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
+    const diff = Date.now() - new Date(iso).getTime();
     const m    = Math.floor(diff / 60000);
     if (m < 1)  return t('notif.justNow');
     if (m < 60) return t('notif.mAgo', { n: m });

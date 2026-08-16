@@ -6,6 +6,15 @@ const { callOpenRouter } = require('../lib/openrouter');
 const { getHabitStreak, addXp } = require('../lib/gamification');
 const { logError } = require('../lib/errorLog');
 
+// Real bug that used to live here: Lumi's standard "who made Nuvora" bio
+// answer used to state `profileAge` as Haneen's own age — but profileAge
+// is computed from the CURRENT LOGGED-IN USER's own birthday (it's used
+// elsewhere in the system prompt for personalization). Any user who'd set
+// their own birthday in Settings got told Haneen was their own age,
+// regardless of how old she actually is. This is a plain constant instead
+// — Haneen's real age, completely independent of whichever user is
+// asking. Update it once a year around her birthday.
+const HANEEN_AGE = 19;
 const DEFAULT_SETTINGS = { tone:'friendly', response_length:'balanced', emoji_level:'some' };
 const TONE_PROMPTS = {
   friendly:     'Tone: warm, casual, and supportive — like a close friend who has your back.',
@@ -342,16 +351,33 @@ async function executeTool(name, input, userId, todayLocal) {
         if (matches.length === 1) id = matches[0].id;
       }
       if (!id) return { success: false, message: 'Task not found' };
-      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
+      // Real bugs that used to live here: (1) this SELECT wasn't scoped by
+      // user_id, so a caller-supplied task_id for someone else's task
+      // would leak that task's title back into the chat even though the
+      // UPDATE below (correctly scoped) silently no-op'd; (2) with no
+      // rowsAffected check, that silent no-op still reported
+      // success:true / "Marked as complete" for a task that never
+      // actually changed; (3) XP was awarded unconditionally on every
+      // call, so completing an already-done task (or repeatedly calling
+      // this tool) paid out +20 XP each time with zero real progress —
+      // same class of bug as tasks.js's first_completed_at guard, just
+      // missing from this second code path into the same table.
+      const task = await db.execute({ sql: `SELECT title, status, first_completed_at FROM tasks WHERE id=? AND user_id=?`, args: [id, userId] });
+      const row = task.rows[0];
+      if (!row) return { success: false, message: 'Task not found' };
+      const alreadyEarnedXp = Boolean(row.first_completed_at);
       await db.execute({
-        sql:  `UPDATE tasks SET status='done',progress=100,completed_at=datetime('now') WHERE id=? AND user_id=?`,
+        sql:  `UPDATE tasks SET status='done', progress=100, completed_at=datetime('now'),
+                 first_completed_at=COALESCE(first_completed_at, datetime('now'))
+               WHERE id=? AND user_id=?`,
         args: [id, userId],
       });
-      await db.execute({
-        sql:  `INSERT INTO xp_log (user_id,amount,reason) VALUES (?,20,'Task completed via Lumi')`,
-        args: [userId],
-      });
-      return { success: true, title: task.rows[0]?.title || 'Task', message: 'Marked as complete ✓' };
+      let xpAwarded = 0;
+      if (!alreadyEarnedXp) {
+        try { await addXp(userId, 20, 'Task completed via Lumi'); xpAwarded = 20; }
+        catch (e) { console.error('addXp failed (non-fatal):', e.message); }
+      }
+      return { success: true, title: row.title, xpAwarded, message: xpAwarded ? 'Marked as complete ✓ (+20 XP)' : 'Marked as complete ✓' };
     }
     case 'reopen_task': {
       let id = input.task_id;
@@ -363,12 +389,14 @@ async function executeTool(name, input, userId, todayLocal) {
         if (matches.length === 1) id = matches[0].id;
       }
       if (!id) return { success: false, message: 'Task not found' };
-      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
-      await db.execute({
+      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=? AND user_id=?`, args: [id, userId] });
+      if (!task.rows[0]) return { success: false, message: 'Task not found' };
+      const result = await db.execute({
         sql:  `UPDATE tasks SET status='todo',progress=0,completed_at=NULL WHERE id=? AND user_id=?`,
         args: [id, userId],
       });
-      return { success: true, title: task.rows[0]?.title || 'Task', message: 'Reopened — no longer marked done' };
+      if (result.rowsAffected === 0) return { success: false, message: 'Task not found' };
+      return { success: true, title: task.rows[0].title, message: 'Reopened — no longer marked done' };
     }
     case 'delete_task': {
       let id = input.task_id;
@@ -380,9 +408,11 @@ async function executeTool(name, input, userId, todayLocal) {
         if (matches.length === 1) id = matches[0].id;
       }
       if (!id) return { success: false, message: 'Task not found' };
-      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=?`, args: [id] });
-      await db.execute({ sql: `DELETE FROM tasks WHERE id=? AND user_id=?`, args: [id, userId] });
-      return { success: true, title: task.rows[0]?.title || 'Task', message: 'Deleted' };
+      const task = await db.execute({ sql: `SELECT title FROM tasks WHERE id=? AND user_id=?`, args: [id, userId] });
+      if (!task.rows[0]) return { success: false, message: 'Task not found' };
+      const result = await db.execute({ sql: `DELETE FROM tasks WHERE id=? AND user_id=?`, args: [id, userId] });
+      if (result.rowsAffected === 0) return { success: false, message: 'Task not found' };
+      return { success: true, title: task.rows[0].title, message: 'Deleted' };
     }
     case 'create_goal': {
       const res = await db.execute({
@@ -692,10 +722,19 @@ async function executeTool(name, input, userId, todayLocal) {
       return { success: true, habit_id: Number(res.lastInsertRowid), name: input.name };
     }
     case 'toggle_habit': {
+      // Same ambiguous-match bug the task tools above used to have (see
+      // findTaskByTitle's comment): `LIMIT 1` on a bare LIKE match means
+      // "gym" silently toggling "Gym mornings" when the user actually
+      // meant "Gym evenings" — acting on a guess instead of asking. Now
+      // mirrors the task tools' behavior: more than one match returns the
+      // candidates instead of acting.
       const found = await db.execute({
-        sql:  `SELECT id, name FROM habits WHERE user_id=? AND name LIKE ? LIMIT 1`,
+        sql:  `SELECT id, name FROM habits WHERE user_id=? AND name LIKE ?`,
         args: [userId, `%${input.habit_name}%`],
       });
+      if (found.rows.length > 1) {
+        return { success: false, ambiguous: true, message: 'More than one habit matches — ask the user which one before acting.', candidates: found.rows };
+      }
       const habit = found.rows[0];
       if (!habit) return { success: false, message: 'Habit not found' };
       const existing = await db.execute({
@@ -711,7 +750,15 @@ async function executeTool(name, input, userId, todayLocal) {
           sql:  `INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)`,
           args: [habit.id, today],
         });
-        await addXp(userId, 5, `Completed habit: ${habit.name}`);
+        // Same XP-farming bug as the habits.js /toggle route (toggle
+        // on/off/on/off same day = unlimited +5 XP each time) — gated by
+        // the same habit_xp_grants dedupe table so this tool and the
+        // Habits page can't be used to double-dip on the same day either.
+        const grant = await db.execute({
+          sql:  `INSERT INTO habit_xp_grants (habit_id, date) VALUES (?, ?) ON CONFLICT (habit_id, date) DO NOTHING`,
+          args: [habit.id, today],
+        });
+        if (grant.rowsAffected > 0) await addXp(userId, 5, `Completed habit: ${habit.name}`);
         done = true;
       }
       return { success: true, habit: habit.name, done_today: done };
@@ -870,7 +917,7 @@ someone to think out loud with.
 and mood all in one thoughtfully designed space, instead of scattered across a
 dozen different apps.
 
-3) Who made it: Haneen Turkieh — currently ${profileAge ?? 19} years old — designed
+3) Who made it: Haneen Turkieh — currently ${HANEEN_AGE} years old — designed
 and built the entire thing herself, from scratch: frontend, backend, database,
 and Lumi. She's studying in CAP, the Computer Science Apprenticeship Program, at
 An-Najah National University in Nablus, Palestine — always say "CAP (the
@@ -1177,7 +1224,7 @@ router.post('/', async (req, res) => {
   // (extended thinking, and the web_search tool's own per-search fee) —
   // capped per day for free accounts. Plain chat stays unlimited since
   // it's cheap and it's the daily-habit feature.
-  const gateFeature = mode === 'think' ? 'deep_think' : mode === 'search' ? 'deep_search' : null;
+  const gateFeature = mode === 'think' ? 'deep_think' : mode === 'search' ? 'deep_search' : mode === 'review' ? 'ai_review' : null;
   if (gateFeature) {
     const gate = await checkLimit(req.user.id, gateFeature);
     if (!gate.allowed) {

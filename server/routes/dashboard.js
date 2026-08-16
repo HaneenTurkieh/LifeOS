@@ -18,7 +18,11 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
     // productivity score, or crowd the generic Coming Up list. It gets
     // its own dedicated query/card below instead.
     const [todaysTasksResult, habitsResult, upcomingResult, moodResult, tasksDoneResult, totalTasksResult, birthdayResult] = await Promise.all([
-      db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND source != 'nuvora' AND (deadline = ? OR deadline IS NULL) ORDER BY priority DESC LIMIT 6`, args: [userId, today] }),
+      // priority is TEXT ('low'|'medium'|'high') — a plain
+      // `ORDER BY priority DESC` sorts alphabetically (medium, low,
+      // high), not by actual urgency. The CASE maps it to a real rank so
+      // high-priority tasks genuinely show up first in Today's Tasks.
+      db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND source != 'nuvora' AND (deadline = ? OR deadline IS NULL) ORDER BY CASE priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC LIMIT 6`, args: [userId, today] }),
       db.execute({ sql: `SELECT * FROM habits WHERE user_id = ?`, args: [userId] }),
       db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND source != 'nuvora' AND deadline IS NOT NULL AND deadline >= ? ORDER BY deadline ASC LIMIT 5`, args: [userId, today] }),
       db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [userId, today] }),
@@ -42,13 +46,29 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
     const habitsDoneToday = todaysHabits.filter((h) => h.doneToday).length;
     const totalHabitsToday = habits.length;
 
+    // Real bug that used to live here: the 0.6/0.4 task/habit weighting
+    // was fixed regardless of whether one side even had anything to
+    // measure. On a day with zero tasks due but every habit checked off,
+    // taskScore is 0 (not skipped, just zero out of zero) and the score
+    // capped at habitScore * 0.4 = 40% — a perfect day showing as barely
+    // faring, with the missing 60% attributed to a dimension that never
+    // had anything due in the first place. Same the other way for a
+    // day with no habits at all. The weight now only splits 0.6/0.4 when
+    // BOTH dimensions actually have something due today; otherwise
+    // whichever one does gets full weight.
     let productivityScore;
     if (totalTasksToday === 0 && totalHabitsToday === 0) {
       productivityScore = 0;
     } else {
       const taskScore  = totalTasksToday  > 0 ? tasksDoneToday  / totalTasksToday  : 0;
       const habitScore = totalHabitsToday > 0 ? habitsDoneToday / totalHabitsToday : 0;
-      productivityScore = Math.round((taskScore * 0.6 + habitScore * 0.4) * 100);
+      if (totalTasksToday === 0) {
+        productivityScore = Math.round(habitScore * 100);
+      } else if (totalHabitsToday === 0) {
+        productivityScore = Math.round(taskScore * 100);
+      } else {
+        productivityScore = Math.round((taskScore * 0.6 + habitScore * 0.4) * 100);
+      }
     }
 
     res.json({
