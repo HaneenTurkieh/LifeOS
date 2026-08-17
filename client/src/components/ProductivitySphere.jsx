@@ -11,7 +11,7 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
   const radius       = (size - 16) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset       = circumference - (Math.min(100, score) / 100) * circumference;
-  const { accent }   = useTheme();
+  const { displayAccent: accent } = useTheme();
 
   const TREE_EMOJIS = {
     seedling:       '🌱', sprout:  '🌿', oak:     '🌳',
