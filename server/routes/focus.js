@@ -521,15 +521,34 @@ router.get('/forest', async (req, res) => {
       }
       byDay[day].push(entry);
     }
-    const alive = result.rows.filter(r => r.status === 'alive').length;
-    const dead  = result.rows.filter(r => r.status === 'dead').length;
+    // Real bug this fixes: "trees planted" undercounting. total_alive/
+    // total_dead/total_minutes used to be computed straight from
+    // `result.rows` above — but that query is LIMIT 300, meant for the
+    // day-by-day history view, not a lifetime total. Once an account
+    // actually planted more than 300 trees (reachable after months of
+    // daily Flow use), these "totals" silently capped at whatever fit in
+    // the most recent 300 instead of the real count. Pulled from a
+    // separate, unlimited aggregate query instead of reusing the capped
+    // display rows — today_planted is unaffected by the cap (today's
+    // trees are always among the most recent 300 short of planting 300+
+    // in a single day) so it still reads off result.rows.
+    const totalsResult = await db.execute({
+      sql: `SELECT
+              SUM(CASE WHEN status = 'alive' THEN 1 ELSE 0 END) alive,
+              SUM(CASE WHEN status = 'dead'  THEN 1 ELSE 0 END) dead,
+              COALESCE(SUM(duration_minutes), 0) total_minutes
+            FROM planted_trees WHERE user_id = ?`,
+      args: [req.user.id],
+    });
+    const totalsRow = totalsResult.rows[0] || {};
     const today = new Date(Date.now() - offsetMin * 60000).toISOString().slice(0, 10);
     res.json({
       days: days.map(d => ({ date: d, trees: byDay[d] })),
       stats: {
-        total_alive: alive, total_dead: dead,
-        today_planted: (byDay[today] || []).filter(t => t.status === 'alive').length,
-        total_minutes: result.rows.reduce((s, r) => s + Number(r.duration_minutes), 0),
+        total_alive:    Number(totalsRow.alive || 0),
+        total_dead:     Number(totalsRow.dead || 0),
+        today_planted:  (byDay[today] || []).filter(t => t.status === 'alive').length,
+        total_minutes:  Number(totalsRow.total_minutes || 0),
       },
     });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }

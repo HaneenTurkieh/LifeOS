@@ -43,16 +43,6 @@ const TREE_DESC = {
   crystal:'Legendary. For the dedicated.',
   christmas:'One day a year, just for you. Not for sale — a birthday gift from Nuvora.',
 };
-const NEXT_TREE = {
-  seedling:       { key:'sprout',         name:'Sprout',        cost:100  },
-  sprout:         { key:'oak',            name:'Oak',           cost:300  },
-  oak:            { key:'cherry_blossom', name:'Cherry Blossom',cost:600  },
-  cherry_blossom: { key:'bamboo',         name:'Bamboo',        cost:1000 },
-  bamboo:         { key:'palm',           name:'Palm',          cost:1500 },
-  palm:           { key:'pine',           name:'Pine',          cost:2500 },
-  pine:           { key:'crystal',        name:'Crystal Tree',  cost:5000 },
-  crystal:        null,
-};
 const MOOD_OPTIONS = [
   { value:1, emoji:'😞', label:'mood.rough' },
   { value:2, emoji:'😐', label:'mood.meh'   },
@@ -179,7 +169,20 @@ export default function Dashboard() {
   // due today", which read as a bug (it was one).
   const taskLabel    = isRoughDay && todaysTasks.length > 0 ? t('dash.justTwo') : t('dash.todaysTasks');
   const totalXp      = treeData?.totalXp || 0;
-  const nextTree     = NEXT_TREE[equippedTree];
+  // Real bug this fixes: this used to be NEXT_TREE[equippedTree] — a
+  // second, hand-maintained copy of the tree progression that had
+  // drifted out of sync with the real catalogue in trees.js (missing
+  // Coral, Cactus, Water, Maple, Flamingo, Money Tree entirely) AND used
+  // the wrong signal to begin with: which tree happens to be *equipped*
+  // (a cosmetic choice) rather than which tree hasn't been unlocked yet.
+  // Equip an old tree while saving for a new one, or have your equipped
+  // tree be one of the ones missing from that list, and the bar had
+  // nothing real to track — looked permanently stuck. treeData.trees
+  // already comes straight from the server's real catalogue, in
+  // ascending-cost order, with `owned` on every entry — the cheapest
+  // one not yet owned IS the next tree to progress toward, no separate
+  // list to keep in sync.
+  const nextTree     = treeData?.trees?.find((t) => !t.owned) || null;
   // The actual designed Mystic Tree (shape/colour/glow), not just the
   // "mystic:<id>" key — so we can render the real shape the person made
   // instead of a generic placeholder emoji.
