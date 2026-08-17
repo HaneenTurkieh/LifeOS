@@ -18,6 +18,7 @@ import { useTheme }      from './context/ThemeContext.jsx';
 import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
 import useMilestoneReminders from './hooks/useMilestoneReminders.js';
+import { isTodayBirthday } from './utils/birthday.js';
 // Every page below is lazy-loaded so each route becomes its own JS chunk
 // instead of all of them (plus their dependencies, e.g. recharts pulled in
 // by Analytics) getting bundled into one ~2.3MB file that every visitor
@@ -176,7 +177,7 @@ function AppShell() {
   const navigate          = useNavigate();
   const { user }          = useAuth();
   const toast             = useToast();
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, setBirthdayOverride } = useTheme();
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
   const [searchOpen,    setSearchOpen]    = useState(false);
@@ -194,6 +195,22 @@ function AppShell() {
       setShowOnboarding(true);
     }
   }, [user?.id]);
+
+  // ── Birthday theme ───────────────────────────────────────────
+  // Pink for a girl, blue for a boy, for just that one day — then back
+  // to whatever theme they actually had, Free or Premium. This only ever
+  // sets a display-time override in ThemeContext (see its own comment);
+  // it never writes to the real saved accent, so there's nothing to
+  // "restore" the next day — it just stops applying itself. AppShell is
+  // the natural place for this: it's the one component that already sits
+  // inside both AuthProvider (for user.birthday/gender) and ThemeProvider.
+  useEffect(() => {
+    if (isTodayBirthday(user?.birthday) && (user?.gender === 'male' || user?.gender === 'female')) {
+      setBirthdayOverride(user.gender === 'male' ? 'blue' : 'pink');
+    } else {
+      setBirthdayOverride(null);
+    }
+  }, [user?.birthday, user?.gender, setBirthdayOverride]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {

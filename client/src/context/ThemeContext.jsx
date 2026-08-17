@@ -96,6 +96,20 @@ export function ThemeProvider({ children }) {
   // piggybacks on the poll below, which was already hitting that route.
   const [isPremium, setIsPremium] = useState(false);
 
+  // Birthday theme — pink for a girl, blue for a boy, for that one day
+  // only, then back to whatever they actually had. Deliberately NOT
+  // wired through setAccent/the persisted theme_preset: this context sits
+  // OUTSIDE AuthProvider in main.jsx so it can't read user.birthday/
+  // gender itself, and writing the real preset would (a) fight the 5s
+  // poll pulling the real saved value back, and (b) actually overwrite a
+  // Premium user's custom pick instead of just masking it for the day.
+  // AppShell (which has both contexts) sets this via setBirthdayOverride;
+  // it's applied on top of `accent` at the DOM level only, so `accent`
+  // itself — and whatever's persisted server-side — never changes. The
+  // day after, AppShell clears it and the real value is already right
+  // there, unchanged, for free and Premium accounts alike.
+  const [birthdayOverride, setBirthdayOverride] = useState(null);
+
   useEffect(() => {
     const isDark = resolveIsDark(mode);
     applyTheme(isDark);
@@ -104,9 +118,9 @@ export function ThemeProvider({ children }) {
   }, [mode]);
 
   useEffect(() => {
-    applyAccent(accent);
+    applyAccent(birthdayOverride || accent);
     try { localStorage.setItem(ACCENT_STORAGE_KEY, accent); } catch (_) {}
-  }, [accent]);
+  }, [accent, birthdayOverride]);
 
   useEffect(() => {
     applyFontScale(fontScale);
@@ -195,7 +209,17 @@ export function ThemeProvider({ children }) {
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, resolvedTheme, accent, setAccent, fontScale, setFontScale, isPremium }}>
+    <ThemeContext.Provider value={{
+      mode, setMode, resolvedTheme,
+      // `accent` stays the REAL saved preference (what Settings' theme
+      // picker should show as selected, and what setAccent/toggle logic
+      // compares against) — the birthday override never touches it.
+      // `displayAccent` is what anything doing its own JS color lookup
+      // (can't use the [data-accent] CSS vars applyAccent already sets)
+      // should render with, so it matches the rest of the app today.
+      accent, setAccent, displayAccent: birthdayOverride || accent, setBirthdayOverride,
+      fontScale, setFontScale, isPremium,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

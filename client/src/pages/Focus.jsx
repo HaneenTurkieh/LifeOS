@@ -122,7 +122,7 @@ export default function Flow() {
   const toast    = useToast();
   const { user } = useAuth();
   const { t, lang } = useLanguage();
-  const { resolvedTheme, accent } = useTheme();
+  const { resolvedTheme, displayAccent: accent } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const isBirthday = isTodayBirthday(user?.birthday);
   const muted = (a) => (isDark ? `rgba(255,255,255,${a})` : `rgba(30,34,51,${a})`);
@@ -253,6 +253,15 @@ export default function Flow() {
   // from both the Reset button and the pause-grace timeout, so refresh
   // the land here whenever either one lands a kill.
   useEffect(() => { if (died) loadForest(); }, [died]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Real bug this fixes: "today's plant are recorded but not planted".
+  // A successful session (the opposite of `died` above) never refreshed
+  // `forest` at all — only a tab switch to 'forest' or a death did. If
+  // you were already sitting on My Land when a round finished (the
+  // natural place to be, watching your land while Flow runs), the
+  // congrats popup correctly said "tree planted" (it reads straight off
+  // the session response), XP was really awarded, but the land itself
+  // kept showing the old state until you switched tabs away and back.
+  useEffect(() => { if (congrats?.treePlanted) loadForest(); }, [congrats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!room?.code) { setLiveRoom(null); return; }
