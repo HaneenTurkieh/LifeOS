@@ -295,35 +295,44 @@ export function FocusProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+    // Real bug this fixes: "refreshing killed my tree". The token was
+    // only checked once, right when this effect first ran ([] deps —
+    // never re-runs) — same class of bug already fixed in
+    // ThemeContext.jsx. If this mounted before login (e.g. right after
+    // clearing site data, or any reload that lands on /login for a
+    // moment), there was no token yet, so this whole sync — including
+    // the setInterval poll — never even got created. Logging back in
+    // afterward didn't help: nothing was left to retry it. The actual
+    // server-side session kept running the entire time, but this device
+    // just silently stopped syncing to it — no GET /focus/timer, ever,
+    // for the rest of that session — so the local view fell back to
+    // "nothing running" even though the tree was still genuinely alive
+    // server-side. Nothing explicitly killed it; the device just stopped
+    // looking. Now the interval always gets created, and each tick
+    // (including the first) re-checks getToken() fresh, so it picks up
+    // a token that appears later within one 5s poll instead of never.
     let active = true;
-    const load = async () => {
+    const tick = async (isFirst) => {
+      const token = getToken();
+      if (!token) return;
       try {
         const d = await api.get('/focus/timer');
         if (!active) return;
         if (d.exists) {
-          versionRef.current = d.version;
-          applyServerState(d);
-        } else {
+          if (d.version !== versionRef.current) {
+            versionRef.current = d.version;
+            applyServerState(d);
+          }
+        } else if (isFirst) {
           // No row yet for this account — create one from current
           // (possibly sessionStorage-restored) local state.
           pushTimerState({});
         }
       } catch (_) {}
-      loadedRef.current = true;
+      if (isFirst) loadedRef.current = true;
     };
-    load();
-    const poll = setInterval(async () => {
-      try {
-        const d = await api.get('/focus/timer');
-        if (!active || !d.exists) return;
-        if (d.version !== versionRef.current) {
-          versionRef.current = d.version;
-          applyServerState(d);
-        }
-      } catch (_) {}
-    }, 5000);
+    tick(true);
+    const poll = setInterval(() => tick(false), 5000);
     return () => { active = false; clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
