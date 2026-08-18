@@ -238,14 +238,22 @@ export default function Login() {
                       animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
                       exit={{ opacity: 0, height: 0, marginTop: 0 }}
                       transition={{ duration: 0.25 }}
-                      className="text-xs leading-relaxed text-center overflow-hidden"
+                      className="text-center overflow-hidden px-1"
                       style={{ color: heroSubClr }}
                     >
+                      {/* Display font (Outfit — same as headings), not
+                          italic: Outfit isn't loaded with a true italic
+                          face here, so forcing one just fakes a slant
+                          on a geometric sans, which reads worse, not
+                          more "beautiful." A touch bigger, lighter
+                          weight, and more line-height instead — reads
+                          like a line worth pausing on rather than
+                          another line of body copy. */}
                       <motion.span
                         initial={{ clipPath: 'inset(0 100% 0 0)' }}
                         animate={{ clipPath: 'inset(0 0% 0 0)' }}
                         transition={{ duration: 0.9, delay: 0.15, ease: [0.65, 0, 0.35, 1] }}
-                        className="block"
+                        className="block font-display font-normal text-[13px] leading-[1.6] tracking-wide"
                       >
                         {t('login.nameMeaning')}
                       </motion.span>
