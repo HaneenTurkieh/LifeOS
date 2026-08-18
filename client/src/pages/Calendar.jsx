@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check,
-  Clock, Pencil, Trash2, Calendar as CalIcon,
+  Pencil, Trash2, Calendar as CalIcon,
 } from 'lucide-react';
 import { api }      from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -33,6 +33,10 @@ function localToday() {
   return toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
 }
 const emptyForm = { title:'', priority:'medium', category:'General', deadline_time:'', description:'' };
+// Row height for the hourly day-view timeline below — 24 of these stacked
+// gives the scrollable grid its real height (1248px), which the absolutely
+// positioned task blocks and "now" line are then offset against.
+const HOUR_H = 52;
 
 export default function Calendar() {
   const toast             = useToast();
@@ -73,6 +77,7 @@ export default function Calendar() {
   const [touchGhost,    setTouchGhost]    = useState(null);
   const touchRef         = useRef({ task:null, startX:0, startY:0, dragging:false });
   const suppressClickRef = useRef(false);
+  const dayScrollRef     = useRef(null);
   const todayStr = localToday();
   const monthLabel = new Date(year, month, 1).toLocaleDateString(dateLocale, { month:'long' });
 
@@ -83,6 +88,15 @@ export default function Calendar() {
     } catch (_) {}
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Opens the day timeline scrolled to something useful instead of
+  // midnight: current time if it's today, otherwise a reasonable 8am start.
+  useEffect(() => {
+    if (!selected || !dayScrollRef.current) return;
+    const isToday = selected === todayStr;
+    const targetMinutes = isToday ? (now.getHours() * 60 + now.getMinutes()) : 8 * 60;
+    dayScrollRef.current.scrollTop = Math.max(0, (targetMinutes / 60) * HOUR_H - 80);
+  }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
@@ -545,7 +559,13 @@ export default function Calendar() {
                 })()}
               </motion.div>
             )}
-            {!selectedTask && selected && (
+            {!selectedTask && selected && (() => {
+              const dayTasksAll = tasks.filter(tk => tk.deadline === selected);
+              const timedTasks  = dayTasksAll.filter(tk => tk.deadline_time);
+              const allDayTasks = dayTasksAll.filter(tk => !tk.deadline_time);
+              const isToday     = selected === todayStr;
+              const nowMinutes  = now.getHours() * 60 + now.getMinutes();
+              return (
               <motion.div key={`date-${selected}`}
                 initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }}
                 transition={{ duration:0.2 }}
@@ -556,7 +576,7 @@ export default function Calendar() {
                   <div>
                     <p className={`font-display font-bold ${textMain}`}>{fmtLabel(selected)}</p>
                     <p className={`text-xs mt-0.5 ${textSub}`}>
-                      {tasks.filter(tk=>tk.deadline===selected&&tk.status!=='done').length} {t('calendar.tasksCount')}
+                      {dayTasksAll.filter(tk=>tk.status!=='done').length} {t('calendar.tasksCount')}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -572,48 +592,91 @@ export default function Calendar() {
                     </button>
                   </div>
                 </div>
-                {tasks.filter(tk=>tk.deadline===selected).length === 0 ? (
+
+                {dayTasksAll.length === 0 ? (
                   <div className="flex flex-col items-center py-8 text-center">
                     <span className="text-3xl mb-2">📅</span>
                     <p className={`text-sm font-medium ${textSub}`}>{t('calendar.nothing')}</p>
                     <p className={`text-xs mt-1 ${isDark?'text-white/20':'text-ink/30'}`}>{t('calendar.tapAdd')}</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2">
-                    {tasks.filter(tk=>tk.deadline===selected&&tk.status!=='done').map(task => {
-                      const colors = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
-                      return (
-                        <div key={task.id}
-                          className="flex items-center gap-3 rounded-2xl px-3.5 py-3 cursor-pointer"
-                          style={{ background:isDark?colors.dark:colors.bg, border:`1px solid ${colors.border}` }}
-                          onClick={e => openTaskPanel(e, task)}
-                        >
-                          <div className="shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center"
-                            style={{ borderColor:colors.text }}/>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color:colors.text }}>{task.title}</p>
-                            {task.deadline_time && (
-                              <p className="text-[10px] mt-0.5 flex items-center gap-1 opacity-70" style={{ color:colors.text }}>
-                                <Clock size={9}/>{fmtTime(task.deadline_time)}
-                              </p>
-                            )}
-                          </div>
-                          <Pencil size={12} style={{ color:colors.text, opacity:0.50 }}/>
-                        </div>
-                      );
-                    })}
-                    {tasks.filter(tk=>tk.deadline===selected&&tk.status==='done').map(task => (
-                      <div key={task.id}
-                        className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 opacity-45"
-                        style={{ background:'rgba(76,195,138,0.08)', border:'1px solid rgba(76,195,138,0.15)' }}>
-                        <Check size={14} className="text-sage-500 shrink-0"/>
-                        <p className={`text-xs line-through truncate ${isDark?'text-white/40':'text-ink/50'}`}>{task.title}</p>
+                  <>
+                    {allDayTasks.length > 0 && (
+                      <div className="flex flex-col gap-1.5 mb-3 pb-3" style={{ borderBottom:`1px solid ${divider}` }}>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${textSub}`}>{t('calendar.allDay')}</p>
+                        {allDayTasks.map(task => {
+                          const colors = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
+                          const isDone = task.status === 'done';
+                          return (
+                            <div key={task.id}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer"
+                              style={{ background:isDark?colors.dark:colors.bg, border:`1px solid ${colors.border}`, opacity:isDone?0.5:1 }}
+                              onClick={e => openTaskPanel(e, task)}
+                            >
+                              {isDone && <Check size={11} className="text-sage-500 shrink-0"/>}
+                              <p className={`text-xs font-semibold truncate flex-1 ${isDone?'line-through':''}`} style={{ color:colors.text }}>{task.title}</p>
+                              <Pencil size={11} style={{ color:colors.text, opacity:0.5 }}/>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
+                    )}
+
+                    {/* Hourly timeline — the actual iOS-style day view: 24
+                        hour rows give the container its scrollable height,
+                        timed tasks + the live "now" line sit absolutely
+                        positioned on top of it by minute-of-day. */}
+                    <div ref={dayScrollRef} className="max-h-[420px] overflow-y-auto pe-1">
+                      <div className="relative">
+                        {Array.from({ length: 24 }, (_, h) => h).map(h => {
+                          const label = new Date(2000,0,1,h).toLocaleTimeString(dateLocale, { hour:'numeric' });
+                          return (
+                            <div key={h}
+                              className="flex items-start gap-2 cursor-pointer group"
+                              style={{ height: HOUR_H, borderTop:`1px solid ${divider}` }}
+                              onClick={() => { setAddModalOpen(selected); setAddForm({ ...emptyForm, deadline_time: `${String(h).padStart(2,'0')}:00` }); }}
+                            >
+                              <span className={`text-[10px] w-11 shrink-0 pt-1 text-end ${isDark?'text-white/25':'text-ink/35'}`}>{label}</span>
+                              <div className="flex-1 h-full rounded-lg transition-colors group-hover:bg-[rgb(var(--accent-500)/0.05)]" />
+                            </div>
+                          );
+                        })}
+                        <div className="absolute top-0 pointer-events-none" style={{ insetInlineStart: 52, insetInlineEnd: 2 }}>
+                          {timedTasks.map(task => {
+                            const [hh, mm] = task.deadline_time.split(':').map(Number);
+                            const top    = ((hh * 60 + mm) / 60) * HOUR_H;
+                            const colors = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
+                            const isDone = task.status === 'done';
+                            return (
+                              <div key={task.id}
+                                className="absolute inset-x-0 mx-0.5 rounded-lg px-2 py-1 pointer-events-auto cursor-pointer overflow-hidden"
+                                style={{
+                                  top, minHeight: HOUR_H * 0.72,
+                                  background: isDark ? colors.dark : colors.bg,
+                                  borderInlineStart: `3px solid ${colors.text}`,
+                                  opacity: isDone ? 0.5 : 1,
+                                }}
+                                onClick={e => openTaskPanel(e, task)}
+                              >
+                                <p className={`text-[11px] font-bold truncate ${isDone?'line-through':''}`} style={{ color:colors.text }}>{task.title}</p>
+                                <p className="text-[9px] opacity-70" style={{ color:colors.text }}>{fmtTime(task.deadline_time)}</p>
+                              </div>
+                            );
+                          })}
+                          {isToday && (
+                            <div className="absolute inset-x-0 flex items-center gap-1" style={{ top: (nowMinutes / 60) * HOUR_H }}>
+                              <div className="h-2 w-2 rounded-full bg-coral-500 shrink-0" style={{ marginInlineStart: -4 }} />
+                              <div className="h-px flex-1 bg-coral-500" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
               </motion.div>
-            )}
+              );
+            })()}
             {!selectedTask && !selected && (
               <motion.div key="empty" initial={{ opacity:0 }} animate={{ opacity:1 }}
                 className="rounded-3xl p-6 flex flex-col items-center justify-center text-center sticky top-6"

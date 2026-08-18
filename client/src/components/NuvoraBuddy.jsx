@@ -14,9 +14,20 @@ import { motion } from 'framer-motion';
 // the app's visual language instead of looking like an imported asset.
 //
 // Blinks on its own on an irregular loop (real eyes don't blink on a
-// metronome), and can wave once on mount via the `wave` prop.
-export default function NuvoraBuddy({ size = 64, wave = false, bob = true, onClick, className = '', title }) {
+// metronome), waves once on mount via the `wave` prop, AND — separately —
+// waves again on its own every so often (`waveLoop`, on by default) so it
+// reads as alive anywhere it's parked, not just in the one-time cinematic
+// intro. This is what makes the persistent corner bubble and the login
+// page's companion feel interactive instead of a static sticker.
+//
+// `mood` (1-5, same scale as the dashboard's mood-of-the-day picker) swaps
+// the mouth curve and, on rough days, adds a pair of soft concerned brows —
+// so the same character reflects how the day's actually going instead of
+// always wearing one fixed expression. Leave it unset for the default
+// happy face.
+export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, bob = true, mood = null, onClick, className = '', title }) {
   const [blink, setBlink] = useState(false);
+  const [waving, setWaving] = useState(wave);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +44,33 @@ export default function NuvoraBuddy({ size = 64, wave = false, bob = true, onCli
     loop();
     return () => { cancelled = true; clearTimeout(t1); clearTimeout(t2); };
   }, []);
+
+  useEffect(() => {
+    if (!waveLoop) return;
+    let cancelled = false;
+    let t1, t2;
+    const loop = () => {
+      const delay = 9000 + Math.random() * 7000; // idle stretch, then a quick wave
+      t1 = setTimeout(() => {
+        if (cancelled) return;
+        setWaving(true);
+        t2 = setTimeout(() => { if (!cancelled) setWaving(false); }, 1150);
+        loop();
+      }, delay);
+    };
+    loop();
+    return () => { cancelled = true; clearTimeout(t1); clearTimeout(t2); };
+  }, [waveLoop]);
+
+  // Mouth shape by mood: bigger smile on great days, flatter on okay days,
+  // a gentle downturn (+ worried brows) on rough/meh ones. Falls back to
+  // the original friendly default when no mood is known yet.
+  const mouthPath =
+    mood >= 5 ? 'M23 39 Q32 49.5 41 39' :
+    mood === 3 ? 'M25 41.5 Q32 43.5 39 41.5' :
+    mood != null && mood <= 2 ? 'M25 42.5 Q32 38 39 42.5' :
+    'M25 40 Q32 46.5 39 40';
+  const showConcernBrows = mood != null && mood <= 2;
 
   return (
     <motion.div
@@ -58,7 +96,7 @@ export default function NuvoraBuddy({ size = 64, wave = false, bob = true, onCli
         {/* waving arm — sits behind the body so only the "hand" peeks out, like a real wave */}
         <motion.g
           style={{ transformOrigin: '13px 40px' }}
-          animate={wave ? { rotate: [0, -24, 6, -20, 0] } : { rotate: 0 }}
+          animate={waving ? { rotate: [0, -24, 6, -20, 0] } : { rotate: 0 }}
           transition={{ duration: 1.1, ease: 'easeInOut', delay: 0.1 }}
         >
           <ellipse cx="9" cy="41" rx="6.5" ry="9.5" fill="rgb(var(--accent-400))" />
@@ -74,12 +112,20 @@ export default function NuvoraBuddy({ size = 64, wave = false, bob = true, onCli
         <ellipse cx="18.5" cy="38" rx="3.2" ry="2.1" fill="white" opacity="0.30" />
         <ellipse cx="45.5" cy="38" rx="3.2" ry="2.1" fill="white" opacity="0.30" />
 
+        {/* worried brows — only on rough/meh mood days */}
+        {showConcernBrows && (
+          <>
+            <path d="M20 22.5 Q24 20 28 22.5" stroke="#241B3D" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.5" />
+            <path d="M36 22.5 Q40 20 44 22.5" stroke="#241B3D" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.5" />
+          </>
+        )}
+
         {/* eyes — snap open/closed on blink, no easing, real blinks aren't a slow fade */}
         <ellipse cx="24" cy="29" rx="3.3" ry={blink ? 0.5 : 3.7} fill="#241B3D" />
         <ellipse cx="40" cy="29" rx="3.3" ry={blink ? 0.5 : 3.7} fill="#241B3D" />
 
-        {/* smile */}
-        <path d="M25 40 Q32 46.5 39 40" stroke="#241B3D" strokeWidth="2.3" strokeLinecap="round" fill="none" />
+        {/* smile — shape follows mood */}
+        <path d={mouthPath} stroke="#241B3D" strokeWidth="2.3" strokeLinecap="round" fill="none" />
 
         {/* sparkle — the nova moment, in miniature */}
         <path d="M48 12 L49.6 16.2 L53.8 17.8 L49.6 19.4 L48 23.6 L46.4 19.4 L42.2 17.8 L46.4 16.2 Z" fill="white" opacity="0.9" />

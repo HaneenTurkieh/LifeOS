@@ -490,6 +490,18 @@ export default function Login() {
         </motion.div>
       </motion.div>
 
+      {/* Persistent companion — separate from WelcomeIntro above. The
+          intro (and its wave) is gated behind localStorage and only ever
+          plays once per browser, so anyone testing/returning to this page
+          after that first run would never see it wave again. This one
+          lives outside that gate: it's here on every visit, waves on its
+          own idle loop (see NuvoraBuddy), and tapping it reveals the
+          Nuvora meaning brief — ties the character back to the identity
+          it's supposed to represent instead of being purely decorative. */}
+      <div className="fixed bottom-16 start-4 lg:start-8 z-[60]">
+        <NuvoraBuddy size={58} onClick={() => setShowMeaning(true)} title={t('login.whatItMeans')} />
+      </div>
+
       {/* Legal footer — needs to be reachable without logging in (Paddle's
           domain review checks for this), and is a normal thing to have
           regardless. */}
