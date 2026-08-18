@@ -1,5 +1,7 @@
 const express = require('express');
 const router  = express.Router();
+const crypto  = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const { db }  = require('../db/connection');
 const {
   hashPassword,
@@ -17,6 +19,13 @@ const { isOwnerEmail }           = require('../lib/ownerEmails');
 const EMAIL_RE               = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MINUTES = 30;
 const WELCOME_XP              = 100;
+
+// Only actually verifies tokens if GOOGLE_CLIENT_ID is set — same
+// "off until configured" approach as everything else that depends on an
+// optional env var in this app (Resend emails, Paddle, etc.). audience is
+// left undefined below when unset, but the route itself checks first and
+// refuses before ever reaching that point.
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || undefined);
 
 // ── Public user shape ─────────────────────────────────────────
 function publicUser(row) {
@@ -108,6 +117,63 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /google — "Continue with Google" ───────────────────────
+// Verifies the ID token Google's client-side library hands back, then
+// finds-or-creates a user by that token's (Google-verified) email — same
+// account, whichever way someone signs in with a given address. New
+// accounts get a random, never-usable password hash (there's no password
+// login path for a Google-only account, but password_hash is NOT NULL)
+// and the same one-time welcome XP as a normal registration.
+router.post('/google', async (req, res) => {
+  try {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(503).json({ error: 'Google sign-in is not configured yet.' });
+    }
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: 'Missing Google credential' });
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken:  credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid Google credential' });
+    }
+    if (!payload?.email) return res.status(401).json({ error: 'Invalid Google credential' });
+    if (!payload.email_verified) return res.status(401).json({ error: 'Google email is not verified' });
+
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    let user = (await db.execute({
+      sql:  `SELECT * FROM users WHERE email = ? COLLATE NOCASE`,
+      args: [normalizedEmail],
+    })).rows[0];
+
+    let welcomeXpAwarded = 0;
+    if (!user) {
+      const trimmedName   = (payload.name || normalizedEmail.split('@')[0]).trim();
+      const password_hash = await hashPassword(crypto.randomBytes(32).toString('hex'));
+      const insert = await db.execute({
+        sql:  `INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)`,
+        args: [trimmedName, normalizedEmail, password_hash],
+      });
+      user = (await db.execute({
+        sql:  `SELECT * FROM users WHERE id = ?`,
+        args: [Number(insert.lastInsertRowid)],
+      })).rows[0];
+      try { await addXp(user.id, WELCOME_XP, 'Welcome gift'); welcomeXpAwarded = WELCOME_XP; }
+      catch (e) { console.error('Welcome XP grant failed:', e); }
+    }
+
+    res.json({ token: signToken(user), user: publicUser(user), welcomeXp: welcomeXpAwarded });
+  } catch (err) {
+    console.error('Google sign-in error:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
