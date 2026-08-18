@@ -63,9 +63,32 @@
 html, body, #root {
   height: 100%;
 }
+html {
+  /* iOS Safari's automatic text-size-adjust heuristic scans each
+     column's content width to decide whether to shrink font sizes to
+     "fit" — and it does this by measuring full (unwrapped) content
+     width, even inside `overflow-x-auto` rows where the overflow is
+     intentional and already scrollable (the CV Builder / Launchpad tab
+     bars, for example). It doesn't factor in per-element scroll
+     containers, so it can decide the whole page column is "too
+     narrow" and shrink text sitewide on exactly the pages with a
+     scrollable tab row — which is what "text becomes too small"
+     actually was. This is the standard fix: it's meaningless on a
+     genuinely responsive layout like this one, where every breakpoint
+     is deliberate, so there's no reason to leave the heuristic on.
+     Safe everywhere — not a per-page patch. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   @apply text-ink font-body;
   transition: background-color 0.4s ease, color 0.4s ease;
+  /* Belt-and-suspenders alongside the text-size-adjust fix above: no
+     single element on any page should ever be able to push the whole
+     body wider than the phone's screen and force a sideways scroll —
+     if one ever does, this clips it instead of letting it drag the
+     rest of the page out of alignment with it. */
+  overflow-x: hidden;
 }
 .dark body {
   @apply text-white/90;
