@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2, Info } from 'lucide-react';
+import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2, Info, Target, Square } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -144,10 +144,19 @@ export default function Dashboard() {
       load();
     } catch (e) { toast.error(e.message); }
   };
+  // Mirrors Goals.jsx's toggleMilestone exactly — same endpoint, same
+  // shape — so this card and the Goals page never disagree about what
+  // "done" means for a milestone.
+  const toggleMilestone = async (m) => {
+    try {
+      await api.put(`/goals/${m.goal_id}/milestones/${m.id}`, { done: true });
+      load();
+    } catch (e) { toast.error(e.message); }
+  };
 
   if (loading || !data) return <PageLoader />;
   const firstName = user?.name?.split(' ')[0] || '';
-  const { todaysTasks, todaysHabits, upcomingDeadlines, birthday, mood, quote, productivityScore, streak, level, counts } = data;
+  const { todaysTasks, todaysHabits, upcomingDeadlines, nextMilestones, birthday, mood, quote, productivityScore, streak, level, counts } = data;
   const moodValue  = mood?.mood || null;
   const isRoughDay = moodValue && moodValue <= 2;
   const isGreatDay = moodValue && moodValue >= 4;
@@ -390,6 +399,36 @@ export default function Dashboard() {
           </GlassCard>
         </div>
         <div className="flex flex-col gap-4">
+          {nextMilestones?.length > 0 && (
+            <GlassCard className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-lavender-500" />
+                  <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.nextMilestones')}</h3>
+                </div>
+                <button onClick={() => navigate('/goals')}
+                  className="text-xs text-lavender-600 dark:text-lavender-300 font-semibold hover:underline">
+                  {t('dash.viewAll')}
+                </button>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {nextMilestones.map((m) => (
+                  <div key={m.id} className="flex items-start gap-2.5">
+                    <button onClick={() => toggleMilestone(m)}
+                      className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
+                      <Square size={15} />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-ink dark:text-white truncate">{m.title}</p>
+                      <p className="text-[10px] text-ink/40 dark:text-white/30 truncate mt-0.5">
+                        {m.goal_title}{m.scheduled_date ? ` · ${formatDeadline(m.scheduled_date)}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
           <GlassCard className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Smile size={15} className="text-lavender-500" />

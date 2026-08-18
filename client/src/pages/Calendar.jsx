@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronLeft, ChevronRight, Plus, X, Check,
+  ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check,
   Clock, Pencil, Trash2, Calendar as CalIcon,
 } from 'lucide-react';
 import { api }      from '../api/client.js';
@@ -94,6 +94,16 @@ export default function Calendar() {
     cells.push({ day:d, currentMonth:true });
   while (cells.length < 42)
     cells.push({ day: cells.length-firstDay-daysInMonth+1, currentMonth:false });
+  // Weeks as their own rows (not one flat 42-cell grid) so tapping a day
+  // can collapse every OTHER week down to height 0 — Apple Calendar's
+  // month-to-week move — while leaving the tapped week as a strip up
+  // top. Collapsing is driven by `selected`, which already existed for
+  // the side detail panel; this just gives it a second job.
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  const selectedWeekIndex = selected
+    ? weeks.findIndex((week) => week.some((c) => c.currentMonth && toDateStr(year, month, c.day) === selected))
+    : -1;
   const prevMonth = () => { if (month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const nextMonth = () => { if (month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); };
   const getTasksForDay = (cell) => {
@@ -311,100 +321,126 @@ export default function Calendar() {
                 <div key={d} className={`py-3 text-center text-[11px] font-bold uppercase tracking-widest ${textSub}`}>{d}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7">
-              {cells.map((cell, idx) => {
-                const dateStr    = cell.currentMonth ? toDateStr(year, month, cell.day) : null;
-                const cellTasks  = getTasksForDay(cell);
-                const isToday    = dateStr === todayStr;
-                const isSelected = dateStr === selected;
-                const isDragOver = dateStr === dragOverDate;
-                const isWeekend  = idx%7===0 || idx%7===6;
-                return (
-                  <div
-                    key={idx}
-                    data-date={dateStr || undefined}
-                    className="relative min-h-[88px] p-2 transition-all"
-                    style={{
-                      borderBottom: `1px solid ${divider}`,
-                      borderInlineEnd: `1px solid ${divider}`,
-                      cursor:        cell.currentMonth ? 'pointer' : 'default',
-                      opacity:       cell.currentMonth ? 1 : 0.25,
-                      background:    isDragOver
-                        ? isDark ? 'rgb(var(--accent-500) / 0.25)' : 'rgb(var(--accent-500) / 0.12)'
-                        : isSelected
-                        ? isDark ? 'rgb(var(--accent-500) / 0.15)' : 'rgb(var(--accent-500) / 0.08)'
-                        : isWeekend && cell.currentMonth
-                        ? isDark ? 'rgba(255,255,255,0.015)' : 'rgba(30,34,51,0.01)'
-                        : 'transparent',
-                      outline: isDragOver ? '2px solid rgb(var(--accent-500) / 0.50)' : 'none',
-                      outlineOffset: '-2px',
-                    }}
-                    onClick={() => cell.currentMonth && setSelected(isSelected ? null : dateStr)}
-                    onDragOver={e => onDragOver(e, dateStr)}
-                    onDragLeave={onDragLeave}
-                    onDrop={e => onDrop(e, dateStr)}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                        isToday
-                          ? 'bg-gradient-to-br from-[rgb(var(--accent-500))] to-[rgb(var(--accent-600))] text-white shadow-md'
-                          : isSelected
-                          ? 'text-lavender-500 dark:text-lavender-300'
-                          : isDark ? 'text-white/55' : 'text-ink/60'
-                      }`}>
-                        {cell.day}
-                      </span>
-                      {cell.currentMonth && (
-                        <button
-                          onClick={e => { e.stopPropagation(); setAddModalOpen(dateStr); setAddForm(emptyForm); }}
-                          className={`opacity-0 hover:opacity-100 flex h-5 w-5 items-center justify-center rounded-lg transition ${isDark?'text-lavender-300 hover:bg-white/10':'text-lavender-500 hover:bg-lavender-100'}`}
-                        >
-                          <Plus size={11}/>
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      {cellTasks.slice(0, 3).map(task => {
-                        const colors     = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
-                        const isDragging = draggedId === task.id;
-                        const isDone     = task.status === 'done';
-                        return (
-                          <div
-                            key={task.id}
-                            draggable={!isDone}
-                            onDragStart={e => !isDone && onDragStart(e, task)}
-                            onDragEnd={onDragEnd}
-                            onClick={e => openTaskPanel(e, task)}
-                            onTouchStart={e => !isDone && onTouchStart(e, task)}
-                            onTouchMove={onTouchMove}
-                            onTouchEnd={onTouchEnd}
-                            onTouchCancel={onTouchCancel}
-                            className={`truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-tight transition-all select-none flex items-center gap-1 ${isDone ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
-                            style={{
-                              background:   isDone ? 'rgba(76,195,138,0.08)' : isDark ? colors.dark : colors.bg,
-                              color:        isDone ? (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(30,34,51,0.40)') : colors.text,
-                              opacity:      isDragging ? 0.40 : isDone ? 0.75 : 1,
-                              transform:    isDragging ? 'scale(0.95)' : 'scale(1)',
-                              touchAction:  'none',
-                              WebkitUserSelect: 'none',
-                              WebkitTouchCallout: 'none',
-                            }}
-                            title={task.title}
-                          >
-                            {isDone && <Check size={9} className="text-sage-500 shrink-0"/>}
-                            <span className={`truncate ${isDone ? 'line-through' : ''}`}>{task.title}</span>
-                          </div>
-                        );
-                      })}
-                      {cellTasks.length > 3 && (
-                        <div className={`text-[9px] px-1 ${isDark?'text-white/25':'text-ink/35'}`}>
-                          {t('dash.moreTasks', { n: cellTasks.length - 3 })}
+            <AnimatePresence>
+              {selected && (
+                <motion.button
+                  initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
+                  transition={{ duration:0.25 }}
+                  onClick={() => setSelected(null)}
+                  className={`w-full flex items-center justify-center gap-1.5 overflow-hidden py-2 text-[11px] font-semibold transition ${isDark?'text-white/35 hover:text-white/60':'text-ink/40 hover:text-ink/70'}`}
+                  style={{ borderBottom:`1px solid ${divider}` }}
+                >
+                  <ChevronDown size={13}/> {t('calendar.backToMonth')}
+                </motion.button>
+              )}
+            </AnimatePresence>
+            <div className="flex flex-col">
+              {weeks.map((week, wIdx) => (
+                <motion.div
+                  key={wIdx}
+                  className="grid grid-cols-7 overflow-hidden"
+                  animate={{
+                    height:  selected && wIdx !== selectedWeekIndex ? 0 : 'auto',
+                    opacity: selected && wIdx !== selectedWeekIndex ? 0 : 1,
+                  }}
+                  transition={{ duration:0.35, ease:[0.65,0,0.35,1] }}
+                >
+                  {week.map((cell, i) => {
+                    const idx        = wIdx * 7 + i;
+                    const dateStr    = cell.currentMonth ? toDateStr(year, month, cell.day) : null;
+                    const cellTasks  = getTasksForDay(cell);
+                    const isToday    = dateStr === todayStr;
+                    const isSelected = dateStr === selected;
+                    const isDragOver = dateStr === dragOverDate;
+                    const isWeekend  = idx%7===0 || idx%7===6;
+                    return (
+                      <div
+                        key={idx}
+                        data-date={dateStr || undefined}
+                        className="relative min-h-[88px] p-2 transition-all"
+                        style={{
+                          borderBottom: `1px solid ${divider}`,
+                          borderInlineEnd: `1px solid ${divider}`,
+                          cursor:        cell.currentMonth ? 'pointer' : 'default',
+                          opacity:       cell.currentMonth ? 1 : 0.25,
+                          background:    isDragOver
+                            ? isDark ? 'rgb(var(--accent-500) / 0.25)' : 'rgb(var(--accent-500) / 0.12)'
+                            : isSelected
+                            ? isDark ? 'rgb(var(--accent-500) / 0.15)' : 'rgb(var(--accent-500) / 0.08)'
+                            : isWeekend && cell.currentMonth
+                            ? isDark ? 'rgba(255,255,255,0.015)' : 'rgba(30,34,51,0.01)'
+                            : 'transparent',
+                          outline: isDragOver ? '2px solid rgb(var(--accent-500) / 0.50)' : 'none',
+                          outlineOffset: '-2px',
+                        }}
+                        onClick={() => cell.currentMonth && setSelected(isSelected ? null : dateStr)}
+                        onDragOver={e => onDragOver(e, dateStr)}
+                        onDragLeave={onDragLeave}
+                        onDrop={e => onDrop(e, dateStr)}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                            isToday
+                              ? 'bg-gradient-to-br from-[rgb(var(--accent-500))] to-[rgb(var(--accent-600))] text-white shadow-md'
+                              : isSelected
+                              ? 'text-lavender-500 dark:text-lavender-300'
+                              : isDark ? 'text-white/55' : 'text-ink/60'
+                          }`}>
+                            {cell.day}
+                          </span>
+                          {cell.currentMonth && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setAddModalOpen(dateStr); setAddForm(emptyForm); }}
+                              className={`opacity-0 hover:opacity-100 flex h-5 w-5 items-center justify-center rounded-lg transition ${isDark?'text-lavender-300 hover:bg-white/10':'text-lavender-500 hover:bg-lavender-100'}`}
+                            >
+                              <Plus size={11}/>
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                        <div className="flex flex-col gap-0.5">
+                          {cellTasks.slice(0, 3).map(task => {
+                            const colors     = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
+                            const isDragging = draggedId === task.id;
+                            const isDone     = task.status === 'done';
+                            return (
+                              <div
+                                key={task.id}
+                                draggable={!isDone}
+                                onDragStart={e => !isDone && onDragStart(e, task)}
+                                onDragEnd={onDragEnd}
+                                onClick={e => openTaskPanel(e, task)}
+                                onTouchStart={e => !isDone && onTouchStart(e, task)}
+                                onTouchMove={onTouchMove}
+                                onTouchEnd={onTouchEnd}
+                                onTouchCancel={onTouchCancel}
+                                className={`truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-tight transition-all select-none flex items-center gap-1 ${isDone ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+                                style={{
+                                  background:   isDone ? 'rgba(76,195,138,0.08)' : isDark ? colors.dark : colors.bg,
+                                  color:        isDone ? (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(30,34,51,0.40)') : colors.text,
+                                  opacity:      isDragging ? 0.40 : isDone ? 0.75 : 1,
+                                  transform:    isDragging ? 'scale(0.95)' : 'scale(1)',
+                                  touchAction:  'none',
+                                  WebkitUserSelect: 'none',
+                                  WebkitTouchCallout: 'none',
+                                }}
+                                title={task.title}
+                              >
+                                {isDone && <Check size={9} className="text-sage-500 shrink-0"/>}
+                                <span className={`truncate ${isDone ? 'line-through' : ''}`}>{task.title}</span>
+                              </div>
+                            );
+                          })}
+                          {cellTasks.length > 3 && (
+                            <div className={`text-[9px] px-1 ${isDark?'text-white/25':'text-ink/35'}`}>
+                              {t('dash.moreTasks', { n: cellTasks.length - 3 })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              ))}
             </div>
           </div>
           <div className="flex items-center gap-5 mt-3 px-1">

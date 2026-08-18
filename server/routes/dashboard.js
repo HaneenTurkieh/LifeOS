@@ -17,7 +17,7 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
     // to-do, so it shouldn't count toward "X left today", the
     // productivity score, or crowd the generic Coming Up list. It gets
     // its own dedicated query/card below instead.
-    const [todaysTasksResult, habitsResult, upcomingResult, moodResult, tasksDoneResult, totalTasksResult, birthdayResult] = await Promise.all([
+    const [todaysTasksResult, habitsResult, upcomingResult, moodResult, tasksDoneResult, totalTasksResult, birthdayResult, nextMilestonesResult] = await Promise.all([
       // priority is TEXT ('low'|'medium'|'high') — a plain
       // `ORDER BY priority DESC` sorts alphabetically (medium, low,
       // high), not by actual urgency. The CASE maps it to a real rank so
@@ -33,6 +33,27 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND project_id IS NULL AND source != 'nuvora' AND deadline = ?`, args: [userId, today] }),
       db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND project_id IS NULL AND source != 'nuvora' AND deadline = ?`, args: [userId, today] }),
       db.execute({ sql: `SELECT title, deadline FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' LIMIT 1`, args: [userId] }),
+      // Next concrete step per active goal — the lowest-position
+      // not-done milestone in each goal, not just "all incomplete
+      // milestones," so a goal with 8 milestones doesn't crowd out
+      // every other goal's turn. scheduled_date is opt-in (the
+      // final-week day planner) so most milestones won't have one —
+      // dated ones surface first since they're time-sensitive, then
+      // the rest fill in by how recently the goal was created.
+      db.execute({
+        sql: `SELECT m.id, m.title, m.scheduled_date, g.id AS goal_id, g.title AS goal_title
+              FROM milestones m
+              JOIN goals g ON g.id = m.goal_id
+              WHERE g.user_id = ? AND g.status = 'active' AND m.done = 0
+                AND m.id = (
+                  SELECT m2.id FROM milestones m2
+                  WHERE m2.goal_id = m.goal_id AND m2.done = 0
+                  ORDER BY m2.position ASC LIMIT 1
+                )
+              ORDER BY (m.scheduled_date IS NULL) ASC, m.scheduled_date ASC, g.created_at DESC
+              LIMIT 5`,
+        args: [userId],
+      }),
     ]);
 
     const habits = habitsResult.rows;
@@ -75,6 +96,7 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       todaysTasks:       todaysTasksResult.rows,
       todaysHabits,
       upcomingDeadlines: upcomingResult.rows,
+      nextMilestones:    nextMilestonesResult.rows,
       birthday:          birthdayResult.rows[0] || null,
       mood:              moodResult.rows[0] || null,
       quote:             quoteOfTheDay(),
