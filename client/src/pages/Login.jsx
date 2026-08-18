@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimationControls } from 'framer-motion';
 import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth }  from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -12,6 +12,12 @@ const DEMO_PASSWORD = 'password123';
 
 export default function Login() {
   const [mode,            setMode]            = useState('login');
+  // What's actually rendered — lags `mode` by the morph's midpoint, so
+  // the form fields swap while the card is fully circular and its own
+  // content is faded out, instead of snapping visibly underneath a
+  // half-open card.
+  const [displayMode,     setDisplayMode]      = useState('login');
+  const [isMorphing,      setIsMorphing]       = useState(false);
   const [showMeaning,     setShowMeaning]     = useState(false);
   const [name,            setName]            = useState('');
   const [email,           setEmail]           = useState('');
@@ -28,10 +34,40 @@ export default function Login() {
   const navigate            = useNavigate();
   const location            = useLocation();
   const redirectTo          = location.state?.from?.pathname || '/';
-  const isLogin             = mode === 'login';
+  const isLogin             = mode === 'login';        // real mode — drives actual submit logic
+  const isDisplayLogin      = displayMode === 'login';  // what's currently on screen
   const isDark              = resolvedTheme === 'dark';
 
-  const switchMode = () => { setMode(isLogin ? 'signup' : 'login'); setError(''); };
+  const cardControls    = useAnimationControls();
+  const contentControls = useAnimationControls();
+  const firstRun         = useRef(true);
+
+  // The whole login block becomes a circle to swap — not a decoration
+  // next to it. The card contracts, fully rounds off into a ball,
+  // spins, and unfolds back into a rectangle with the other mode's
+  // content already underneath. Plain 2D `rotate` on purpose, not
+  // rotateX/Y: this card uses backdrop-filter, and Safari silently
+  // flattens 3D transforms on any element that also blurs behind
+  // itself (same constraint as the onboarding card's page-turn).
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    setIsMorphing(true);
+    cardControls.start({
+      borderRadius: ['2rem', '50%', '2rem'],
+      scale:        [1, 0.7, 1],
+      rotate:       [0, 180, 360],
+      transition:   { duration: 0.85, times: [0, 0.5, 1], ease: [0.65, 0, 0.35, 1] },
+    });
+    contentControls.start({
+      opacity:    [1, 0, 0, 1],
+      transition: { duration: 0.85, times: [0, 0.38, 0.62, 1] },
+    });
+    const swap = setTimeout(() => setDisplayMode(mode), 400);
+    const done = setTimeout(() => setIsMorphing(false), 850);
+    return () => { clearTimeout(swap); clearTimeout(done); };
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const switchMode = () => { if (isMorphing) return; setMode(isLogin ? 'signup' : 'login'); setError(''); };
   const fillDemo   = () => { setMode('login'); setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); setError(''); };
 
   const handleSubmit = async (e) => {
@@ -88,229 +124,199 @@ export default function Login() {
   };
   const iconPos = { insetInlineStart: '0.875rem', top: '50%', transform: 'translateY(-50%)', position: 'absolute', color: iconClr };
 
-  // Two-panel layout on larger screens: a "becoming" orb on one side,
-  // the form on the other. Toggling mode doesn't just crossfade the
-  // form fields (that stays, below) — the whole orb panel swaps sides
-  // via a Framer Motion `layout` animation, and the orb itself changes
-  // size/rotation and sprouts small particles on signup ("a star
-  // forming"). That's the "circle evolving" swap she asked for, tied
-  // back to the actual nova/becoming brand story instead of being a
-  // decoration bolted on separately from it. Hidden below `lg` — on
-  // phones it'd just be a giant circle pushing the form off-screen.
-  const orbPanel = (
-    <motion.div
-      layout
-      key="orb-panel"
-      transition={{ type:'spring', stiffness:140, damping:20 }}
-      className="relative hidden lg:flex w-1/2 items-center justify-center overflow-hidden"
-      style={{ order: isLogin ? 0 : 1 }}
-    >
-      <div className="absolute inset-0"
-        style={{ background: `radial-gradient(circle at 50% 50%, rgb(var(--accent-500) / ${isDark ? 0.14 : 0.10}), transparent 70%)` }} />
-      <motion.div
-        animate={{ width: isLogin ? 340 : 280, height: isLogin ? 340 : 280, rotate: isLogin ? 0 : 40 }}
-        transition={{ type:'spring', stiffness:120, damping:16 }}
-        className="relative rounded-full flex items-center justify-center"
-        style={{
-          background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-300)) 0%, rgb(var(--accent-500)) 45%, rgb(var(--accent-700)) 100%)',
-          boxShadow:  '0 40px 120px rgb(var(--accent-500) / 0.45), inset 0 2px 40px rgba(255,255,255,0.25)',
-        }}
-      >
-        <AnimatePresence>
-          {!isLogin && [0,1,2].map((i) => (
-            <motion.span key={i}
-              initial={{ opacity:0, scale:0 }} animate={{ opacity:0.85, scale:1 }} exit={{ opacity:0, scale:0 }}
-              transition={{ delay: i * 0.08, type:'spring', stiffness:200, damping:14 }}
-              className="absolute rounded-full"
-              style={{
-                width: 14 - i * 2, height: 14 - i * 2, background:'white',
-                top: `${20 + i * 22}%`, left: `${70 - i * 14}%`,
-                boxShadow: '0 0 12px rgba(255,255,255,0.8)',
-              }}
-            />
-          ))}
-        </AnimatePresence>
-        <div className="relative z-10 flex flex-col items-center text-center px-6">
-          <img src="/icon-192.png" alt="Nuvora" className="h-12 w-12 mb-3 drop-shadow-lg" />
-          <p className="font-display text-white text-sm font-bold tracking-[0.35em] mb-2">NUVORA</p>
-          <AnimatePresence mode="wait">
-            <motion.p key={mode}
-              initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
-              transition={{ duration:0.25 }}
-              className="text-white/85 text-xs leading-relaxed max-w-[200px]"
-            >
-              {isLogin ? t('login.pickUp') : t('login.startBrain')}
-            </motion.p>
-          </AnimatePresence>
-        </div>
-      </motion.div>
-    </motion.div>
+  // Ambient glossy blobs behind the card — soft blurred accent-color
+  // circles standing in for the reference images' rendered 3D spheres,
+  // built from the same --accent-* tokens the rest of the app already
+  // uses (so it reads as Nuvora, not a generic template) plus one warm
+  // highlight for depth. Decorative only — never intercepts clicks.
+  const bgBlobs = (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute -top-28 -left-20 h-80 w-80 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-300) / 0.55), rgb(var(--accent-600) / 0.35) 60%, transparent 75%)' }} />
+      <div className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle at 40% 35%, rgb(var(--accent-400) / 0.45), rgb(var(--accent-700) / 0.30) 60%, transparent 75%)' }} />
+      <div className="absolute top-[8%] right-[8%] h-36 w-36 rounded-full blur-2xl opacity-70"
+        style={{ background: 'radial-gradient(circle at 40% 30%, #FFD98A, rgb(var(--accent-500) / 0.4) 70%, transparent 80%)' }} />
+      <div className="absolute bottom-[12%] left-[6%] h-24 w-24 rounded-full blur-2xl opacity-60"
+        style={{ background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-200)), rgb(var(--accent-500) / 0.3) 70%, transparent 80%)' }} />
+    </div>
   );
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col lg:flex-row overflow-hidden">
-      {orbPanel}
-      <div className="relative flex-1 flex items-center justify-center px-4 py-10" style={{ order: isLogin ? 1 : 0 }}>
+    <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10 overflow-hidden">
+      {bgBlobs}
+
       <motion.div
         initial={{ opacity:0, y:28, scale:0.96 }}
         animate={{ opacity:1, y:0,   scale:1    }}
         transition={{ duration:0.55, ease:[0.16,1,0.3,1] }}
         className="relative w-full max-w-sm"
-        style={{ background:cardBg, backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)', border:cardBorder, borderRadius:'2rem', boxShadow:cardShadow, padding:'2.5rem 2.25rem' }}
       >
-        <span className="pointer-events-none absolute inset-x-8 top-0 h-px"
-          style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
+        {/* Morph layer — this is the piece that "becomes a circle." Kept
+            separate from the entrance animation above (which only ever
+            plays once, on mount) so the two don't fight over the same
+            transform. */}
+        <motion.div
+          initial={{ borderRadius: '2rem', scale: 1, rotate: 0 }}
+          animate={cardControls}
+          className="relative overflow-hidden"
+          style={{ background:cardBg, backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)', border:cardBorder, boxShadow:cardShadow, padding:'2.5rem 2.25rem' }}
+        >
+          <motion.div animate={contentControls}>
+            <span className="pointer-events-none absolute inset-x-8 top-0 h-px"
+              style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
 
-        <div className="flex flex-col items-center mb-8">
-          <motion.div
-            animate={{ y:[0,-4,0] }}
-            transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
-            className="flex h-16 w-16 items-center justify-center mb-3"
-          >
-            <img src="/icon-192.png" alt="Nuvora" className="h-16 w-16 drop-shadow-lg" />
-          </motion.div>
-          <p className="font-display text-xs font-bold tracking-[0.4em]"
-            style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(30,34,51,0.55)' }}>
-            NUVORA
-          </p>
-          {/* Every user eventually asks what the name means — this puts a
-              real, correct answer where they'll actually see it once,
-              instead of that falling on Haneen to explain every time.
-              Collapsed by default so it doesn't add friction to signing
-              in; onboarding stays untouched by this (that flow already
-              needed trimming, not more content). */}
-          <button type="button" onClick={() => setShowMeaning((s) => !s)}
-            className="mt-1.5 text-[11px] font-medium transition underline decoration-dotted underline-offset-2"
-            style={{ color: linkClr }}>
-            {t('login.whatItMeans')}
-          </button>
-          <AnimatePresence>
-            {showMeaning && (
-              <motion.p
-                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                transition={{ duration: 0.25 }}
-                className="text-xs leading-relaxed text-center overflow-hidden"
-                style={{ color: subClr }}
+            <div className="flex flex-col items-center mb-8">
+              <motion.div
+                animate={{ y:[0,-4,0] }}
+                transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
+                className="flex h-16 w-16 items-center justify-center mb-3"
               >
-                {t('login.nameMeaning')}
-              </motion.p>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="text-center mb-7">
-          <AnimatePresence mode="wait">
-            <motion.h1 key={mode}
-              initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
-              transition={{ duration:0.2 }}
-              style={{ fontFamily:'var(--font-display)', fontSize:'1.4rem', fontWeight:700, color:titleClr }}
-            >
-              {isLogin ? t('login.welcomeBack') : t('login.createAcct')}
-            </motion.h1>
-          </AnimatePresence>
-          <p className="text-sm mt-1.5" style={{ color:subClr }}>
-            {isLogin ? t('login.pickUp') : t('login.startBrain')}
-          </p>
-        </div>
-
-        <AnimatePresence>
-          {error && (
-            <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
-              className="mb-4 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs overflow-hidden"
-              style={{ background:errorBg, border:`1px solid ${errorBorder}`, color:errorClr }}>
-              <AlertCircle size={14} className="shrink-0" /> {error}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <AnimatePresence mode="popLayout">
-            {!isLogin && (
-              <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.fullName')}</label>
-                <div className="relative">
-                  <User size={15} style={iconPos} />
-                  <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                    placeholder={t('settings.yourName')} style={inputStyle} />
-                </div>
+                <img src="/icon-192.png" alt="Nuvora" className="h-16 w-16 drop-shadow-lg" />
               </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.email')}</label>
-            <div className="relative">
-              <Mail size={15} style={iconPos} />
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com" style={inputStyle} dir="ltr" />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.password')}</label>
-            <div className="relative">
-              <Lock size={15} style={iconPos} />
-              <input type={showPassword ? 'text' : 'password'} required value={password}
-                onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={8}
-                style={{ ...inputStyle, paddingInlineEnd:'2.75rem' }} dir="ltr" />
-              <button type="button" onClick={() => setShowPassword(s=>!s)}
-                className="absolute top-1/2 -translate-y-1/2 transition"
-                style={{ insetInlineEnd:'0.875rem', color:iconClr }}>
-                {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
+              <p className="font-display text-xs font-bold tracking-[0.4em]"
+                style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(30,34,51,0.55)' }}>
+                NUVORA
+              </p>
+              {/* Every user eventually asks what the name means — this puts a
+                  real, correct answer where they'll actually see it once,
+                  instead of that falling on Haneen to explain every time.
+                  Collapsed by default so it doesn't add friction to signing
+                  in; onboarding stays untouched by this (that flow already
+                  needed trimming, not more content). */}
+              <button type="button" onClick={() => setShowMeaning((s) => !s)}
+                className="mt-1.5 text-[11px] font-medium transition underline decoration-dotted underline-offset-2"
+                style={{ color: linkClr }}>
+                {t('login.whatItMeans')}
               </button>
+              <AnimatePresence>
+                {showMeaning && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-xs leading-relaxed text-center overflow-hidden"
+                    style={{ color: subClr }}
+                  >
+                    {t('login.nameMeaning')}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
-          </div>
 
-          <AnimatePresence mode="popLayout">
-            {!isLogin && (
-              <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.confirmPw')}</label>
+            <div className="text-center mb-7">
+              <AnimatePresence mode="wait">
+                <motion.h1 key={displayMode}
+                  initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
+                  transition={{ duration:0.2 }}
+                  style={{ fontFamily:'var(--font-display)', fontSize:'1.4rem', fontWeight:700, color:titleClr }}
+                >
+                  {isDisplayLogin ? t('login.welcomeBack') : t('login.createAcct')}
+                </motion.h1>
+              </AnimatePresence>
+              <p className="text-sm mt-1.5" style={{ color:subClr }}>
+                {isDisplayLogin ? t('login.pickUp') : t('login.startBrain')}
+              </p>
+            </div>
+
+            <AnimatePresence>
+              {error && (
+                <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
+                  className="mb-4 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs overflow-hidden"
+                  style={{ background:errorBg, border:`1px solid ${errorBorder}`, color:errorClr }}>
+                  <AlertCircle size={14} className="shrink-0" /> {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <AnimatePresence mode="popLayout">
+                {!isDisplayLogin && (
+                  <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                    <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.fullName')}</label>
+                    <div className="relative">
+                      <User size={15} style={iconPos} />
+                      <input type="text" required value={name} onChange={e => setName(e.target.value)}
+                        placeholder={t('settings.yourName')} style={inputStyle} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.email')}</label>
+                <div className="relative">
+                  <Mail size={15} style={iconPos} />
+                  <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com" style={inputStyle} dir="ltr" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.password')}</label>
                 <div className="relative">
                   <Lock size={15} style={iconPos} />
-                  <input type={showPassword ? 'text' : 'password'} required value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" minLength={8}
-                    style={inputStyle} dir="ltr" />
+                  <input type={showPassword ? 'text' : 'password'} required value={password}
+                    onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={8}
+                    style={{ ...inputStyle, paddingInlineEnd:'2.75rem' }} dir="ltr" />
+                  <button type="button" onClick={() => setShowPassword(s=>!s)}
+                    className="absolute top-1/2 -translate-y-1/2 transition"
+                    style={{ insetInlineEnd:'0.875rem', color:iconClr }}>
+                    {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
+                  </button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
 
-          {isLogin && (
-            <Link to="/forgot-password" className="self-end text-xs transition -mt-1"
-              style={{ color:linkClr }}>
-              {t('login.forgotPw')}
-            </Link>
-          )}
+              <AnimatePresence mode="popLayout">
+                {!isDisplayLogin && (
+                  <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                    <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.confirmPw')}</label>
+                    <div className="relative">
+                      <Lock size={15} style={iconPos} />
+                      <input type={showPassword ? 'text' : 'password'} required value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" minLength={8}
+                        style={inputStyle} dir="ltr" />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-          <motion.button type="submit" disabled={submitting} whileTap={{ scale:0.98 }}
-            className="mt-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-55 disabled:pointer-events-none"
-            style={{
-              background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
-              boxShadow:  '0 8px 28px rgb(var(--accent-500) / 0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
-            }}>
-            {submitting ? <Loader2 size={16} className="animate-spin"/> : isLogin ? t('login.signIn') : t('login.createAcct')}
-          </motion.button>
-        </form>
+              {isDisplayLogin && (
+                <Link to="/forgot-password" className="self-end text-xs transition -mt-1"
+                  style={{ color:linkClr }}>
+                  {t('login.forgotPw')}
+                </Link>
+              )}
 
-        <button onClick={fillDemo} type="button"
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-2.5 text-[11px] font-medium transition"
-          style={{ background:demoBg, border:demoBorder, color:demoClr }}>
-          <Sparkles size={11}/> {t('login.demo')}
-        </button>
+              <motion.button type="submit" disabled={submitting || isMorphing} whileTap={{ scale:0.98 }}
+                className="mt-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-55 disabled:pointer-events-none"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
+                  boxShadow:  '0 8px 28px rgb(var(--accent-500) / 0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
+                }}>
+                {submitting ? <Loader2 size={16} className="animate-spin"/> : isDisplayLogin ? t('login.signIn') : t('login.createAcct')}
+              </motion.button>
+            </form>
 
-        <p className="text-center text-xs mt-5" style={{ color:switchClr }}>
-          {isLogin ? t('login.newTo') : t('login.already')}
-          <button type="button" onClick={switchMode} className="font-bold transition" style={{ color:switchBold }}>
-            {isLogin ? t('login.signUp') : t('login.logIn')}
-          </button>
-        </p>
+            <button onClick={fillDemo} type="button"
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl py-2.5 text-[11px] font-medium transition"
+              style={{ background:demoBg, border:demoBorder, color:demoClr }}>
+              <Sparkles size={11}/> {t('login.demo')}
+            </button>
 
-        <span className="pointer-events-none absolute inset-x-8 bottom-0 h-px"
-          style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
+            <p className="text-center text-xs mt-5" style={{ color:switchClr }}>
+              {isDisplayLogin ? t('login.newTo') : t('login.already')}
+              <button type="button" onClick={switchMode} disabled={isMorphing} className="font-bold transition disabled:opacity-60" style={{ color:switchBold }}>
+                {isDisplayLogin ? t('login.signUp') : t('login.logIn')}
+              </button>
+            </p>
+
+            <span className="pointer-events-none absolute inset-x-8 bottom-0 h-px"
+              style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
+          </motion.div>
+        </motion.div>
       </motion.div>
-      </div>
 
       {/* Legal footer — needs to be reachable without logging in (Paddle's
           domain review checks for this), and is a normal thing to have
