@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useAnimationControls } from 'framer-motion';
 import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'lucide-react';
@@ -81,7 +81,7 @@ function WelcomeIntro({ onDone, t }) {
             transition={{ duration: 0.5, type: 'spring', stiffness: 220, damping: 16 }}
             className="mt-7"
           >
-            <NuvoraBuddy size={72} wave bob={false} />
+            <NuvoraBuddy size={72} wave bob={false} onClick={onDone} title={t('login.introTagline')} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -107,10 +107,17 @@ export default function Login() {
   const [showIntro,       setShowIntro]       = useState(() => {
     try { return !localStorage.getItem(SEEN_INTRO_KEY); } catch (_) { return false; } // private mode etc — fail open to "skip it," not "force it every time"
   });
-  const dismissIntro = () => {
+  // useCallback, not a plain function — WelcomeIntro's own effect below
+  // depends on `onDone` to schedule the wave/auto-dismiss timers. A
+  // fresh `dismissIntro` reference on every Login re-render (auth
+  // context updates, etc. — this page re-renders more than it looks
+  // like it should) would re-trigger that effect each time, wiping and
+  // restarting every timer before they ever fire — the actual reason
+  // the wave and the auto-advance could silently never happen.
+  const dismissIntro = useCallback(() => {
     try { localStorage.setItem(SEEN_INTRO_KEY, '1'); } catch (_) {}
     setShowIntro(false);
-  };
+  }, []);
 
   const { login, register } = useAuth();
   const { resolvedTheme }   = useTheme();
