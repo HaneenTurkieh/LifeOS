@@ -184,10 +184,32 @@ export default function Login() {
                   Collapsed by default so it doesn't add friction to signing
                   in; onboarding stays untouched by this (that flow already
                   needed trimming, not more content). */}
+              {/* The nova moment, staged instead of just stated: the dot
+                  flares into light the instant you ask, and the answer
+                  itself sweeps in left-to-right like light crossing
+                  dark — the meaning demonstrated, not just described. */}
               <button type="button" onClick={() => setShowMeaning((s) => !s)}
-                className="mt-1.5 text-[11px] font-medium transition underline decoration-dotted underline-offset-2"
-                style={{ color: linkClr }}>
-                {t('login.whatItMeans')}
+                className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium transition">
+                <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
+                  <motion.span
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: 'rgb(var(--accent-400))' }}
+                    animate={showMeaning ? { scale: [1, 2.8, 1], opacity: [0.9, 0, 0] } : { scale: 1, opacity: 0 }}
+                    transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                  />
+                  <motion.span
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background: showMeaning ? 'rgb(var(--accent-400))' : (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(30,34,51,0.35)'),
+                      boxShadow:  showMeaning ? '0 0 10px 2px rgb(var(--accent-400) / 0.7)' : 'none',
+                    }}
+                    animate={{ scale: showMeaning ? 1.2 : 1 }}
+                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  />
+                </span>
+                <span className="underline decoration-dotted underline-offset-2" style={{ color: linkClr }}>
+                  {t('login.whatItMeans')}
+                </span>
               </button>
               <AnimatePresence>
                 {showMeaning && (
@@ -199,7 +221,14 @@ export default function Login() {
                     className="text-xs leading-relaxed text-center overflow-hidden"
                     style={{ color: subClr }}
                   >
-                    {t('login.nameMeaning')}
+                    <motion.span
+                      initial={{ clipPath: 'inset(0 100% 0 0)' }}
+                      animate={{ clipPath: 'inset(0 0% 0 0)' }}
+                      transition={{ duration: 0.9, delay: 0.15, ease: [0.65, 0, 0.35, 1] }}
+                      className="block"
+                    >
+                      {t('login.nameMeaning')}
+                    </motion.span>
                   </motion.p>
                 )}
               </AnimatePresence>
