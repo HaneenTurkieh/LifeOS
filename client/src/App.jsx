@@ -322,7 +322,7 @@ function AppShell() {
           (end) corner and only shows up while a Flow session is
           running. Its own route, `/ai`, is unchanged and still in the
           sidebar too — this is a second way in, not a replacement. */}
-      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-6 z-50">
+      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-6 z-[55]">
         <NuvoraBuddy size={56} onClick={() => navigate('/ai')} title={t('nav.lumi')} />
       </div>
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
