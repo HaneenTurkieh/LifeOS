@@ -12,6 +12,7 @@ const DEMO_PASSWORD = 'password123';
 
 export default function Login() {
   const [mode,            setMode]            = useState('login');
+  const [showMeaning,     setShowMeaning]     = useState(false);
   const [name,            setName]            = useState('');
   const [email,           setEmail]           = useState('');
   const [password,        setPassword]        = useState('');
@@ -111,6 +112,31 @@ export default function Login() {
             style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(30,34,51,0.55)' }}>
             NUVORA
           </p>
+          {/* Every user eventually asks what the name means — this puts a
+              real, correct answer where they'll actually see it once,
+              instead of that falling on Haneen to explain every time.
+              Collapsed by default so it doesn't add friction to signing
+              in; onboarding stays untouched by this (that flow already
+              needed trimming, not more content). */}
+          <button type="button" onClick={() => setShowMeaning((s) => !s)}
+            className="mt-1.5 text-[11px] font-medium transition underline decoration-dotted underline-offset-2"
+            style={{ color: linkClr }}>
+            {t('login.whatItMeans')}
+          </button>
+          <AnimatePresence>
+            {showMeaning && (
+              <motion.p
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ duration: 0.25 }}
+                className="text-xs leading-relaxed text-center overflow-hidden"
+                style={{ color: subClr }}
+              >
+                {t('login.nameMeaning')}
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="text-center mb-7">
