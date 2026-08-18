@@ -204,9 +204,16 @@ export default function Dashboard() {
       <GlassCard className="p-7">
         <div className="flex flex-col lg:flex-row lg:items-start gap-6">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold uppercase tracking-widest text-lavender-600 dark:text-lavender-300 mb-1">
-              {todayLabel}
-            </p>
+            {/* Small brand mark — the app's own name only ever showed up
+                pre-login before this (the login page's wordmark). Kept
+                tiny and folded into the date eyebrow rather than its
+                own row, so it reads as a mark, not a banner. */}
+            <div className="flex items-center gap-1.5 mb-1">
+              <img src="/icon-192.png" alt="" className="h-3.5 w-3.5 opacity-70 shrink-0" />
+              <p className="text-xs font-bold uppercase tracking-widest text-lavender-600 dark:text-lavender-300">
+                Nuvora · {todayLabel}
+              </p>
+            </div>
             <h1 className="font-display text-3xl font-bold text-ink dark:text-white mb-1">
               {isBirthday ? t('greet.birthday') : t(greetKey)}, {firstName} {isBirthday ? '🎂' : '👋'}
             </h1>

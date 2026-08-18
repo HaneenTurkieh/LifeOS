@@ -280,12 +280,26 @@ export default function Login() {
                  form panel rises up over its square bottom edge. This
                  two-tone split is the actual design change: not a
                  uniform card anymore. ─────────────────────────────── */}
-            <div className="relative overflow-hidden px-8 pt-9 pb-14"
+            <div className="relative overflow-hidden px-8 pt-10 pb-16"
               style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 55%, rgb(var(--accent-700)) 100%)' }}>
-              <div className="pointer-events-none absolute -top-10 -right-12 h-36 w-36 rounded-full"
-                style={{ background: 'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.30), transparent 70%)' }} />
-              <div className="pointer-events-none absolute -bottom-16 -left-10 h-28 w-28 rounded-full"
-                style={{ background: 'radial-gradient(circle at 40% 35%, rgba(255,255,255,0.16), transparent 70%)' }} />
+              {/* Cluster of glossy spheres — the "logic" from the blue
+                  reference (a hero panel built from overlapping glass
+                  bubbles, not a flat gradient) applied to our existing
+                  two-tone hero instead of replacing it. Each has its
+                  own bright highlight near one edge for a 3D-glass
+                  feel rather than a plain blurred glow, and stays
+                  within Nuvora's own accent tones bar the one warm
+                  highlight, so it reads as "us," not the reference. */}
+              <div className="pointer-events-none absolute -top-10 -right-12 h-36 w-36 rounded-full blur-xl"
+                style={{ background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0.06) 60%, transparent 75%)' }} />
+              <div className="pointer-events-none absolute -bottom-16 -left-10 h-28 w-28 rounded-full blur-xl"
+                style={{ background: 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.35), rgba(255,255,255,0.04) 60%, transparent 75%)' }} />
+              <div className="pointer-events-none absolute top-2 right-16 h-14 w-14 rounded-full blur-md"
+                style={{ background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.65), rgba(255,255,255,0.05) 55%, transparent 70%)' }} />
+              <div className="pointer-events-none absolute bottom-6 left-4 h-10 w-10 rounded-full blur-sm"
+                style={{ background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-200)), rgba(255,255,255,0.10) 60%, transparent 75%)' }} />
+              <div className="pointer-events-none absolute top-8 left-8 h-8 w-8 rounded-full blur-sm opacity-80"
+                style={{ background: 'radial-gradient(circle at 35% 30%, #FFE4B5, rgba(255,196,120,0.15) 60%, transparent 75%)' }} />
 
               <div className="relative z-10 flex flex-col items-center text-center">
                 <motion.div
