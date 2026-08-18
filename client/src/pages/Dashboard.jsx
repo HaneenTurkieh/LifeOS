@@ -125,6 +125,9 @@ export default function Dashboard() {
     try {
       const localDate = new Date().toLocaleDateString('en-CA');
       await api.post('/mood', { mood: value, date: localDate });
+      // Lets the persistent corner buddy pick up today's mood right away
+      // instead of only after AppShell's own fetch on next load.
+      window.dispatchEvent(new CustomEvent('nuvora:mood-updated', { detail: { mood: value } }));
       load();
     } catch (e) { toast.error(e.message); }
     finally { setMoodSaving(false); }

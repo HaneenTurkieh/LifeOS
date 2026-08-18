@@ -20,6 +20,7 @@ import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
 import useMilestoneReminders from './hooks/useMilestoneReminders.js';
 import { isTodayBirthday } from './utils/birthday.js';
+import { api }           from './api/client.js';
 // Every page below is lazy-loaded so each route becomes its own JS chunk
 // instead of all of them (plus their dependencies, e.g. recharts pulled in
 // by Analytics) getting bundled into one ~2.3MB file that every visitor
@@ -184,8 +185,25 @@ function AppShell() {
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [moodValue, setMoodValue] = useState(null);
   useTaskReminders();
   useMilestoneReminders();
+
+  // ── Companion mood ────────────────────────────────────────────
+  // Feeds the floating buddy's expression from today's mood-of-the-day
+  // pick (Dashboard). Fetched once on load, then kept live via a custom
+  // event Dashboard fires right after a successful save — so picking a
+  // mood updates the corner buddy immediately instead of only after a
+  // refresh.
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get('/mood/today').then((m) => setMoodValue(m?.mood ?? null)).catch(() => {});
+  }, [user?.id]);
+  useEffect(() => {
+    const onMoodUpdate = (e) => setMoodValue(e.detail?.mood ?? null);
+    window.addEventListener('nuvora:mood-updated', onMoodUpdate);
+    return () => window.removeEventListener('nuvora:mood-updated', onMoodUpdate);
+  }, []);
 
   // ── Onboarding gate ────────────────────────────────────────
   // Checks once user.id is actually populated (not on the very first
@@ -321,9 +339,13 @@ function AppShell() {
           it never sits on top of FocusBar, which lives on the opposite
           (end) corner and only shows up while a Flow session is
           running. Its own route, `/ai`, is unchanged and still in the
-          sidebar too — this is a second way in, not a replacement. */}
-      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-6 z-[55]">
-        <NuvoraBuddy size={56} onClick={() => navigate('/ai')} title={t('nav.lumi')} />
+          sidebar too — this is a second way in, not a replacement.
+          z-[105]: Sidebar renders at inline zIndex:100, so the previous
+          z-[55] here put the buddy visually *behind* the sidebar on
+          desktop — just a sliver poking out at the edge. That's the
+          actual "hiding in the corner, not doing anything" bug. */}
+      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-6 z-[105]">
+        <NuvoraBuddy size={56} mood={moodValue} onClick={() => navigate('/ai')} title={t('nav.lumi')} />
       </div>
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
       <div
