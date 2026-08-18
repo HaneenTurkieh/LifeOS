@@ -524,13 +524,6 @@ export default function Login() {
         )}
       </AnimatePresence>
 
-      {/* Persistent companion — waves on its own idle loop on every
-          visit (see NuvoraBuddy), tapping it jumps back to the Welcome
-          stage where the meaning brief lives. */}
-      <div className="fixed bottom-16 start-4 lg:start-8 z-[60]">
-        <NuvoraBuddy size={58} onClick={() => setStage('welcome')} title={t('login.whatItMeans')} />
-      </div>
-
       {/* Legal footer — needs to be reachable without logging in (Paddle's
           domain review checks for this), and is a normal thing to have
           regardless. */}

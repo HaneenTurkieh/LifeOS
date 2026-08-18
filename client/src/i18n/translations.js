@@ -349,6 +349,7 @@ export const translations = {
       'app.thisPanel':      'This panel',
       'app.shortcuts':      'shortcuts',
       'app.searchTip':      'Tip: Press ⌘K to search · ? for all shortcuts',
+      'app.buddyGreeting':  'How can I help you today?',
   
       // ── Goals page ─────────────────────────────────────────
       'goals.eyebrow':          'Goals & Recurring Tasks',
@@ -1092,6 +1093,7 @@ export const translations = {
       'app.thisPanel':      'هذه اللوحة',
       'app.shortcuts':      'الاختصارات',
       'app.searchTip':      'نصيحة: اضغط ⌘K للبحث · ? لكل الاختصارات',
+      'app.buddyGreeting':  'كيف فيني ساعدك اليوم؟',
   
       // ── صفحة الأهداف ─────────────────────────────────────────
       'goals.eyebrow':          'الأهداف والمهام المتكررة',
