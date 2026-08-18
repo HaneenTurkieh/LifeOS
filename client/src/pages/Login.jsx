@@ -9,6 +9,56 @@ import { useToast } from '../context/ToastContext.jsx';
 
 const DEMO_EMAIL    = 'demo@nuvora.app';
 const DEMO_PASSWORD = 'password123';
+const SEEN_INTRO_KEY = 'nuvora_seen_intro';
+
+// Cinematic title-card intro — dark gradient, the wordmark glowing in
+// letter by letter, tagline settling in after. Always dark/purple
+// regardless of site theme (same reasoning as the hero strip below —
+// it's a deliberate moment, not a themed surface), and only plays
+// once per browser: this is a login gate people hit repeatedly, not a
+// marketing homepage visited once, so it self-skips after the first
+// viewing via localStorage. Always tap-to-skip too, for the person
+// who's already seen it and just wants to log in.
+function WelcomeIntro({ onDone, t }) {
+  const letters = 'NUVORA'.split('');
+  useEffect(() => {
+    const timer = setTimeout(onDone, 2600);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+  return (
+    <motion.div
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      onClick={onDone}
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center cursor-pointer px-6"
+      style={{ background: 'radial-gradient(circle at 50% 42%, rgb(var(--accent-700)) 0%, #0c0a1a 68%)' }}
+    >
+      <div className="flex">
+        {letters.map((ch, i) => (
+          <motion.span key={i}
+            initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ delay: 0.15 + i * 0.09, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="font-display text-4xl sm:text-5xl font-bold tracking-[0.15em]"
+            style={{ color: 'white', textShadow: '0 0 30px rgb(var(--accent-400) / 0.85), 0 0 60px rgb(var(--accent-500) / 0.5)' }}
+          >
+            {ch}
+          </motion.span>
+        ))}
+      </div>
+      <motion.p
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 + letters.length * 0.09 + 0.3, duration: 0.6 }}
+        className="mt-4 text-xs sm:text-sm tracking-[0.25em] uppercase"
+        style={{ color: 'rgba(255,255,255,0.55)' }}
+      >
+        {t('login.introTagline')}
+      </motion.p>
+    </motion.div>
+  );
+}
 
 export default function Login() {
   const [mode,            setMode]            = useState('login');
@@ -25,6 +75,13 @@ export default function Login() {
   const [showPassword,    setShowPassword]    = useState(false);
   const [error,           setError]           = useState('');
   const [submitting,      setSubmitting]      = useState(false);
+  const [showIntro,       setShowIntro]       = useState(() => {
+    try { return !localStorage.getItem(SEEN_INTRO_KEY); } catch (_) { return false; } // private mode etc — fail open to "skip it," not "force it every time"
+  });
+  const dismissIntro = () => {
+    try { localStorage.setItem(SEEN_INTRO_KEY, '1'); } catch (_) {}
+    setShowIntro(false);
+  };
 
   const { login, register } = useAuth();
   const { resolvedTheme }   = useTheme();
@@ -158,6 +215,10 @@ export default function Login() {
   );
 
   return (
+    <>
+      <AnimatePresence>
+        {showIntro && <WelcomeIntro key="intro" onDone={dismissIntro} t={t} />}
+      </AnimatePresence>
     <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10 overflow-hidden">
       {bgBlobs}
 
@@ -393,5 +454,6 @@ export default function Login() {
         <Link to="/refund-policy" className="hover:underline">Refunds</Link>
       </div>
     </div>
+    </>
   );
 }
