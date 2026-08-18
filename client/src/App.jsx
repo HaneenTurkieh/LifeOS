@@ -9,6 +9,7 @@ import FocusBar          from './components/FocusBar.jsx';
 import ProtectedRoute    from './components/ProtectedRoute.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import NotificationBell  from './components/NotificationBell.jsx';
+import NuvoraBuddy       from './components/NuvoraBuddy.jsx';
 import BirthdayCelebration from './components/BirthdayCelebration.jsx';
 import FestiveDecoration   from './components/FestiveDecoration.jsx';
 import { FocusProvider } from './context/FocusContext.jsx';
@@ -316,6 +317,14 @@ function AppShell() {
       </main>
       <MobileNav />
       <FocusBar />
+      {/* Persistent companion — start-side (left in LTR, right in RTL) so
+          it never sits on top of FocusBar, which lives on the opposite
+          (end) corner and only shows up while a Flow session is
+          running. Its own route, `/ai`, is unchanged and still in the
+          sidebar too — this is a second way in, not a replacement. */}
+      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-6 z-50">
+        <NuvoraBuddy size={56} onClick={() => navigate('/ai')} title={t('nav.lumi')} />
+      </div>
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
       <div
         className="fixed top-4 end-4 z-50 flex items-center"
