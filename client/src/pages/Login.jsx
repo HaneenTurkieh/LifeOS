@@ -1,55 +1,61 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useAnimationControls } from 'framer-motion';
-import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Sparkles, ChevronLeft } from 'lucide-react';
 import { useAuth }  from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import NuvoraBuddy  from '../components/NuvoraBuddy.jsx';
 
-const DEMO_EMAIL    = 'demo@nuvora.app';
-const DEMO_PASSWORD = 'password123';
-const SEEN_INTRO_KEY = 'nuvora_seen_intro';
+const DEMO_EMAIL       = 'demo@nuvora.app';
+const DEMO_PASSWORD    = 'password123';
+// Public Client ID, not a secret — safe to ship in the bundle. Blank until
+// a real one is set (see client/.env.example): the Google button quietly
+// stays off instead of rendering something broken.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
-// Cinematic title-card intro — dark gradient, the wordmark glowing in
-// letter by letter, tagline settling in after. Always dark/purple
-// regardless of site theme (same reasoning as the hero strip below —
-// it's a deliberate moment, not a themed surface), and only plays
-// once per browser: this is a login gate people hit repeatedly, not a
-// marketing homepage visited once, so it self-skips after the first
-// viewing via localStorage. Always tap-to-skip too, for the person
-// who's already seen it and just wants to log in.
-function WelcomeIntro({ onDone, t }) {
+// lucide-react doesn't ship brand logos — small inline multicolor "G" mark,
+// the standard Google asset shape.
+function GoogleG({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.4-8 19.4-19.5 0-1.4-.1-2.4-.4-4z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.6 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.6 6 29.6 4 24 4 16 4 9 8.5 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.4 0 10.4-2 14.1-5.4l-6.5-5.4C29.4 34.9 26.8 36 24 36c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9 39.5 16 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.4C41.4 36 44 30.6 44 24c0-1.4-.1-2.4-.4-3.5z"/>
+    </svg>
+  );
+}
+
+// ── Welcome stage ─────────────────────────────────────────────
+// The actual first thing anyone sees now — not a one-time overlay gated
+// behind localStorage (that was the bug: it only ever played once per
+// browser, so it could never wave again after the first visit). This is
+// a real page stage, shown fresh every time /login mounts: wordmark
+// glows in, buddy waves in after it, the "what it means" brief is right
+// here where a first impression actually happens, then two clear paths
+// forward — Log in / Sign up — same two options moimoi's reference
+// leads with, just carrying Nuvora's own identity instead.
+function WelcomeStage({ onPick, t }) {
   const letters = 'NUVORA'.split('');
-  // Timing, laid out so each beat has room to breathe instead of
-  // stacking on top of each other: wordmark glows in first, then the
-  // tagline settles in under it, then the companion fades in and
-  // waves hello — introduced last on purpose, once the identity's
-  // already on screen, rather than all at once.
-  const letterStagger = 0.10;
-  const taglineDelay   = 0.15 + letters.length * letterStagger + 0.35; // ~1.1s
-  const buddyDelay     = taglineDelay + 0.85;                          // ~1.95s
-  const totalDuration  = 4800;
+  const letterStagger = 0.09;
+  const taglineDelay  = 0.15 + letters.length * letterStagger + 0.3;
+  const buddyDelay    = taglineDelay + 0.45;
+  const ctaDelay      = buddyDelay + 0.7;
   const [showBuddy, setShowBuddy] = useState(false);
+  const [showMeaning, setShowMeaning] = useState(false);
+
   useEffect(() => {
-    const timer = setTimeout(onDone, totalDuration);
-    // The buddy only actually *mounts* at buddyDelay (not just becomes
-    // visible) — its wave and blink loop both start counting from
-    // their own mount, so if it mounted immediately but stayed scaled
-    // to 0 until buddyDelay, the wave would already be finished by the
-    // time anyone could see it.
-    const buddyTimer = setTimeout(() => setShowBuddy(true), buddyDelay * 1000);
-    return () => { clearTimeout(timer); clearTimeout(buddyTimer); };
-  }, [onDone]); // eslint-disable-line react-hooks/exhaustive-deps
+    const timer = setTimeout(() => setShowBuddy(true), buddyDelay * 1000);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <motion.div
-      initial={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
-      onClick={onDone}
-      className="fixed inset-0 z-[200] flex flex-col items-center justify-center cursor-pointer px-6"
-      style={{ background: 'radial-gradient(circle at 50% 42%, rgb(var(--accent-700)) 0%, #0c0a1a 68%)' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -50 }}
+      transition={{ duration: 0.4 }}
+      className="relative w-full max-w-sm flex flex-col items-center text-center"
     >
       <div className="flex">
         {letters.map((ch, i) => (
@@ -58,45 +64,85 @@ function WelcomeIntro({ onDone, t }) {
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ delay: 0.15 + i * letterStagger, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="font-display text-4xl sm:text-5xl font-bold tracking-[0.15em]"
-            style={{ color: 'white', textShadow: '0 0 30px rgb(var(--accent-400) / 0.85), 0 0 60px rgb(var(--accent-500) / 0.5)' }}
+            style={{ color: 'rgb(var(--accent-500))', textShadow: '0 0 34px rgb(var(--accent-400) / 0.35)' }}
           >
             {ch}
           </motion.span>
         ))}
       </div>
+
       <motion.p
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: taglineDelay, duration: 0.6 }}
-        className="mt-4 text-xs sm:text-sm tracking-[0.25em] uppercase"
-        style={{ color: 'rgba(255,255,255,0.55)' }}
+        className="mt-3 text-xs sm:text-sm tracking-[0.2em] uppercase text-ink/45 dark:text-white/40"
       >
         {t('login.introTagline')}
       </motion.p>
+
       <AnimatePresence>
         {showBuddy && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.6, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 0.6, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.5, type: 'spring', stiffness: 220, damping: 16 }}
-            className="mt-7"
+            className="mt-6"
           >
-            <NuvoraBuddy size={72} wave bob={false} onClick={onDone} title={t('login.introTagline')} />
+            <NuvoraBuddy size={92} wave title={t('login.introTagline')} />
           </motion.div>
         )}
       </AnimatePresence>
+
+      <button type="button" onClick={() => setShowMeaning((s) => !s)}
+        className="mt-6 text-[11px] font-medium underline decoration-dotted underline-offset-2 text-ink/50 dark:text-white/45">
+        {t('login.whatItMeans')}
+      </button>
+      <AnimatePresence>
+        {showMeaning && (
+          <motion.p
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden px-2 font-display font-normal text-[13px] leading-[1.6] tracking-wide text-ink/65 dark:text-white/55"
+          >
+            {t('login.nameMeaning')}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: ctaDelay, duration: 0.5 }}
+        className="mt-9 flex flex-col gap-2.5 w-full"
+      >
+        <motion.button type="button" whileTap={{ scale: 0.98 }} onClick={() => onPick('login')}
+          className="rounded-full py-3.5 text-sm font-bold text-white"
+          style={{
+            background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
+            boxShadow:  '0 8px 28px rgb(var(--accent-500) / 0.45)',
+          }}>
+          {t('login.signIn')}
+        </motion.button>
+        <motion.button type="button" whileTap={{ scale: 0.98 }} onClick={() => onPick('signup')}
+          className="rounded-full py-3.5 text-sm font-bold"
+          style={{ background: 'rgb(var(--accent-500) / 0.10)', border: '1px solid rgb(var(--accent-500) / 0.25)', color: 'rgb(var(--accent-600))' }}>
+          {t('login.signUp')}
+        </motion.button>
+      </motion.div>
     </motion.div>
   );
 }
 
 export default function Login() {
+  // 'welcome' shows first on every visit; picking Log in / Sign up moves
+  // to 'form'. Two different stages, not to be confused with `mode`
+  // below (login vs signup — only meaningful once inside 'form').
+  const [stage,           setStage]           = useState('welcome');
   const [mode,            setMode]            = useState('login');
   // What's actually rendered — swaps while the block is off-screen as a
   // small circle, so content never visibly snaps underneath a half-open
   // card. See the effect below for the full sequence.
   const [displayMode,     setDisplayMode]      = useState('login');
   const [isMorphing,      setIsMorphing]       = useState(false);
-  const [showMeaning,     setShowMeaning]     = useState(false);
   const [name,            setName]            = useState('');
   const [email,           setEmail]           = useState('');
   const [password,        setPassword]        = useState('');
@@ -104,22 +150,8 @@ export default function Login() {
   const [showPassword,    setShowPassword]    = useState(false);
   const [error,           setError]           = useState('');
   const [submitting,      setSubmitting]      = useState(false);
-  const [showIntro,       setShowIntro]       = useState(() => {
-    try { return !localStorage.getItem(SEEN_INTRO_KEY); } catch (_) { return false; } // private mode etc — fail open to "skip it," not "force it every time"
-  });
-  // useCallback, not a plain function — WelcomeIntro's own effect below
-  // depends on `onDone` to schedule the wave/auto-dismiss timers. A
-  // fresh `dismissIntro` reference on every Login re-render (auth
-  // context updates, etc. — this page re-renders more than it looks
-  // like it should) would re-trigger that effect each time, wiping and
-  // restarting every timer before they ever fire — the actual reason
-  // the wave and the auto-advance could silently never happen.
-  const dismissIntro = useCallback(() => {
-    try { localStorage.setItem(SEEN_INTRO_KEY, '1'); } catch (_) {}
-    setShowIntro(false);
-  }, []);
 
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   const { resolvedTheme }   = useTheme();
   const { t }               = useLanguage();
   const toast                = useToast();
@@ -133,19 +165,35 @@ export default function Login() {
   const cardControls    = useAnimationControls();
   const contentControls = useAnimationControls();
   const firstRun         = useRef(true);
+  const googleBtnRef     = useRef(null);
+
+  // Leaving Welcome for a specific form — sets mode/displayMode directly
+  // instead of going through the morph effect below (the card isn't even
+  // visible yet, there's nothing to roll). firstRun=true makes the effect
+  // treat this as its initial mount and skip the animation, exactly like
+  // it already does on the component's real first render.
+  const enterForm = (selectedMode) => {
+    firstRun.current = true;
+    setDisplayMode(selectedMode);
+    setMode(selectedMode);
+    setError('');
+    setStage('form');
+  };
+  const backToWelcome = () => { if (isMorphing) return; setStage('welcome'); };
 
   // The whole login block rolls off to one side as a shrinking circle,
-  // swaps what's inside while it's off-screen, then rolls back in from
-  // the other side and unfolds into a rectangle again — left/right,
+  // then swaps what's inside while it's off-screen, then rolls back in
+  // from the other side and unfolds into a rectangle again — left/right,
   // not an in-place spin. Plain `x` translation on purpose, not a 3D
   // rotateY flip: this card sits on top of a backdrop-blur layer, and
-  // Safari silently flattens 3D transforms on anything that also
-  // blurs behind itself (same constraint noted on the onboarding
-  // card's page-turn) — a 2D slide sidesteps that entirely.
+  // Safari silently flattens 3D transforms on anything that also blurs
+  // behind itself — a 2D slide sidesteps that entirely. Only runs for
+  // swaps that happen *within* the form stage (Log in ↔ Sign up link at
+  // the bottom) — entries from Welcome are skipped via firstRun above.
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return; }
     let cancelled = false;
-    const dir = mode === 'signup' ? 1 : -1; // forward (→ signup) exits left/enters right; back exits right/enters left
+    const dir = mode === 'signup' ? 1 : -1;
     setIsMorphing(true);
     (async () => {
       contentControls.start({ opacity: 0, transition: { duration: 0.2 } });
@@ -191,8 +239,42 @@ export default function Login() {
     finally { setSubmitting(false); }
   };
 
-  // Card body (the white/glass form panel under the colored hero) —
-  // still theme-aware like before.
+  const handleGoogleCredential = async (response) => {
+    if (!response?.credential) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      const u = await loginWithGoogle(response.credential);
+      if (u?.welcomeXp) toast.success(t('login.welcomeXp', { n: u.welcomeXp }));
+      navigate(redirectTo, { replace: true });
+    } catch (err) { setError(err.message || t('login.wentWrong')); }
+    finally { setSubmitting(false); }
+  };
+
+  // Renders Google's real button (verified, functional) into our own
+  // container once the GIS script and a Client ID are both available.
+  // Re-runs on stage/isDark so it (re)renders correctly whenever the form
+  // stage mounts and matches the current theme.
+  useEffect(() => {
+    if (stage !== 'form' || !GOOGLE_CLIENT_ID) return;
+    let cancelled = false;
+    const tryInit = () => {
+      if (cancelled) return;
+      if (!window.google?.accounts?.id) { setTimeout(tryInit, 250); return; }
+      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+      if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: 'standard', shape: 'pill', theme: isDark ? 'filled_black' : 'outline',
+          size: 'large', text: 'continue_with', width: 288,
+        });
+      }
+    };
+    tryInit();
+    return () => { cancelled = true; };
+  }, [stage, isDark]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Card body (the white/glass form panel under the colored hero).
   const cardBg      = isDark ? 'rgba(255,255,255,0.08)'              : 'rgba(255,255,255,0.92)';
   const cardBorder  = isDark ? '1px solid rgba(255,255,255,0.16)'    : '1px solid rgba(255,255,255,0.95)';
   const cardShadow  = isDark ? '0 32px 80px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.20)'
@@ -213,12 +295,11 @@ export default function Login() {
   const errorBg     = isDark ? 'rgba(255,122,99,0.12)'               : 'rgba(255,122,99,0.08)';
   const errorBorder = isDark ? 'rgba(255,122,99,0.25)'               : 'rgba(255,122,99,0.30)';
   const errorClr    = isDark ? '#FCA5A5'                             : '#ef4444';
+  const dividerClr  = isDark ? 'rgba(255,255,255,0.10)'              : 'rgba(30,34,51,0.10)';
 
-  // Hero strip sits on a solid accent gradient regardless of site theme
-  // (same reasoning as CVExportModal's "always light" surfaces) — it's
-  // never the page background, so it needs its own fixed, legible set.
+  // Hero strip sits on a solid accent gradient regardless of site theme —
+  // it's never the page background, so it needs its own fixed, legible set.
   const heroTitleClr = 'rgba(255,255,255,0.95)';
-  const heroSubClr   = 'rgba(255,255,255,0.72)';
 
   const inputStyle = {
     background: inputBg,
@@ -237,8 +318,7 @@ export default function Login() {
   // Ambient glossy blobs behind the card — soft blurred accent-color
   // circles standing in for the reference images' rendered 3D spheres,
   // built from the same --accent-* tokens the rest of the app already
-  // uses (so it reads as Nuvora, not a generic template) plus one warm
-  // highlight for depth. Decorative only — never intercepts clicks.
+  // uses, plus one warm highlight for depth. Decorative only.
   const bgBlobs = (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute -top-28 -left-20 h-80 w-80 rounded-full blur-3xl"
@@ -251,255 +331,204 @@ export default function Login() {
   );
 
   return (
-    <>
-      <AnimatePresence>
-        {showIntro && <WelcomeIntro key="intro" onDone={dismissIntro} t={t} />}
-      </AnimatePresence>
     <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10 overflow-hidden">
       {bgBlobs}
 
-      <motion.div
-        initial={{ opacity:0, y:28, scale:0.96 }}
-        animate={{ opacity:1, y:0,   scale:1    }}
-        transition={{ duration:0.55, ease:[0.16,1,0.3,1] }}
-        className="relative w-full max-w-sm"
-      >
-        {/* Morph layer — the piece that becomes a circle and rolls
-            side to side. Kept separate from the entrance animation
-            above (which only ever plays once, on mount) so the two
-            don't fight over the same transform. */}
-        <motion.div
-          initial={{ borderRadius: '1.75rem', scale: 1, x: '0%' }}
-          animate={cardControls}
-          className="relative overflow-hidden"
-          style={{ boxShadow: cardShadow }}
-        >
-          <motion.div animate={contentControls}>
-            {/* ── Hero strip — colored block carrying the identity
-                 (icon, wordmark, the name's meaning), curved white
-                 form panel rises up over its square bottom edge. This
-                 two-tone split is the actual design change: not a
-                 uniform card anymore. ─────────────────────────────── */}
-            <div className="relative overflow-hidden px-8 pt-10 pb-16"
-              style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 55%, rgb(var(--accent-700)) 100%)' }}>
-              {/* Cluster of glossy spheres — the "logic" from the blue
-                  reference (a hero panel built from overlapping glass
-                  bubbles, not a flat gradient) applied to our existing
-                  two-tone hero instead of replacing it. Each has its
-                  own bright highlight near one edge for a 3D-glass
-                  feel rather than a plain blurred glow, and stays
-                  within Nuvora's own accent tones bar the one warm
-                  highlight, so it reads as "us," not the reference. */}
-              <div className="pointer-events-none absolute -top-10 -right-12 h-36 w-36 rounded-full blur-xl"
-                style={{ background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0.06) 60%, transparent 75%)' }} />
-              <div className="pointer-events-none absolute -bottom-16 -left-10 h-28 w-28 rounded-full blur-xl"
-                style={{ background: 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.35), rgba(255,255,255,0.04) 60%, transparent 75%)' }} />
-              <div className="pointer-events-none absolute top-2 right-16 h-14 w-14 rounded-full blur-md"
-                style={{ background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.65), rgba(255,255,255,0.05) 55%, transparent 70%)' }} />
-              <div className="pointer-events-none absolute bottom-6 left-4 h-10 w-10 rounded-full blur-sm"
-                style={{ background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-200)), rgba(255,255,255,0.10) 60%, transparent 75%)' }} />
-              <div className="pointer-events-none absolute top-8 left-8 h-8 w-8 rounded-full blur-sm opacity-80"
-                style={{ background: 'radial-gradient(circle at 35% 30%, #FFE4B5, rgba(255,196,120,0.15) 60%, transparent 75%)' }} />
-
-              <div className="relative z-10 flex flex-col items-center text-center">
-                <motion.div
-                  animate={{ y:[0,-4,0] }}
-                  transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
-                  className="flex h-14 w-14 items-center justify-center mb-2.5 rounded-2xl"
-                  style={{ background: 'rgba(255,255,255,0.16)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)' }}
-                >
-                  <img src="/icon-192.png" alt="Nuvora" className="h-9 w-9 drop-shadow-lg" />
-                </motion.div>
-                <p className="font-display text-xs font-bold tracking-[0.4em]" style={{ color: heroTitleClr }}>
-                  NUVORA
-                </p>
-
-                {/* The nova moment, staged instead of just stated: the dot
-                    flares into light the instant you ask, and the answer
-                    itself sweeps in left-to-right like light crossing
-                    dark — the meaning demonstrated, not just described. */}
-                <button type="button" onClick={() => setShowMeaning((s) => !s)}
-                  className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium transition">
-                  <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
-                    <motion.span
-                      className="absolute inset-0 rounded-full"
-                      style={{ background: 'white' }}
-                      animate={showMeaning ? { scale: [1, 2.8, 1], opacity: [0.95, 0, 0] } : { scale: 1, opacity: 0 }}
-                      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-                    />
-                    <motion.span
-                      className="absolute inset-0 rounded-full"
-                      style={{
-                        background: 'white',
-                        opacity: showMeaning ? 1 : 0.55,
-                        boxShadow: showMeaning ? '0 0 10px 2px rgba(255,255,255,0.8)' : 'none',
-                      }}
-                      animate={{ scale: showMeaning ? 1.2 : 1 }}
-                      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    />
-                  </span>
-                  <span className="underline decoration-dotted underline-offset-2" style={{ color: heroSubClr }}>
-                    {t('login.whatItMeans')}
-                  </span>
-                </button>
-                <AnimatePresence>
-                  {showMeaning && (
-                    <motion.p
-                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                      animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
-                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                      transition={{ duration: 0.25 }}
-                      className="text-center overflow-hidden px-1"
-                      style={{ color: heroSubClr }}
-                    >
-                      {/* Display font (Outfit — same as headings), not
-                          italic: Outfit isn't loaded with a true italic
-                          face here, so forcing one just fakes a slant
-                          on a geometric sans, which reads worse, not
-                          more "beautiful." A touch bigger, lighter
-                          weight, and more line-height instead — reads
-                          like a line worth pausing on rather than
-                          another line of body copy. */}
-                      <motion.span
-                        initial={{ clipPath: 'inset(0 100% 0 0)' }}
-                        animate={{ clipPath: 'inset(0 0% 0 0)' }}
-                        transition={{ duration: 0.9, delay: 0.15, ease: [0.65, 0, 0.35, 1] }}
-                        className="block font-display font-normal text-[13px] leading-[1.6] tracking-wide"
-                      >
-                        {t('login.nameMeaning')}
-                      </motion.span>
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* ── Form panel — rises up over the hero's square bottom
-                 edge via the negative margin + top radius. ─────────── */}
-            <div className="relative -mt-7 rounded-t-[1.75rem] px-8 pt-7 pb-8"
-              style={{ background:cardBg, backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)', border:cardBorder, borderTop:'none' }}
+      <AnimatePresence mode="wait">
+        {stage === 'welcome' ? (
+          <WelcomeStage key="welcome" onPick={enterForm} t={t} />
+        ) : (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full max-w-sm"
+          >
+            <motion.div
+              initial={{ borderRadius: '1.75rem', scale: 1, x: '0%' }}
+              animate={cardControls}
+              className="relative overflow-hidden"
+              style={{ boxShadow: cardShadow }}
             >
-              <div className="text-center mb-6">
-                <AnimatePresence mode="wait">
-                  <motion.h1 key={displayMode}
-                    initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
-                    transition={{ duration:0.2 }}
-                    style={{ fontFamily:'var(--font-display)', fontSize:'1.3rem', fontWeight:700, color:titleClr }}
-                  >
-                    {isDisplayLogin ? t('login.welcomeBack') : t('login.createAcct')}
-                  </motion.h1>
-                </AnimatePresence>
-                <p className="text-sm mt-1.5" style={{ color:subClr }}>
-                  {isDisplayLogin ? t('login.pickUp') : t('login.startBrain')}
-                </p>
-              </div>
+              <motion.div animate={contentControls}>
+                {/* ── Compact hero strip — identity carries over from
+                     Welcome (icon + wordmark), full meaning brief stays
+                     back there so it isn't shown twice. Back button
+                     returns to Welcome. ─────────────────────────────── */}
+                <div className="relative overflow-hidden px-8 pt-8 pb-10"
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 55%, rgb(var(--accent-700)) 100%)' }}>
+                  <div className="pointer-events-none absolute -top-10 -right-12 h-36 w-36 rounded-full blur-xl"
+                    style={{ background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0.06) 60%, transparent 75%)' }} />
+                  <div className="pointer-events-none absolute -bottom-16 -left-10 h-28 w-28 rounded-full blur-xl"
+                    style={{ background: 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.35), rgba(255,255,255,0.04) 60%, transparent 75%)' }} />
+                  <div className="pointer-events-none absolute top-2 right-16 h-14 w-14 rounded-full blur-md"
+                    style={{ background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.65), rgba(255,255,255,0.05) 55%, transparent 70%)' }} />
 
-              <AnimatePresence>
-                {error && (
-                  <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
-                    className="mb-4 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs overflow-hidden"
-                    style={{ background:errorBg, border:`1px solid ${errorBorder}`, color:errorClr }}>
-                    <AlertCircle size={14} className="shrink-0" /> {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  <button type="button" onClick={backToWelcome} disabled={isMorphing}
+                    className="absolute top-4 start-4 z-10 flex h-8 w-8 items-center justify-center rounded-full transition disabled:opacity-40"
+                    style={{ background: 'rgba(255,255,255,0.16)', color: 'white' }}
+                    title={t('login.back')}>
+                    <ChevronLeft size={16} className="rtl:rotate-180" />
+                  </button>
 
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <AnimatePresence mode="popLayout">
-                  {!isDisplayLogin && (
-                    <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                      <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.fullName')}</label>
-                      <div className="relative">
-                        <User size={15} style={iconPos} />
-                        <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                          placeholder={t('settings.yourName')} style={inputStyle} />
-                      </div>
+                  <div className="relative z-[1] flex flex-col items-center text-center">
+                    <motion.div
+                      animate={{ y:[0,-4,0] }}
+                      transition={{ duration:3.5, repeat:Infinity, ease:'easeInOut' }}
+                      className="flex h-14 w-14 items-center justify-center mb-2.5 rounded-2xl"
+                      style={{ background: 'rgba(255,255,255,0.16)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)' }}
+                    >
+                      <img src="/icon-192.png" alt="Nuvora" className="h-9 w-9 drop-shadow-lg" />
                     </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.email')}</label>
-                  <div className="relative">
-                    <Mail size={15} style={iconPos} />
-                    <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="you@example.com" style={inputStyle} dir="ltr" />
+                    <p className="font-display text-xs font-bold tracking-[0.4em]" style={{ color: heroTitleClr }}>
+                      NUVORA
+                    </p>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.password')}</label>
-                  <div className="relative">
-                    <Lock size={15} style={iconPos} />
-                    <input type={showPassword ? 'text' : 'password'} required value={password}
-                      onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={8}
-                      style={{ ...inputStyle, paddingInlineEnd:'2.75rem' }} dir="ltr" />
-                    <button type="button" onClick={() => setShowPassword(s=>!s)}
-                      className="absolute top-1/2 -translate-y-1/2 transition"
-                      style={{ insetInlineEnd:'1rem', color:iconClr }}>
-                      {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
-                    </button>
+                {/* ── Form panel ──────────────────────────────────── */}
+                <div className="relative -mt-7 rounded-t-[1.75rem] px-8 pt-7 pb-8"
+                  style={{ background:cardBg, backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)', border:cardBorder, borderTop:'none' }}
+                >
+                  <div className="text-center mb-6">
+                    <AnimatePresence mode="wait">
+                      <motion.h1 key={displayMode}
+                        initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
+                        transition={{ duration:0.2 }}
+                        style={{ fontFamily:'var(--font-display)', fontSize:'1.3rem', fontWeight:700, color:titleClr }}
+                      >
+                        {isDisplayLogin ? t('login.welcomeBack') : t('login.createAcct')}
+                      </motion.h1>
+                    </AnimatePresence>
+                    <p className="text-sm mt-1.5" style={{ color:subClr }}>
+                      {isDisplayLogin ? t('login.pickUp') : t('login.startBrain')}
+                    </p>
                   </div>
-                </div>
 
-                <AnimatePresence mode="popLayout">
-                  {!isDisplayLogin && (
-                    <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
-                      <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.confirmPw')}</label>
+                  <AnimatePresence>
+                    {error && (
+                      <motion.div initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}
+                        className="mb-4 flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-xs overflow-hidden"
+                        style={{ background:errorBg, border:`1px solid ${errorBorder}`, color:errorClr }}>
+                        <AlertCircle size={14} className="shrink-0" /> {error}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    <AnimatePresence mode="popLayout">
+                      {!isDisplayLogin && (
+                        <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                          <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.fullName')}</label>
+                          <div className="relative">
+                            <User size={15} style={iconPos} />
+                            <input type="text" required value={name} onChange={e => setName(e.target.value)}
+                              placeholder={t('settings.yourName')} style={inputStyle} />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div>
+                      <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.email')}</label>
+                      <div className="relative">
+                        <Mail size={15} style={iconPos} />
+                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                          placeholder="you@example.com" style={inputStyle} dir="ltr" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.password')}</label>
                       <div className="relative">
                         <Lock size={15} style={iconPos} />
-                        <input type={showPassword ? 'text' : 'password'} required value={confirmPassword}
-                          onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" minLength={8}
-                          style={inputStyle} dir="ltr" />
+                        <input type={showPassword ? 'text' : 'password'} required value={password}
+                          onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={8}
+                          style={{ ...inputStyle, paddingInlineEnd:'2.75rem' }} dir="ltr" />
+                        <button type="button" onClick={() => setShowPassword(s=>!s)}
+                          className="absolute top-1/2 -translate-y-1/2 transition"
+                          style={{ insetInlineEnd:'1rem', color:iconClr }}>
+                          {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
+                        </button>
                       </div>
-                    </motion.div>
+                    </div>
+
+                    <AnimatePresence mode="popLayout">
+                      {!isDisplayLogin && (
+                        <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                          <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.confirmPw')}</label>
+                          <div className="relative">
+                            <Lock size={15} style={iconPos} />
+                            <input type={showPassword ? 'text' : 'password'} required value={confirmPassword}
+                              onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" minLength={8}
+                              style={inputStyle} dir="ltr" />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {isDisplayLogin && (
+                      <Link to="/forgot-password" className="self-end text-xs transition -mt-1"
+                        style={{ color:linkClr }}>
+                        {t('login.forgotPw')}
+                      </Link>
+                    )}
+
+                    <motion.button type="submit" disabled={submitting || isMorphing} whileTap={{ scale:0.98 }}
+                      className="mt-1 flex items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold text-white disabled:opacity-55 disabled:pointer-events-none"
+                      style={{
+                        background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
+                        boxShadow:  '0 8px 28px rgb(var(--accent-500) / 0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
+                      }}>
+                      {submitting ? <Loader2 size={16} className="animate-spin"/> : isDisplayLogin ? t('login.signIn') : t('login.createAcct')}
+                    </motion.button>
+                  </form>
+
+                  {/* ── Social — "or" divider + Continue with Google.
+                       Real, verified sign-in (see AuthContext.loginWithGoogle)
+                       once VITE_GOOGLE_CLIENT_ID is set; until then the
+                       placeholder below explains what's missing instead of
+                       pretending to work. ──────────────────────────────── */}
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="h-px flex-1" style={{ background: dividerClr }} />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: subClr }}>{t('login.or')}</span>
+                    <div className="h-px flex-1" style={{ background: dividerClr }} />
+                  </div>
+                  {GOOGLE_CLIENT_ID ? (
+                    <div ref={googleBtnRef} className="flex justify-center" />
+                  ) : (
+                    <button type="button"
+                      onClick={() => toast.error('Add VITE_GOOGLE_CLIENT_ID (client) + GOOGLE_CLIENT_ID (server) to enable this')}
+                      className="flex w-full items-center justify-center gap-2.5 rounded-full py-3 text-sm font-semibold transition"
+                      style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'white', border: isDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(30,34,51,0.14)', color: titleClr }}>
+                      <GoogleG size={16} /> {t('login.continueGoogle')}
+                    </button>
                   )}
-                </AnimatePresence>
 
-                {isDisplayLogin && (
-                  <Link to="/forgot-password" className="self-end text-xs transition -mt-1"
-                    style={{ color:linkClr }}>
-                    {t('login.forgotPw')}
-                  </Link>
-                )}
+                  <button onClick={fillDemo} type="button"
+                    className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full py-2.5 text-[11px] font-medium transition"
+                    style={{ background:demoBg, border:demoBorder, color:demoClr }}>
+                    <Sparkles size={11}/> {t('login.demo')}
+                  </button>
 
-                <motion.button type="submit" disabled={submitting || isMorphing} whileTap={{ scale:0.98 }}
-                  className="mt-1 flex items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold text-white disabled:opacity-55 disabled:pointer-events-none"
-                  style={{
-                    background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-500)) 50%, rgb(var(--accent-600)) 100%)',
-                    boxShadow:  '0 8px 28px rgb(var(--accent-500) / 0.50), inset 0 1px 0 rgba(255,255,255,0.25)',
-                  }}>
-                  {submitting ? <Loader2 size={16} className="animate-spin"/> : isDisplayLogin ? t('login.signIn') : t('login.createAcct')}
-                </motion.button>
-              </form>
-
-              <button onClick={fillDemo} type="button"
-                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full py-2.5 text-[11px] font-medium transition"
-                style={{ background:demoBg, border:demoBorder, color:demoClr }}>
-                <Sparkles size={11}/> {t('login.demo')}
-              </button>
-
-              <p className="text-center text-xs mt-5" style={{ color:switchClr }}>
-                {isDisplayLogin ? t('login.newTo') : t('login.already')}
-                <button type="button" onClick={switchMode} disabled={isMorphing} className="font-bold transition disabled:opacity-60" style={{ color:switchBold }}>
-                  {isDisplayLogin ? t('login.signUp') : t('login.logIn')}
-                </button>
-              </p>
-            </div>
+                  <p className="text-center text-xs mt-5" style={{ color:switchClr }}>
+                    {isDisplayLogin ? t('login.newTo') : t('login.already')}
+                    <button type="button" onClick={switchMode} disabled={isMorphing} className="font-bold transition disabled:opacity-60" style={{ color:switchBold }}>
+                      {isDisplayLogin ? t('login.signUp') : t('login.logIn')}
+                    </button>
+                  </p>
+                </div>
+              </motion.div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Persistent companion — separate from WelcomeIntro above. The
-          intro (and its wave) is gated behind localStorage and only ever
-          plays once per browser, so anyone testing/returning to this page
-          after that first run would never see it wave again. This one
-          lives outside that gate: it's here on every visit, waves on its
-          own idle loop (see NuvoraBuddy), and tapping it reveals the
-          Nuvora meaning brief — ties the character back to the identity
-          it's supposed to represent instead of being purely decorative. */}
+      {/* Persistent companion — waves on its own idle loop on every
+          visit (see NuvoraBuddy), tapping it jumps back to the Welcome
+          stage where the meaning brief lives. */}
       <div className="fixed bottom-16 start-4 lg:start-8 z-[60]">
-        <NuvoraBuddy size={58} onClick={() => setShowMeaning(true)} title={t('login.whatItMeans')} />
+        <NuvoraBuddy size={58} onClick={() => setStage('welcome')} title={t('login.whatItMeans')} />
       </div>
 
       {/* Legal footer — needs to be reachable without logging in (Paddle's
@@ -516,6 +545,5 @@ export default function Login() {
         <Link to="/refund-policy" className="hover:underline">Refunds</Link>
       </div>
     </div>
-    </>
   );
 }

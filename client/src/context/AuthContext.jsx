@@ -63,6 +63,16 @@ export function AuthProvider({ children }) {
     return { ...u, welcomeXp: welcomeXp || 0 };
   };
 
+  // `credential` is the ID token Google's Identity Services library hands
+  // back client-side (see Login.jsx) — the server verifies it and either
+  // logs into an existing account with that email or creates a new one.
+  const loginWithGoogle = async (credential) => {
+    const { token, user: u, welcomeXp } = await api.post('/auth/google', { credential });
+    setToken(token);
+    setUser(u);
+    return { ...u, welcomeXp: welcomeXp || 0 };
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -91,6 +101,7 @@ export function AuthProvider({ children }) {
       loading,
       login,
       register,
+      loginWithGoogle,
       logout,
       deleteAccount,
       updateUser,
