@@ -6,6 +6,7 @@ import { useAuth }  from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import NuvoraBuddy  from '../components/NuvoraBuddy.jsx';
 
 const DEMO_EMAIL    = 'demo@nuvora.app';
 const DEMO_PASSWORD = 'password123';
@@ -21,10 +22,26 @@ const SEEN_INTRO_KEY = 'nuvora_seen_intro';
 // who's already seen it and just wants to log in.
 function WelcomeIntro({ onDone, t }) {
   const letters = 'NUVORA'.split('');
+  // Timing, laid out so each beat has room to breathe instead of
+  // stacking on top of each other: wordmark glows in first, then the
+  // tagline settles in under it, then the companion fades in and
+  // waves hello — introduced last on purpose, once the identity's
+  // already on screen, rather than all at once.
+  const letterStagger = 0.10;
+  const taglineDelay   = 0.15 + letters.length * letterStagger + 0.35; // ~1.1s
+  const buddyDelay     = taglineDelay + 0.85;                          // ~1.95s
+  const totalDuration  = 4800;
+  const [showBuddy, setShowBuddy] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(onDone, 2600);
-    return () => clearTimeout(timer);
-  }, [onDone]);
+    const timer = setTimeout(onDone, totalDuration);
+    // The buddy only actually *mounts* at buddyDelay (not just becomes
+    // visible) — its wave and blink loop both start counting from
+    // their own mount, so if it mounted immediately but stayed scaled
+    // to 0 until buddyDelay, the wave would already be finished by the
+    // time anyone could see it.
+    const buddyTimer = setTimeout(() => setShowBuddy(true), buddyDelay * 1000);
+    return () => { clearTimeout(timer); clearTimeout(buddyTimer); };
+  }, [onDone]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <motion.div
       initial={{ opacity: 1 }}
@@ -39,7 +56,7 @@ function WelcomeIntro({ onDone, t }) {
           <motion.span key={i}
             initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ delay: 0.15 + i * 0.09, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ delay: 0.15 + i * letterStagger, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="font-display text-4xl sm:text-5xl font-bold tracking-[0.15em]"
             style={{ color: 'white', textShadow: '0 0 30px rgb(var(--accent-400) / 0.85), 0 0 60px rgb(var(--accent-500) / 0.5)' }}
           >
@@ -50,12 +67,24 @@ function WelcomeIntro({ onDone, t }) {
       <motion.p
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 + letters.length * 0.09 + 0.3, duration: 0.6 }}
+        transition={{ delay: taglineDelay, duration: 0.6 }}
         className="mt-4 text-xs sm:text-sm tracking-[0.25em] uppercase"
         style={{ color: 'rgba(255,255,255,0.55)' }}
       >
         {t('login.introTagline')}
       </motion.p>
+      <AnimatePresence>
+        {showBuddy && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.6, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.5, type: 'spring', stiffness: 220, damping: 16 }}
+            className="mt-7"
+          >
+            <NuvoraBuddy size={72} wave bob={false} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
