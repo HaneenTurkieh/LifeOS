@@ -12,7 +12,7 @@ import NotificationBell  from './components/NotificationBell.jsx';
 import NuvoraBuddy       from './components/NuvoraBuddy.jsx';
 import BirthdayCelebration from './components/BirthdayCelebration.jsx';
 import FestiveDecoration   from './components/FestiveDecoration.jsx';
-import { FocusProvider } from './context/FocusContext.jsx';
+import { FocusProvider, useFocus } from './context/FocusContext.jsx';
 import { useAuth }       from './context/AuthContext.jsx';
 import { useToast }      from './context/ToastContext.jsx';
 import { useTheme }      from './context/ThemeContext.jsx';
@@ -182,6 +182,13 @@ function AppShell() {
   const { resolvedTheme, setBirthdayOverride } = useTheme();
   const { t }             = useLanguage();
   const isDark            = resolvedTheme === 'dark';
+  const focus             = useFocus();
+  // Same visibility rule FocusBar.jsx uses internally — needed here too so
+  // the corner buddy knows to lift itself out of the way on the rare
+  // occasion both are docked on the same side at once, instead of
+  // guessing a single fixed offset that's wrong whenever a Flow session
+  // is running.
+  const focusBarVisible = !!focus && location.pathname !== '/learning' && (focus.totalTime > focus.timeLeft || focus.isRunning);
   const [searchOpen,    setSearchOpen]    = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -361,19 +368,19 @@ function AppShell() {
       </main>
       <MobileNav />
       <FocusBar />
-      {/* Persistent companion — start-side (left in LTR, right in RTL) so
-          it never sits on top of FocusBar, which lives on the opposite
-          (end) corner and only shows up while a Flow session is
-          running. Its own route, `/ai`, is unchanged and still in the
-          sidebar too — this is a second way in, not a replacement.
-          lg:start-28: the Sidebar column is 80px wide (w-20) and sits
-          flush against the left edge with its own zIndex:100 — the
-          previous start-6 (24px) put the buddy directly on top of it,
-          specifically overlapping the Settings icon at the bottom of the
-          nav pill. Shifting past the sidebar's own footprint clears it
-          entirely instead of just fighting over z-index. Mobile has no
-          sidebar (MobileNav instead), so it stays close to that edge. */}
-      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-28 z-[105]">
+      {/* Persistent companion — moved twice now trying to find a spot
+          nothing else ever touches: the sidebar's Settings icon (start
+          side) ruled that corner out, and per-page content can have its
+          own fixed bottom bar that ignores <main>'s usual padding (the
+          AI page's chat input does) so "anywhere on the left" wasn't
+          actually safe either. End side, stacked above the shortcuts
+          hint — the same corner FocusBar and the shortcuts hint already
+          share without colliding with page content, because no route
+          docks anything of its own there. focusBarVisible (mirrors
+          FocusBar's own show/hide check) lifts it further only on the
+          rare load where a Flow session is actually running, instead of
+          permanently reserving that much space. */}
+      <div className={`fixed z-[105] end-4 lg:end-6 lg:bottom-20 ${focusBarVisible ? 'bottom-40' : 'bottom-24'}`}>
         <div className="relative">
           <AnimatePresence>
             {buddyGreeting && (
@@ -381,11 +388,11 @@ function AppShell() {
                 initial={{ opacity: 0, scale: 0.9, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 6 }}
                 transition={{ duration: 0.25 }}
                 onClick={openLumi}
-                className="absolute bottom-full start-0 mb-3 max-w-[190px] rounded-2xl px-3.5 py-2.5 text-start text-xs font-semibold leading-snug"
+                className="absolute bottom-full end-0 mb-3 max-w-[190px] rounded-2xl px-3.5 py-2.5 text-start text-xs font-semibold leading-snug"
                 style={{ ...pillStyle, borderRadius: 16, color: isDark ? 'white' : '#1a1430' }}
               >
                 {t('app.buddyGreeting')}
-                <span className="absolute -bottom-1.5 start-5 h-3 w-3 rotate-45"
+                <span className="absolute -bottom-1.5 end-5 h-3 w-3 rotate-45"
                   style={{ background: isDark ? 'rgba(18,14,35,0.97)' : 'rgba(255,255,255,0.97)', borderInlineEnd: pillStyle.border, borderBlockEnd: pillStyle.border }} />
               </motion.button>
             )}
