@@ -186,6 +186,8 @@ function AppShell() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [moodValue, setMoodValue] = useState(null);
+  const [buddyGreeting, setBuddyGreeting] = useState(false);
+  const [buddyWave, setBuddyWave] = useState(false);
   useTaskReminders();
   useMilestoneReminders();
 
@@ -204,6 +206,30 @@ function AppShell() {
     window.addEventListener('nuvora:mood-updated', onMoodUpdate);
     return () => window.removeEventListener('nuvora:mood-updated', onMoodUpdate);
   }, []);
+
+  // ── "Welcome back" greeting ───────────────────────────────────
+  // If it's been a while since this account was last active here, buddy
+  // waves again and a speech bubble offers a one-tap way into Lumi —
+  // instead of only ever waving once per browser (the earlier bug) or
+  // sitting there silently every single load (which would get old fast).
+  // A lightweight heartbeat keeps "last seen" fresh while the app stays
+  // open, so reloading mid-session doesn't retrigger it.
+  useEffect(() => {
+    if (!user?.id) return;
+    const KEY = `nuvora_buddy_last_seen_${user.id}`;
+    const ABSENCE_MS = 20 * 60 * 1000; // 20 minutes away counts as "back"
+    const last = Number(localStorage.getItem(KEY) || 0);
+    const wasAbsent = last > 0 && (Date.now() - last > ABSENCE_MS);
+    localStorage.setItem(KEY, String(Date.now()));
+    let showT, hideT;
+    if (wasAbsent) {
+      showT = setTimeout(() => { setBuddyWave(true); setBuddyGreeting(true); }, 900);
+      hideT = setTimeout(() => setBuddyGreeting(false), 900 + 7000);
+    }
+    const heartbeat = setInterval(() => localStorage.setItem(KEY, String(Date.now())), 60000);
+    return () => { clearTimeout(showT); clearTimeout(hideT); clearInterval(heartbeat); };
+  }, [user?.id]);
+  const openLumi = () => { setBuddyGreeting(false); navigate('/ai'); };
 
   // ── Onboarding gate ────────────────────────────────────────
   // Checks once user.id is actually populated (not on the very first
@@ -340,12 +366,35 @@ function AppShell() {
           (end) corner and only shows up while a Flow session is
           running. Its own route, `/ai`, is unchanged and still in the
           sidebar too — this is a second way in, not a replacement.
-          z-[105]: Sidebar renders at inline zIndex:100, so the previous
-          z-[55] here put the buddy visually *behind* the sidebar on
-          desktop — just a sliver poking out at the edge. That's the
-          actual "hiding in the corner, not doing anything" bug. */}
-      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-6 z-[105]">
-        <NuvoraBuddy size={56} mood={moodValue} onClick={() => navigate('/ai')} title={t('nav.lumi')} />
+          lg:start-28: the Sidebar column is 80px wide (w-20) and sits
+          flush against the left edge with its own zIndex:100 — the
+          previous start-6 (24px) put the buddy directly on top of it,
+          specifically overlapping the Settings icon at the bottom of the
+          nav pill. Shifting past the sidebar's own footprint clears it
+          entirely instead of just fighting over z-index. Mobile has no
+          sidebar (MobileNav instead), so it stays close to that edge. */}
+      <div className="fixed bottom-20 lg:bottom-6 start-4 lg:start-28 z-[105]">
+        <div className="relative">
+          <AnimatePresence>
+            {buddyGreeting && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 6 }}
+                transition={{ duration: 0.25 }}
+                onClick={openLumi}
+                className="absolute bottom-full start-0 mb-3 max-w-[190px] rounded-2xl px-3.5 py-2.5 text-start text-xs font-semibold leading-snug"
+                style={{ ...pillStyle, borderRadius: 16, color: isDark ? 'white' : '#1a1430' }}
+              >
+                {t('app.buddyGreeting')}
+                <span className="absolute -bottom-1.5 start-5 h-3 w-3 rotate-45"
+                  style={{ background: isDark ? 'rgba(18,14,35,0.97)' : 'rgba(255,255,255,0.97)', borderInlineEnd: pillStyle.border, borderBlockEnd: pillStyle.border }} />
+              </motion.button>
+            )}
+          </AnimatePresence>
+          {/* Soft glass backdrop so the buddy reads clearly against any
+              page background instead of blending into it. */}
+          <div className="absolute -inset-2 rounded-full" style={{ ...pillStyle, borderRadius: 999 }} />
+          <NuvoraBuddy size={56} mood={moodValue} wave={buddyWave} onClick={openLumi} title={t('nav.lumi')} className="relative" />
+        </div>
       </div>
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
       <div

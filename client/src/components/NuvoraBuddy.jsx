@@ -29,6 +29,18 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
   const [blink, setBlink] = useState(false);
   const [waving, setWaving] = useState(wave);
 
+  // Re-fires whenever the `wave` prop flips to true — not just on the
+  // very first mount — so a caller can trigger an on-demand wave on an
+  // already-mounted, persistent instance (e.g. the corner buddy waving
+  // again when you come back after being away) instead of only ever
+  // waving once for the component's whole lifetime.
+  useEffect(() => {
+    if (!wave) return;
+    setWaving(true);
+    const t = setTimeout(() => setWaving(false), 1150);
+    return () => clearTimeout(t);
+  }, [wave]);
+
   useEffect(() => {
     let cancelled = false;
     let t1, t2;
@@ -91,6 +103,10 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
             <stop offset="55%" stopColor="rgb(var(--accent-500))" />
             <stop offset="100%" stopColor="rgb(var(--accent-700))" />
           </radialGradient>
+          {/* Star-eye shape for "great" mood — matches the 🤩 on the
+              mood-of-the-day picker. Defined once, centered on its own
+              origin, then placed twice via <use> at each eye socket. */}
+          <path id="buddyEyeStar" d="M0 -4.4 L1.3 -1.2 L4.4 0 L1.3 1.2 L0 4.4 L-1.3 1.2 L-4.4 0 L-1.3 -1.2 Z" fill="#241B3D" />
         </defs>
 
         {/* waving arm — sits behind the body so only the "hand" peeks out, like a real wave */}
@@ -120,9 +136,20 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
           </>
         )}
 
-        {/* eyes — snap open/closed on blink, no easing, real blinks aren't a slow fade */}
-        <ellipse cx="24" cy="29" rx="3.3" ry={blink ? 0.5 : 3.7} fill="#241B3D" />
-        <ellipse cx="40" cy="29" rx="3.3" ry={blink ? 0.5 : 3.7} fill="#241B3D" />
+        {/* eyes — star-struck on great days (no blink, stars don't blink);
+            otherwise the normal round eyes, snapping open/closed on blink
+            with no easing since real blinks aren't a slow fade */}
+        {mood >= 5 ? (
+          <>
+            <use href="#buddyEyeStar" x="24" y="29" />
+            <use href="#buddyEyeStar" x="40" y="29" />
+          </>
+        ) : (
+          <>
+            <ellipse cx="24" cy="29" rx="3.3" ry={blink ? 0.5 : 3.7} fill="#241B3D" />
+            <ellipse cx="40" cy="29" rx="3.3" ry={blink ? 0.5 : 3.7} fill="#241B3D" />
+          </>
+        )}
 
         {/* smile — shape follows mood */}
         <path d={mouthPath} stroke="#241B3D" strokeWidth="2.3" strokeLinecap="round" fill="none" />
