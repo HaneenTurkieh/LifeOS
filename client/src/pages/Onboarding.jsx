@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift, Flame } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift } from 'lucide-react';
 import { api } from '../api/client.js';
 
 export function markOnboarded(userId) {
@@ -51,15 +51,6 @@ function PrimaryBtn({ onClick, disabled, children }) {
     </motion.button>
   );
 }
-function SkipBtn({ onClick }) {
-  return (
-    <button onClick={onClick}
-      className="text-xs text-white/35 hover:text-white/60 transition mt-3">
-      Skip for now
-    </button>
-  );
-}
-
 function WelcomeStep({ name, onNext }) {
   return (
     <div className="flex flex-col items-center text-center gap-6">
@@ -100,192 +91,117 @@ function WelcomeStep({ name, onNext }) {
   );
 }
 
-function TaskStep({ onNext, onSkip }) {
-  const [title,    setTitle]    = useState('');
-  const [priority, setPriority] = useState('high');
-  const [done,     setDone]     = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const submit = async () => {
-    if (!title.trim()) return;
-    setLoading(true);
-    try {
-      await api.post('/tasks', { title: title.trim(), priority, category: 'General' });
-      setDone(true);
-      setTimeout(onNext, 900);
-    } catch (_) { setLoading(false); }
+// Combines what used to be three separate full-screen steps (task,
+// goal, habit — each its own page-flip with a "Skip for now" link)
+// into one screen with three compact quick-add rows. Same actions,
+// a third of the taps: this was the biggest single contributor to
+// onboarding feeling "too long" since most people skipped at least
+// one of the three anyway.
+function QuickSetupStep({ onNext }) {
+  const [task,  setTask]  = useState('');
+  const [goal,  setGoal]  = useState('');
+  const [habit, setHabit] = useState('');
+  const [doneTask,  setDoneTask]  = useState(false);
+  const [doneGoal,  setDoneGoal]  = useState(false);
+  const [doneHabit, setDoneHabit] = useState(false);
+
+  const addTask = async () => {
+    if (!task.trim() || doneTask) return;
+    setDoneTask(true); // optimistic — this is a low-stakes quick-add, not worth blocking the row on
+    try { await api.post('/tasks', { title: task.trim(), priority: 'high', category: 'General' }); }
+    catch (_) { setDoneTask(false); }
   };
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="text-center">
-        <div className="text-3xl mb-2">✅</div>
-        <h2 className="font-display text-xl font-bold text-white">Add your first task</h2>
-        <p className="text-white/50 text-sm mt-1">What's the one thing you need to get done?</p>
+  const addGoal = async () => {
+    if (!goal.trim() || doneGoal) return;
+    setDoneGoal(true);
+    try { await api.post('/goals', { title: goal.trim(), category: 'Personal' }); }
+    catch (_) { setDoneGoal(false); }
+  };
+  const addHabit = async (presetName) => {
+    const n = (presetName || habit).trim();
+    if (!n || doneHabit) return;
+    setDoneHabit(true);
+    try { await api.post('/habits', { name: n, icon: 'Sparkles', color: '#7C6AF0', target_per_week: 7 }); }
+    catch (_) { setDoneHabit(false); }
+  };
+
+  const Row = ({ icon, placeholder, value, onChange, onSubmit, done, presets }) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-1 rounded-xl px-3 py-2.5" style={{ ...inputStyle, padding: undefined }}>
+          <span className="text-white/40 shrink-0">{icon}</span>
+          <input
+            className="bg-transparent outline-none text-sm text-white w-full placeholder:text-white/30"
+            placeholder={placeholder} value={value} onChange={onChange} disabled={done}
+            onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+          />
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.94 }}
+          onClick={() => onSubmit()} disabled={done || !value.trim()}
+          className="rounded-xl px-4 text-xs font-semibold disabled:opacity-30 shrink-0 flex items-center justify-center"
+          style={done
+            ? { background: 'rgba(74,222,128,0.20)', border: '1px solid rgba(74,222,128,0.4)', color: '#4ADE80' }
+            : { background: 'rgb(var(--accent-500) / 0.25)', border: '1px solid rgb(var(--accent-500) / 0.5)', color: 'white' }}>
+          {done ? <CheckCircle2 size={14} /> : 'Add'}
+        </motion.button>
       </div>
-      <div className="flex flex-col gap-3">
-        <input style={inputStyle} placeholder="e.g. Finish project proposal"
-          value={title} onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus />
-        <div className="flex gap-2">
-          {['low','medium','high'].map((p) => (
-            <button key={p} onClick={() => setPriority(p)}
-              className="flex-1 rounded-xl py-2 text-xs font-semibold capitalize transition-all"
-              style={priority === p ? {
-                background: p === 'high' ? 'rgba(239,68,68,0.25)' : p === 'medium' ? 'rgba(245,158,11,0.25)' : 'rgb(var(--accent-500) / 0.25)',
-                border:     `1px solid ${p === 'high' ? 'rgba(239,68,68,0.5)' : p === 'medium' ? 'rgba(245,158,11,0.5)' : 'rgb(var(--accent-500) / 0.5)'}`,
-                color:      p === 'high' ? '#FCA5A5' : p === 'medium' ? '#FCD34D' : '#C4B5FD',
-              } : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.40)' }}>
+      {presets && !done && (
+        <div className="flex flex-wrap gap-1.5">
+          {presets.map((p) => (
+            <button key={p} onClick={() => onSubmit(p.split(' ')[0])}
+              className="rounded-full px-2.5 py-1 text-[11px] text-white/55 hover:text-white transition"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
               {p}
             </button>
           ))}
         </div>
-      </div>
-      {done ? (
-        <div className="flex items-center justify-center gap-2 text-green-400 font-semibold py-3">
-          <CheckCircle2 size={20} /> Task created!
-        </div>
-      ) : (
-        <PrimaryBtn onClick={submit} disabled={!title.trim() || loading}>
-          {loading ? 'Creating…' : 'Create task'} <ArrowRight size={16} />
-        </PrimaryBtn>
       )}
-      <div className="text-center"><SkipBtn onClick={onSkip} /></div>
     </div>
   );
-}
 
-function GoalStep({ onNext, onSkip }) {
-  const [title,   setTitle]   = useState('');
-  const [done,    setDone]    = useState(false);
-  const [loading, setLoading] = useState(false);
-  const submit = async () => {
-    if (!title.trim()) return;
-    setLoading(true);
-    try {
-      await api.post('/goals', { title: title.trim(), category: 'Personal' });
-      setDone(true);
-      setTimeout(onNext, 900);
-    } catch (_) { setLoading(false); }
-  };
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="text-center">
-        <div className="text-3xl mb-2">🎯</div>
-        <h2 className="font-display text-xl font-bold text-white">Set a goal</h2>
-        <p className="text-white/50 text-sm mt-1">What's something meaningful you want to achieve?</p>
+        <div className="text-3xl mb-2">⚡</div>
+        <h2 className="font-display text-xl font-bold text-white">Quick setup</h2>
+        <p className="text-white/50 text-sm mt-1">Add what's useful — skip the rest, no pressure.</p>
       </div>
-      <div className="flex flex-col gap-3">
-        <input style={inputStyle} placeholder="e.g. Get internship at a top tech company"
-          value={title} onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus />
-        <p className="text-xs text-white/30 text-center">
-          Add milestones and let Lumi break it down after setup.
-        </p>
-      </div>
-      {done ? (
-        <div className="flex items-center justify-center gap-2 text-green-400 font-semibold py-3">
-          <CheckCircle2 size={20} /> Goal created!
-        </div>
-      ) : (
-        <PrimaryBtn onClick={submit} disabled={!title.trim() || loading}>
-          {loading ? 'Creating…' : 'Set goal'} <ArrowRight size={16} />
-        </PrimaryBtn>
-      )}
-      <div className="text-center"><SkipBtn onClick={onSkip} /></div>
+      <Row icon={<ListChecks size={15} />} placeholder="First task…" value={task}
+        onChange={(e) => setTask(e.target.value)} onSubmit={addTask} done={doneTask} />
+      <Row icon={<Target size={15} />} placeholder="A goal…" value={goal}
+        onChange={(e) => setGoal(e.target.value)} onSubmit={addGoal} done={doneGoal} />
+      <Row icon={<RefreshCw size={15} />} placeholder="A daily habit…" value={habit}
+        onChange={(e) => setHabit(e.target.value)} onSubmit={addHabit} done={doneHabit}
+        presets={['Exercise 💪', 'Read 📖', 'Meditate 🧘', 'Study 📚']} />
+      <PrimaryBtn onClick={onNext}>
+        Continue <ArrowRight size={16} />
+      </PrimaryBtn>
     </div>
   );
 }
 
-function HabitStep({ onNext, onSkip }) {
-  const PRESETS = ['Exercise 💪', 'Read 📖', 'Meditate 🧘', 'Code 💻', 'Drink water 💧', 'Study 📚'];
-  const [name,    setName]    = useState('');
-  const [done,    setDone]    = useState(false);
-  const [loading, setLoading] = useState(false);
-  const submit = async (habitName) => {
-    const n = (habitName || name).trim();
-    if (!n) return;
-    setLoading(true);
-    try {
-      await api.post('/habits', { name: n, icon: 'Sparkles', color: '#7C6AF0', target_per_week: 7 });
-      setDone(true);
-      setTimeout(onNext, 900);
-    } catch (_) { setLoading(false); }
-  };
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="text-center">
-        <div className="text-3xl mb-2">🔁</div>
-        <h2 className="font-display text-xl font-bold text-white">Build a daily habit</h2>
-        <p className="text-white/50 text-sm mt-1">Pick one thing to do every day. Small wins compound.</p>
-      </div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {PRESETS.map((p) => (
-          <button key={p} onClick={() => submit(p.split(' ')[0])}
-            className="rounded-2xl px-4 py-2 text-sm font-medium text-white/65 hover:text-white transition-all"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }}>
-            {p}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.10)' }} />
-        <span className="text-xs text-white/30">or type your own</span>
-        <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.10)' }} />
-      </div>
-      <div className="flex gap-2">
-        <input
-          style={{ ...inputStyle, flex: 1 }}
-          placeholder="Custom habit…"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-        />
-        <motion.button
-          whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-          onClick={() => submit()} disabled={!name.trim() || loading}
-          className="rounded-2xl px-5 text-sm font-semibold text-white disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 4px 14px rgb(var(--accent-500) / 0.35)' }}>
-          Add
-        </motion.button>
-      </div>
-      {done && (
-        <div className="flex items-center justify-center gap-2 text-green-400 font-semibold py-2">
-          <CheckCircle2 size={20} /> Habit added!
-        </div>
-      )}
-      <div className="text-center"><SkipBtn onClick={onSkip} /></div>
-    </div>
-  );
-}
-
+// Merges what used to be two separate steps (Lumi intro+shortcuts,
+// then a whole other screen just for XP/levels) into one. Shortcuts
+// stay as the detailed grid since that's reference material worth
+// keeping; XP/levels is condensed to a single line since it's
+// contextual flavor, not something anyone needs to study here.
 function LumiStep({ onNext }) {
   const isMac = navigator.platform?.includes('Mac');
   return (
-    <div className="flex flex-col items-center text-center gap-5">
+    <div className="flex flex-col items-center text-center gap-4">
       <motion.div
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex h-20 w-20 items-center justify-center rounded-3xl text-4xl text-white"
+        className="flex h-16 w-16 items-center justify-center rounded-3xl text-3xl text-white"
         style={{ background: 'linear-gradient(135deg,#A855F7 0%,#7C3AED 100%)', boxShadow: '0 16px 40px rgba(168,85,247,0.40)' }}>
         ✦
       </motion.div>
       <div>
         <h2 className="font-display text-2xl font-bold text-white mb-2">Meet Lumi + shortcuts</h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Lumi knows your tasks, goals, and habits. Ask her anything — and navigate Nuvora instantly with keyboard shortcuts.
+          Lumi knows your tasks, goals, and habits — ask her anything. Navigate instantly with shortcuts.
         </p>
-      </div>
-      <div className="flex flex-col gap-2 w-full">
-        {[
-          '"How productive was I this week?"',
-          '"Plan my day — I have 3 hours"',
-          '"When do I focus best?"',
-        ].map((q) => (
-          <div key={q}
-            className="rounded-xl px-4 py-2.5 text-xs text-white/55 text-left font-mono"
-            style={{ background: 'rgba(168,85,247,0.10)', border: '1px solid rgba(168,85,247,0.20)' }}>
-            {q}
-          </div>
-        ))}
       </div>
       <div className="w-full rounded-2xl p-4"
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
@@ -312,49 +228,15 @@ function LumiStep({ onNext }) {
           ))}
         </div>
       </div>
-      <PrimaryBtn onClick={onNext}>
-        Let's go <ArrowRight size={16} />
-      </PrimaryBtn>
-    </div>
-  );
-}
-
-function LevelsStep({ onNext }) {
-  return (
-    <div className="flex flex-col items-center text-center gap-5">
-      <motion.div
-        animate={{ y: [0, -6, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="flex h-20 w-20 items-center justify-center rounded-3xl text-4xl text-white"
-        style={{ background: 'linear-gradient(135deg,#FFB84D 0%,#E8940A 100%)', boxShadow: '0 16px 40px rgba(255,184,77,0.40)' }}>
-        🎁
-      </motion.div>
-      <div>
-        <h2 className="font-display text-2xl font-bold text-white mb-2">Level up as you go</h2>
-        <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Every task and habit you complete earns XP. Every 100 XP is a new level — and it's not just for show.
+      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-left"
+        style={{ background: 'rgba(255,184,77,0.10)', border: '1px solid rgba(255,184,77,0.22)' }}>
+        <span className="text-sun-300 shrink-0"><Gift size={16} /></span>
+        <p className="text-xs text-white/65 leading-snug">
+          Tasks & habits earn XP, grow your tree, and unlock a free 7-day Premium trial at level 5.
         </p>
       </div>
-      <div className="flex flex-col gap-2.5 w-full">
-        <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-left"
-          style={{ background: 'rgba(255,184,77,0.10)', border: '1px solid rgba(255,184,77,0.22)' }}>
-          <span className="text-sun-300 shrink-0"><Gift size={18} /></span>
-          <div>
-            <p className="text-sm font-semibold text-white">Reach level 5</p>
-            <p className="text-xs text-white/50 mt-0.5">Unlock a free 7-day Premium trial — no payment needed.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-left"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
-          <span className="text-lavender-300 shrink-0"><Flame size={18} /></span>
-          <div>
-            <p className="text-sm font-semibold text-white">Grow your tree</p>
-            <p className="text-xs text-white/50 mt-0.5">XP also grows your tree through new stages as you level up.</p>
-          </div>
-        </div>
-      </div>
       <PrimaryBtn onClick={onNext}>
-        Got it <ArrowRight size={16} />
+        Let's go <ArrowRight size={16} />
       </PrimaryBtn>
     </div>
   );
@@ -402,13 +284,10 @@ export default function Onboarding({ user, onComplete }) {
   };
 
   const stepContent = [
-    <WelcomeStep key="welcome" name={name} onNext={next} />,
-    <TaskStep    key="task"    onNext={next} onSkip={next} />,
-    <GoalStep    key="goal"    onNext={next} onSkip={next} />,
-    <HabitStep   key="habit"   onNext={next} onSkip={next} />,
-    <LumiStep    key="lumi"    onNext={next} />,
-    <LevelsStep  key="levels" onNext={next} />,
-    <DoneStep    key="done"    name={name}   onFinish={finish} />,
+    <WelcomeStep    key="welcome" name={name} onNext={next} />,
+    <QuickSetupStep key="setup"   onNext={next} />,
+    <LumiStep       key="lumi"    onNext={next} />,
+    <DoneStep       key="done"    name={name}   onFinish={finish} />,
   ];
   const totalSteps = stepContent.length - 2;
   const showDots   = step > 0 && step < stepContent.length - 1 && !closing;

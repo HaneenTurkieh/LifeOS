@@ -88,8 +88,69 @@ export default function Login() {
   };
   const iconPos = { insetInlineStart: '0.875rem', top: '50%', transform: 'translateY(-50%)', position: 'absolute', color: iconClr };
 
+  // Two-panel layout on larger screens: a "becoming" orb on one side,
+  // the form on the other. Toggling mode doesn't just crossfade the
+  // form fields (that stays, below) — the whole orb panel swaps sides
+  // via a Framer Motion `layout` animation, and the orb itself changes
+  // size/rotation and sprouts small particles on signup ("a star
+  // forming"). That's the "circle evolving" swap she asked for, tied
+  // back to the actual nova/becoming brand story instead of being a
+  // decoration bolted on separately from it. Hidden below `lg` — on
+  // phones it'd just be a giant circle pushing the form off-screen.
+  const orbPanel = (
+    <motion.div
+      layout
+      key="orb-panel"
+      transition={{ type:'spring', stiffness:140, damping:20 }}
+      className="relative hidden lg:flex w-1/2 items-center justify-center overflow-hidden"
+      style={{ order: isLogin ? 0 : 1 }}
+    >
+      <div className="absolute inset-0"
+        style={{ background: `radial-gradient(circle at 50% 50%, rgb(var(--accent-500) / ${isDark ? 0.14 : 0.10}), transparent 70%)` }} />
+      <motion.div
+        animate={{ width: isLogin ? 340 : 280, height: isLogin ? 340 : 280, rotate: isLogin ? 0 : 40 }}
+        transition={{ type:'spring', stiffness:120, damping:16 }}
+        className="relative rounded-full flex items-center justify-center"
+        style={{
+          background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-300)) 0%, rgb(var(--accent-500)) 45%, rgb(var(--accent-700)) 100%)',
+          boxShadow:  '0 40px 120px rgb(var(--accent-500) / 0.45), inset 0 2px 40px rgba(255,255,255,0.25)',
+        }}
+      >
+        <AnimatePresence>
+          {!isLogin && [0,1,2].map((i) => (
+            <motion.span key={i}
+              initial={{ opacity:0, scale:0 }} animate={{ opacity:0.85, scale:1 }} exit={{ opacity:0, scale:0 }}
+              transition={{ delay: i * 0.08, type:'spring', stiffness:200, damping:14 }}
+              className="absolute rounded-full"
+              style={{
+                width: 14 - i * 2, height: 14 - i * 2, background:'white',
+                top: `${20 + i * 22}%`, left: `${70 - i * 14}%`,
+                boxShadow: '0 0 12px rgba(255,255,255,0.8)',
+              }}
+            />
+          ))}
+        </AnimatePresence>
+        <div className="relative z-10 flex flex-col items-center text-center px-6">
+          <img src="/icon-192.png" alt="Nuvora" className="h-12 w-12 mb-3 drop-shadow-lg" />
+          <p className="font-display text-white text-sm font-bold tracking-[0.35em] mb-2">NUVORA</p>
+          <AnimatePresence mode="wait">
+            <motion.p key={mode}
+              initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
+              transition={{ duration:0.25 }}
+              className="text-white/85 text-xs leading-relaxed max-w-[200px]"
+            >
+              {isLogin ? t('login.pickUp') : t('login.startBrain')}
+            </motion.p>
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10">
+    <div className="relative min-h-screen w-full flex flex-col lg:flex-row overflow-hidden">
+      {orbPanel}
+      <div className="relative flex-1 flex items-center justify-center px-4 py-10" style={{ order: isLogin ? 1 : 0 }}>
       <motion.div
         initial={{ opacity:0, y:28, scale:0.96 }}
         animate={{ opacity:1, y:0,   scale:1    }}
@@ -249,6 +310,7 @@ export default function Login() {
         <span className="pointer-events-none absolute inset-x-8 bottom-0 h-px"
           style={{ background:`linear-gradient(90deg,transparent,${shimmer},transparent)` }} />
       </motion.div>
+      </div>
 
       {/* Legal footer — needs to be reachable without logging in (Paddle's
           domain review checks for this), and is a normal thing to have
