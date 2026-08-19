@@ -51,6 +51,24 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Steps an ISO date string (YYYY-MM-DD) by `days`, entirely in UTC — no
+// `Date` object's local-timezone getters/setters involved anywhere. Used
+// by the streak walks below, which used to mix `cursor.getDate()`/
+// `setDate()` (the server HOST's local time) with `.toISOString()`
+// (UTC) to build the comparison string on the very next line. On a
+// server actually running in UTC (Render's default, which is what this
+// app has always deployed to) local and UTC are the same clock, so this
+// was accidentally correct rather than correct by construction — the
+// exact kind of implicit "assumes the host timezone" bug that already
+// broke Flow's timer sync once (timerSync.mjs). Fixed to be explicitly
+// UTC throughout so it can't silently break again just because of where
+// or how the server happens to run.
+function shiftIsoDate(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 // ── Streak freeze (premium) ────────────────────────────────────
 // If the user paused their streak, the frozen date counts as logged.
 async function getFreezeDate(userId) {
@@ -103,12 +121,11 @@ async function getOverallStreak(userId) {
   if (freeze) dates.add(freeze);
 
   let streak = 0;
-  let cursor = new Date();
-  if (!dates.has(todayIso())) cursor.setDate(cursor.getDate() - 1);
-  while (true) {
-    const iso = cursor.toISOString().slice(0, 10);
-    if (dates.has(iso)) { streak++; cursor.setDate(cursor.getDate() - 1); }
-    else break;
+  let cursorIso = todayIso();
+  if (!dates.has(cursorIso)) cursorIso = shiftIsoDate(cursorIso, -1);
+  while (dates.has(cursorIso)) {
+    streak++;
+    cursorIso = shiftIsoDate(cursorIso, -1);
   }
   return streak;
 }
@@ -128,12 +145,11 @@ async function getHabitStreak(habitId) {
   });
   const dates = new Set(result.rows.map((r) => r.date));
   let streak = 0;
-  let cursor = new Date();
-  if (!dates.has(todayIso())) cursor.setDate(cursor.getDate() - 1);
-  while (true) {
-    const iso = cursor.toISOString().slice(0, 10);
-    if (dates.has(iso)) { streak++; cursor.setDate(cursor.getDate() - 1); }
-    else break;
+  let cursorIso = todayIso();
+  if (!dates.has(cursorIso)) cursorIso = shiftIsoDate(cursorIso, -1);
+  while (dates.has(cursorIso)) {
+    streak++;
+    cursorIso = shiftIsoDate(cursorIso, -1);
   }
   return streak;
 }
