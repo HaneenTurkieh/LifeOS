@@ -381,26 +381,37 @@ function AppShell() {
           rare load where a Flow session is actually running, instead of
           permanently reserving that much space. */}
       <div className={`fixed z-[105] end-4 lg:end-6 lg:bottom-20 ${focusBarVisible ? 'bottom-40' : 'bottom-24'}`}>
-        <div className="relative">
+        {/* flex column + items-center centers the bubble over buddy using
+            layout, not inset/transform math — the previous version pinned
+            the bubble's edge to buddy's edge and let it grow sideways,
+            which is what walked it into the Next milestones / Mood cards.
+            This can't drift off-center in either LTR or RTL. */}
+        <div className="relative flex flex-col items-center">
           <AnimatePresence>
             {buddyGreeting && (
               <motion.button
                 initial={{ opacity: 0, scale: 0.9, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 6 }}
                 transition={{ duration: 0.25 }}
                 onClick={openLumi}
-                className="absolute bottom-full end-0 mb-3 max-w-[190px] rounded-2xl px-3.5 py-2.5 text-start text-xs font-semibold leading-snug"
-                style={{ ...pillStyle, borderRadius: 16, color: isDark ? 'white' : '#1a1430' }}
+                className="relative mb-3 w-[180px] rounded-2xl px-4 py-3 text-center text-[13px] font-semibold leading-snug text-white"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)',
+                  boxShadow:  '0 10px 30px rgb(var(--accent-500) / 0.45), inset 0 1px 0 rgba(255,255,255,0.30)',
+                }}
               >
+                <span className="pointer-events-none absolute inset-x-3 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/50 to-transparent" />
                 {t('app.buddyGreeting')}
-                <span className="absolute -bottom-1.5 end-5 h-3 w-3 rotate-45"
-                  style={{ background: isDark ? 'rgba(18,14,35,0.97)' : 'rgba(255,255,255,0.97)', borderInlineEnd: pillStyle.border, borderBlockEnd: pillStyle.border }} />
+                <span className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 h-3 w-3 rotate-45"
+                  style={{ background: 'rgb(var(--accent-600))' }} />
               </motion.button>
             )}
           </AnimatePresence>
-          {/* Soft glass backdrop so the buddy reads clearly against any
-              page background instead of blending into it. */}
-          <div className="absolute -inset-2 rounded-full" style={{ ...pillStyle, borderRadius: 999 }} />
-          <NuvoraBuddy size={56} mood={moodValue} wave={buddyWave} onClick={openLumi} title={t('nav.lumi')} className="relative" />
+          <div className="relative">
+            {/* Soft glass backdrop so the buddy reads clearly against any
+                page background instead of blending into it. */}
+            <div className="absolute -inset-2 rounded-full" style={{ ...pillStyle, borderRadius: 999 }} />
+            <NuvoraBuddy size={56} mood={moodValue} wave={buddyWave} onClick={openLumi} title={t('nav.lumi')} className="relative" />
+          </div>
         </div>
       </div>
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
