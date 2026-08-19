@@ -84,15 +84,13 @@ async function getFreezeDate(userId) {
 }
 
 async function getOverallStreak(userId) {
-  // A day counts toward the streak if the person logged a habit,
-  // completed a task, OR finished a Flow/focus session — this is the
-  // headline "Streak" stat on the dashboard, so it should reflect
-  // general app activity. Previously this only looked at habit_logs and
-  // tasks, so anyone whose daily activity was Flow sessions (a whole
-  // separate, heavily-used feature) still saw their streak sit at 0 or
-  // silently break every day they only did Flow — the exact "streak
-  // isn't counting correct" report.
-  const [habitResult, taskResult, focusResult] = await Promise.all([
+  // A day counts toward the streak only if the person logged a habit or
+  // completed a task — deliberately narrow by request. An earlier version
+  // of this also counted Flow/focus sessions (a day with only a Pomodoro
+  // run still kept the streak alive), but that's been pulled back out:
+  // the streak should reflect actually ticking tasks/habits, not general
+  // app activity.
+  const [habitResult, taskResult] = await Promise.all([
     db.execute({
       sql:  `SELECT DISTINCT hl.date FROM habit_logs hl
              JOIN habits h ON h.id = hl.habit_id
@@ -104,16 +102,10 @@ async function getOverallStreak(userId) {
              WHERE user_id = ? AND status = 'done' AND completed_at IS NOT NULL`,
       args: [userId],
     }),
-    db.execute({
-      sql:  `SELECT DISTINCT date(completed_at) AS date FROM focus_sessions
-             WHERE user_id = ?`,
-      args: [userId],
-    }),
   ]);
   const dates = new Set([
     ...habitResult.rows.map((r) => r.date),
     ...taskResult.rows.map((r) => r.date),
-    ...focusResult.rows.map((r) => r.date),
   ]);
 
   // Premium streak freeze — the excused date counts as completed.
