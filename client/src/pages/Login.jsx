@@ -98,6 +98,19 @@ function WelcomeStage({ onPick, t }) {
         />
       ))}
 
+      <motion.div
+        initial={{ opacity: 0, scale: 0.7, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        className="mb-4 flex h-16 w-16 items-center justify-center rounded-[1.4rem]"
+        style={{
+          background: 'linear-gradient(135deg, rgb(var(--accent-400) / 0.22) 0%, rgb(var(--accent-600) / 0.14) 100%)',
+          border: '1px solid rgb(var(--accent-400) / 0.30)',
+          boxShadow: '0 10px 30px rgb(var(--accent-500) / 0.25), inset 0 1px 0 rgba(255,255,255,0.25)',
+        }}
+      >
+        <img src="/icon-192.png" alt="Nuvora" className="h-10 w-10 drop-shadow-lg" />
+      </motion.div>
+
       <div className="flex">
         {letters.map((ch, i) => (
           <motion.span key={i}
