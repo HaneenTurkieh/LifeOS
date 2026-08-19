@@ -147,9 +147,20 @@ function ShortcutsModal({ onClose }) {
 }
 
 // ── Root ──────────────────────────────────────────────────────
+// FocusProvider used to wrap this whole component — including the public
+// routes below (/login, /terms, /pricing, etc.). Its own effects fetch
+// focus stats/leaderboard/room membership immediately on mount, with
+// whatever's in localStorage at that instant — so on a fresh visit to
+// /login (no token yet) or during the brief window before AuthContext
+// confirms a token is actually valid, those calls fired anyway and came
+// back 401. Harmless to the UI (each one fails into an empty catch), but
+// real console noise on every single load, logged-in or not. Scoping
+// FocusProvider to only wrap AppShell — which ProtectedRoute only ever
+// renders once a user is confirmed authenticated — means Focus data
+// simply doesn't load until there's a real session to load it for.
 export default function App() {
   return (
-    <FocusProvider>
+    <>
       <GlobalBackground />
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -164,12 +175,14 @@ export default function App() {
           <Route path="/pricing"         element={<Pricing />} />
           <Route path="/*" element={
             <ProtectedRoute>
-              <AppShell />
+              <FocusProvider>
+                <AppShell />
+              </FocusProvider>
             </ProtectedRoute>
           } />
         </Routes>
       </Suspense>
-    </FocusProvider>
+    </>
   );
 }
 
