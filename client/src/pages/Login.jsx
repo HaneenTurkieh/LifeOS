@@ -583,7 +583,23 @@ export default function Login() {
                     <div className="h-px flex-1" style={{ background: dividerClr }} />
                   </div>
                   {GOOGLE_CLIENT_ID ? (
-                    <div ref={googleBtnRef} className="flex justify-center" />
+                    // Google's own button can't take our accent colors or
+                    // backdrop-blur — it's a fixed, non-customizable brand
+                    // asset (anti-spoofing rule on Google's end, not
+                    // something we can style around). Framing it in a
+                    // glass capsule that matches the demo button below
+                    // gives it a "held" look instead of a flat sticker
+                    // pasted on top of the card.
+                    <div
+                      className="flex justify-center rounded-full p-1"
+                      style={{
+                        background: demoBg,
+                        border: demoBorder,
+                        boxShadow: `0 4px 18px rgb(var(--accent-500) / 0.14), inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.6)'}`,
+                      }}
+                    >
+                      <div ref={googleBtnRef} className="flex w-full justify-center" />
+                    </div>
                   ) : (
                     <button type="button"
                       onClick={() => toast.error('Add VITE_GOOGLE_CLIENT_ID (client) + GOOGLE_CLIENT_ID (server) to enable this')}
