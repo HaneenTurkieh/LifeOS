@@ -20,8 +20,12 @@
     <!-- Paddle.js — checkout overlay for Premium purchases -->
     <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 
-    <!-- Google Identity Services — "Continue with Google" on the login page -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google Identity Services is loaded dynamically by Login.jsx instead of
+         statically here, with a ?hl= param matching the app's own language —
+         Google otherwise infers locale from the browser's Accept-Language
+         header, which can silently disagree with what the rest of the UI
+         is showing (e.g. an Arabic-preferring browser rendering the button
+         in Arabic while the app itself is displaying English). -->
 
     <!-- Fonts — display + body + mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
