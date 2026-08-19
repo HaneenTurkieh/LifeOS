@@ -227,19 +227,20 @@ function AppShell() {
     return () => window.removeEventListener('nuvora:mood-updated', onMoodUpdate);
   }, []);
 
-  // ── "Welcome back" greeting ───────────────────────────────────
-  // If it's been a while since this account was last active here, buddy
-  // waves again and a speech bubble offers a one-tap way into Lumi —
-  // instead of only ever waving once per browser (the earlier bug) or
-  // sitting there silently every single load (which would get old fast).
-  // A lightweight heartbeat keeps "last seen" fresh while the app stays
-  // open, so reloading mid-session doesn't retrigger it.
+  // ── "How can I help you today?" greeting ───────────────────────
+  // Fires on a brand new account's very first login (no "last seen"
+  // record at all yet) AND on any later login/return after being away a
+  // while — buddy waves again and a speech bubble offers a one-tap way
+  // into Lumi, instead of only ever waving once per browser (the earlier
+  // bug) or sitting there silently every single load (which would get
+  // old fast). A lightweight heartbeat keeps "last seen" fresh while the
+  // app stays open, so reloading mid-session doesn't retrigger it.
   useEffect(() => {
     if (!user?.id) return;
     const KEY = `nuvora_buddy_last_seen_${user.id}`;
     const ABSENCE_MS = 20 * 60 * 1000; // 20 minutes away counts as "back"
     const last = Number(localStorage.getItem(KEY) || 0);
-    const wasAbsent = last > 0 && (Date.now() - last > ABSENCE_MS);
+    const wasAbsent = last === 0 || (Date.now() - last > ABSENCE_MS);
     localStorage.setItem(KEY, String(Date.now()));
     let showT, hideT;
     if (wasAbsent) {
