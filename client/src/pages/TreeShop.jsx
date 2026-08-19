@@ -457,32 +457,22 @@ export default function TreeShop() {
     } catch (e) { toast.error(e.message); }
     finally { setMysticActing(false); }
   };
-  if (loading) return <PageLoader />;
-  // Real bug that used to live here: if the /trees fetch failed, `data`
-  // stayed null (the catch block only toasts, it never set any fallback),
-  // but every `data?.trees.find/.filter/.map` below only guards the
-  // `data` access itself — `?.trees` becomes `undefined`, and calling
-  // `.find`/`.filter`/`.map` on `undefined` throws immediately. With only
-  // one ErrorBoundary for the whole app, a single failed request here
-  // used to blank the entire page, not just this one. Now it just shows
-  // a retry state on this page instead.
-  if (!data) {
-    return (
-      <div>
-        <PageHeader eyebrow={t('shop.eyebrow')} title={t('shop.title')} subtitle={t('shop.subtitle')} />
-        <div className="rounded-2xl px-5 py-6 text-sm text-ink/60 dark:text-white/50 text-center"
-          style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.65)' }}>
-          {t('shop.loadFailed')}
-          <button
-            onClick={() => { setLoading(true); load(); }}
-            className="block mx-auto mt-3 px-4 py-2 rounded-xl font-semibold text-sm bg-lavender-500 text-white"
-          >
-            {t('exam.tryAgain')}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // These two used to sit AFTER the loading/error early-returns below.
+  // That's a real Rules-of-Hooks violation, not just a style nit: the
+  // very first render always hits `if (loading) return <PageLoader/>`
+  // before ever reaching this useMemo (loading starts true), so React
+  // records this mounted instance as calling N hooks. The moment data
+  // actually comes back and the page renders for real, execution now
+  // runs *past* both early returns and calls this useMemo too — N+1
+  // hooks on the same instance. React always throws on that mismatch
+  // (minified error #310, "Rendered fewer hooks than expected"), and
+  // it's deterministic — not a rare edge case — which is why the page
+  // crashed on essentially every real visit once data loaded, taking
+  // the whole app down with it (only one ErrorBoundary, at the root).
+  // Hooks must run unconditionally on every render, so this — and the
+  // plain variable it depends on — move above both early returns.
+  // `data` is optional-chained throughout, so this is safe to compute
+  // before `data` even exists yet.
   const editingMysticTree = mysticEditingId != null
     ? data?.mystic?.trees.find((mt) => mt.id === mysticEditingId)
     : null;
@@ -509,6 +499,33 @@ export default function TreeShop() {
     editingMysticTree?.glow_hex,
     editingMysticTree?.custom_name,
   ]);
+
+  if (loading) return <PageLoader />;
+  // Real bug that used to live here: if the /trees fetch failed, `data`
+  // stayed null (the catch block only toasts, it never set any fallback),
+  // but every `data?.trees.find/.filter/.map` below only guards the
+  // `data` access itself — `?.trees` becomes `undefined`, and calling
+  // `.find`/`.filter`/`.map` on `undefined` throws immediately. With only
+  // one ErrorBoundary for the whole app, a single failed request here
+  // used to blank the entire page, not just this one. Now it just shows
+  // a retry state on this page instead.
+  if (!data) {
+    return (
+      <div>
+        <PageHeader eyebrow={t('shop.eyebrow')} title={t('shop.title')} subtitle={t('shop.subtitle')} />
+        <div className="rounded-2xl px-5 py-6 text-sm text-ink/60 dark:text-white/50 text-center"
+          style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.65)' }}>
+          {t('shop.loadFailed')}
+          <button
+            onClick={() => { setLoading(true); load(); }}
+            className="block mx-auto mt-3 px-4 py-2 rounded-xl font-semibold text-sm bg-lavender-500 text-white"
+          >
+            {t('exam.tryAgain')}
+          </button>
+        </div>
+      </div>
+    );
+  }
   const equippedTree = data?.trees.find(tr => tr.equipped);
   const equippedMystic = data?.mystic?.trees.find((mt) => mt.equipped);
   const ownedCount   = data?.trees.filter(tr => tr.owned).length || 0;
