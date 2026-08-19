@@ -331,8 +331,17 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center mb-5">
-          <div className="mb-2" style={{ color: form.color_hex, filter: `drop-shadow(0 0 12px ${form.glow_hex}99)` }}>
-            <MysticSvg shapeKey={form.shape_key} size={64} />
+          {/* Real preview of what the card will actually look like — the
+              emoji itself can't be recolored, so "Colour" now visibly
+              tints this frame (exactly what MysticTreeCard does later)
+              instead of doing nothing you can see here. */}
+          <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-2xl"
+            style={{
+              background: `linear-gradient(145deg, ${form.color_hex}2A 0%, ${form.color_hex}0F 100%)`,
+              border: `2px solid ${form.color_hex}55`,
+              filter: `drop-shadow(0 0 12px ${form.glow_hex}AA)`,
+            }}>
+            <MysticSvg shapeKey={form.shape_key} size={44} />
           </div>
           <p className="font-display font-bold text-sm" style={{ color: '#1E2233' }}>{form.custom_name || t('shop.mysticNamePh')}</p>
         </div>
@@ -352,21 +361,36 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
           ))}
         </div>
 
+        {/* "Colour" tints the card frame behind the emoji (see the
+            preview above) — flat chips, since that's a flat tint. */}
         <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticColor')}</p>
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-2.5 mb-4 flex-wrap">
           {MYSTIC_COLORS.map((c) => (
             <button key={c} onClick={() => setForm({ ...form, color_hex: c })}
-              className="h-7 w-7 rounded-full transition"
-              style={{ background: c, boxShadow: form.color_hex === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : 'none' }} />
+              className="h-8 w-8 rounded-full transition"
+              style={{
+                background: `linear-gradient(145deg, ${c} 0%, ${c}CC 100%)`,
+                boxShadow: form.color_hex === c
+                  ? `0 0 0 2px white, 0 0 0 4px ${c}, inset 0 1px 1px rgba(255,255,255,0.5)`
+                  : 'inset 0 1px 1px rgba(255,255,255,0.5)',
+              }} />
           ))}
         </div>
 
+        {/* "Glow" is an actual glow, not a tint — so each chip carries a
+            soft blurred halo in its own color, showing exactly what
+            picking it will do instead of looking identical to Colour. */}
         <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticGlow')}</p>
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-2.5 mb-4 flex-wrap">
           {MYSTIC_COLORS.map((c) => (
             <button key={c} onClick={() => setForm({ ...form, glow_hex: c })}
-              className="h-7 w-7 rounded-full transition"
-              style={{ background: c, boxShadow: form.glow_hex === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : 'none' }} />
+              className="h-8 w-8 rounded-full transition"
+              style={{
+                background: c,
+                boxShadow: form.glow_hex === c
+                  ? `0 0 0 2px white, 0 0 10px 3px ${c}, 0 0 18px 6px ${c}99`
+                  : `0 0 8px 2px ${c}88`,
+              }} />
           ))}
         </div>
 
