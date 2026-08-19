@@ -9,7 +9,7 @@ import PageLoader from '../components/Loader.jsx';
 import MysticSvg  from '../components/MysticTreeIcon.jsx';
 
 // ── Mystic Tree — shape + colour picker, not a fixed preset ────
-const MYSTIC_SHAPES = ['spiral', 'crystal', 'orbs', 'bloom', 'bough'];
+const MYSTIC_SHAPES = ['spiral', 'crystal', 'orbs', 'bloom', 'bough', 'nova', 'aurora'];
 const MYSTIC_COLORS = ['#8B5CF6', '#F472B6', '#F59E0B', '#10B981', '#38BDF8', '#6366F1', '#FB7185', '#EAB308'];
 
 const RARITY = {
@@ -338,10 +338,10 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
         </div>
 
         <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticShape')}</p>
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           {MYSTIC_SHAPES.map((s) => (
             <button key={s} onClick={() => setForm({ ...form, shape_key: s })}
-              className="flex-1 flex items-center justify-center rounded-xl py-2.5"
+              className="flex-1 basis-[18%] flex items-center justify-center rounded-xl py-2.5"
               style={{
                 background: form.shape_key === s ? `${form.color_hex}1A` : 'rgba(0,0,0,0.04)',
                 border:     form.shape_key === s ? `1.5px solid ${form.color_hex}` : '1px solid transparent',
