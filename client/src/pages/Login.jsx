@@ -207,7 +207,7 @@ export default function Login() {
 
   const { login, register, loginWithGoogle } = useAuth();
   const { resolvedTheme }   = useTheme();
-  const { t }               = useLanguage();
+  const { t, lang }         = useLanguage();
   const toast                = useToast();
   const navigate            = useNavigate();
   const location            = useLocation();
@@ -323,19 +323,44 @@ export default function Login() {
   useEffect(() => {
     if (stage !== 'form' || !GOOGLE_CLIENT_ID) return;
     let cancelled = false;
-    const tryInit = () => {
+    const hl = lang === 'ar' ? 'ar' : 'en';
+
+    // Loads (or re-loads) the GIS script with an explicit ?hl= locale.
+    // Without this, Google infers the button's language/direction from
+    // the browser's own Accept-Language header — which can silently
+    // disagree with `lang` (the language the rest of the UI is actually
+    // showing right now), producing a button in a different language
+    // than the form around it. Re-injecting with the current `hl` keeps
+    // it in sync if the person switches the app's language later too.
+    const ensureScript = () => new Promise((resolve) => {
+      const existing = document.getElementById('google-gsi-script');
+      if (existing && existing.dataset.hl === hl) { resolve(); return; }
+      if (existing) existing.remove();
+      const script = document.createElement('script');
+      script.id = 'google-gsi-script';
+      script.src = `https://accounts.google.com/gsi/client?hl=${hl}`;
+      script.async = true;
+      script.defer = true;
+      script.dataset.hl = hl;
+      script.onload = resolve;
+      document.head.appendChild(script);
+    });
+
+    const tryInit = async () => {
+      if (cancelled) return;
+      await ensureScript();
       if (cancelled) return;
       if (!window.google?.accounts?.id || !googleBtnRef.current) { setTimeout(tryInit, 150); return; }
       window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
       googleBtnRef.current.innerHTML = '';
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         type: 'standard', shape: 'pill', theme: isDark ? 'filled_black' : 'outline',
-        size: 'large', text: 'continue_with', width: 288,
+        size: 'large', text: 'continue_with', width: 288, logo_alignment: 'left',
       });
     };
     tryInit();
     return () => { cancelled = true; };
-  }, [stage, isDark]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stage, isDark, lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Card body (the white/glass form panel under the colored hero).
   const cardBg      = isDark ? 'rgba(255,255,255,0.08)'              : 'rgba(255,255,255,0.92)';
