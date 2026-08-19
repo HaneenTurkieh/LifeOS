@@ -25,7 +25,7 @@ import { motion } from 'framer-motion';
 // so the same character reflects how the day's actually going instead of
 // always wearing one fixed expression. Leave it unset for the default
 // happy face.
-export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, bob = true, mood = null, onClick, className = '', title }) {
+export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, bob = true, mood = null, glow = true, onClick, className = '', title }) {
   const [blink, setBlink] = useState(false);
   const [waving, setWaving] = useState(wave);
 
@@ -95,6 +95,33 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
       whileHover={onClick ? { scale: 1.06 } : {}}
       whileTap={onClick ? { scale: 0.94 } : {}}
     >
+      {/* ambient aura — a soft breathing glow behind the body, plus a thin
+          orbiting ring, matching the "planet with a halo" reference look.
+          Purely decorative: absolutely positioned, no pointer events, sits
+          behind the SVG via -z-10 within this component's own stacking
+          context (the wrapper above is already `relative`). */}
+      {glow && (
+        <>
+          <motion.div
+            className="pointer-events-none absolute inset-0 -z-10 rounded-full"
+            style={{
+              background: 'radial-gradient(circle, rgb(var(--accent-300) / 0.9) 0%, rgb(var(--accent-500) / 0.55) 40%, transparent 72%)',
+              filter: `blur(${Math.max(10, size * 0.32)}px)`,
+            }}
+            animate={{ opacity: [0.55, 0.95, 0.55], scale: [1.55, 1.85, 1.55] }}
+            transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.svg
+            viewBox="0 0 64 64" width="100%" height="100%"
+            className="pointer-events-none absolute inset-0"
+            style={{ overflow: 'visible' }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 16, repeat: Infinity, ease: 'linear' }}
+          >
+            <ellipse cx="32" cy="32" rx="35" ry="13" fill="none" stroke="white" strokeOpacity="0.4" strokeWidth="0.9" transform="rotate(-20 32 32)" />
+          </motion.svg>
+        </>
+      )}
       <svg viewBox="0 0 64 64" width="100%" height="100%"
         style={{ filter: 'drop-shadow(0 6px 16px rgb(var(--accent-500) / 0.45))', overflow: 'visible' }}>
         <defs>

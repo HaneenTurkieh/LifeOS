@@ -37,6 +37,22 @@ function GoogleG({ size = 16 }) {
 // here where a first impression actually happens, then two clear paths
 // forward — Log in / Sign up — same two options moimoi's reference
 // leads with, just carrying Nuvora's own identity instead.
+// Scattered twinkling points behind the wordmark/buddy — fixed positions
+// (not randomized per render, so nothing jumps on re-render) with staggered
+// fade loops, standing in for the "starfield" feel of the reference image
+// without needing any image assets.
+const SPARKLES = [
+  { top: '2%',  left: '8%',  size: 3, delay: 0.0 },
+  { top: '14%', left: '88%', size: 2, delay: 0.7 },
+  { top: '30%', left: '2%',  size: 2, delay: 1.4 },
+  { top: '46%', left: '94%', size: 3, delay: 0.35 },
+  { top: '62%', left: '4%',  size: 2, delay: 1.9 },
+  { top: '80%', left: '90%', size: 2, delay: 0.55 },
+  { top: '4%',  left: '48%', size: 2, delay: 2.2 },
+  { top: '92%', left: '55%', size: 2, delay: 1.1 },
+  { top: '54%', left: '14%', size: 2, delay: 2.6 },
+];
+
 function WelcomeStage({ onPick, t }) {
   const letters = 'NUVORA'.split('');
   const letterStagger = 0.09;
@@ -57,6 +73,31 @@ function WelcomeStage({ onPick, t }) {
       transition={{ duration: 0.4 }}
       className="relative w-full max-w-sm flex flex-col items-center text-center"
     >
+      {/* big soft breathing halo centered behind the wordmark + buddy —
+          the "glowing orb" feel from the reference, sized to the whole
+          hero rather than just buddy's own small aura */}
+      <motion.div
+        className="pointer-events-none absolute left-1/2 top-[38%] -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          width: 340, height: 340,
+          background: 'radial-gradient(circle, rgb(var(--accent-400) / 0.5) 0%, rgb(var(--accent-600) / 0.28) 45%, transparent 72%)',
+          filter: 'blur(50px)',
+        }}
+        animate={{ opacity: [0.55, 0.9, 0.55], scale: [0.92, 1.05, 0.92] }}
+        transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* twinkling starfield */}
+      {SPARKLES.map((s, i) => (
+        <motion.span
+          key={i}
+          className="pointer-events-none absolute -z-10 rounded-full bg-white"
+          style={{ top: s.top, left: s.left, width: s.size, height: s.size, boxShadow: '0 0 6px 1px rgba(255,255,255,0.7)' }}
+          animate={{ opacity: [0.15, 0.9, 0.15], scale: [0.8, 1.3, 0.8] }}
+          transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay: s.delay }}
+        />
+      ))}
+
       <div className="flex">
         {letters.map((ch, i) => (
           <motion.span key={i}
@@ -255,20 +296,29 @@ export default function Login() {
   // container once the GIS script and a Client ID are both available.
   // Re-runs on stage/isDark so it (re)renders correctly whenever the form
   // stage mounts and matches the current theme.
+  //
+  // Has to retry on BOTH conditions — the script loading AND the ref
+  // actually existing — not just the script. The Welcome→Form switch
+  // above uses <AnimatePresence mode="wait">, which keeps Welcome
+  // mounted for its ~0.4s exit animation before the form (and this
+  // ref's div) mounts at all. This effect fires the instant `stage`
+  // flips to 'form', which is *before* that div exists, so the old
+  // version's one-shot `if (googleBtnRef.current)` check silently no-op'd
+  // and never got another chance — the button was configured correctly
+  // the whole time, it just always tried to render into a ref that
+  // wasn't there yet.
   useEffect(() => {
     if (stage !== 'form' || !GOOGLE_CLIENT_ID) return;
     let cancelled = false;
     const tryInit = () => {
       if (cancelled) return;
-      if (!window.google?.accounts?.id) { setTimeout(tryInit, 250); return; }
+      if (!window.google?.accounts?.id || !googleBtnRef.current) { setTimeout(tryInit, 150); return; }
       window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
-      if (googleBtnRef.current) {
-        googleBtnRef.current.innerHTML = '';
-        window.google.accounts.id.renderButton(googleBtnRef.current, {
-          type: 'standard', shape: 'pill', theme: isDark ? 'filled_black' : 'outline',
-          size: 'large', text: 'continue_with', width: 288,
-        });
-      }
+      googleBtnRef.current.innerHTML = '';
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        type: 'standard', shape: 'pill', theme: isDark ? 'filled_black' : 'outline',
+        size: 'large', text: 'continue_with', width: 288,
+      });
     };
     tryInit();
     return () => { cancelled = true; };
