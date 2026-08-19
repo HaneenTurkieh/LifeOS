@@ -28,6 +28,38 @@ function GoogleG({ size = 16 }) {
   );
 }
 
+// A handful of comets that streak across the whole page on their own
+// loop, independent delays/repeatDelays so they never sync up into an
+// obvious pattern. Page-level (not scoped to Welcome) so the cosmic feel
+// carries through onto the form stage too, just at low frequency —
+// something to catch out of the corner of your eye, not a light show.
+const SHOOTING_STARS = [
+  { top: '12%', angle: -22, length: 130, delay: 0.6,  repeatDelay: 9  },
+  { top: '58%', angle: -16, length: 100, delay: 4.5,  repeatDelay: 13 },
+  { top: '78%', angle: -26, length: 150, delay: 9.2,  repeatDelay: 11 },
+];
+
+function ShootingStars() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden -z-10">
+      {SHOOTING_STARS.map((s, i) => (
+        <motion.div
+          key={i}
+          className="absolute"
+          style={{
+            top: s.top, left: '-15%', width: s.length, height: 1.5,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.95), transparent)',
+            filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.85))',
+            transform: `rotate(${s.angle}deg)`,
+          }}
+          animate={{ x: ['0vw', '135vw'], opacity: [0, 1, 1, 0] }}
+          transition={{ duration: 1.4, repeat: Infinity, repeatDelay: s.repeatDelay, delay: s.delay, ease: 'easeIn' }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── Welcome stage ─────────────────────────────────────────────
 // The actual first thing anyone sees now — not a one-time overlay gated
 // behind localStorage (that was the bug: it only ever played once per
@@ -53,7 +85,7 @@ const SPARKLES = [
   { top: '54%', left: '14%', size: 2, delay: 2.6 },
 ];
 
-function WelcomeStage({ onPick, t }) {
+function WelcomeStage({ onPick, t, parallax = { x: 0, y: 0 } }) {
   const letters = 'NUVORA'.split('');
   const letterStagger = 0.09;
   const taglineDelay  = 0.15 + letters.length * letterStagger + 0.3;
@@ -73,26 +105,46 @@ function WelcomeStage({ onPick, t }) {
       transition={{ duration: 0.4 }}
       className="relative w-full max-w-sm flex flex-col items-center text-center"
     >
+      {/* nova ignition — a single bright point flashes and rips outward
+          the instant Welcome mounts, right under the halo it settles
+          into. Literal callback to the brand's own explanation a few
+          lines below ("a star, at its dimmest, suddenly flares into the
+          brightest light it has ever held") instead of just a fade-in. */}
+      <motion.div
+        className="pointer-events-none absolute left-1/2 top-[38%] -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
+        style={{ width: 30, height: 30 }}
+        initial={{ opacity: 0.95, scale: 0.4 }}
+        animate={{ opacity: 0, scale: 16 }}
+        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+      />
+
       {/* big soft breathing halo centered behind the wordmark + buddy —
           the "glowing orb" feel from the reference, sized to the whole
-          hero rather than just buddy's own small aura */}
+          hero rather than just buddy's own small aura. Drifts slightly
+          with the pointer for a layered, depth-y feel. */}
       <motion.div
         className="pointer-events-none absolute left-1/2 top-[38%] -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{
           width: 340, height: 340,
           background: 'radial-gradient(circle, rgb(var(--accent-400) / 0.5) 0%, rgb(var(--accent-600) / 0.28) 45%, transparent 72%)',
           filter: 'blur(50px)',
+          x: parallax.x * 10, y: parallax.y * 10,
         }}
         animate={{ opacity: [0.55, 0.9, 0.55], scale: [0.92, 1.05, 0.92] }}
         transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* twinkling starfield */}
+      {/* twinkling starfield — drifts a touch less than the halo, so the
+          two layers separate instead of moving as one flat plane */}
       {SPARKLES.map((s, i) => (
         <motion.span
           key={i}
           className="pointer-events-none absolute -z-10 rounded-full bg-white"
-          style={{ top: s.top, left: s.left, width: s.size, height: s.size, boxShadow: '0 0 6px 1px rgba(255,255,255,0.7)' }}
+          style={{
+            top: s.top, left: s.left, width: s.size, height: s.size,
+            boxShadow: '0 0 6px 1px rgba(255,255,255,0.7)',
+            x: parallax.x * 5, y: parallax.y * 5,
+          }}
           animate={{ opacity: [0.15, 0.9, 0.15], scale: [0.8, 1.3, 0.8] }}
           transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay: s.delay }}
         />
@@ -220,6 +272,18 @@ export default function Login() {
   const contentControls = useAnimationControls();
   const firstRun         = useRef(true);
   const googleBtnRef     = useRef(null);
+
+  // Subtle pointer-driven depth — background blobs drift a bit more than
+  // the halo/starfield they sit behind, so the page reads as layered
+  // instead of flat when you move the mouse. Plain state (not a motion
+  // value) is fine here: this only updates on mousemove over a login
+  // page, not a hot render path.
+  const [parallax, setParallax] = useState({ x: 0, y: 0 });
+  const handlePointerMove = (e) => {
+    const nx = (e.clientX / window.innerWidth  - 0.5) * 2;
+    const ny = (e.clientY / window.innerHeight - 0.5) * 2;
+    setParallax({ x: nx, y: ny });
+  };
 
   // Leaving Welcome for a specific form — sets mode/displayMode directly
   // instead of going through the morph effect below (the card isn't even
@@ -409,22 +473,29 @@ export default function Login() {
   // uses, plus one warm highlight for depth. Decorative only.
   const bgBlobs = (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute -top-28 -left-20 h-80 w-80 rounded-full blur-3xl"
-        style={{ background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-300) / 0.55), rgb(var(--accent-600) / 0.35) 60%, transparent 75%)' }} />
-      <div className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full blur-3xl"
-        style={{ background: 'radial-gradient(circle at 40% 35%, rgb(var(--accent-400) / 0.45), rgb(var(--accent-700) / 0.30) 60%, transparent 75%)' }} />
-      <div className="absolute top-[10%] right-[10%] h-28 w-28 rounded-full blur-2xl opacity-60"
-        style={{ background: 'radial-gradient(circle at 40% 30%, #FFD98A, rgb(var(--accent-500) / 0.4) 70%, transparent 80%)' }} />
+      <motion.div className="absolute -top-28 -left-20 h-80 w-80 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle at 35% 30%, rgb(var(--accent-300) / 0.55), rgb(var(--accent-600) / 0.35) 60%, transparent 75%)' }}
+        animate={{ x: parallax.x * 16, y: parallax.y * 16 }} transition={{ type: 'spring', stiffness: 40, damping: 20 }} />
+      <motion.div className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle at 40% 35%, rgb(var(--accent-400) / 0.45), rgb(var(--accent-700) / 0.30) 60%, transparent 75%)' }}
+        animate={{ x: parallax.x * -20, y: parallax.y * -20 }} transition={{ type: 'spring', stiffness: 40, damping: 20 }} />
+      <motion.div className="absolute top-[10%] right-[10%] h-28 w-28 rounded-full blur-2xl opacity-60"
+        style={{ background: 'radial-gradient(circle at 40% 30%, #FFD98A, rgb(var(--accent-500) / 0.4) 70%, transparent 80%)' }}
+        animate={{ x: parallax.x * 24, y: parallax.y * 24 }} transition={{ type: 'spring', stiffness: 40, damping: 20 }} />
     </div>
   );
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-10 overflow-hidden">
+    <div
+      className="relative min-h-screen w-full flex items-center justify-center px-4 py-10 overflow-hidden"
+      onMouseMove={handlePointerMove}
+    >
       {bgBlobs}
+      <ShootingStars />
 
       <AnimatePresence mode="wait">
         {stage === 'welcome' ? (
-          <WelcomeStage key="welcome" onPick={enterForm} t={t} />
+          <WelcomeStage key="welcome" onPick={enterForm} t={t} parallax={parallax} />
         ) : (
           <motion.div
             key="form"

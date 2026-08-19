@@ -74,6 +74,31 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
     return () => { cancelled = true; clearTimeout(t1); clearTimeout(t2); };
   }, [waveLoop]);
 
+  // Every so often the little sparkle on buddy's head throws off a few
+  // grains of stardust — a tiny nova of its own, echoing the brand story
+  // in miniature instead of just sitting there as a static icon.
+  const [burstKey, setBurstKey] = useState(0);
+  useEffect(() => {
+    if (!glow) return;
+    let cancelled = false;
+    let t;
+    const loop = () => {
+      const delay = 5000 + Math.random() * 5000;
+      t = setTimeout(() => {
+        if (cancelled) return;
+        setBurstKey((k) => k + 1);
+        loop();
+      }, delay);
+    };
+    loop();
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [glow]);
+  const STARDUST = [
+    { dx: -7, dy: -9,  delay: 0    },
+    { dx: 6,  dy: -11, delay: 0.08 },
+    { dx: 1,  dy: -14, delay: 0.16 },
+  ];
+
   // Mouth shape by mood: bigger smile on great days, flatter on okay days,
   // a gentle downturn (+ worried brows) on rough/meh ones. Falls back to
   // the original friendly default when no mood is known yet.
@@ -183,6 +208,20 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
 
         {/* sparkle — the nova moment, in miniature */}
         <path d="M48 12 L49.6 16.2 L53.8 17.8 L49.6 19.4 L48 23.6 L46.4 19.4 L42.2 17.8 L46.4 16.2 Z" fill="white" opacity="0.9" />
+
+        {/* stardust burst — re-plays whenever burstKey changes, throwing
+            a few grains off the sparkle that drift out and fade */}
+        {glow && (
+          <g key={burstKey}>
+            {STARDUST.map((p, i) => (
+              <motion.circle key={i} r="1.15" fill="white"
+                initial={{ opacity: 0, cx: 48, cy: 17 }}
+                animate={{ opacity: [0, 1, 0], cx: 48 + p.dx, cy: 17 + p.dy }}
+                transition={{ duration: 1.3, delay: p.delay, ease: 'easeOut' }}
+              />
+            ))}
+          </g>
+        )}
       </svg>
     </motion.div>
   );
