@@ -205,7 +205,13 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-5">
       <GlassCard className="p-7">
-        <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+        {/* ref moved up here (was on just the stats row below) so the new
+            score-ring info button — which lives in the sphere column, a
+            sibling of that row, not inside it — is also treated as
+            "inside" for the click-outside-closes-the-hint check below.
+            Otherwise its own hint popover would never register as a
+            valid click target and close itself the instant it opened. */}
+        <div className="flex flex-col lg:flex-row lg:items-start gap-6" ref={statsRef}>
           <div className="flex-1 min-w-0">
             {/* Small brand mark — the app's own name only ever showed up
                 pre-login before this (the login page's wordmark). Kept
@@ -221,7 +227,7 @@ export default function Dashboard() {
               {isBirthday ? t('greet.birthday') : t(greetKey)}, {firstName} {isBirthday ? '🎂' : '👋'}
             </h1>
             <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
-            <div className="relative z-30 flex flex-wrap gap-3" ref={statsRef}>
+            <div className="relative z-30 flex flex-wrap gap-3">
               {[
                 { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
                 { icon: isBirthday ? '🎁' : '⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
@@ -323,7 +329,38 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <ProductivitySphere score={productivityScore} equippedTree={isBirthday ? 'christmas' : equippedTree} mysticTree={isBirthday ? null : equippedMysticTree} />
+                <div className="relative">
+                  <ProductivitySphere score={productivityScore} equippedTree={isBirthday ? 'christmas' : equippedTree} mysticTree={isBirthday ? null : equippedMysticTree} />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === 'score' ? null : 'score'); }}
+                    className="absolute -top-1 -end-1 flex h-5 w-5 items-center justify-center rounded-full text-ink/30 dark:text-white/40 hover:text-ink/60 dark:hover:text-white/70 transition-colors"
+                    style={isDark
+                      ? { background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.20)' }
+                      : { background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
+                  >
+                    <Info size={11} />
+                  </button>
+                  <AnimatePresence>
+                    {openHint === 'score' && (
+                      <motion.div
+                        initial={{ opacity:0, y:-4, scale:0.96 }}
+                        animate={{ opacity:1, y:0, scale:1 }}
+                        exit={{ opacity:0, y:-4, scale:0.96 }}
+                        transition={{ duration:0.15 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`absolute top-full mt-2 end-0 z-20 w-56 rounded-xl px-3 py-2.5 text-xs leading-relaxed ${isDark ? 'text-white/80' : 'text-ink/70'}`}
+                        style={isDark
+                          ? { background:'rgba(32,26,54,0.98)', border:'1px solid rgba(255,255,255,0.14)', boxShadow:'0 12px 32px rgba(0,0,0,0.45)' }
+                          : { background:'rgba(255,255,255,0.98)', border:'1px solid rgba(255,255,255,0.90)', boxShadow:'0 12px 32px rgba(0,0,0,0.14)' }}
+                      >
+                        {t('dash.scoreHint', {
+                          tasksDone: counts.tasksDoneToday, tasksTotal: counts.totalTasksToday,
+                          habitsDone: counts.habitsDoneToday, habitsTotal: counts.totalHabits,
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <button onClick={() => navigate('/trees')}
                   className="flex items-center gap-1 text-xs text-ink/35 dark:text-white/30 hover:text-lavender-500 transition">
                   <TreePine size={11} /> {t('dash.changeTree')}
