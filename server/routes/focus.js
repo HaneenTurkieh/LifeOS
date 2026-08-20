@@ -658,7 +658,13 @@ router.get('/forest', async (req, res) => {
       stats: {
         total_alive:    Number(totalsRow.alive || 0),
         total_dead:     Number(totalsRow.dead || 0),
-        today_planted:  (byDay[today] || []).filter(t => t.status === 'alive').length,
+        // "planted today" counts planting *events*, not current survival —
+        // a tree that was planted today and later died in the same day is
+        // still a tree you planted today. Filtering to status === 'alive'
+        // here made this number quietly drop below what the Land history
+        // list and plot show for the same day (a died-today tree still
+        // shows up there), which read as the two disagreeing.
+        today_planted:  (byDay[today] || []).length,
         total_minutes:  Number(totalsRow.total_minutes || 0),
       },
     });
