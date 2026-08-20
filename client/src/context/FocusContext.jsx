@@ -631,6 +631,23 @@ export function FocusProvider({ children }) {
     pauseGraceTimeoutRef.current = null;
   }, []);
 
+  // handleComplete's identity changes on every tick (it depends on
+  // pushTimerState, which closes over `timeLeft` — the very thing this
+  // interval updates every 500ms). With handleComplete in this effect's
+  // deps, that meant the countdown's setInterval was torn down and
+  // rebuilt roughly twice a second for the entire session — the wall-
+  // clock math (wallStart/timeAtStart recomputed fresh each time) kept
+  // it accurate, so it never surfaced as a visible timing bug, but it's
+  // real, needless render/effect churn running continuously in the
+  // background of every focus session, worse on exactly the low-power
+  // mobile devices this app already has enough timer trouble on.
+  // Routing the call through a ref that always points at the latest
+  // handleComplete lets the interval's own lifecycle depend on nothing
+  // but isRunning, so it's created once per start/stop instead of twice
+  // a second.
+  const handleCompleteRef = useRef(handleComplete);
+  useEffect(() => { handleCompleteRef.current = handleComplete; }, [handleComplete]);
+
   useEffect(() => {
     if (!isRunning) { clearInterval(intervalRef.current); return; }
     const wallStart   = Date.now();
@@ -649,11 +666,12 @@ export function FocusProvider({ children }) {
         // tabs both finishing the same round used to double-credit it).
         const finishedStartedAt = startedAtRef.current;
         setStartedAt(null);
-        setTimeout(() => handleComplete(finishedStartedAt), 50);
+        setTimeout(() => handleCompleteRef.current(finishedStartedAt), 50);
       }
     }, 500);
     return () => clearInterval(intervalRef.current);
-  }, [isRunning, handleComplete]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning]);
 
   useEffect(() => {
     if (isRunning) {
