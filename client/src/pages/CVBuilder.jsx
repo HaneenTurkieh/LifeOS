@@ -73,19 +73,27 @@ export default function CVBuilder({ openTrigger = 0 }) {
   const [cropSrc,     setCropSrc]     = useState(null);
   const photoInputRef = useRef(null);
 
+  // The Launchpad → Projects tab (kanban board, idea→deployment) is a
+  // completely separate table from cv_projects here — this just reads
+  // it read-only, purely to power the "pull from your projects" picker
+  // below, so someone building a CV entry for a project they're already
+  // tracking doesn't have to retype the title/description from scratch.
+  const [launchpadProjects, setLaunchpadProjects] = useState([]);
   const load = useCallback(async () => {
     try {
-      const [experience, education, projects, skills, certifications, prof] = await Promise.all([
+      const [experience, education, projects, skills, certifications, prof, lp] = await Promise.all([
         api.get('/cv/experience'),
         api.get('/cv/education'),
         api.get('/cv/projects'),
         api.get('/cv/skills'),
         api.get('/cv/certifications'),
         api.get('/cv/profile'),
+        api.get('/projects').catch(() => []),
       ]);
       setData({ experience, education, projects, skills, certifications });
       setProfile(prof || EMPTY_PROFILE);
       setProfileDraft(prof || EMPTY_PROFILE);
+      setLaunchpadProjects(lp || []);
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
@@ -579,6 +587,26 @@ ${cvSummary}`,
           )}
           {tab === 'projects' && (
             <>
+              {launchpadProjects.length > 0 && (
+                <div>
+                  <select
+                    className="input-field"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const proj = launchpadProjects.find((p) => String(p.id) === e.target.value);
+                      if (!proj) return;
+                      setForm((f) => ({ ...f, title: proj.title || f.title, description: proj.description || f.description }));
+                      e.target.value = ''; // reset to placeholder — this is a one-shot fill, not a bound field
+                    }}
+                  >
+                    <option value="" disabled>Pull from your Projects tab…</option>
+                    {launchpadProjects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.title}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-ink/35 mt-1">Fills the title and description below — tech stack and link still need a quick fill-in.</p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input className="input-field flex-1" placeholder="Project title"
                   value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
