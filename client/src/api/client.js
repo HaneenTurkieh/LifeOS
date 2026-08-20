@@ -25,9 +25,26 @@ export function setToken(token) {
   localStorage.removeItem(OLD_TOKEN_KEY);
 }
 
+// Real bug this fixes: a focus session finishing right as Render's free
+// tier is asleep didn't fail fast — the very first request that wakes a
+// sleeping instance can just sit there while the container boots, and
+// plain `fetch()` has no built-in timeout, so it can hang for a very
+// long time instead of throwing. The retry below only ever handled the
+// case where the browser rejects the request outright; a genuine hang
+// sailed straight past it and left whatever called this (e.g. the focus
+// timer waiting on POST /focus/sessions to plant a tree) stuck showing
+// its "saving..." state forever, since the promise it was awaiting
+// simply never settled either way. AbortController gives every request
+// a hard ceiling so it always settles one way or the other.
+function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 async function request(path, options = {}) {
   const token   = getToken();
-  const doFetch = () => fetch(`${BASE}${path}`, {
+  const doFetch = () => fetchWithTimeout(`${BASE}${path}`, {
     // Safari is more aggressive than Chrome about heuristically caching
     // GET JSON responses when the server doesn't send explicit
     // Cache-Control headers — force every request to hit the network so
@@ -38,7 +55,7 @@ async function request(path, options = {}) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...options,
-  });
+  }, 20000);
 
   let res;
   try {
@@ -50,9 +67,18 @@ async function request(path, options = {}) {
     // API cannot load ... due to access control checks" instead of a
     // plain network error, which made it look like a browser bug when
     // it was really the backend still waking up. One retry after a
-    // short delay almost always succeeds once it's awake.
+    // short delay almost always succeeds once it's awake. Also covers
+    // the timeout case above (AbortError) — either way, one more try
+    // with a fresh 20s ceiling of its own.
     await new Promise((r) => setTimeout(r, 2500));
-    res = await doFetch();
+    try {
+      res = await doFetch();
+    } catch (retryErr) {
+      const timedOut = retryErr?.name === 'AbortError';
+      throw new Error(timedOut
+        ? 'Nuvora is taking longer than usual to respond — please try again.'
+        : 'Network error — check your connection and try again.');
+    }
   }
 
   if (res.status === 401) {
