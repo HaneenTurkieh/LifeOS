@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Lock, Check, Pencil } from 'lucide-react';
+import { Sparkles, Lock, Check } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -181,115 +181,95 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
   );
 }
 
-// A slot that's been earned (1000 more lifetime XP crossed) but not
-// designed yet — free to fill, nothing to spend, just an invite.
-function MysticDesignSlotCard({ onDesign, loading, t }) {
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4, transition: { type: 'spring', stiffness: 400, damping: 25 } }}
-      className="relative flex flex-col items-center rounded-3xl p-6 text-center overflow-hidden"
-      style={{
-        background: 'linear-gradient(145deg, rgba(139,92,246,0.16) 0%, rgba(244,114,182,0.10) 50%, rgba(56,189,248,0.14) 100%)',
-        border:     '1px solid rgba(139,92,246,0.35)',
-        boxShadow:  '0 12px 32px rgba(139,92,246,0.18), inset 0 2px 0 rgba(255,255,255,0.5)',
-      }}
-    >
-      <motion.div
-        className="absolute inset-0 opacity-30 pointer-events-none"
-        animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
-        style={{
-          backgroundImage: 'linear-gradient(120deg, #8B5CF6, #F472B6, #38BDF8, #8B5CF6)',
-          backgroundSize:  '300% 300%',
-          mixBlendMode:    'overlay',
-        }}
-      />
-      <div className="absolute top-3 end-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-        style={{ background: 'rgba(139,92,246,0.18)', color: '#8B5CF6' }}>
-        {t('shop.mysticBadge')}
-      </div>
-      <div className="relative text-5xl mb-3">🔮</div>
-      <h3 className="relative font-display font-bold text-ink dark:text-white text-sm mb-1">{t('shop.mysticSlotReady')}</h3>
-      <p className="relative text-xs text-ink/50 dark:text-white/40 mb-4 leading-snug">
-        {t('shop.mysticLocked')}
-      </p>
-      <motion.button
-        whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-        onClick={onDesign}
-        disabled={loading}
-        className="relative w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
-        style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #F472B6 100%)', boxShadow: '0 6px 16px rgba(139,92,246,0.4)' }}>
-        {t('shop.mysticDesign')}
-      </motion.button>
-    </motion.div>
-  );
+// Deterministic wave-scatter layout for the night sky — a plain index
+// formula, not real randomness, so stars don't jump to new spots every
+// re-render. Spreads points left-to-right in rows with a bit of
+// per-point jitter so it reads as a loose constellation, not a grid.
+function starPos(i, total) {
+  const cols = Math.max(1, Math.min(total, 5));
+  const col  = i % cols;
+  const row  = Math.floor(i / cols);
+  const x = 10 + (cols > 1 ? (col / (cols - 1)) * 80 : 40);
+  const jitter = ((i * 53) % 30) - 15;
+  const y = 24 + row * 34 + jitter * 0.6;
+  return { x, y: Math.min(84, Math.max(14, y)) };
 }
 
-// One already-designed mystic tree — equip / edit, just like any
-// other tree card once it exists.
-function MysticTreeCard({ tree, onEdit, onEquip, loading, t }) {
-  const fillColor = tree.color_hex;
-  const glowColor = tree.glow_hex;
+// The Constellation — every unlocked relic star, connected by soft
+// lines in the order it was claimed, over a twinkling night sky. The
+// still-unclaimed next slot sits at the end of the line as a dashed
+// invite instead of a separate card. Replaced the old card-grid
+// entirely; the individual relic (MysticSvg) stayed the same visual
+// unit, just moved out of white cards and into a sky it actually
+// belongs in.
+function ConstellationSky({ trees, pendingSlot, onEdit, onEquip, onDesign, loading, t }) {
+  const total = trees.length + (pendingSlot ? 1 : 0);
+  const bgStars = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
+    x: (i * 37) % 100, y: (i * 53 + 7) % 100, size: 1 + (i % 3), delay: (i % 5) * 0.4,
+  })), []);
+  const points = trees.map((tree, i) => ({ ...starPos(i, total), tree }));
+  const pendingPoint = pendingSlot ? starPos(trees.length, total) : null;
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative flex flex-col items-center rounded-3xl p-6 text-center"
-      style={{
-        background: tree.equipped
-          ? `linear-gradient(145deg, ${fillColor}22 0%, ${fillColor}0A 100%)`
-          : 'linear-gradient(145deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.30) 100%)',
-        border: tree.equipped ? `2px solid ${fillColor}55` : '1px solid rgba(255,255,255,0.60)',
-        backdropFilter:       'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        boxShadow: tree.equipped
-          ? `0 12px 32px ${fillColor}22, inset 0 2px 0 rgba(255,255,255,0.70)`
-          : '0 4px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.75)',
-      }}
-    >
-      {tree.equipped && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-0.5 text-[10px] font-bold text-white"
-          style={{ background: fillColor, boxShadow: `0 2px 8px ${fillColor}55` }}>
-          <Check size={10} /> {t('shop.equipped')}
+    <div className="relative rounded-3xl p-6 overflow-hidden" style={{
+      minHeight: 260,
+      background: 'linear-gradient(160deg, #14102b 0%, #1f1640 55%, #2a1a4a 100%)',
+      border: '1px solid rgba(139,92,246,0.30)',
+      boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.06)',
+    }}>
+      {bgStars.map((s, i) => (
+        <motion.span key={i}
+          className="absolute rounded-full bg-white pointer-events-none"
+          style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.size, height: s.size }}
+          animate={{ opacity: [0.12, 0.75, 0.12] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: s.delay }}
+        />
+      ))}
+      <svg className="absolute inset-0 h-full w-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {points.slice(1).map((p, i) => (
+          <line key={p.tree.id} x1={points[i].x} y1={points[i].y} x2={p.x} y2={p.y}
+            stroke="rgba(196,181,253,0.35)" strokeWidth="0.3" />
+        ))}
+        {pendingPoint && points.length > 0 && (
+          <line x1={points[points.length - 1].x} y1={points[points.length - 1].y} x2={pendingPoint.x} y2={pendingPoint.y}
+            stroke="rgba(196,181,253,0.20)" strokeWidth="0.3" strokeDasharray="1.6 1.6" />
+        )}
+      </svg>
+      {points.map(({ x, y, tree }) => (
+        <div key={tree.id}
+          className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+          style={{ left: `${x}%`, top: `${y}%` }}>
+          <button onClick={() => onEdit(tree)} className="relative" title={t('common.edit') || 'Edit'}>
+            <MysticSvg shapeKey={tree.shape_key} size={48} colorHex={tree.color_hex} glowHex={tree.glow_hex} />
+          </button>
+          <span className="mt-1 max-w-[90px] truncate text-[10px] font-semibold text-white/85">{tree.custom_name}</span>
+          {tree.equipped ? (
+            <span className="mt-0.5 flex items-center gap-0.5 text-[9px] font-semibold" style={{ color: '#86EFAC' }}>
+              <Check size={9} /> {t('shop.equipped')}
+            </span>
+          ) : (
+            <button onClick={() => onEquip(tree)} disabled={loading}
+              className="mt-0.5 text-[9px] font-semibold underline decoration-dotted disabled:opacity-50"
+              style={{ color: 'rgba(196,181,253,0.85)' }}>
+              {t('shop.equip')}
+            </button>
+          )}
+        </div>
+      ))}
+      {pendingPoint && (
+        <div className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+          style={{ left: `${pendingPoint.x}%`, top: `${pendingPoint.y}%` }}>
+          <motion.button onClick={onDesign} disabled={loading}
+            whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
+            className="flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold text-white/70 disabled:opacity-50"
+            style={{ border: '1.5px dashed rgba(255,255,255,0.45)' }}
+            animate={{ opacity: [0.55, 1, 0.55] }} transition={{ duration: 2, repeat: Infinity }}>
+            +
+          </motion.button>
+          <span className="mt-1 max-w-[90px] text-center text-[10px] font-semibold text-white/70">{t('shop.mysticDesign')}</span>
         </div>
       )}
-      <div className="absolute top-3 end-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-        style={{ background: `${fillColor}22`, color: fillColor }}>
-        {t('shop.mysticBadge')}
-      </div>
-      <button onClick={onEdit}
-        className="absolute top-3 start-3 text-ink/25 hover:text-ink/50 dark:text-white/25 dark:hover:text-white/50 transition p-1">
-        <Pencil size={13} />
-      </button>
-      <motion.div
-        animate={tree.equipped ? { y: [0, -4, 0] } : {}}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="mb-3">
-        <MysticSvg shapeKey={tree.shape_key} size={56} colorHex={fillColor} glowHex={glowColor} />
-      </motion.div>
-      <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.custom_name}</h3>
-      <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug">{t('shop.mysticOneOfKind')}</p>
-      {tree.equipped ? (
-        <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center"
-          style={{ background: `${fillColor}22`, color: fillColor }}>
-          {t('shop.currentlyEq')}
-        </div>
-      ) : (
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          onClick={onEquip}
-          disabled={loading}
-          className="w-full rounded-2xl py-2 text-xs font-bold text-white disabled:opacity-50"
-          style={{ background: `linear-gradient(135deg, ${fillColor} 0%, ${fillColor}CC 100%)`, boxShadow: `0 4px 12px ${fillColor}44` }}>
-          {t('shop.equip')}
-        </motion.button>
-      )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -330,14 +310,13 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center mb-5">
-          {/* Real preview of what the card will actually look like — the
-              emoji itself can't be recolored, so "Colour" now visibly
-              tints this frame (exactly what MysticTreeCard does later)
-              instead of doing nothing you can see here. */}
-          <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-2xl"
+          {/* Preview matches where this actually lives — a patch of the
+              same night sky as the real Constellation panel, not a
+              light card frame that doesn't resemble the final spot. */}
+          <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-2xl overflow-hidden"
             style={{
-              background: `linear-gradient(145deg, ${form.color_hex}2A 0%, ${form.color_hex}0F 100%)`,
-              border: `2px solid ${form.color_hex}55`,
+              background: 'linear-gradient(160deg, #14102b 0%, #1f1640 55%, #2a1a4a 100%)',
+              border: '1px solid rgba(139,92,246,0.30)',
             }}>
             <MysticSvg shapeKey={form.shape_key} size={44} colorHex={form.color_hex} glowHex={form.glow_hex} />
           </div>
@@ -565,7 +544,7 @@ export default function TreeShop() {
           { label: t('shop.treesOwned'),     value: `${ownedCount} / ${data?.trees.length}` },
           { label: t('shop.currentlyGrown'), value: equippedTree
               ? `${equippedTree.emoji} ${equippedTree.name}`
-              : (equippedMystic ? `🔮 ${equippedMystic.custom_name}` : '—') },
+              : (equippedMystic ? `✦ ${equippedMystic.custom_name}` : '—') },
           { label: t('shop.totalEarned'),    value: ((data?.totalXp || 0) + data?.trees.filter(tr => tr.owned && tr.cost > 0).reduce((s, tr) => s + tr.cost, 0)).toLocaleString() },
         ].map(({ label, value }) => (
           <div key={label} className="flex flex-col rounded-2xl px-5 py-3"
@@ -579,7 +558,7 @@ export default function TreeShop() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🔮</span>
+              <span className="text-lg">🌌</span>
               <div>
                 <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.mysticTitle')}</h3>
                 <span className="text-[11px] font-semibold" style={{ color: '#8B5CF6' }}>
@@ -593,21 +572,15 @@ export default function TreeShop() {
             </span>
           </div>
           {(data.mystic.trees.length > 0 || data.mystic.pendingSlot) ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {data.mystic.trees.map((tree) => (
-                <MysticTreeCard
-                  key={tree.id}
-                  tree={tree}
-                  onEdit={() => openMysticEdit(tree)}
-                  onEquip={() => handleEquip(`mystic:${tree.id}`)}
-                  loading={acting}
-                  t={t}
-                />
-              ))}
-              {data.mystic.pendingSlot && (
-                <MysticDesignSlotCard onDesign={openMysticDesign} loading={acting} t={t} />
-              )}
-            </div>
+            <ConstellationSky
+              trees={data.mystic.trees}
+              pendingSlot={data.mystic.pendingSlot}
+              onEdit={openMysticEdit}
+              onEquip={(tree) => handleEquip(`mystic:${tree.id}`)}
+              onDesign={openMysticDesign}
+              loading={acting}
+              t={t}
+            />
           ) : (
             <div className="rounded-2xl px-5 py-4 text-xs text-ink/40 dark:text-white/30"
               style={{ background: 'rgba(139,92,246,0.06)', border: '1px dashed rgba(139,92,246,0.25)' }}>
