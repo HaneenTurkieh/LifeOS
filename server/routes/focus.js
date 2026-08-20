@@ -426,11 +426,17 @@ router.post('/sessions', async (req, res) => {
         }
       }
       if (!treeKey) treeKey = await getPlantTreeKey(req.user.id, client_date);
-      await db.execute({
+      const plantResult = await db.execute({
         sql:  `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
                VALUES (?, ?, 'alive', ?, ?, ?)`,
         args: [req.user.id, treeKey, task_name, duration_minutes, task_id != null ? Number(task_id) : null],
       });
+      // Temporary diagnostic: the failure path (catch below) never once
+      // logged for a session that the user says didn't show up on Land,
+      // meaning this insert isn't throwing — logging the success case too
+      // so the next real test tells us the actual tree_key/row id used
+      // instead of just "no error happened".
+      console.log(`Tree planted OK: user=${req.user.id} tree_key=${treeKey} row_id=${plantResult.lastInsertRowid}`);
       treePlanted = treeKey;
       // Lets the "tree planted!" popup render the real shape/color even
       // when it's a Mystic Tree design that belongs to someone else in
