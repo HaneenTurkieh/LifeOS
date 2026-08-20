@@ -294,9 +294,23 @@ export default function Onboarding({ user, onComplete }) {
   const isWelcome  = step === 0;
 
   return (
-    <div
+    // The card already fades/folds itself shut on finish() (see
+    // `closing` below), but this outer backdrop — the dark blurred
+    // scrim behind it — used to just vanish in one frame the instant
+    // the parent unmounts it (setTimeout(onComplete, 620) in finish()
+    // below). The card was gone smoothly by then, but that opaque
+    // rgba(7,11,20,0.85)+blur layer cutting to nothing in a single
+    // frame is exactly what read as a "flash" straight into the
+    // dashboard. Animating this div's own opacity down in step with
+    // the card's fold means the whole overlay — scrim included —
+    // dissolves together instead of the background hard-cutting out
+    // from under an already-faded card.
+    <motion.div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
       style={{ background: 'rgba(7,11,20,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: closing ? 0 : 1 }}
+      transition={{ duration: closing ? 0.6 : 0.35, ease: closing ? [0.7, 0, 0.84, 0] : 'easeOut' }}
     >
       <div className="w-full max-w-sm" style={{ perspective: 1200 }}>
         <AnimatePresence mode="wait">
@@ -376,6 +390,6 @@ export default function Onboarding({ user, onComplete }) {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
