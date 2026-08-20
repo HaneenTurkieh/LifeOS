@@ -410,6 +410,25 @@ async function initDb() {
       updated_at  TEXT DEFAULT (datetime('now'))
     )`);
   }
+  // ── Constellation rework: Mystic Trees → Zodiac stars ──────────
+  // Replaced the old free-form "design any shape/color" mystic slots
+  // with a fixed set of 7 stars per user, tied to their real zodiac
+  // sign (derived from birthday) and unlocked one at a time on an
+  // escalating XP curve instead of a flat 1000/slot (see lib/zodiac.js
+  // and routes/trees.js). Adoption of the old free-form version was
+  // low and what existed wasn't well-liked, so on this one deploy only:
+  // existing user_mystic_tree rows get cleared and any 'mystic:<id>'
+  // equip falls back to 'seedling' — a clean cut rather than trying to
+  // force old freeform designs into the new zodiac shape. Guarded by
+  // the same hasColumn check as the ALTERs below, so this only ever
+  // runs once, on the first boot after this change ships.
+  if (!(await hasColumn('user_mystic_tree', 'zodiac_key'))) {
+    await db.execute(`DELETE FROM user_mystic_tree`);
+    await db.execute(`UPDATE user_equipped_tree SET tree_key = 'seedling' WHERE tree_key LIKE 'mystic:%'`);
+    await db.execute(`ALTER TABLE user_mystic_tree ADD COLUMN zodiac_key TEXT DEFAULT NULL`);
+    await db.execute(`ALTER TABLE user_mystic_tree ADD COLUMN star_index INTEGER DEFAULT NULL`);
+  }
+
   // Any account still equipped on the old bare 'mystic' key (from
   // before this became multi-tree) now points at nothing specific —
   // point it at their first design, if they have one, since the new
