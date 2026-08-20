@@ -323,6 +323,24 @@ export function FocusProvider({ children }) {
             versionRef.current = d.version;
             applyServerState(d);
           }
+          // The server caught a round this tab never got to report itself
+          // (backgrounded/reloaded right at the end — see reconcileSoloTimer
+          // server-side). The tree/XP/session were already credited the
+          // moment that happened; this is purely so the "tree planted!"
+          // popup still shows up here instead of the win landing silently.
+          // Only ever present on the one poll response that actually
+          // triggered it, so this can't double-fire.
+          if (d.just_completed) {
+            const jc = d.just_completed;
+            playDone();
+            if (jc.task) setTaskTimeSpent(Number(jc.task.time_spent_minutes) || 0);
+            loadData();
+            setCongrats({
+              quote: randQuote(), xpAwarded: jc.xpAwarded || 0, minutes: jc.minutes,
+              task: jc.task || null, treePlanted: jc.treePlanted || null,
+              treePlantedDesign: jc.treePlantedDesign || null, nextBreak: jc.nextBreak || null,
+            });
+          }
         } else if (isFirst) {
           // No row yet for this account — create one from current
           // (possibly sessionStorage-restored) local state.
