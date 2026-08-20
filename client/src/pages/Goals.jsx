@@ -297,6 +297,15 @@ export default function Goals() {
     } catch (err) { toast.error(err.message); }
     finally { setAddingMilestone(false); }
   };
+  const deleteMilestone = async (milestoneId) => {
+    if (!editingGoal) return;
+    try {
+      await api.del(`/goals/${editingGoal.id}/milestones/${milestoneId}`);
+      await loadGoals();
+      const fresh = (await api.get('/goals')).find((g) => g.id === editingGoal.id);
+      if (fresh) setEditingGoal(fresh);
+    } catch (err) { toast.error(err.message); }
+  };
   const closeEditModal = () => {
     setEditModal(false);
     setEditingGoal(null);
@@ -617,6 +626,10 @@ export default function Goals() {
                       <span className={`text-sm flex-1 ${m.done ? 'text-ink/40 line-through' : 'text-ink/80'}`}>
                         {m.title}
                       </span>
+                      <button type="button" onClick={() => deleteMilestone(m.id)}
+                        className="shrink-0 text-ink/25 hover:text-coral-500 transition">
+                        <Trash2 size={13}/>
+                      </button>
                     </div>
                   ))}
                 </div>
