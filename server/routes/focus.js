@@ -189,6 +189,98 @@ async function reconcileRoomSession(roomId) {
   } catch (e) { console.error('reconcileRoomSession failed (non-fatal):', e.message); }
 }
 
+// Real bug this fixes: the SOLO timer's completion (XP, planted tree,
+// task minutes) only ever happened one way — the browser tab's own
+// setInterval counting down to zero and calling POST /focus/sessions
+// itself. The room timer already had a fallback for exactly this class
+// of failure (see reconcileRoomSession above, written specifically
+// because "that only fires if their own device is still open when the
+// countdown hits zero"), but the solo path never got the equivalent —
+// so a phone locking, the tab getting backgrounded/suspended by iOS, or
+// the page being closed at the wrong moment meant that JS interval
+// simply never got the chance to fire, and the round just silently
+// evaporated: no session logged, no XP, no tree, with nothing left
+// showing anything had gone wrong beyond a countdown stuck at 0:00.
+// Mirrors reconcileRoomSession's approach: called from GET /timer
+// (polled every 5s, plus on every tab-visibility change) before the row
+// is returned, so ANY device checking in after the round's real end
+// time completes and credits it server-side, the same as if the
+// original tab had actually fired the completion itself. Guarded by
+// the same focus_session_credits idempotency table the client's own
+// self-report uses (keyed on user_id + started_at), so whichever path
+// gets there first — this reconciliation or the tab's own report if it
+// does come back — the other is a safe no-op, never a double-credit.
+async function reconcileSoloTimer(userId) {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT * FROM focus_solo_timer WHERE user_id = ?`, args: [userId],
+    })).rows[0];
+    if (!row || !Number(row.running) || row.mode !== 'focus' || !row.started_at) return;
+
+    // started_at here is a client-supplied ISO string (see POST
+    // /timer/sync — unlike focus_room_timer's started_at, which is a
+    // server-generated SQL datetime('now')), so it parses directly —
+    // no space/UTC-suffix massaging needed.
+    const elapsed   = Math.floor((Date.now() - new Date(row.started_at).getTime()) / 1000);
+    const remaining = Number(row.duration_seconds) - elapsed;
+    if (remaining > 0) return; // genuinely still running — nothing to do
+
+    const durationMinutes = Math.round(Number(row.duration_seconds) / 60);
+    if (durationMinutes < 1) {
+      await db.execute({ sql: `UPDATE focus_solo_timer SET running = 0 WHERE user_id = ?`, args: [userId] });
+      return;
+    }
+
+    const claim = await db.execute({
+      sql: `INSERT INTO focus_session_credits (user_id, started_at) VALUES (?, ?) ON CONFLICT (user_id, started_at) DO NOTHING`,
+      args: [userId, row.started_at],
+    });
+    if (claim.rowsAffected === 0) {
+      // Already credited — most likely the owning tab actually did self-
+      // report right around the same time this ran. Just make sure the
+      // row isn't left stuck showing "running" if it somehow still is.
+      await db.execute({ sql: `UPDATE focus_solo_timer SET running = 0 WHERE user_id = ? AND running = 1`, args: [userId] });
+      return;
+    }
+
+    const weekStart = getWeekStart();
+    const taskName  = row.task_name || 'Flow Session';
+    await db.execute({
+      sql: `INSERT INTO focus_sessions (user_id, task_name, duration_minutes, week_start, task_id) VALUES (?, ?, ?, ?, ?)`,
+      args: [userId, taskName, durationMinutes, weekStart, row.task_id != null ? Number(row.task_id) : null],
+    });
+    const xpAmount = Math.floor(durationMinutes / 5) * 2;
+    if (xpAmount > 0) {
+      await db.execute({
+        sql: `INSERT INTO xp_log (user_id, amount, reason) VALUES (?, ?, ?)`,
+        args: [userId, xpAmount, `Focus: ${taskName}`],
+      });
+    }
+    const treeKey = await getPlantTreeKey(userId, null);
+    await db.execute({
+      sql: `INSERT INTO planted_trees (user_id, tree_key, status, task_name, duration_minutes, task_id)
+            VALUES (?, ?, 'alive', ?, ?, ?)`,
+      args: [userId, treeKey, taskName, durationMinutes, row.task_id != null ? Number(row.task_id) : null],
+    });
+    try { await logMinutesOnTask(userId, row.task_id, durationMinutes); } catch (_) {}
+
+    // Advance the server row to the next break, same 4-session rhythm
+    // the client itself uses, so whichever device checks in next picks
+    // up "it's break time" instead of a stale finished focus round.
+    const customMin = JSON.parse(row.custom_min || '{"focus":25,"short":5,"long":15}');
+    const newDots    = Number(row.dots || 0) + 1;
+    const nextMode   = newDots % 4 === 0 ? 'long' : 'short';
+    const breakSec   = Math.round((customMin[nextMode] || (nextMode === 'long' ? 15 : 5)) * 60);
+    await db.execute({
+      sql: `UPDATE focus_solo_timer SET
+              mode = ?, duration_seconds = ?, remaining_seconds = ?, started_at = NULL, running = 0,
+              dots = ?, version = version + 1, updated_at = datetime('now')
+            WHERE user_id = ?`,
+      args: [nextMode, breakSec, breakSec, newDots, userId],
+    });
+  } catch (e) { console.error('reconcileSoloTimer failed (non-fatal):', e.message); }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Solo focus timer — server-authoritative, syncs across every
 // device on the account. Mirrors the shared room timer's design:
@@ -199,6 +291,7 @@ async function reconcileRoomSession(roomId) {
 // ═══════════════════════════════════════════════════════════════
 router.get('/timer', async (req, res) => {
   try {
+    await reconcileSoloTimer(req.user.id);
     const row = (await db.execute({
       sql: `SELECT * FROM focus_solo_timer WHERE user_id = ?`, args: [req.user.id],
     })).rows[0];
