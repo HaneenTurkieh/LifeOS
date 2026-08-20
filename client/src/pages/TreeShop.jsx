@@ -374,33 +374,18 @@ function MysticModal({ open, mode, initial, zodiacKey, onSave, onCancel, loading
           <p className="font-display font-bold text-sm" style={{ color: '#1E2233' }}>{form.custom_name || t('shop.mysticNamePh')}</p>
         </div>
 
-        {/* "Colour" tints the card frame behind the emoji (see the
-            preview above) — flat chips, since that's a flat tint. */}
+        {/* Colour tints both layers of the star's glow (core + halo —
+            see MysticTreeIcon.jsx) — one pick, not two, since a star's
+            own light and its corona reading as the same color is more
+            true to how a real star actually looks than a mismatched pair. */}
         <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticColor')}</p>
         <div className="flex gap-2.5 mb-4 flex-wrap">
           {MYSTIC_COLORS.map((c) => (
-            <button key={c} onClick={() => setForm({ ...form, color_hex: c })}
+            <button key={c} onClick={() => setForm({ ...form, color_hex: c, glow_hex: c })}
               className="h-8 w-8 rounded-full transition"
               style={{
                 background: `linear-gradient(145deg, ${c} 0%, ${c}CC 100%)`,
                 boxShadow: form.color_hex === c
-                  ? `0 0 0 2px white, 0 0 0 4px ${c}, inset 0 1px 1px rgba(255,255,255,0.5)`
-                  : 'inset 0 1px 1px rgba(255,255,255,0.5)',
-              }} />
-          ))}
-        </div>
-
-        {/* "Glow" is an actual glow, not a tint — so each chip carries a
-            soft blurred halo in its own color, showing exactly what
-            picking it will do instead of looking identical to Colour. */}
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticGlow')}</p>
-        <div className="flex gap-2.5 mb-4 flex-wrap">
-          {MYSTIC_COLORS.map((c) => (
-            <button key={c} onClick={() => setForm({ ...form, glow_hex: c })}
-              className="h-8 w-8 rounded-full transition"
-              style={{
-                background: c,
-                boxShadow: form.glow_hex === c
                   ? `0 0 0 2px white, 0 0 10px 3px ${c}, 0 0 18px 6px ${c}99`
                   : `0 0 8px 2px ${c}88`,
               }} />
@@ -541,14 +526,16 @@ export default function TreeShop() {
   // (not the tree object's reference, which also changes every reload),
   // means this only produces a new object when the real editing target
   // changes.
+  // Glow always mirrors Colour now (see MysticModal — the separate Glow
+  // picker was removed), so this only reads color_hex even for a star
+  // that was designed back when the two could differ.
   const mysticInitial = useMemo(() => (
     editingMysticTree
-      ? { color_hex: editingMysticTree.color_hex, glow_hex: editingMysticTree.glow_hex, custom_name: editingMysticTree.custom_name }
-      : { color_hex: MYSTIC_COLORS[0], glow_hex: MYSTIC_COLORS[1], custom_name: '' }
+      ? { color_hex: editingMysticTree.color_hex, glow_hex: editingMysticTree.color_hex, custom_name: editingMysticTree.custom_name }
+      : { color_hex: MYSTIC_COLORS[0], glow_hex: MYSTIC_COLORS[0], custom_name: '' }
   ), [
     mysticEditingId,
     editingMysticTree?.color_hex,
-    editingMysticTree?.glow_hex,
     editingMysticTree?.custom_name,
   ]);
 

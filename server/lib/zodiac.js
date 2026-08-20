@@ -48,19 +48,48 @@ const RANGES = {
 // sky panel, ordered to trace a rough silhouette of the sign as stars
 // unlock in sequence. Deliberately simplified/artistic, not a real star
 // chart — the sign's name + glyph header is what actually identifies it.
+// Each layout traces that sign's real, named-star asterism — the same
+// pattern shown in star charts — trimmed or lightly padded to exactly
+// 7 points so every sign costs the same to complete. Order matters:
+// it's also the order stars unlock in, and doubles as the path the
+// connecting lines draw, so points are sequenced to trace the actual
+// shape rather than just being scattered.
 const STAR_LAYOUT = {
-  aries:       [[18,72],[28,58],[38,48],[50,44],[60,50],[64,62],[56,68]],   // ram horn curl
-  taurus:      [[18,24],[32,42],[48,58],[64,42],[78,24],[48,74],[58,66]],   // V horns + muzzle
-  gemini:      [[30,20],[28,42],[26,66],[48,44],[70,66],[68,42],[66,20]],   // twin columns + bridge
-  cancer:      [[50,22],[50,42],[30,52],[20,66],[70,52],[80,66],[50,60]],   // Y claws
-  leo:         [[24,60],[30,44],[42,32],[56,30],[66,38],[70,52],[52,70]],   // sickle + body
-  virgo:       [[16,50],[32,36],[48,44],[62,32],[78,44],[60,62],[42,68]],   // wide kite
-  libra:       [[50,20],[30,42],[70,42],[50,60],[30,76],[70,76],[50,44]],   // balanced scales
-  scorpio:     [[16,30],[24,44],[34,54],[46,60],[58,62],[68,56],[74,68]],   // long hooked tail
-  sagittarius: [[22,64],[38,68],[50,58],[38,44],[26,44],[54,74],[70,30]],   // teapot + arrow
-  capricorn:   [[18,36],[34,52],[50,60],[66,52],[82,40],[62,68],[44,72]],   // sea-goat boat
-  aquarius:    [[16,26],[28,40],[20,54],[32,68],[24,82],[48,44],[64,58]],   // zigzag stream
-  pisces:      [[14,26],[28,42],[42,54],[56,60],[70,52],[82,38],[50,34]],   // two fish, tied line
+  // Body line (Botein → belly → shoulder) curving up into the real
+  // 3-star head-curve: Mesarthim → Sheratan → Hamal (brightest, tip).
+  aries:       [[20,74],[30,68],[42,60],[54,52],[62,42],[58,30],[46,26]],
+  // Pleiades cluster marker, sweeping through both Hyades horn-tips
+  // and Aldebaran (the bull's eye) at the V's vertex, down to the neck.
+  taurus:      [[78,18],[28,30],[40,46],[50,58],[62,46],[74,32],[50,76]],
+  // Castor's column down to its foot, a linking star, up the other
+  // side through Pollux's foot to Pollux's head — the twins' "ladder".
+  gemini:      [[34,18],[30,40],[26,64],[46,50],[66,64],[70,40],[66,18]],
+  // The faint inverted-Y: tail → Beehive-cluster junction → both claws.
+  cancer:      [[50,80],[50,60],[50,46],[38,36],[28,22],[62,36],[72,22]],
+  // Regulus at the Sickle's base, up through the backward-question-mark
+  // curve, across Zosma (haunch) to Denebola (tail tip), back to belly.
+  leo:         [[24,58],[30,44],[40,32],[54,28],[66,38],[74,58],[46,66]],
+  // Spica at the base, up through both arms of the big Y/kite to the
+  // head — Virgo's real shape is exactly this loose, wide Y.
+  virgo:       [[50,78],[44,60],[36,44],[24,30],[58,44],[70,28],[50,20]],
+  // Zubenelgenubi → beam (toward Sigma Librae) → Zubeneschamali, then
+  // both "chains" down to Brachium and back to a center fulcrum.
+  libra:       [[28,52],[46,36],[70,44],[64,60],[56,74],[38,66],[44,50]],
+  // The long real hook: claws → Antares (the heart) → curving body →
+  // tail bend → Shaula, the stinger, curling back up at the very tip.
+  scorpio:     [[18,30],[28,38],[38,48],[48,58],[58,64],[68,60],[76,50]],
+  // The actual "Teapot": spout tip (Alnasl) → body → base → around and
+  // up the handle → lid — same order the asterism is usually traced.
+  sagittarius: [[24,58],[36,50],[30,68],[52,72],[66,58],[62,38],[44,32]],
+  // The wide, shallow arrowhead/boat: horn-pair (Algedi + Dabih) along
+  // the bottom edge to Deneb Algedi (the tail tip), back along the top.
+  capricorn:   [[16,42],[20,48],[40,58],[60,64],[82,50],[66,34],[44,32]],
+  // Both shoulder stars into the real 4-star Water Jar (its Y-junction),
+  // then the "stream" pouring down and away from it.
+  aquarius:    [[30,20],[48,30],[40,42],[28,38],[52,40],[44,58],[56,76]],
+  // The real V: one fish (the Circlet) down the cord to Alrescha (the
+  // knot, the V's vertex), back up the other cord to the second fish.
+  pisces:      [[18,26],[30,42],[44,58],[54,70],[64,58],[76,42],[86,26]],
 };
 
 function pad2(n) { return String(n).padStart(2, '0'); }
