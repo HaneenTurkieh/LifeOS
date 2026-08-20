@@ -538,13 +538,12 @@ export default function Dashboard() {
                 style={{
                   background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))',
                   border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)',
-                  ...(equippedMysticTree && !isBirthday ? { color: equippedMysticTree.color_hex, filter: `drop-shadow(0 0 8px ${equippedMysticTree.glow_hex}99)` } : {}),
                 }}
               >
                 {isBirthday
                   ? '🎄'
                   : equippedMysticTree
-                  ? <MysticSvg shapeKey={equippedMysticTree.shape_key} size={34} />
+                  ? <MysticSvg shapeKey={equippedMysticTree.shape_key} size={34} colorHex={equippedMysticTree.color_hex} glowHex={equippedMysticTree.glow_hex} />
                   : (TREE_EMOJIS[equippedTree] || '🌱')}
               </motion.div>
               <div className="flex-1 min-w-0">

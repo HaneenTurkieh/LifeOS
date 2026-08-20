@@ -70,9 +70,8 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
           className="mb-0.5 select-none flex items-center justify-center"
-          style={isMystic ? { color: mysticTree.color_hex, filter: `drop-shadow(0 0 6px ${mysticTree.glow_hex}99)` } : undefined}
         >
-          {isMystic ? <MysticSvg shapeKey={mysticTree.shape_key} size={26} /> : <span className="text-2xl">{treeEmoji}</span>}
+          {isMystic ? <MysticSvg shapeKey={mysticTree.shape_key} size={26} colorHex={mysticTree.color_hex} glowHex={mysticTree.glow_hex} /> : <span className="text-2xl">{treeEmoji}</span>}
         </motion.div>
         <span className="font-display text-lg font-bold text-ink dark:text-white leading-none">{score}%</span>
         <span className="text-[9px] text-ink/40 dark:text-white/35">today</span>

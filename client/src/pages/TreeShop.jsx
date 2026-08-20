@@ -269,9 +269,8 @@ function MysticTreeCard({ tree, onEdit, onEquip, loading, t }) {
       <motion.div
         animate={tree.equipped ? { y: [0, -4, 0] } : {}}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="mb-3"
-        style={{ color: fillColor, filter: `drop-shadow(0 0 10px ${glowColor}99)` }}>
-        <MysticSvg shapeKey={tree.shape_key} size={56} />
+        className="mb-3">
+        <MysticSvg shapeKey={tree.shape_key} size={56} colorHex={fillColor} glowHex={glowColor} />
       </motion.div>
       <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.custom_name}</h3>
       <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug">{t('shop.mysticOneOfKind')}</p>
@@ -339,9 +338,8 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
             style={{
               background: `linear-gradient(145deg, ${form.color_hex}2A 0%, ${form.color_hex}0F 100%)`,
               border: `2px solid ${form.color_hex}55`,
-              filter: `drop-shadow(0 0 12px ${form.glow_hex}AA)`,
             }}>
-            <MysticSvg shapeKey={form.shape_key} size={44} />
+            <MysticSvg shapeKey={form.shape_key} size={44} colorHex={form.color_hex} glowHex={form.glow_hex} />
           </div>
           <p className="font-display font-bold text-sm" style={{ color: '#1E2233' }}>{form.custom_name || t('shop.mysticNamePh')}</p>
         </div>
@@ -354,9 +352,8 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
               style={{
                 background: form.shape_key === s ? `${form.color_hex}1A` : 'rgba(0,0,0,0.04)',
                 border:     form.shape_key === s ? `1.5px solid ${form.color_hex}` : '1px solid transparent',
-                color:      form.color_hex,
               }}>
-              <MysticSvg shapeKey={s} size={22} />
+              <MysticSvg shapeKey={s} size={22} colorHex={form.color_hex} />
             </button>
           ))}
         </div>

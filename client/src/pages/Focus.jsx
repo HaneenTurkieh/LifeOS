@@ -214,11 +214,7 @@ export default function Flow() {
   function TreeIcon({ treeKey, size = 34, mysticDesign = null }) {
     const mystic = mysticDesign || findMystic(treeKey);
     if (mystic) {
-      return (
-        <span style={{ display: 'inline-flex', color: mystic.color_hex, filter: `drop-shadow(0 0 8px ${mystic.glow_hex}99)` }}>
-          <MysticSvg shapeKey={mystic.shape_key} size={size} />
-        </span>
-      );
+      return <MysticSvg shapeKey={mystic.shape_key} size={size} colorHex={mystic.color_hex} glowHex={mystic.glow_hex} />;
     }
     return <>{treeEmoji(treeKey)}</>;
   }
