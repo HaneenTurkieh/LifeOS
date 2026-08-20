@@ -428,6 +428,17 @@ async function initDb() {
     await db.execute(`ALTER TABLE user_mystic_tree ADD COLUMN zodiac_key TEXT DEFAULT NULL`);
     await db.execute(`ALTER TABLE user_mystic_tree ADD COLUMN star_index INTEGER DEFAULT NULL`);
   }
+  // planted_trees (the Land history) doesn't store its own shape/color —
+  // it looks up 'mystic:<id>' against user_mystic_tree live, every time
+  // it's rendered (see routes/focus.js GET /forest). With every old
+  // user_mystic_tree row gone as of the Constellation rework above, any
+  // 'mystic:<id>' left sitting in planted_trees is now a dead reference
+  // that silently degrades into an identical generic 🔮 placeholder
+  // instead of actually being cleaned up. Not gated on the block above —
+  // this runs every boot, same self-healing shape as the Aurora→Nuvora
+  // cleanup below, so it stays correct regardless of deploy ordering and
+  // is a harmless no-op once nothing matches anymore.
+  await db.execute(`UPDATE planted_trees SET tree_key = 'seedling' WHERE tree_key LIKE 'mystic:%'`);
 
   // Any account still equipped on the old bare 'mystic' key (from
   // before this became multi-tree) now points at nothing specific —
