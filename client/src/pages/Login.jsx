@@ -417,9 +417,17 @@ export default function Login() {
       if (!window.google?.accounts?.id || !googleBtnRef.current) { setTimeout(tryInit, 150); return; }
       window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
       googleBtnRef.current.innerHTML = '';
+      // Icon-only circle instead of the full text pill: in browsers that
+      // block third-party storage (Safari's default, and Private
+      // Browsing everywhere), GIS can't read/write its own session
+      // cookie, so it silently drops the "standard" pill down to just
+      // the bare G mark anyway — we were relying on an accidental
+      // fallback instead of a deliberate one. Configuring it as 'icon'
+      // + 'circle' outright makes that the actual design everywhere,
+      // not just what shows up when Google's personalization fails.
       window.google.accounts.id.renderButton(googleBtnRef.current, {
-        type: 'standard', shape: 'pill', theme: isDark ? 'filled_black' : 'outline',
-        size: 'large', text: 'continue_with', width: 288, logo_alignment: 'left',
+        type: 'icon', shape: 'circle', theme: isDark ? 'filled_black' : 'outline',
+        size: 'large',
       });
     };
     tryInit();
@@ -654,29 +662,30 @@ export default function Login() {
                     <div className="h-px flex-1" style={{ background: dividerClr }} />
                   </div>
                   {GOOGLE_CLIENT_ID ? (
-                    // Google's own button can't take our accent colors or
+                    // Google's own G mark can't take our accent colors or
                     // backdrop-blur — it's a fixed, non-customizable brand
-                    // asset (anti-spoofing rule on Google's end, not
-                    // something we can style around). The old wrapper here
-                    // used the same near-invisible 4-10% tint as the ghost
-                    // "demo account" button below it — at that opacity it
-                    // read as no frame at all, so the button looked like a
-                    // stray widget dropped on the card instead of something
-                    // Nuvora placed on purpose. This matches the real-card
-                    // weight of the no-client-id placeholder button instead
-                    // (solid surface, visible border, real shadow), so
-                    // whichever branch renders, it looks intentional.
-                    <div
-                      className="flex justify-center rounded-full p-1"
-                      style={{
-                        background: isDark ? 'rgba(255,255,255,0.06)' : 'white',
-                        border: isDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(30,34,51,0.10)',
-                        boxShadow: isDark
-                          ? `0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgb(var(--accent-500) / 0.10), inset 0 1px 0 rgba(255,255,255,0.08)`
-                          : `0 4px 16px rgba(30,34,51,0.08), inset 0 1px 0 rgba(255,255,255,0.9)`,
-                      }}
-                    >
-                      <div ref={googleBtnRef} className="flex w-full justify-center" />
+                    // asset. A full-width text pill fought that the most
+                    // (a whole row rendered in Google's own font/colors);
+                    // a small round badge is the one shape where "this is
+                    // Google's own control, framed by us" reads as a
+                    // deliberate choice rather than a mismatched sticker —
+                    // same idea as any icon-row social login, and it's a
+                    // universally recognized mark on its own, so a caption
+                    // underneath is enough without needing button text.
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div
+                        className="flex h-12 w-12 items-center justify-center rounded-full"
+                        style={{
+                          background: isDark ? 'rgba(255,255,255,0.06)' : 'white',
+                          border: isDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(30,34,51,0.10)',
+                          boxShadow: isDark
+                            ? `0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgb(var(--accent-500) / 0.10), inset 0 1px 0 rgba(255,255,255,0.08)`
+                            : `0 4px 16px rgba(30,34,51,0.08), inset 0 1px 0 rgba(255,255,255,0.9)`,
+                        }}
+                      >
+                        <div ref={googleBtnRef} className="flex items-center justify-center" />
+                      </div>
+                      <span className="text-[11px] font-medium" style={{ color: subClr }}>{t('login.continueGoogle')}</span>
                     </div>
                   ) : (
                     <button type="button"
