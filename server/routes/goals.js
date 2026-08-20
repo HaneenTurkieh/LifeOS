@@ -96,6 +96,17 @@ router.put('/:goalId/milestones/:milestoneId', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
+router.delete('/:goalId/milestones/:milestoneId', async (req, res) => {
+  try {
+    const goalResult = await db.execute({ sql: `SELECT * FROM goals WHERE id = ? AND user_id = ?`, args: [req.params.goalId, req.user.id] });
+    const goal = goalResult.rows[0];
+    if (!goal) return res.status(404).json({ error: 'Goal not found' });
+    const result = await db.execute({ sql: `DELETE FROM milestones WHERE id = ? AND goal_id = ?`, args: [req.params.milestoneId, goal.id] });
+    if (result.rowsAffected === 0) return res.status(404).json({ error: 'Milestone not found' });
+    res.json(await withMilestones(goal));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 // ── PUT /:goalId/milestones/:milestoneId/schedule ───────────────
 // Pins a milestone to a specific day in the optional final-week
 // planner — drag-and-drop (or tap-to-place on touch) on the client
