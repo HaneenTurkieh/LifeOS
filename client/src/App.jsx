@@ -424,7 +424,7 @@ function AppShell() {
             {/* Soft glass backdrop so the buddy reads clearly against any
                 page background instead of blending into it. */}
             <div className="absolute -inset-2 rounded-full" style={{ ...pillStyle, borderRadius: 999 }} />
-            <NuvoraBuddy size={56} mood={moodValue} wave={buddyWave} onClick={openLumi} title={t('nav.lumi')} className="relative" />
+            <NuvoraBuddy size={56} mood={moodValue} wave={buddyWave} onClick={openLumi} title={t('app.buddyName')} className="relative" />
           </div>
         </div>
       </div>
