@@ -273,31 +273,6 @@ export default function Login() {
   const firstRun         = useRef(true);
   const googleBtnRef     = useRef(null);
 
-  // Real bug: ThemeContext applies whatever accent color is saved in
-  // localStorage (nuvora_accent) globally, on every page load, via a
-  // `data-accent` attribute on <html> — completely independent of
-  // whether anyone's actually signed in. That's correct for the
-  // authenticated app (it's a personal preference), but Login/Welcome
-  // is a pre-auth branding surface: it inherits whatever the LAST
-  // person on this browser happened to have picked (a prior session,
-  // someone else on a shared machine, or the demo account), which is
-  // how this page can end up rendering in pink instead of Nuvora's
-  // actual purple. Every `rgb(var(--accent-*))` used all over this
-  // file reads that same attribute, so forcing it off for as long as
-  // Login is mounted — and restoring whatever it really was the moment
-  // it unmounts (right when a successful login hands off to the real
-  // app) — fixes the brand color here without touching the user's
-  // actual saved preference at all.
-  useEffect(() => {
-    const root = document.documentElement;
-    const prevAccent = root.getAttribute('data-accent');
-    root.removeAttribute('data-accent');
-    return () => {
-      if (prevAccent) root.setAttribute('data-accent', prevAccent);
-      else root.removeAttribute('data-accent');
-    };
-  }, []);
-
   // Subtle pointer-driven depth — background blobs drift a bit more than
   // the halo/starfield they sit behind, so the page reads as layered
   // instead of flat when you move the mouse. Plain state (not a motion
