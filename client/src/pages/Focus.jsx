@@ -109,7 +109,21 @@ function LandPlot({ trees, t }) {
               }}
               title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
             >
-              {tr.status === 'dead' ? DEAD_EMOJI : (treeEmoji(tr.tree_key))}
+              {tr.status === 'dead' ? DEAD_EMOJI : (
+                // Mirrors TreeIcon/resolvedMysticDesign below — LandPlot is
+                // a standalone component (no closure over Flow()'s
+                // findMystic), but GET /forest already stamps shape_key/
+                // color_hex/glow_hex straight onto each day's tree entries
+                // (including today's), so a Mystic Tree can render its real
+                // zodiac shape here too instead of always falling back to
+                // the generic 🔮 placeholder that treeEmoji() gives every
+                // "mystic:*" key — which is why this plot and the day list
+                // right below it used to show two different icons for the
+                // very same tree.
+                tr.tree_key?.startsWith('mystic:') && tr.shape_key
+                  ? <MysticSvg shapeKey={tr.shape_key} size={32} colorHex={tr.color_hex} glowHex={tr.glow_hex} />
+                  : treeEmoji(tr.tree_key)
+              )}
             </motion.div>
           );
         })
