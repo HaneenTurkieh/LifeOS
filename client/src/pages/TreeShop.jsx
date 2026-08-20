@@ -4,12 +4,13 @@ import { Sparkles, Lock, Check } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import PageLoader from '../components/Loader.jsx';
 import MysticSvg  from '../components/MysticTreeIcon.jsx';
 
-// ── Mystic Tree — shape + colour picker, not a fixed preset ────
-const MYSTIC_SHAPES = ['spiral', 'crystal', 'orbs', 'bloom', 'bough', 'nova', 'aurora'];
+// ── Constellation — colour picker only; shape/position is fixed by
+//    the user's own zodiac + which star comes next ─────────────
 const MYSTIC_COLORS = ['#8B5CF6', '#F472B6', '#F59E0B', '#10B981', '#38BDF8', '#6366F1', '#FB7185', '#EAB308'];
 
 const RARITY = {
@@ -181,42 +182,38 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
   );
 }
 
-// Deterministic wave-scatter layout for the night sky — a plain index
-// formula, not real randomness, so stars don't jump to new spots every
-// re-render. Spreads points left-to-right in rows with a bit of
-// per-point jitter so it reads as a loose constellation, not a grid.
-function starPos(i, total) {
-  const cols = Math.max(1, Math.min(total, 5));
-  const col  = i % cols;
-  const row  = Math.floor(i / cols);
-  const x = 10 + (cols > 1 ? (col / (cols - 1)) * 80 : 40);
-  const jitter = ((i * 53) % 30) - 15;
-  const y = 24 + row * 34 + jitter * 0.6;
-  return { x, y: Math.min(84, Math.max(14, y)) };
-}
-
-// The Constellation — every unlocked relic star, connected by soft
-// lines in the order it was claimed, over a twinkling night sky. The
-// still-unclaimed next slot sits at the end of the line as a dashed
-// invite instead of a separate card. Replaced the old card-grid
-// entirely; the individual relic (MysticSvg) stayed the same visual
-// unit, just moved out of white cards and into a sky it actually
-// belongs in.
-function ConstellationSky({ trees, pendingSlot, onEdit, onEquip, onDesign, loading, t }) {
-  const total = trees.length + (pendingSlot ? 1 : 0);
+// The Constellation — the user's own zodiac, always drawn as its full
+// 7-point shape (starLayout, from the server's lib/zodiac.js) so the
+// whole outline is visible as a guide from the very first star. Each
+// point is one of three states: already claimed (a real MysticSvg,
+// clickable to edit/equip), the next one up for grabs (a pulsing "+"),
+// or still locked (a faint placeholder dot, further out to earn).
+function ConstellationSky({ starLayout, zodiacGlyph, complete, trees, pendingSlot, onEdit, onEquip, onDesign, loading, t }) {
   const bgStars = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
     x: (i * 37) % 100, y: (i * 53 + 7) % 100, size: 1 + (i % 3), delay: (i % 5) * 0.4,
   })), []);
-  const points = trees.map((tree, i) => ({ ...starPos(i, total), tree }));
-  const pendingPoint = pendingSlot ? starPos(trees.length, total) : null;
+  const byIndex = useMemo(() => {
+    const m = new Map();
+    trees.forEach((tr) => m.set(tr.star_index, tr));
+    return m;
+  }, [trees]);
+  const pendingIndex = pendingSlot ? trees.length : -1;
 
   return (
     <div className="relative rounded-3xl p-6 overflow-hidden" style={{
       minHeight: 260,
-      background: 'linear-gradient(160deg, #14102b 0%, #1f1640 55%, #2a1a4a 100%)',
-      border: '1px solid rgba(139,92,246,0.30)',
+      background: complete
+        ? 'linear-gradient(160deg, #1a1330 0%, #2a1a4a 55%, #3a2258 100%)'
+        : 'linear-gradient(160deg, #14102b 0%, #1f1640 55%, #2a1a4a 100%)',
+      border: complete ? '1px solid rgba(250,204,21,0.35)' : '1px solid rgba(139,92,246,0.30)',
       boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.06)',
     }}>
+      {complete && (
+        <div className="absolute top-3 end-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold"
+          style={{ background: 'rgba(250,204,21,0.16)', color: '#FACC15', border: '1px solid rgba(250,204,21,0.35)' }}>
+          🏆 {t('shop.mysticComplete')}
+        </div>
+      )}
       {bgStars.map((s, i) => (
         <motion.span key={i}
           className="absolute rounded-full bg-white pointer-events-none"
@@ -226,54 +223,108 @@ function ConstellationSky({ trees, pendingSlot, onEdit, onEquip, onDesign, loadi
         />
       ))}
       <svg className="absolute inset-0 h-full w-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {points.slice(1).map((p, i) => (
-          <line key={p.tree.id} x1={points[i].x} y1={points[i].y} x2={p.x} y2={p.y}
-            stroke="rgba(196,181,253,0.35)" strokeWidth="0.3" />
-        ))}
-        {pendingPoint && points.length > 0 && (
-          <line x1={points[points.length - 1].x} y1={points[points.length - 1].y} x2={pendingPoint.x} y2={pendingPoint.y}
-            stroke="rgba(196,181,253,0.20)" strokeWidth="0.3" strokeDasharray="1.6 1.6" />
-        )}
+        {starLayout.slice(1).map(([x, y], i) => {
+          const [px, py] = starLayout[i];
+          const bothClaimed = byIndex.has(i) && byIndex.has(i + 1);
+          return (
+            <line key={i} x1={px} y1={py} x2={x} y2={y}
+              stroke={bothClaimed ? 'rgba(196,181,253,0.40)' : 'rgba(196,181,253,0.14)'}
+              strokeWidth="0.3" strokeDasharray={bothClaimed ? undefined : '1.6 1.6'} />
+          );
+        })}
       </svg>
-      {points.map(({ x, y, tree }) => (
-        <div key={tree.id}
-          className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
-          style={{ left: `${x}%`, top: `${y}%` }}>
-          <button onClick={() => onEdit(tree)} className="relative" title={t('common.edit') || 'Edit'}>
-            <MysticSvg shapeKey={tree.shape_key} size={48} colorHex={tree.color_hex} glowHex={tree.glow_hex} />
-          </button>
-          <span className="mt-1 max-w-[90px] truncate text-[10px] font-semibold text-white/85">{tree.custom_name}</span>
-          {tree.equipped ? (
-            <span className="mt-0.5 flex items-center gap-0.5 text-[9px] font-semibold" style={{ color: '#86EFAC' }}>
-              <Check size={9} /> {t('shop.equipped')}
-            </span>
-          ) : (
-            <button onClick={() => onEquip(tree)} disabled={loading}
-              className="mt-0.5 text-[9px] font-semibold underline decoration-dotted disabled:opacity-50"
-              style={{ color: 'rgba(196,181,253,0.85)' }}>
-              {t('shop.equip')}
-            </button>
-          )}
-        </div>
-      ))}
-      {pendingPoint && (
-        <div className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
-          style={{ left: `${pendingPoint.x}%`, top: `${pendingPoint.y}%` }}>
-          <motion.button onClick={onDesign} disabled={loading}
-            whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
-            className="flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold text-white/70 disabled:opacity-50"
-            style={{ border: '1.5px dashed rgba(255,255,255,0.45)' }}
-            animate={{ opacity: [0.55, 1, 0.55] }} transition={{ duration: 2, repeat: Infinity }}>
-            +
-          </motion.button>
-          <span className="mt-1 max-w-[90px] text-center text-[10px] font-semibold text-white/70">{t('shop.mysticDesign')}</span>
-        </div>
-      )}
+      {starLayout.map(([x, y], i) => {
+        const tree = byIndex.get(i);
+        if (tree) {
+          return (
+            <div key={i} className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${x}%`, top: `${y}%` }}>
+              <button onClick={() => onEdit(tree)} className="relative" title={t('common.edit') || 'Edit'}>
+                <MysticSvg shapeKey={tree.shape_key || tree.zodiac_key} size={48} colorHex={tree.color_hex} glowHex={tree.glow_hex} />
+              </button>
+              <span className="mt-1 max-w-[90px] truncate text-[10px] font-semibold text-white/85">{tree.custom_name}</span>
+              {tree.equipped ? (
+                <span className="mt-0.5 flex items-center gap-0.5 text-[9px] font-semibold" style={{ color: '#86EFAC' }}>
+                  <Check size={9} /> {t('shop.equipped')}
+                </span>
+              ) : (
+                <button onClick={() => onEquip(tree)} disabled={loading}
+                  className="mt-0.5 text-[9px] font-semibold underline decoration-dotted disabled:opacity-50"
+                  style={{ color: 'rgba(196,181,253,0.85)' }}>
+                  {t('shop.equip')}
+                </button>
+              )}
+            </div>
+          );
+        }
+        if (i === pendingIndex) {
+          return (
+            <div key={i} className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${x}%`, top: `${y}%` }}>
+              <motion.button onClick={onDesign} disabled={loading}
+                whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }}
+                className="flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold text-white/70 disabled:opacity-50"
+                style={{ border: '1.5px dashed rgba(255,255,255,0.45)' }}
+                animate={{ opacity: [0.55, 1, 0.55] }} transition={{ duration: 2, repeat: Infinity }}>
+                +
+              </motion.button>
+              <span className="mt-1 max-w-[90px] text-center text-[10px] font-semibold text-white/70">{t('shop.mysticDesign')}</span>
+            </div>
+          );
+        }
+        // Still locked — a faint placeholder so the full shape is
+        // visible as a guide before it's earned.
+        return (
+          <div key={i} className="absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{ left: `${x}%`, top: `${y}%`, width: 14, height: 14, border: '1px dashed rgba(255,255,255,0.18)' }}>
+            <span className="text-[9px] opacity-30">{zodiacGlyph}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
+// Shown once, the first time a user's zodiac actually resolves (see
+// TreeShop's showZodiacIntro effect) — explains the mechanic before
+// they hit a locked star and wonder why nothing's designable anymore.
+function ZodiacIntroModal({ zodiacKey, zodiacGlyph, zodiacEmoji, onClose, t }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[95] flex items-center justify-center px-4"
+      style={{ background: 'rgba(20,16,43,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 12 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        className="w-full max-w-sm rounded-3xl p-7 text-center"
+        style={{
+          background: 'linear-gradient(160deg, #14102b 0%, #1f1640 55%, #2a1a4a 100%)',
+          border: '1px solid rgba(139,92,246,0.35)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-5xl mb-3">{zodiacEmoji || '✨'}</div>
+        <h3 className="font-display font-bold text-lg text-white mb-1">
+          {t('shop.zodiacIntroTitle', { sign: zodiacKey ? t(`zodiac.${zodiacKey}`) : '' })}
+        </h3>
+        <p className="text-sm leading-relaxed mb-5" style={{ color: 'rgba(255,255,255,0.65)' }}>
+          {t('shop.zodiacIntroBody')}
+        </p>
+        <button onClick={onClose}
+          className="w-full rounded-2xl py-2.5 text-sm font-bold text-white"
+          style={{ background: 'linear-gradient(135deg, #8B5CF6, #6366F1)', boxShadow: '0 4px 14px rgba(139,92,246,0.44)' }}>
+          {t('shop.zodiacIntroCta')}
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function MysticModal({ open, mode, initial, zodiacKey, onSave, onCancel, loading, t }) {
   const [form, setForm] = useState(initial);
   // Real bug that used to live here: resetting on [open, initial] meant
   // ANY change to `initial` while the modal was already open reset the
@@ -318,23 +369,9 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
               background: 'linear-gradient(160deg, #14102b 0%, #1f1640 55%, #2a1a4a 100%)',
               border: '1px solid rgba(139,92,246,0.30)',
             }}>
-            <MysticSvg shapeKey={form.shape_key} size={44} colorHex={form.color_hex} glowHex={form.glow_hex} />
+            <MysticSvg shapeKey={zodiacKey} size={44} colorHex={form.color_hex} glowHex={form.glow_hex} />
           </div>
           <p className="font-display font-bold text-sm" style={{ color: '#1E2233' }}>{form.custom_name || t('shop.mysticNamePh')}</p>
-        </div>
-
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(30,34,51,0.35)' }}>{t('shop.mysticShape')}</p>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {MYSTIC_SHAPES.map((s) => (
-            <button key={s} onClick={() => setForm({ ...form, shape_key: s })}
-              className="flex-1 basis-[18%] flex items-center justify-center rounded-xl py-2.5"
-              style={{
-                background: form.shape_key === s ? `${form.color_hex}1A` : 'rgba(0,0,0,0.04)',
-                border:     form.shape_key === s ? `1.5px solid ${form.color_hex}` : '1px solid transparent',
-              }}>
-              <MysticSvg shapeKey={s} size={22} colorHex={form.color_hex} />
-            </button>
-          ))}
         </div>
 
         {/* "Colour" tints the card frame behind the emoji (see the
@@ -400,6 +437,7 @@ function MysticModal({ open, mode, initial, onSave, onCancel, loading, t }) {
 export default function TreeShop() {
   const toast = useToast();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [data,     setData]     = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [acting,   setActing]   = useState(false);
@@ -407,12 +445,27 @@ export default function TreeShop() {
   const [mysticModalOpen, setMysticModalOpen] = useState(false);
   const [mysticEditingId, setMysticEditingId] = useState(null); // null = designing a new slot
   const [mysticActing,    setMysticActing]    = useState(false);
+  const [showZodiacIntro, setShowZodiacIntro] = useState(false);
   const load = useCallback(async () => {
     try { setData(await api.get('/trees')); }
     catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
+  // First time this account's zodiac actually resolves (birthday set,
+  // sign derived), explain the mechanic once — same
+  // "nuvora_onboarded_<id>" localStorage pattern used by Onboarding.jsx,
+  // scoped per account so it doesn't nag again on every visit, but does
+  // show again for a different account signed into the same browser.
+  useEffect(() => {
+    if (!data?.mystic || data.mystic.needsBirthday || !user?.id) return;
+    const key = `nuvora_seen_zodiac_intro_${user.id}`;
+    if (!localStorage.getItem(key)) setShowZodiacIntro(true);
+  }, [data?.mystic?.needsBirthday, data?.mystic?.zodiacKey, user?.id]);
+  const dismissZodiacIntro = () => {
+    if (user?.id) { try { localStorage.setItem(`nuvora_seen_zodiac_intro_${user.id}`, '1'); } catch (_) {} }
+    setShowZodiacIntro(false);
+  };
   const handleUnlock = async () => {
     if (!confirm) return;
     setActing(true);
@@ -490,11 +543,10 @@ export default function TreeShop() {
   // changes.
   const mysticInitial = useMemo(() => (
     editingMysticTree
-      ? { shape_key: editingMysticTree.shape_key, color_hex: editingMysticTree.color_hex, glow_hex: editingMysticTree.glow_hex, custom_name: editingMysticTree.custom_name }
-      : { shape_key: MYSTIC_SHAPES[0], color_hex: MYSTIC_COLORS[0], glow_hex: MYSTIC_COLORS[1], custom_name: '' }
+      ? { color_hex: editingMysticTree.color_hex, glow_hex: editingMysticTree.glow_hex, custom_name: editingMysticTree.custom_name }
+      : { color_hex: MYSTIC_COLORS[0], glow_hex: MYSTIC_COLORS[1], custom_name: '' }
   ), [
     mysticEditingId,
-    editingMysticTree?.shape_key,
     editingMysticTree?.color_hex,
     editingMysticTree?.glow_hex,
     editingMysticTree?.custom_name,
@@ -558,21 +610,34 @@ export default function TreeShop() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🌌</span>
+              <span className="text-lg">{data.mystic.zodiacEmoji || '🌌'}</span>
               <div>
-                <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.mysticTitle')}</h3>
+                <h3 className="font-display font-semibold text-ink dark:text-white text-sm">
+                  {data.mystic.zodiacKey ? t(`zodiac.${data.mystic.zodiacKey}`) : t('shop.mysticTitle')}
+                </h3>
                 <span className="text-[11px] font-semibold" style={{ color: '#8B5CF6' }}>
-                  {t('shop.mysticCost', { n: (data.mystic.xpPerSlot || 1000).toLocaleString() })}
+                  {t('shop.mysticProgress', { designed: data.mystic.designedCount, unlocked: data.mystic.starCount })}
                 </span>
               </div>
             </div>
-            <span className="text-xs text-ink/40 dark:text-white/30">
-              {t('shop.mysticProgress', { designed: data.mystic.designedCount, unlocked: data.mystic.unlockedSlots })}
-              {' · '}{t('shop.mysticXpToNext', { n: data.mystic.xpUntilNextSlot.toLocaleString() })}
-            </span>
+            {!data.mystic.needsBirthday && (
+              <span className="text-xs text-ink/40 dark:text-white/30">
+                {data.mystic.complete
+                  ? t('shop.mysticComplete')
+                  : t('shop.mysticXpToNext', { n: (data.mystic.xpUntilNextStar || 0).toLocaleString() })}
+              </span>
+            )}
           </div>
-          {(data.mystic.trees.length > 0 || data.mystic.pendingSlot) ? (
+          {data.mystic.needsBirthday ? (
+            <div className="rounded-2xl px-5 py-4 text-xs text-ink/40 dark:text-white/30"
+              style={{ background: 'rgba(139,92,246,0.06)', border: '1px dashed rgba(139,92,246,0.25)' }}>
+              {t('shop.mysticNeedsBirthday')}
+            </div>
+          ) : (
             <ConstellationSky
+              starLayout={data.mystic.starLayout}
+              zodiacGlyph={data.mystic.zodiacGlyph}
+              complete={data.mystic.complete}
               trees={data.mystic.trees}
               pendingSlot={data.mystic.pendingSlot}
               onEdit={openMysticEdit}
@@ -581,11 +646,6 @@ export default function TreeShop() {
               loading={acting}
               t={t}
             />
-          ) : (
-            <div className="rounded-2xl px-5 py-4 text-xs text-ink/40 dark:text-white/30"
-              style={{ background: 'rgba(139,92,246,0.06)', border: '1px dashed rgba(139,92,246,0.25)' }}>
-              {t('shop.mysticNoneYet', { n: data.mystic.xpUntilNextSlot.toLocaleString() })}
-            </div>
           )}
         </div>
       )}
@@ -622,9 +682,21 @@ export default function TreeShop() {
             open
             mode={mysticEditingId != null ? 'edit' : 'create'}
             initial={mysticInitial}
+            zodiacKey={data?.mystic?.zodiacKey}
             onSave={handleMysticSave}
             onCancel={() => setMysticModalOpen(false)}
             loading={mysticActing}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showZodiacIntro && (
+          <ZodiacIntroModal
+            zodiacKey={data?.mystic?.zodiacKey}
+            zodiacGlyph={data?.mystic?.zodiacGlyph}
+            zodiacEmoji={data?.mystic?.zodiacEmoji}
+            onClose={dismissZodiacIntro}
             t={t}
           />
         )}

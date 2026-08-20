@@ -1,12 +1,16 @@
 import React from 'react';
 
-// Renders a single "relic star" — the unit of the Constellation system
-// (replaced Mystic Trees entirely; kept the component/prop names since
-// dozens of call sites and the server's own validation still speak
-// `shape_key`/`color_hex`/`glow_hex`/mystic:<id>, and none of that needed
-// to change, only what gets drawn with it).
+// Renders a single star in a user's Constellation — one of the 7 stars
+// of their own real zodiac sign (see server/lib/zodiac.js). `shapeKey`
+// here is actually the zodiac key ('leo', 'aries', ...) — kept the prop
+// name since every call site already passes `mystic.shape_key`, and the
+// server now writes the zodiac key into that same column, so nothing
+// upstream needed to change, only what gets drawn with it. All 7 stars
+// in one person's constellation share the same zodiac emoji — what
+// makes each star its own is the name/color/glow they picked, not the
+// glyph.
 //
-// Every relic is a real emoji (learned the hard way, twice, that
+// Every star is a real emoji (learned the hard way, twice, that
 // hand-drawn SVG and CSS hue-rotate tricks both read as cheap next to
 // real emoji quality) sitting inside two layered glows instead of one
 // flat shadow: a tight inner "core" glow from `colorHex` and a wider
@@ -14,18 +18,14 @@ import React from 'react';
 // its colored corona. That's also the fix for emoji not being
 // recolorable via CSS: instead of fighting to tint the glyph itself,
 // both color choices go into light around it, which genuinely works.
-const RELIC_EMOJI = {
-  spiral:  '🧭', // compass
-  crystal: '🔮', // crystal ball
-  orbs:    '📿', // prayer beads
-  bloom:   '🪶', // feather
-  bough:   '🗝️', // old key
-  nova:    '👑', // crown
-  aurora:  '🏮', // lantern
+const ZODIAC_EMOJI = {
+  aries: '🐏', taurus: '🐂', gemini: '👯', cancer: '🦀',
+  leo: '🦁', virgo: '🌾', libra: '⚖️', scorpio: '🦂',
+  sagittarius: '🏹', capricorn: '🐐', aquarius: '🏺', pisces: '🐟',
 };
 
 export default function MysticSvg({ shapeKey, size = 56, colorHex, glowHex }) {
-  const emoji = RELIC_EMOJI[shapeKey] || RELIC_EMOJI.crystal;
+  const emoji = ZODIAC_EMOJI[shapeKey] || '✦';
   const core  = colorHex || '#8B5CF6';
   const halo  = glowHex  || core;
   return (
