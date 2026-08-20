@@ -996,7 +996,15 @@ export default function Flow() {
                           key={i}
                           initial={{ scale: 0 }} animate={{ scale: 1 }}
                           transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
-                          className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-2xl leading-none"
+                          // No overflow-hidden here on purpose: several tree
+                          // emoji (🎋 🪸 🥀 🦩) render taller/wider than their
+                          // nominal font box on macOS, and a fixed-size clip
+                          // box was cropping them mid-glyph — showed up as a
+                          // "glitchy" partial icon instead of the real emoji.
+                          // Every other spot that renders these same emoji
+                          // (today's Land plot, room trees) uses plain inline
+                          // text with no clip box and never had this problem.
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl leading-none"
                           title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
                           style={tr.status === 'dead'
                             ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
