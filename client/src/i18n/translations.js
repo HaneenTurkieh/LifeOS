@@ -349,8 +349,9 @@ export const translations = {
       'app.thisPanel':      'This panel',
       'app.shortcuts':      'shortcuts',
       'app.searchTip':      'Tip: Press ⌘K to search · ? for all shortcuts',
-      'app.buddyGreeting':  'How can I help you today?',
-  
+      'app.buddyName':      'Nova',
+      'app.buddyGreeting':  "Hi, I'm Nova — how can I help you today?",
+
       // ── Goals page ─────────────────────────────────────────
       'goals.eyebrow':          'Goals & Recurring Tasks',
       'goals.bigPicture':       'The big picture',
@@ -1093,8 +1094,9 @@ export const translations = {
       'app.thisPanel':      'هذه اللوحة',
       'app.shortcuts':      'الاختصارات',
       'app.searchTip':      'نصيحة: اضغط ⌘K للبحث · ? لكل الاختصارات',
-      'app.buddyGreeting':  'كيف فيني ساعدك اليوم؟',
-  
+      'app.buddyName':      'نوفا',
+      'app.buddyGreeting':  'هاي، أنا نوفا — كيف فيني ساعدك اليوم؟',
+
       // ── صفحة الأهداف ─────────────────────────────────────────
       'goals.eyebrow':          'الأهداف والمهام المتكررة',
       'goals.bigPicture':       'الصورة الكبيرة',
