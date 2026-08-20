@@ -657,16 +657,23 @@ export default function Login() {
                     // Google's own button can't take our accent colors or
                     // backdrop-blur — it's a fixed, non-customizable brand
                     // asset (anti-spoofing rule on Google's end, not
-                    // something we can style around). Framing it in a
-                    // glass capsule that matches the demo button below
-                    // gives it a "held" look instead of a flat sticker
-                    // pasted on top of the card.
+                    // something we can style around). The old wrapper here
+                    // used the same near-invisible 4-10% tint as the ghost
+                    // "demo account" button below it — at that opacity it
+                    // read as no frame at all, so the button looked like a
+                    // stray widget dropped on the card instead of something
+                    // Nuvora placed on purpose. This matches the real-card
+                    // weight of the no-client-id placeholder button instead
+                    // (solid surface, visible border, real shadow), so
+                    // whichever branch renders, it looks intentional.
                     <div
                       className="flex justify-center rounded-full p-1"
                       style={{
-                        background: demoBg,
-                        border: demoBorder,
-                        boxShadow: `0 4px 18px rgb(var(--accent-500) / 0.14), inset 0 1px 0 ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.6)'}`,
+                        background: isDark ? 'rgba(255,255,255,0.06)' : 'white',
+                        border: isDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(30,34,51,0.10)',
+                        boxShadow: isDark
+                          ? `0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgb(var(--accent-500) / 0.10), inset 0 1px 0 rgba(255,255,255,0.08)`
+                          : `0 4px 16px rgba(30,34,51,0.08), inset 0 1px 0 rgba(255,255,255,0.9)`,
                       }}
                     >
                       <div ref={googleBtnRef} className="flex w-full justify-center" />

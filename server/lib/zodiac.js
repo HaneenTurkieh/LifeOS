@@ -66,9 +66,11 @@ const STAR_LAYOUT = {
   gemini:      [[34,18],[30,40],[26,64],[46,50],[66,64],[70,40],[66,18]],
   // The faint inverted-Y: tail → Beehive-cluster junction → both claws.
   cancer:      [[50,80],[50,60],[50,46],[38,36],[28,22],[62,36],[72,22]],
-  // Regulus at the Sickle's base, up through the backward-question-mark
-  // curve, across Zosma (haunch) to Denebola (tail tip), back to belly.
-  leo:         [[24,58],[30,44],[40,32],[54,28],[66,38],[74,58],[46,66]],
+  // The actual Sickle — Regulus at the hook's base, curving up and left
+  // through Eta/Algieba/Adhafera, curling back right at the tip (the
+  // real "backward question mark") — then a line out to Zosma and
+  // Denebola for the back/tail, same as how star charts draw Leo.
+  leo:         [[30,66],[24,54],[22,40],[28,28],[40,22],[58,30],[76,42]],
   // Spica at the base, up through both arms of the big Y/kite to the
   // head — Virgo's real shape is exactly this loose, wide Y.
   virgo:       [[50,78],[44,60],[36,44],[24,30],[58,44],[70,28],[50,20]],
