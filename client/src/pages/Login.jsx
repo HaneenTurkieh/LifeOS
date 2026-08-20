@@ -273,6 +273,31 @@ export default function Login() {
   const firstRun         = useRef(true);
   const googleBtnRef     = useRef(null);
 
+  // Real bug: ThemeContext applies whatever accent color is saved in
+  // localStorage (nuvora_accent) globally, on every page load, via a
+  // `data-accent` attribute on <html> — completely independent of
+  // whether anyone's actually signed in. That's correct for the
+  // authenticated app (it's a personal preference), but Login/Welcome
+  // is a pre-auth branding surface: it inherits whatever the LAST
+  // person on this browser happened to have picked (a prior session,
+  // someone else on a shared machine, or the demo account), which is
+  // how this page can end up rendering in pink instead of Nuvora's
+  // actual purple. Every `rgb(var(--accent-*))` used all over this
+  // file reads that same attribute, so forcing it off for as long as
+  // Login is mounted — and restoring whatever it really was the moment
+  // it unmounts (right when a successful login hands off to the real
+  // app) — fixes the brand color here without touching the user's
+  // actual saved preference at all.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prevAccent = root.getAttribute('data-accent');
+    root.removeAttribute('data-accent');
+    return () => {
+      if (prevAccent) root.setAttribute('data-accent', prevAccent);
+      else root.removeAttribute('data-accent');
+    };
+  }, []);
+
   // Subtle pointer-driven depth — background blobs drift a bit more than
   // the halo/starfield they sit behind, so the page reads as layered
   // instead of flat when you move the mouse. Plain state (not a motion
@@ -427,7 +452,7 @@ export default function Login() {
       // not just what shows up when Google's personalization fails.
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         type: 'icon', shape: 'circle', theme: isDark ? 'filled_black' : 'outline',
-        size: 'large',
+        size: 'medium',
       });
     };
     tryInit();
@@ -662,30 +687,29 @@ export default function Login() {
                     <div className="h-px flex-1" style={{ background: dividerClr }} />
                   </div>
                   {GOOGLE_CLIENT_ID ? (
-                    // Google's own G mark can't take our accent colors or
-                    // backdrop-blur — it's a fixed, non-customizable brand
-                    // asset. A full-width text pill fought that the most
-                    // (a whole row rendered in Google's own font/colors);
-                    // a small round badge is the one shape where "this is
-                    // Google's own control, framed by us" reads as a
-                    // deliberate choice rather than a mismatched sticker —
-                    // same idea as any icon-row social login, and it's a
-                    // universally recognized mark on its own, so a caption
-                    // underneath is enough without needing button text.
-                    <div className="flex flex-col items-center gap-1.5">
+                    // Stacking the circle above its caption made it its
+                    // own small island — noticeably narrower than the
+                    // full-width "Sign in" pill above and "demo" pill
+                    // below, so it read as a stray leftover between two
+                    // rectangles instead of a row that belongs there. A
+                    // single horizontal line (badge + label side by side)
+                    // sits at the same visual height as a normal row of
+                    // text, so it reads as "one line in the stack" instead
+                    // of "one small shape floating between two bars."
+                    <div className="flex items-center justify-center gap-2.5">
                       <div
-                        className="flex h-12 w-12 items-center justify-center rounded-full"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
                         style={{
                           background: isDark ? 'rgba(255,255,255,0.06)' : 'white',
                           border: isDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(30,34,51,0.10)',
                           boxShadow: isDark
-                            ? `0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgb(var(--accent-500) / 0.10), inset 0 1px 0 rgba(255,255,255,0.08)`
-                            : `0 4px 16px rgba(30,34,51,0.08), inset 0 1px 0 rgba(255,255,255,0.9)`,
+                            ? `0 2px 10px rgba(0,0,0,0.35), 0 0 0 1px rgb(var(--accent-500) / 0.10)`
+                            : `0 2px 8px rgba(30,34,51,0.08)`,
                         }}
                       >
                         <div ref={googleBtnRef} className="flex items-center justify-center" />
                       </div>
-                      <span className="text-[11px] font-medium" style={{ color: subClr }}>{t('login.continueGoogle')}</span>
+                      <span className="text-[13px] font-medium" style={{ color: subClr }}>{t('login.continueGoogle')}</span>
                     </div>
                   ) : (
                     <button type="button"
