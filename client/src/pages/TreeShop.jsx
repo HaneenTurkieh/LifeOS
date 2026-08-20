@@ -188,7 +188,7 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
 // point is one of three states: already claimed (a real MysticSvg,
 // clickable to edit/equip), the next one up for grabs (a pulsing "+"),
 // or still locked (a faint placeholder dot, further out to earn).
-function ConstellationSky({ starLayout, zodiacGlyph, complete, trees, pendingSlot, onEdit, onEquip, onDesign, loading, t }) {
+function ConstellationSky({ starLayout, zodiacGlyph, zodiacEmoji, complete, trees, pendingSlot, onEdit, onEquip, onDesign, loading, t }) {
   const bgStars = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
     x: (i * 37) % 100, y: (i * 53 + 7) % 100, size: 1 + (i % 3), delay: (i % 5) * 0.4,
   })), []);
@@ -208,6 +208,24 @@ function ConstellationSky({ starLayout, zodiacGlyph, complete, trees, pendingSlo
       border: complete ? '1px solid rgba(250,204,21,0.35)' : '1px solid rgba(139,92,246,0.30)',
       boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.06)',
     }}>
+      {/* Connect-the-dots alone doesn't read as "lion"/"scales"/whatever
+          at 7 points in a small panel — real constellations barely read
+          that way even in an actual night sky. A big, very faint
+          silhouette of the sign's own emoji behind everything else gives
+          instant recognition; `brightness(0) invert(1)` strips the
+          emoji's color out entirely so it reads as a soft shape, not a
+          tiny colorful sticker competing with the stars. */}
+      {zodiacEmoji && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
+          style={{
+            fontSize: 'min(70%, 220px)',
+            lineHeight: 1,
+            filter: 'brightness(0) invert(1) blur(1px)',
+            opacity: 0.07,
+          }}>
+          {zodiacEmoji}
+        </div>
+      )}
       {complete && (
         <div className="absolute top-3 end-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold"
           style={{ background: 'rgba(250,204,21,0.16)', color: '#FACC15', border: '1px solid rgba(250,204,21,0.35)' }}>
@@ -624,6 +642,7 @@ export default function TreeShop() {
             <ConstellationSky
               starLayout={data.mystic.starLayout}
               zodiacGlyph={data.mystic.zodiacGlyph}
+              zodiacEmoji={data.mystic.zodiacEmoji}
               complete={data.mystic.complete}
               trees={data.mystic.trees}
               pendingSlot={data.mystic.pendingSlot}
