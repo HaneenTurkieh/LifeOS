@@ -393,7 +393,15 @@ function AppShell() {
           docks anything of its own there. focusBarVisible (mirrors
           FocusBar's own show/hide check) lifts it further only on the
           rare load where a Flow session is actually running, instead of
-          permanently reserving that much space. */}
+          permanently reserving that much space.
+
+          Still wasn't actually safe on /ai specifically — on a phone-width
+          screen, Lumi's full-width composer puts its Send button in this
+          exact corner, and this widget sat right on top of it, blocking
+          taps. Hidden on /ai entirely rather than nudged further: buddy's
+          only job here is "open Lumi", which is redundant when you're
+          already looking at Lumi. */}
+      {location.pathname !== '/ai' && (
       <div className={`fixed z-[105] end-4 lg:end-6 lg:bottom-20 ${focusBarVisible ? 'bottom-40' : 'bottom-24'}`}>
         {/* flex column + items-center centers the bubble over buddy using
             layout, not inset/transform math — the previous version pinned
@@ -428,6 +436,7 @@ function AppShell() {
           </div>
         </div>
       </div>
+      )}
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
       <div
         className="fixed top-4 end-4 z-50 flex items-center"

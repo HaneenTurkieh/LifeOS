@@ -13,8 +13,15 @@ export default function FocusBar() {
 
   const { mode, timeLeft, totalTime, isRunning, taskName, toggleTimer, resetTimer } = focus;
 
-  // Only show when timer has been started and user is NOT on the flow page
-  const isOnFlowPage = location.pathname === '/learning';
+  // Only show when timer has been started and user is NOT on the flow page.
+  // Also suppressed on /ai: Lumi's chat composer is a full-width, bottom-
+  // docked bar with its own Send button in the exact same corner this
+  // pill docks in — on a narrow phone screen there's no room for both,
+  // and this pill's own tap target (navigate to Flow) was landing right
+  // on top of Send, blocking it. Nothing lost by hiding it here since
+  // you're not going to start typing a message AND jump to the Flow page
+  // in the same breath.
+  const isOnFlowPage = location.pathname === '/learning' || location.pathname === '/ai';
   const hasStarted   = totalTime > timeLeft || isRunning;
 
   if (isOnFlowPage || !hasStarted) return null;
