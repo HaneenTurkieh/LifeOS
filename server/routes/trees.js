@@ -27,7 +27,7 @@ const TREES = [
 // is spent to fill a slot; the XP threshold itself is the unlock.
 // Collectible — earn 5000 XP and you'll have unlocked 5 slots to fill.
 const XP_PER_MYSTIC_SLOT = 1000;
-const MYSTIC_SHAPES = ['spiral', 'crystal', 'orbs', 'bloom', 'bough'];
+const MYSTIC_SHAPES = ['spiral', 'crystal', 'orbs', 'bloom', 'bough', 'nova', 'aurora'];
 const MYSTIC_COLORS = ['#8B5CF6', '#F472B6', '#F59E0B', '#10B981', '#38BDF8', '#6366F1', '#FB7185', '#EAB308'];
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
