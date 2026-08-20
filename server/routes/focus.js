@@ -221,8 +221,26 @@ async function reconcileSoloTimer(userId) {
     // /timer/sync — unlike focus_room_timer's started_at, which is a
     // server-generated SQL datetime('now')), so it parses directly —
     // no space/UTC-suffix massaging needed.
+    //
+    // Anchor is remaining_seconds, NOT duration_seconds — this was the
+    // actual bug in the first version of this function. remaining_seconds
+    // is the snapshot of time-left AT started_at (same convention
+    // computeFromServer.mjs already uses client-side); duration_seconds
+    // is just the total length for the progress ring. They're equal on a
+    // fresh start, which is why quick tests looked fine — but the
+    // pause/resume path in toggleTimer() re-anchors started_at to "now"
+    // while only sending the partial remaining_seconds, leaving
+    // duration_seconds pointing at the *original* full length server-side.
+    // Using duration_seconds there made the server think a full-length
+    // round had just begun instead of a partial one, so it kept waiting
+    // long after the client had already finished — which is exactly what
+    // "still not catching it" looked like.
     const elapsed   = Math.floor((Date.now() - new Date(row.started_at).getTime()) / 1000);
-    const remaining = Number(row.duration_seconds) - elapsed;
+    const remaining = Number(row.remaining_seconds) - elapsed;
+    // TEMP diagnostic — remove once confirmed fixed. Only fires while a
+    // focus round is actively running, so this is at most one line per
+    // ~5s poll during a session, not a standing cost.
+    console.log(`reconcileSoloTimer check: user=${userId} started_at=${row.started_at} remaining_seconds=${row.remaining_seconds} duration_seconds=${row.duration_seconds} elapsed=${elapsed}s computedRemaining=${remaining}s`);
     if (remaining > 0) return; // genuinely still running — nothing to do
 
     const durationMinutes = Math.round(Number(row.duration_seconds) / 60);
