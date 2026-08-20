@@ -296,7 +296,25 @@ router.post('/forgot-password', async (req, res) => {
     if (!user) return res.json(generic);
 
     const { rawToken, tokenHash } = generateResetToken();
-    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000).toISOString();
+    // Real bug this fixes: this used to be a plain .toISOString() —
+    // "2026-08-20T18:45:00.000Z" — stored as expires_at and then compared
+    // against SQLite's own `datetime('now')`, which produces the zone-less
+    // "2026-08-20 18:45:00" (space, no millis, no Z). Both rows below
+    // check `expires_at > datetime('now')` as a plain SQL string
+    // comparison, so as long as the two strings shared the same calendar
+    // day, character 11 alone ('T' vs ' ', and 'T' > ' ') decided the
+    // result — meaning expires_at was JUDGED greater (token still valid)
+    // regardless of what the actual time was, right up until UTC
+    // midnight. A reset link meant to die after 30 minutes was actually
+    // usable for however many hours were left in that UTC day — same
+    // format mismatch already fixed elsewhere in this app (see
+    // timerSync.mjs, NotificationBell), just in the opposite direction:
+    // this is the write side generating a mismatched format, not a read
+    // side failing to correct for one. Formatting to match
+    // datetime('now')'s own shape makes the SQL string comparison
+    // actually correct.
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000)
+      .toISOString().slice(0, 19).replace('T', ' ');
     await db.execute({
       sql:  `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)`,
       args: [user.id, tokenHash, expiresAt],
