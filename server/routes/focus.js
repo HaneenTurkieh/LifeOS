@@ -280,7 +280,8 @@ async function reconcileSoloTimer(userId) {
             VALUES (?, ?, 'alive', ?, ?, ?)`,
       args: [userId, treeKey, taskName, durationMinutes, row.task_id != null ? Number(row.task_id) : null],
     });
-    try { await logMinutesOnTask(userId, row.task_id, durationMinutes); } catch (_) {}
+    let task = null;
+    try { task = await logMinutesOnTask(userId, row.task_id, durationMinutes); } catch (_) {}
 
     // Advance the server row to the next break, same 4-session rhythm
     // the client itself uses, so whichever device checks in next picks
@@ -296,6 +297,20 @@ async function reconcileSoloTimer(userId) {
             WHERE user_id = ?`,
       args: [nextMode, breakSec, breakSec, newDots, userId],
     });
+
+    // Handed back to GET /timer so it can tell the client a round was
+    // just credited server-side — without this, the only way to see
+    // this ever happened was noticing the tree count went up. The
+    // "tree planted!" popup only ever fired from the tab's own local
+    // handleComplete(); a round caught here (tab backgrounded/reloaded
+    // right at the end) planted the tree and awarded XP just fine, but
+    // silently, with no popup at all.
+    return {
+      xpAwarded: xpAmount, treePlanted: treeKey,
+      treePlantedDesign: await resolveMysticDesign(treeKey),
+      minutes: durationMinutes, task,
+      nextBreak: { type: nextMode, minutes: breakSec / 60 },
+    };
   } catch (e) { console.error('reconcileSoloTimer failed (non-fatal):', e.message); }
 }
 
@@ -309,7 +324,7 @@ async function reconcileSoloTimer(userId) {
 // ═══════════════════════════════════════════════════════════════
 router.get('/timer', async (req, res) => {
   try {
-    await reconcileSoloTimer(req.user.id);
+    const justCompleted = await reconcileSoloTimer(req.user.id);
     const row = (await db.execute({
       sql: `SELECT * FROM focus_solo_timer WHERE user_id = ?`, args: [req.user.id],
     })).rows[0];
@@ -326,6 +341,11 @@ router.get('/timer', async (req, res) => {
       task_id:           row.task_id != null ? Number(row.task_id) : null,
       dots:              Number(row.dots || 0),
       version:           Number(row.version),
+      // Only present on the one poll that actually catches a completed
+      // round server-side — see reconcileSoloTimer. Lets the client show
+      // the same "tree planted!" popup it would have shown if its own
+      // tab had finished the countdown itself.
+      just_completed:    justCompleted || null,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
