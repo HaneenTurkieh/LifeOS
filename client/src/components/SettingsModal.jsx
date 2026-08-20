@@ -297,12 +297,34 @@ function AppearanceTab() {
           <span style={{ fontSize: '0.75rem' }} className="text-ink/50 dark:text-white/40 font-semibold">A</span>
           <span style={{ fontSize: '1.375rem' }} className="text-ink dark:text-white font-semibold">A</span>
         </div>
-        <input
-          type="range" min="0" max="4" step="1"
-          value={Object.keys(FONT_SCALES).indexOf(fontScale)}
-          onChange={(e) => setFontScale(Object.keys(FONT_SCALES)[Number(e.target.value)])}
-          className="w-full accent-lavender-600"
-        />
+        {/* Was a plain <input type="range"> — it already only ever landed
+            on one of 5 values (step="1", min 0 / max 4), but a bare
+            continuous-looking bar with a round thumb gives no visual hint
+            of that, so it read as "pick anywhere" instead of "pick one of
+            5 sizes" the way iOS's own Text Size control makes obvious at
+            a glance. Same 5 values, now shown as 5 actual chopped
+            segments — tap any one to jump straight to it. */}
+        <div className="flex items-center gap-1.5">
+          {Object.keys(FONT_SCALES).map((key, i) => {
+            const activeIdx = Object.keys(FONT_SCALES).indexOf(fontScale);
+            const filled = i <= activeIdx;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFontScale(key)}
+                aria-label={FONT_SCALES[key].label}
+                aria-pressed={i === activeIdx}
+                className="flex-1 rounded-full transition-all"
+                style={{
+                  height: 8,
+                  background: filled ? 'rgb(var(--accent-500))' : 'rgba(120,120,140,0.20)',
+                  transform: i === activeIdx ? 'scaleY(1.35)' : 'scaleY(1)',
+                }}
+              />
+            );
+          })}
+        </div>
         <p className="text-center text-xs text-ink/40 dark:text-white/30 mt-2 font-semibold">
           {FONT_SCALES[fontScale].label}
         </p>
