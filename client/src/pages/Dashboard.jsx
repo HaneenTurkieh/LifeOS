@@ -258,8 +258,9 @@ export default function Dashboard() {
                   </div>
                   {hint && (
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === label ? null : label); }}
-                      className="absolute -top-1.5 -end-1.5 flex h-5 w-5 items-center justify-center rounded-full text-ink/30 dark:text-white/40 hover:text-ink/60 dark:hover:text-white/70 transition-colors"
+                      className="absolute -top-2 -end-2 z-10 flex h-7 w-7 items-center justify-center rounded-full text-ink/30 dark:text-white/40 hover:text-ink/60 dark:hover:text-white/70 transition-colors"
                       style={isDark
                         ? { background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.20)' }
                         : { background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
