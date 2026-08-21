@@ -357,11 +357,22 @@ function AppearanceTab() {
       <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 mt-3 block">
         {t('settings.pushNotifications')}
       </label>
-      <div className="flex items-center gap-3 rounded-2xl px-4 py-3"
-        style={{ background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.65)' }}>
+      {/* Every other selectable row on this tab (Theme, Language) lights
+          up with an accent-tinted background + border the moment it's
+          the active choice — this row used to stay the same flat grey
+          card regardless of on/off, with only the little switch itself
+          changing color. Same treatment now when push is actually on,
+          so it reads as "this is the active state" the same way
+          everything else on this page already does. */}
+      <div className="flex items-center gap-3 rounded-2xl px-4 py-3 transition-all"
+        style={pushOn
+          ? { background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.28)' }
+          : { background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.65)' }}>
         <span className="text-2xl">🔔</span>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-ink dark:text-white">{t('settings.pushNotifications')}</p>
+          <p className={`text-sm font-semibold ${pushOn ? 'text-lavender-700 dark:text-lavender-300' : 'text-ink dark:text-white'}`}>
+            {t('settings.pushNotifications')}
+          </p>
           <p className="text-xs text-ink/40 dark:text-white/30">
             {needsIosInstall ? t('settings.pushIosHint')
               : pushSupported() ? t('settings.pushDesc') : t('settings.pushUnsupported')}

@@ -138,11 +138,14 @@ export default function Tasks() {
   const active    = tasks.filter(tk => tk.status !== 'done');
   const completed = tasks.filter(tk => tk.status === 'done');
   const groups = {
-    // "Today" also catches overdue tasks (deadline before today) — before
-    // this they matched none of the four buckets (not === today, not
-    // === tomorrow, not > tomorrow) and silently vanished from the page
-    // entirely, even though they were still active.
-    today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline <= today)),
+    // Overdue used to be folded into "Today" (anything with deadline <=
+    // today landed here) so it was never actually invisible — each card
+    // still shows its own red "🚨 Overdue" pill (see TaskCard below) —
+    // but it took reading every card's pill to tell "genuinely late"
+    // apart from "due today," especially once there were more than a
+    // couple. Its own section makes that obvious at a glance instead.
+    overdue:  sortByPriority(active.filter(tk => tk.deadline && tk.deadline < today)),
+    today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline === today)),
     tomorrow: sortByPriority(active.filter(tk => tk.deadline === tomorrow)),
     week:     sortByPriority(active.filter(tk => tk.deadline && tk.deadline > tomorrow && tk.deadline <= in7Days)),
     later:    sortByPriority(active.filter(tk => tk.deadline && tk.deadline > in7Days)),
@@ -256,6 +259,7 @@ export default function Tasks() {
         />
       ) : (
         <div className="flex flex-col gap-8">
+          <TaskGroup label={t('tasks.overdue')}    tasks={groups.overdue}  onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} urgent />
           <TaskGroup label={t('common.today')}    tasks={groups.today}    onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
           <TaskGroup label={t('common.tomorrow')} tasks={groups.tomorrow} onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
           <TaskGroup label={t('tasks.next7')}     tasks={groups.week}     onEdit={openEditModal} onDelete={removeTask} onMarkDone={markDone} onAskLumi={setStuckTask} t={t} formatTime={formatTime} recurrenceLabel={recurrenceLabel} />
@@ -441,13 +445,17 @@ function AntiProcrastinationModal({ task, onClose, t, lang }) {
     </Modal>
   );
 }
-function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, onAskLumi, t, formatTime, recurrenceLabel }) {
+function TaskGroup({ label, tasks, onEdit, onDelete, onMarkDone, onAskLumi, t, formatTime, recurrenceLabel, urgent = false }) {
   if (!tasks.length) return null;
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="font-display font-semibold text-xs text-ink/50 dark:text-white/40 uppercase tracking-widest">{label}</h2>
-        <span className="text-xs text-ink/30 dark:text-white/25 bg-white/50 dark:bg-white/5 rounded-full px-2 py-0.5">{tasks.length}</span>
+        <h2 className={`font-display font-semibold text-xs uppercase tracking-widest ${
+          urgent ? 'text-coral-500' : 'text-ink/50 dark:text-white/40'
+        }`}>{label}</h2>
+        <span className={`text-xs rounded-full px-2 py-0.5 ${
+          urgent ? 'text-coral-500 bg-coral-500/10' : 'text-ink/30 dark:text-white/25 bg-white/50 dark:bg-white/5'
+        }`}>{tasks.length}</span>
         <div className="flex-1 h-px bg-ink/5 dark:bg-white/5" />
       </div>
       <div className="flex flex-col gap-2">
