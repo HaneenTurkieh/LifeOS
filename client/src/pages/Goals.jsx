@@ -185,6 +185,8 @@ export default function Goals() {
   const [editForm,    setEditForm]    = useState({ title: '', description: '', category: '', target_date: '' });
   const [newMilestone, setNewMilestone] = useState('');
   const [addingMilestone, setAddingMilestone] = useState(false);
+  const [editingMilestoneId, setEditingMilestoneId] = useState(null);
+  const [editingMilestoneText, setEditingMilestoneText] = useState('');
   const [pickingStar, setPickingStar] = useState(null);
 
   const loadGoals  = useCallback(async () => {
@@ -301,6 +303,20 @@ export default function Goals() {
     if (!editingGoal) return;
     try {
       await api.del(`/goals/${editingGoal.id}/milestones/${milestoneId}`);
+      await loadGoals();
+      const fresh = (await api.get('/goals')).find((g) => g.id === editingGoal.id);
+      if (fresh) setEditingGoal(fresh);
+    } catch (err) { toast.error(err.message); }
+  };
+  const startEditMilestone = (m) => { setEditingMilestoneId(m.id); setEditingMilestoneText(m.title); };
+  const cancelEditMilestone = () => { setEditingMilestoneId(null); setEditingMilestoneText(''); };
+  const saveMilestoneTitle = async (milestoneId) => {
+    if (!editingGoal) return;
+    const title = editingMilestoneText.trim();
+    if (!title) { cancelEditMilestone(); return; }
+    try {
+      await api.put(`/goals/${editingGoal.id}/milestones/${milestoneId}`, { title });
+      cancelEditMilestone();
       await loadGoals();
       const fresh = (await api.get('/goals')).find((g) => g.id === editingGoal.id);
       if (fresh) setEditingGoal(fresh);
@@ -623,11 +639,49 @@ export default function Goals() {
                       {m.done
                         ? <CheckSquare size={15} className="text-sage-500 shrink-0"/>
                         : <Square      size={15} className="text-ink/25 shrink-0"/>}
-                      <span className={`text-sm flex-1 ${m.done ? 'text-ink/40 line-through' : 'text-ink/80'}`}>
-                        {m.title}
-                      </span>
-                      <button type="button" onClick={() => deleteMilestone(m.id)}
-                        className="shrink-0 text-ink/25 hover:text-coral-500 transition">
+                      {editingMilestoneId === m.id ? (
+                        <input
+                          autoFocus
+                          className="input-field flex-1 text-sm py-1"
+                          value={editingMilestoneText}
+                          onChange={(e) => setEditingMilestoneText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter')  { e.preventDefault(); saveMilestoneTitle(m.id); }
+                            if (e.key === 'Escape') { e.preventDefault(); cancelEditMilestone(); }
+                          }}
+                          onBlur={() => saveMilestoneTitle(m.id)}
+                        />
+                      ) : (
+                        // Delete used to be the only affordance here, at
+                        // 25% opacity with no edit option at all — easy to
+                        // miss entirely and impossible to rename a
+                        // milestone without deleting and re-adding it.
+                        // The whole label is now a tap/click target too.
+                        <span
+                          onClick={() => startEditMilestone(m)}
+                          className={`text-sm flex-1 cursor-text ${m.done ? 'text-ink/40 line-through' : 'text-ink/80'}`}
+                          title={t('goals.tapToEdit')}
+                        >
+                          {m.title}
+                        </span>
+                      )}
+                      {editingMilestoneId === m.id ? (
+                        <button type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={cancelEditMilestone}
+                          className="shrink-0 text-ink/40 hover:text-coral-500 transition">
+                          <X size={14}/>
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => startEditMilestone(m)}
+                          className="shrink-0 text-ink/40 hover:text-lavender-600 transition">
+                          <Pencil size={13}/>
+                        </button>
+                      )}
+                      <button type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => deleteMilestone(m.id)}
+                        className="shrink-0 text-ink/40 hover:text-coral-500 transition">
                         <Trash2 size={13}/>
                       </button>
                     </div>
