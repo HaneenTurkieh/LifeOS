@@ -22,6 +22,7 @@ const NOTIF_KEYS = {
   grace_welcome:              { title: 'notif.grace_welcome.title',             body: 'notif.grace_welcome.body' },
   grace_ending:                { title: 'notif.grace_ending.title',              body: 'notif.grace_ending.body' },
   grace_passes_announcement:  { title: 'notif.grace_passes_announcement.title', body: 'notif.grace_passes_announcement.body' },
+  focus_complete:             { title: 'notif.focus_complete.title',            body: 'notif.focus_complete.body' },
 };
 
 const TYPE_COLORS = {
@@ -30,6 +31,7 @@ const TYPE_COLORS = {
   deadline: { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
   milestone_due: { dot: '#8B5CF6', bg: 'rgba(139,92,246,0.10)' },
   mood:     { dot: '#4CC38A', bg: 'rgba(76,195,138,0.10)'  },
+  focus_complete: { dot: '#22C55E', bg: 'rgba(34,197,94,0.10)' },
   default:  { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
 };
 

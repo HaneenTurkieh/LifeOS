@@ -310,6 +310,12 @@ async function reconcileSoloTimer(userId) {
       treePlantedDesign: await resolveMysticDesign(treeKey),
       minutes: durationMinutes, task,
       nextBreak: { type: nextMode, minutes: breakSec / 60 },
+      // Raw pre-clear started_at — the row's own started_at gets wiped a
+      // few lines up (advanced to the next break), so callers that need
+      // a stable per-session identifier (e.g. the cron sweep below,
+      // building a dedupe key so this session's "tree finished" push
+      // can't ever double-fire) have to capture it here, before it's gone.
+      startedAt: row.started_at,
     };
   } catch (e) { console.error('reconcileSoloTimer failed (non-fatal):', e.message); }
 }
@@ -1451,3 +1457,12 @@ router.post('/premium/gender-theme', async (req, res) => {
 });
 
 module.exports = router;
+// Exported so the cron sweep (server/routes/cron.js) can catch a focus
+// session that finished while Nuvora was fully closed — this same
+// function already handles the "app was open" case via GET
+// /focus/timer's own polling (that's where the in-app "tree planted!"
+// popup comes from), idempotently, via the focus_session_credits
+// UNIQUE constraint — so calling it again here from cron is always
+// safe, never double-credits, and simply returns undefined if there's
+// nothing new to catch.
+module.exports.reconcileSoloTimer = reconcileSoloTimer;
