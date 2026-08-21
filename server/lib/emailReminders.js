@@ -52,18 +52,38 @@ async function sendPendingReminderEmails() {
 
       if (!pending.length) continue;
 
-      try {
-        await sendReminderDigestEmail({ to: user.email, items: pending });
-        await db.execute({
-          sql: `UPDATE notifications SET email_sent=1 WHERE id IN (${pending.map(() => '?').join(',')})`,
-          args: pending.map((n) => n.id),
+      // Claim each row BEFORE emailing it, not after — same race this
+      // digest used to share with pushReminders.js's per-item send: a
+      // slow tick (Render waking from sleep) plus cron-job.org's own
+      // retry-on-timeout, or two ticks simply overlapping, could both
+      // SELECT the same still-email_sent=0 rows before either one had
+      // marked them sent, so both sent the SAME digest to the SAME
+      // inbox. Claiming one row at a time (atomic UPDATE ... WHERE
+      // email_sent=0, keep only the ones that actually flip) means
+      // whichever tick gets here first wins each row; the other tick's
+      // digest simply comes up empty for anything already claimed.
+      const claimed = [];
+      for (const n of pending) {
+        const claim = await db.execute({
+          sql: `UPDATE notifications SET email_sent=1 WHERE id=? AND email_sent=0`,
+          args: [n.id],
         });
+        if (claim.rowsAffected > 0) claimed.push(n);
+      }
+      if (!claimed.length) continue; // another tick already claimed all of these
+
+      try {
+        await sendReminderDigestEmail({ to: user.email, items: claimed });
         usersEmailed++;
-        itemsSent += pending.length;
+        itemsSent += claimed.length;
       } catch (err) {
-        // Didn't mark any as sent — the whole batch retries next tick
-        // rather than risking half-marked-sent/half-not on a partial
-        // failure mid-send.
+        // These rows are already claimed (email_sent=1) at this point,
+        // so a send failure here means this digest is lost rather than
+        // retried next tick — the deliberate trade-off made above:
+        // "rarely misses one on a genuine send failure" beats "reliably
+        // duplicates on any cron overlap," and a send failure here is
+        // otherwise rare (SendGrid/Resend being down, not just a slow
+        // Render wake-up).
         console.error(`[emailReminders] failed to email digest to ${user.email}:`, err.message);
         failed++;
       }
