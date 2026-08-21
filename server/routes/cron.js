@@ -9,8 +9,56 @@
 const express = require('express');
 const crypto  = require('crypto');
 const router  = express.Router();
+const { db }  = require('../db/connection');
 const { sendPendingReminderEmails } = require('../lib/emailReminders');
 const { sendPendingPushNotifications } = require('../lib/pushReminders');
+const { reconcileSoloTimer } = require('./focus');
+
+// Catches a Focus tree that finished growing while Nuvora was fully
+// closed — no tab open means nobody's GET /focus/timer poll was ever
+// going to reconcile it (that path only runs while a client is actually
+// there), so without this the session still gets credited eventually
+// (whenever she next opens the app), just silently — no bell, no push,
+// nothing, until she happens to notice the tree count went up. This
+// runs the exact same reconcileSoloTimer() a live poll would've, so it's
+// safe even if a tab WAS open and already caught it first (idempotent
+// via focus_session_credits — reconcileSoloTimer just returns nothing
+// the second time).
+async function notifyFinishedFocusSessions() {
+  let notified = 0;
+  const rows = (await db.execute(`SELECT DISTINCT user_id FROM focus_solo_timer WHERE running = 1`)).rows;
+  for (const row of rows) {
+    try {
+      const result = await reconcileSoloTimer(row.user_id);
+      if (!result) continue; // still running, or a tab already caught it first
+      // link is where clicking the notification actually goes (the real
+      // forest view) — deliberately NOT run through buildDedupeKey's
+      // default "${type}:${link}" formula, since that link is the same
+      // for every session and would let only the very first-ever
+      // completed session generate a notification, forever. The session's
+      // own startedAt is what has to vary per-session for the dedupe key.
+      const link      = '/focus?tab=forest';
+      const dedupeKey = `focus_complete:${result.startedAt || Date.now()}`;
+      await db.execute({
+        sql: `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+              VALUES (?, 'focus_complete', ?, ?, ?, ?, ?)
+              ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
+        args: [
+          row.user_id,
+          '🌳 Your tree finished growing!',
+          `${result.minutes} min focus session complete — +${result.xpAwarded} XP.`,
+          link,
+          dedupeKey,
+          JSON.stringify({ minutes: result.minutes, xp: result.xpAwarded }),
+        ],
+      });
+      notified++;
+    } catch (err) {
+      console.error(`[cron] notifyFinishedFocusSessions failed for user ${row.user_id}:`, err.message);
+    }
+  }
+  return { checked: rows.length, notified };
+}
 
 // Plain string !== leaks timing information (how many leading characters
 // matched) that could theoretically help a remote guesser narrow down
@@ -60,12 +108,14 @@ router.post('/reminders', async (req, res) => {
   try {
     // Independent try/catches — push not being configured yet (no VAPID
     // keys set) shouldn't take email down with it, and vice versa.
-    let email = null, push = null;
+    let email = null, push = null, focus = null;
+    try { focus = await notifyFinishedFocusSessions(); }
+    catch (err) { console.error('[cron/reminders] focus step failed:', err.message); }
     try { email = await sendPendingReminderEmails(); }
     catch (err) { console.error('[cron/reminders] email step failed:', err.message); }
     try { push = await sendPendingPushNotifications(); }
     catch (err) { console.error('[cron/reminders] push step failed:', err.message); }
-    res.json({ ok: true, email, push });
+    res.json({ ok: true, email, push, focus });
   } catch (err) {
     console.error('[cron/reminders] failed:', err.message);
     res.status(500).json({ error: 'Failed to send reminders' });

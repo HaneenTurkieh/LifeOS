@@ -12,9 +12,15 @@ const { generateNotifications } = require('../routes/notifications');
 const { sendPush } = require('./push');
 
 // Same scope as email — tasks (overdue/due-soon), goal deadlines,
-// milestone due-dates. Mood/streak/procrastination/announcements stay
-// in-app-only, same reasoning as the email side.
-const PUSHABLE_TYPES = new Set(['overdue', 'due_soon', 'deadline', 'milestone_due']);
+// milestone due-dates — PLUS focus_complete, which is push-only (not in
+// emailReminders.js's EMAILABLE_TYPES): a finished 25-minute Pomodoro
+// isn't "email me" material, but it IS the one thing worth a push even
+// though the app's own in-app popup already covers it for anyone who
+// left the tab open — this is specifically for "closed Nuvora entirely
+// mid-session" (see cron.js's notifyFinishedFocusSessions).
+// Mood/streak/procrastination/announcements stay in-app-only, same
+// reasoning as the email side.
+const PUSHABLE_TYPES = new Set(['overdue', 'due_soon', 'deadline', 'milestone_due', 'focus_complete']);
 
 async function sendPendingPushNotifications() {
   const users = (await db.execute({
