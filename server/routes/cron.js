@@ -13,11 +13,24 @@ const { sendPendingReminderEmails } = require('../lib/emailReminders');
 function checkSecret(req, res) {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
+    console.error('[cron] rejected — CRON_SECRET is not set on this server');
     res.status(500).json({ error: 'CRON_SECRET not configured on the server' });
     return false;
   }
-  const got = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const rawHeader = req.headers.authorization || '';
+  const got = rawHeader.replace(/^Bearer\s+/i, '');
   if (got !== expected) {
+    // Never log the actual secret values (even though this is a private
+    // log, no reason to put it in plaintext) — but log enough shape
+    // info to tell "header never arrived" apart from "wrong value" apart
+    // from "right value, stray whitespace from a copy-paste" at a glance.
+    console.warn('[cron] auth failed —', {
+      headerPresent: Boolean(rawHeader),
+      hadBearerPrefix: /^Bearer\s+/i.test(rawHeader),
+      gotLength: got.length,
+      expectedLength: expected.length,
+      trimMatches: got.trim() === expected.trim(),
+    });
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   }
