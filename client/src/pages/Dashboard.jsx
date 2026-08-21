@@ -254,20 +254,30 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="font-display text-lg font-bold text-ink dark:text-white leading-none">{value}</p>
-                    <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5">{label}</p>
+                    {/* (i) moved inline next to the label instead of an
+                        absolute corner badge — the corner badge overlapped
+                        this card's own content and, on the Streak card
+                        specifically, only its outer sliver (the part
+                        poking clear of the card) ended up clickable; the
+                        inner portion sat over the card's normal-flow
+                        content and silently ate clicks. Inline avoids any
+                        overlap/stacking ambiguity entirely. */}
+                    <p className="text-xs text-ink/45 dark:text-white/35 mt-0.5 flex items-center gap-1">
+                      {label}
+                      {hint && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === label ? null : label); }}
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-ink/30 dark:text-white/40 hover:text-ink/60 dark:hover:text-white/70 transition-colors"
+                          style={isDark
+                            ? { background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.20)' }
+                            : { background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
+                        >
+                          <Info size={9} />
+                        </button>
+                      )}
+                    </p>
                   </div>
-                  {hint && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === label ? null : label); }}
-                      className="absolute -top-2 -end-2 z-10 flex h-7 w-7 items-center justify-center rounded-full text-ink/30 dark:text-white/40 hover:text-ink/60 dark:hover:text-white/70 transition-colors"
-                      style={isDark
-                        ? { background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.20)' }
-                        : { background:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.90)' }}
-                    >
-                      <Info size={11} />
-                    </button>
-                  )}
                   <AnimatePresence>
                     {hint && openHint === label && (
                       <motion.div
