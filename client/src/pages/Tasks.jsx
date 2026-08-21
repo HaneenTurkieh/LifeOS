@@ -13,6 +13,7 @@ import Modal         from '../components/Modal.jsx';
 import EmptyState    from '../components/EmptyState.jsx';
 import PageLoader    from '../components/Loader.jsx';
 import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
+import ReminderPicker from '../components/ReminderPicker.jsx';
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 function localTodayStr()   { return new Date().toLocaleDateString('en-CA'); }
@@ -49,17 +50,6 @@ const emptyForm = {
   category:'General', deadline:'', deadline_time:'',
   recurrenceType:'', customDays:[], remindOffsets:[60],
 };
-// Presets for the optional "remind before" picker (minutes before the
-// deadline_time) — 60 (1 hour) is on by default for every task with a
-// time set, matching the server's own DEFAULT_REMIND_OFFSETS in
-// notifications.js, so a task saved without ever touching this still
-// gets the standard reminder. Toggling any of these is purely additive/
-// subtractive from that same list.
-const REMIND_PRESETS = [
-  { minutes: 1440, label: 'tasks.remind1Day'  },
-  { minutes: 60,   label: 'tasks.remind1Hour' },
-  { minutes: 15,   label: 'tasks.remind15Min' },
-];
 function formToRecurrence(form) {
   if (!form.recurrenceType) return null;
   if (form.recurrenceType === 'custom') {
@@ -327,39 +317,11 @@ export default function Tasks() {
               onChange={e => setForm({...form, deadline_time:e.target.value})} />
           </div>
           {form.deadline_time && (
-            <div>
-              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">
-                {t('tasks.remindBefore')}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {REMIND_PRESETS.map(({ minutes, label }) => {
-                  const active = form.remindOffsets.includes(minutes);
-                  return (
-                    <button key={minutes} type="button"
-                      onClick={() => setForm(f => ({
-                        ...f,
-                        remindOffsets: active
-                          ? f.remindOffsets.filter(m => m !== minutes)
-                          : [...f.remindOffsets, minutes],
-                      }))}
-                      className="rounded-2xl px-3.5 py-1.5 text-xs font-semibold transition-all"
-                      style={active ? {
-                        background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
-                        boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
-                      } : {
-                        background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
-                        color:'rgb(var(--accent-500) / 0.65)',
-                      }}
-                    >
-                      {t(label)}
-                    </button>
-                  );
-                })}
-              </div>
-              {form.remindOffsets.length === 0 && (
-                <p className="text-[11px] text-ink/35 dark:text-white/25 mt-1.5">{t('tasks.remindNone')}</p>
-              )}
-            </div>
+            <ReminderPicker
+              value={form.remindOffsets}
+              onChange={(remindOffsets) => setForm(f => ({ ...f, remindOffsets }))}
+              t={t}
+            />
           )}
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">{t('tasks.repeat')}</label>
