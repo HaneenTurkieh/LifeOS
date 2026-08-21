@@ -10,6 +10,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const router  = express.Router();
 const { sendPendingReminderEmails } = require('../lib/emailReminders');
+const { sendPendingPushNotifications } = require('../lib/pushReminders');
 
 // Plain string !== leaks timing information (how many leading characters
 // matched) that could theoretically help a remote guesser narrow down
@@ -53,12 +54,18 @@ function checkSecret(req, res) {
 
 // POST (not GET) so it can't be triggered by, say, a browser prefetch
 // or a link-preview bot hitting the URL — this has a real side effect
-// (sends emails).
+// (sends emails and push notifications).
 router.post('/reminders', async (req, res) => {
   if (!checkSecret(req, res)) return;
   try {
-    const result = await sendPendingReminderEmails();
-    res.json({ ok: true, ...result });
+    // Independent try/catches — push not being configured yet (no VAPID
+    // keys set) shouldn't take email down with it, and vice versa.
+    let email = null, push = null;
+    try { email = await sendPendingReminderEmails(); }
+    catch (err) { console.error('[cron/reminders] email step failed:', err.message); }
+    try { push = await sendPendingPushNotifications(); }
+    catch (err) { console.error('[cron/reminders] push step failed:', err.message); }
+    res.json({ ok: true, email, push });
   } catch (err) {
     console.error('[cron/reminders] failed:', err.message);
     res.status(500).json({ error: 'Failed to send reminders' });
