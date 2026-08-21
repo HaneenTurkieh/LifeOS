@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift, Bell } from 'lucide-react';
 import { api } from '../api/client.js';
 
 export function markOnboarded(userId) {
@@ -259,6 +259,17 @@ function DoneStep({ name, onFinish }) {
         </h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
           Nuvora is ready. Your dashboard is live, Lumi is waiting, and your first task is already logged.
+        </p>
+      </div>
+      {/* Easy to miss otherwise — the bell only ever shows up once something's
+          actually due, and push needs an explicit opt-in in Settings, so
+          without a line here most people would never discover either exists
+          until they'd already missed something. */}
+      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-left"
+        style={{ background: 'rgba(124,58,237,0.10)', border: '1px solid rgba(124,58,237,0.22)' }}>
+        <span className="text-accent-300 shrink-0"><Bell size={16} /></span>
+        <p className="text-xs text-white/65 leading-snug">
+          You'll get reminders for tasks & deadlines — bell, email, and (once you add Nuvora to your phone's Home Screen) push. Turn any of them on in Settings.
         </p>
       </div>
       <PrimaryBtn onClick={onFinish}>

@@ -401,8 +401,14 @@ function AppShell() {
           taps. Hidden on /ai entirely rather than nudged further: buddy's
           only job here is "open Lumi", which is redundant when you're
           already looking at Lumi. */}
+      {/* z-[85] — was z-[105], which sat ABOVE every modal (Modal.jsx
+          itself is z-[90]), so the buddy widget rendered on top of
+          Settings/any other modal's content instead of behind its
+          backdrop like everything else on the page does. 85 keeps it
+          above FocusBar (z-[80]) and normal page content, but now
+          correctly tucks behind any modal's backdrop. */}
       {location.pathname !== '/ai' && (
-      <div className={`fixed z-[105] end-4 lg:end-6 lg:bottom-20 ${focusBarVisible ? 'bottom-40' : 'bottom-24'}`}>
+      <div className={`fixed z-[85] end-4 lg:end-6 lg:bottom-20 ${focusBarVisible ? 'bottom-40' : 'bottom-24'}`}>
         {/* flex column + items-center centers the bubble over buddy using
             layout, not inset/transform math — the previous version pinned
             the bubble's edge to buddy's edge and let it grow sideways,
