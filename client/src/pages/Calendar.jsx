@@ -364,7 +364,18 @@ export default function Calendar() {
   };
   const markDone = async (task) => {
     try {
-      await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+      // The server always awards XP here (PUT /tasks/:id — same call
+      // Tasks.jsx makes) regardless of which page sent the request, so
+      // marking done from Calendar was never actually skipping points.
+      // What it WAS skipping is this response's xpAwarded/unlocked
+      // fields — Tasks.jsx's own markDone reads and toasts them, this
+      // one just threw them away, so completing something a day late
+      // from Calendar silently gave XP with zero on-screen confirmation.
+      // Easy to read as "I didn't get points" when really you just
+      // weren't told you did.
+      const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+      if (xpAwarded) toast.xp(xpAwarded, task.title);
+      unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
       setSelectedTask(null);
       load();
     } catch (err) { toast.error(err.message); }
