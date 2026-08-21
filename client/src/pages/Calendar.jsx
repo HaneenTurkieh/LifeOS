@@ -37,6 +37,61 @@ const emptyForm = { title:'', priority:'medium', category:'General', deadline_ti
 // gives the scrollable grid its real height (1248px), which the absolutely
 // positioned task blocks and "now" line are then offset against.
 const HOUR_H = 52;
+// Every timed task renders at this same fixed cosmetic height regardless
+// of how long it actually takes — deadline_time is a single point in
+// time, there's no real duration anywhere in the data. Two tasks a few
+// minutes apart (e.g. 10:52 PM and 11:00 PM) still had this same block
+// height, so their absolutely-positioned boxes visually overlapped even
+// though nothing in the data called them "the same time" — every task
+// rendered at inset-x-0 (full width), so a second one starting inside
+// the first's box just stacked directly on top of it, unreadable.
+const TASK_BLOCK_MIN = HOUR_H * 0.72;
+
+// Classic calendar side-by-side layout: cluster together any tasks whose
+// rendered boxes actually overlap (chained — if A overlaps B and B
+// overlaps C, all three share a cluster even if A and C don't directly
+// touch, since they still have to split the same width), then within
+// each cluster greedily assign the lowest column whose previous
+// occupant has already "ended" by the time this one starts. Returns the
+// original tasks, each tagged with which column it's in and how many
+// columns its cluster needs total.
+function layoutTimedTasks(tasks) {
+  const items = tasks
+    .map((task) => {
+      const [hh, mm] = task.deadline_time.split(':').map(Number);
+      const start = hh * 60 + mm;
+      return { task, start, end: start + (TASK_BLOCK_MIN / HOUR_H) * 60 };
+    })
+    .sort((a, b) => a.start - b.start);
+
+  const clusters = [];
+  let current = [];
+  let clusterEnd = -Infinity;
+  for (const item of items) {
+    if (current.length && item.start >= clusterEnd) {
+      clusters.push(current);
+      current = [];
+      clusterEnd = -Infinity;
+    }
+    current.push(item);
+    clusterEnd = Math.max(clusterEnd, item.end);
+  }
+  if (current.length) clusters.push(current);
+
+  const result = [];
+  for (const cluster of clusters) {
+    const colEnds = [];
+    for (const item of cluster) {
+      let col = colEnds.findIndex((end) => item.start >= end);
+      if (col === -1) { col = colEnds.length; colEnds.push(item.end); }
+      else { colEnds[col] = item.end; }
+      item.col = col;
+    }
+    const cols = colEnds.length;
+    for (const item of cluster) result.push({ task: item.task, col: item.col, cols });
+  }
+  return result;
+}
 
 export default function Calendar() {
   const toast             = useToast();
@@ -642,16 +697,25 @@ export default function Calendar() {
                           );
                         })}
                         <div className="absolute top-0 pointer-events-none" style={{ insetInlineStart: 52, insetInlineEnd: 2 }}>
-                          {timedTasks.map(task => {
+                          {layoutTimedTasks(timedTasks).map(({ task, col, cols }) => {
                             const [hh, mm] = task.deadline_time.split(':').map(Number);
                             const top    = ((hh * 60 + mm) / 60) * HOUR_H;
                             const colors = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low;
                             const isDone = task.status === 'done';
+                            // Tasks that collide in time now split the row
+                            // into side-by-side columns instead of every
+                            // block claiming the full width and stacking
+                            // directly on top of each other.
+                            const gapPct = 1.5;
+                            const widthPct = 100 / cols;
                             return (
                               <div key={task.id}
-                                className="absolute inset-x-0 mx-0.5 rounded-lg px-2 py-1 pointer-events-auto cursor-pointer overflow-hidden"
+                                className="absolute rounded-lg px-2 py-1 pointer-events-auto cursor-pointer overflow-hidden"
                                 style={{
-                                  top, minHeight: HOUR_H * 0.72,
+                                  top, minHeight: TASK_BLOCK_MIN,
+                                  insetInlineStart: `${col * widthPct}%`,
+                                  width: `calc(${widthPct}% - ${gapPct * 2}px)`,
+                                  marginInlineStart: gapPct,
                                   background: isDark ? colors.dark : colors.bg,
                                   borderInlineStart: `3px solid ${colors.text}`,
                                   opacity: isDone ? 0.5 : 1,

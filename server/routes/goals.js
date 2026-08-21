@@ -90,8 +90,22 @@ router.put('/:goalId/milestones/:milestoneId', async (req, res) => {
     const goal = goalResult.rows[0];
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
     const msResult = await db.execute({ sql: `SELECT * FROM milestones WHERE id = ? AND goal_id = ?`, args: [req.params.milestoneId, goal.id] });
-    if (!msResult.rows[0]) return res.status(404).json({ error: 'Milestone not found' });
-    await db.execute({ sql: `UPDATE milestones SET done = ? WHERE id = ?`, args: [req.body.done ? 1 : 0, req.params.milestoneId] });
+    const existing = msResult.rows[0];
+    if (!existing) return res.status(404).json({ error: 'Milestone not found' });
+
+    // This used to only ever touch `done` (toggling a checkbox) — there
+    // was no way to rename a milestone at all, short of deleting and
+    // re-adding it. `title` is now accepted too, but only applied when
+    // the caller actually sends it, so the existing "just toggle done"
+    // callers (the checkbox in the goals list) keep working unchanged.
+    const done = 'done' in req.body ? (req.body.done ? 1 : 0) : existing.done;
+    let title = existing.title;
+    if ('title' in req.body) {
+      title = String(req.body.title || '').trim();
+      if (!title) return res.status(400).json({ error: 'Title cannot be empty' });
+    }
+
+    await db.execute({ sql: `UPDATE milestones SET done = ?, title = ? WHERE id = ?`, args: [done, title, req.params.milestoneId] });
     res.json(await withMilestones(goal));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
