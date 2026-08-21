@@ -71,7 +71,7 @@ async function ensureBirthdayTask(userId) {
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
 }
 
-async function generateNotifications(userId) {
+async function generateNotifications(userId, tzOffsetMin = 0) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
   const [tasks, habits, goals, streak, mood, dueMilestones] = await Promise.all([
@@ -122,6 +122,47 @@ async function generateNotifications(userId) {
       type:  'overdue',
       title: '⚠️ Task overdue',
       body:  `"${task.title}" was due on ${task.deadline}`,
+      link:  `/tasks?task=${task.id}`,
+      data:  { title: task.title, deadline: task.deadline },
+    });
+  }
+
+  // "Remind before" — tasks only ever got a notification once already
+  // overdue (right above). Goals already get a heads-up before their
+  // deadline; tasks didn't. Fires once, ~1hr ahead for a task with a
+  // specific deadline_time, or any time on the day itself for a
+  // date-only deadline — then never again for that task (default
+  // dedupe: once per entity, forever, same as 'overdue' above).
+  const dueSoonResult = await db.execute({
+    sql:  `SELECT id, title, deadline, deadline_time FROM tasks
+           WHERE user_id=? AND status!='done' AND deadline IS NOT NULL
+             AND deadline >= ? AND deadline <= date(?, '+1 day')`,
+    args: [userId, today, today],
+  });
+  const nowMs = Date.now();
+  for (const task of dueSoonResult.rows) {
+    if (task.deadline_time) {
+      // deadline/deadline_time are the user's own local wall-clock
+      // values with nothing marking which timezone that is — tzOffsetMin
+      // (the browser's own getTimezoneOffset(), same convention Flow's
+      // forest history already uses) converts that reading into the
+      // real UTC instant it represents, the mirror image of how
+      // focus.js's localDay() converts a real UTC timestamp back to a
+      // local calendar day.
+      const wallClockAsUtcMs = new Date(`${task.deadline}T${task.deadline_time}:00Z`).getTime();
+      if (Number.isNaN(wallClockAsUtcMs)) continue;
+      const dueAtMs = wallClockAsUtcMs + tzOffsetMin * 60000;
+      const minutesUntilDue = (dueAtMs - nowMs) / 60000;
+      if (minutesUntilDue > 60 || minutesUntilDue < -30) continue; // outside the reminder window
+    } else if (task.deadline !== today) {
+      continue; // date-only deadline — only nudge on the day itself
+    }
+    toCreate.push({
+      type:  'due_soon',
+      title: '⏰ Task due soon',
+      body:  task.deadline_time
+        ? `"${task.title}" is due at ${task.deadline_time}`
+        : `"${task.title}" is due today`,
       link:  `/tasks?task=${task.id}`,
       data:  { title: task.title, deadline: task.deadline },
     });
@@ -260,7 +301,7 @@ async function generateNotifications(userId) {
 
 router.get('/', async (req, res) => {
   try {
-    await generateNotifications(req.user.id);
+    await generateNotifications(req.user.id, Number(req.query.tz_offset) || 0);
     await ensureBirthdayTask(req.user.id);
     const result = await db.execute({
       sql:  `SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30`,
