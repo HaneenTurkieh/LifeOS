@@ -10,7 +10,7 @@ function resetEmailHtml({ name, resetUrl }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;font-size:24px;line-height:48px;text-align:center;">✦</div>
+      <img src="https://life-os-three-xi.vercel.app/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">Reset your password</h2>
     <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
@@ -36,7 +36,7 @@ function feedbackEmailHtml({ userEmail, message }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;font-size:24px;line-height:48px;text-align:center;">✦</div>
+      <img src="https://life-os-three-xi.vercel.app/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New Nuvora feedback</h2>
     <p style="color:#5A5F73;font-size:13px;text-align:center;margin:0 0 20px;">
@@ -82,7 +82,7 @@ function reminderDigestEmailHtml({ items }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:20px;">
-      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;font-size:24px;line-height:48px;text-align:center;">✦</div>
+      <img src="https://life-os-three-xi.vercel.app/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 20px;font-size:19px;">${heading}</h2>
     ${rows}
