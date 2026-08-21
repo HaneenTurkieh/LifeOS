@@ -60,7 +60,7 @@ function formToRecurrence(form) {
 }
 function recurrenceToForm(recurrence) {
   if (!recurrence) return { recurrenceType:'', customDays:[] };
-  if (['daily','weekly','monthly'].includes(recurrence))
+  if (['daily','weekly','monthly','yearly'].includes(recurrence))
     return { recurrenceType: recurrence, customDays:[] };
   if (recurrence.startsWith('custom:'))
     return { recurrenceType:'custom', customDays: recurrence.split(':')[1].split(',').map(Number) };
@@ -98,6 +98,7 @@ export default function Tasks() {
     if (r === 'daily')   return t('tasks.daily');
     if (r === 'weekly')  return t('tasks.weekly');
     if (r === 'monthly') return t('tasks.monthly');
+    if (r === 'yearly')  return t('tasks.yearly');
     if (r?.startsWith('custom:')) {
       const days = r.split(':')[1].split(',').map(Number);
       if (days.length === 7) return t('tasks.everyDay');
@@ -113,6 +114,7 @@ export default function Tasks() {
     { value:'custom',  label:t('tasks.custom')  },
     { value:'weekly',  label:t('tasks.weekly')  },
     { value:'monthly', label:t('tasks.monthly') },
+    { value:'yearly',  label:t('tasks.yearly')  },
   ];
   const load = useCallback(async () => {
     try {
@@ -496,9 +498,16 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, onAskLumi,
                   dark:border-white/10 dark:bg-white/[0.04] p-3.5 shadow-sm transition
                   hover:bg-white/90 dark:hover:bg-white/[0.07]"
     >
-      <button onClick={() => onMarkDone(task)} className="mt-0.5 shrink-0 transition">
-        <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />
-      </button>
+      {task.category === 'Birthday' ? (
+        // Birthdays aren't a "done/not done" thing — there's no
+        // meaningful completed state for a date that just passes and
+        // comes back next year, so no clickable circle at all here.
+        <span className="mt-0.5 shrink-0 text-base leading-none" title={t('tasks.birthdayNoDone')}>🎂</span>
+      ) : (
+        <button onClick={() => onMarkDone(task)} className="mt-0.5 shrink-0 transition">
+          <Circle size={18} className="text-ink/25 dark:text-white/25 hover:text-lavender-500" />
+        </button>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-medium text-ink dark:text-white leading-snug">

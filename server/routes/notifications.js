@@ -93,13 +93,47 @@ async function ensureBirthdayTask(userId) {
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
 }
 
+// Manually-added birthdays (category='Birthday', recurrence='yearly' —
+// see the "🎂 Someone's birthday" toggle in Calendar's quick-add) don't
+// go through the normal done→advance-recurrence path everything else
+// uses (see PUT /tasks/:id below): there's deliberately no "mark done"
+// control for a birthday on the client, since a birthday isn't a thing
+// you complete. So instead of waiting for a done-toggle that will never
+// come, once a birthday's date has passed this rolls the SAME row's
+// deadline forward to next year in place — one row per person, not a
+// new one spawned annually. Runs on every call to generateNotifications
+// (both the in-app bell poll AND the cron-triggered email job), so it
+// stays current even for someone who never opens the app.
+async function rollForwardBirthdays(userId, today) {
+  const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const rows = (await db.execute({
+    sql:  `SELECT id, deadline FROM tasks
+           WHERE user_id=? AND category='Birthday' AND recurrence='yearly' AND deadline < ?`,
+    args: [userId, today],
+  })).rows;
+  for (const row of rows) {
+    const [, m, d] = row.deadline.split('-').map(Number);
+    if (!m || !d) continue;
+    let year = new Date().getFullYear();
+    const dayFor = (y) => (m === 2 && d === 29 && !isLeap(y)) ? 28 : d;
+    let next = `${year}-${String(m).padStart(2, '0')}-${String(dayFor(year)).padStart(2, '0')}`;
+    if (next < today) {
+      year += 1;
+      next = `${year}-${String(m).padStart(2, '0')}-${String(dayFor(year)).padStart(2, '0')}`;
+    }
+    await db.execute({ sql: `UPDATE tasks SET deadline=? WHERE id=?`, args: [next, row.id] });
+  }
+}
+
 async function generateNotifications(userId, tzOffsetMin = 0) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
+  await rollForwardBirthdays(userId, today);
   const [tasks, habits, goals, streak, mood, dueMilestones] = await Promise.all([
     db.execute({
       sql:  `SELECT id, title, deadline FROM tasks
              WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
+               AND category != 'Birthday'
              ORDER BY deadline ASC LIMIT 5`,
       args: [userId, today],
     }),
@@ -161,7 +195,8 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   const dueSoonResult = await db.execute({
     sql:  `SELECT id, title, deadline, deadline_time, remind_offsets_min FROM tasks
            WHERE user_id=? AND status!='done' AND deadline IS NOT NULL
-             AND deadline >= ? AND deadline <= date(?, '+1 day')`,
+             AND deadline >= ? AND deadline <= date(?, '+1 day')
+             AND category != 'Birthday'`,
     args: [userId, today, today],
   });
   const nowMs = Date.now();
@@ -228,6 +263,7 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   const stagnantTasks = await db.execute({
     sql:  `SELECT id, title FROM tasks
            WHERE user_id=? AND status='todo' AND source != 'nuvora'
+             AND category != 'Birthday'
              AND COALESCE(time_spent_minutes,0) = 0
              AND date(created_at) <= date(?, '-2 days')
            ORDER BY created_at ASC LIMIT 3`,
