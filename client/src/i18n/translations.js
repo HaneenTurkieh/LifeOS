@@ -118,6 +118,7 @@ export const translations = {
       'tasks.daily':         'Daily',
       'tasks.weekly':        'Weekly',
       'tasks.monthly':       'Monthly',
+      'tasks.yearly':        'Yearly',
       'tasks.custom':        'Custom',
       'tasks.pickDays':      'Pick days',
       'tasks.everyDay':      'Every day',
@@ -151,6 +152,9 @@ export const translations = {
       'calendar.addToCalendar': 'Add to calendar',
       'calendar.category':      'Category',
       'calendar.titleEmpty':    'Title cannot be empty',
+      'calendar.birthdayToggle':'Someone\'s birthday',
+      'calendar.birthdayHint':  'Repeats every year automatically. No reminders, and it can\'t be marked done.',
+      'tasks.birthdayNoDone':   'Birthdays don\'t have a done/not-done state',
       'calendar.resetWarning':  'Resetting now will kill your tree',
   
       // ── Flow / Focus ───────────────────────────────────────
@@ -898,6 +902,7 @@ export const translations = {
       'tasks.daily':         'يوميًا',
       'tasks.weekly':        'أسبوعيًا',
       'tasks.monthly':       'شهريًا',
+      'tasks.yearly':        'سنويًا',
       'tasks.custom':        'مخصص',
       'tasks.pickDays':      'اختر الأيام',
       'tasks.everyDay':      'كل يوم',
@@ -931,6 +936,9 @@ export const translations = {
       'calendar.addToCalendar': 'إضافة إلى التقويم',
       'calendar.category':      'التصنيف',
       'calendar.titleEmpty':    'العنوان لا يمكن أن يكون فارغًا',
+      'calendar.birthdayToggle':'عيد ميلاد شخص ما',
+      'calendar.birthdayHint':  'يتكرر تلقائيًا كل سنة. بدون تذكيرات، ولا يمكن تعليمه كمُنجز.',
+      'tasks.birthdayNoDone':   'أعياد الميلاد ليس لها حالة منجز/غير منجز',
       'calendar.resetWarning':  'إعادة الضبط الآن ستقتل شجرتك',
   
       // ── التركيز ─────────────────────────────────────────────

@@ -14,6 +14,8 @@ function nextRecurrenceDate(recurrence, fromDate) {
     base.setDate(base.getDate() + 7);
   } else if (recurrence === 'monthly') {
     base.setMonth(base.getMonth() + 1);
+  } else if (recurrence === 'yearly') {
+    base.setFullYear(base.getFullYear() + 1);
   } else if (recurrence?.startsWith('custom:')) {
     const raw  = recurrence.split(':')[1] || '';
     const days = raw.split(',').map(Number).filter((n) => !isNaN(n)).sort((a, b) => a - b);

@@ -49,7 +49,7 @@ function formToRecurrence(form) {
 }
 function recurrenceToForm(recurrence) {
   if (!recurrence) return { recurrenceType:'', customDays:[] };
-  if (['daily','weekly','monthly'].includes(recurrence)) return { recurrenceType: recurrence, customDays:[] };
+  if (['daily','weekly','monthly','yearly'].includes(recurrence)) return { recurrenceType: recurrence, customDays:[] };
   if (recurrence.startsWith('custom:')) return { recurrenceType:'custom', customDays: recurrence.split(':')[1].split(',').map(Number) };
   return { recurrenceType:'', customDays:[] };
 }
@@ -127,6 +127,7 @@ export default function Calendar() {
     { value:'custom',  label:t('tasks.custom')  },
     { value:'weekly',  label:t('tasks.weekly')  },
     { value:'monthly', label:t('tasks.monthly') },
+    { value:'yearly',  label:t('tasks.yearly')  },
   ];
   const fmtTime = (tm) => {
     if (!tm) return null;
@@ -590,13 +591,15 @@ export default function Calendar() {
                     <p className={`text-xs font-bold uppercase tracking-widest ${textSub}`}>{t('calendar.editTask')}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => markDone(selectedTask)}
-                      className="flex h-7 w-7 items-center justify-center rounded-xl transition text-sage-500 hover:bg-sage-500/10"
-                      title={t('tasks.markDone')}
-                    >
-                      <Check size={14}/>
-                    </button>
+                    {selectedTask.category !== 'Birthday' && (
+                      <button
+                        onClick={() => markDone(selectedTask)}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl transition text-sage-500 hover:bg-sage-500/10"
+                        title={t('tasks.markDone')}
+                      >
+                        <Check size={14}/>
+                      </button>
+                    )}
                     <button
                       onClick={() => deleteTask(selectedTask.id)}
                       className="flex h-7 w-7 items-center justify-center rounded-xl transition text-coral-500 hover:bg-coral-500/10"
@@ -897,19 +900,40 @@ export default function Calendar() {
             <input className="input-field" placeholder={t('calendar.category')}
               value={addForm.category} onChange={e => setAddForm({...addForm, category:e.target.value})} />
           </div>
+          <button type="button"
+            onClick={() => setAddForm(f => f.category === 'Birthday'
+              ? { ...f, category: 'General', recurrenceType: '', customDays: [] }
+              : { ...f, category: 'Birthday', recurrenceType: 'yearly', customDays: [], deadline_time: '' })}
+            className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all self-start"
+            style={addForm.category === 'Birthday' ? {
+              background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
+              boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
+            } : {
+              background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
+              color:'rgb(var(--accent-500) / 0.65)',
+            }}
+          >
+            🎂 {t('calendar.birthdayToggle')}
+          </button>
+          {addForm.category === 'Birthday' && (
+            <p className="text-[11px] text-ink/35 dark:text-white/25 -mt-2">{t('calendar.birthdayHint')}</p>
+          )}
           <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium"
             style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)', color:'rgb(var(--accent-500))' }}>
             📅 {addModalOpen && fmtLabel(addModalOpen)}
           </div>
-          <input type="time" className="input-field" value={addForm.deadline_time}
-            onChange={e => setAddForm({...addForm, deadline_time:e.target.value})} />
-          {addForm.deadline_time && (
+          {addForm.category !== 'Birthday' && (
+            <input type="time" className="input-field" value={addForm.deadline_time}
+              onChange={e => setAddForm({...addForm, deadline_time:e.target.value})} />
+          )}
+          {addForm.deadline_time && addForm.category !== 'Birthday' && (
             <ReminderPicker
               value={addForm.remindOffsets}
               onChange={(remindOffsets) => setAddForm(f => ({ ...f, remindOffsets }))}
               t={t}
             />
           )}
+          {addForm.category !== 'Birthday' && (
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">
               {t('tasks.repeat')}
@@ -953,6 +977,7 @@ export default function Calendar() {
               </div>
             )}
           </div>
+          )}
           <button type="submit" disabled={saving} className="btn-primary justify-center mt-1">
             {saving ? t('common.saving') : t('calendar.addToCalendar')}
           </button>
