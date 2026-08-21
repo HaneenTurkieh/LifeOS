@@ -50,6 +50,27 @@ async function sendPendingPushNotifications() {
       if (!pending.length) continue;
 
       for (const n of pending) {
+        // Claim BEFORE sending, not after — this was the actual bug
+        // behind "repetitive notifications" reports. The old order was
+        // send-then-mark-sent: if a cron tick ran long (Render's free
+        // tier can take a while to wake from sleep) and cron-job.org's
+        // own timeout fired a retry, or two ticks simply overlapped,
+        // both invocations could SELECT the same still-push_sent=0 row
+        // before either had gotten around to marking it sent — so both
+        // sent it, to the same device, for the same event. Flipping to
+        // claim-first (atomic UPDATE ... WHERE push_sent=0, only send if
+        // this row was the one that actually flipped it) closes that
+        // window: whichever tick gets here first wins the claim, the
+        // other sees rowsAffected===0 and skips it entirely. Worst case
+        // now is the rare opposite failure mode — claimed but the send
+        // itself then fails — a silently missed push, not a duplicate
+        // one, which is the far safer direction to err in.
+        const claim = await db.execute({
+          sql: `UPDATE notifications SET push_sent=1 WHERE id=? AND push_sent=0`,
+          args: [n.id],
+        });
+        if (claim.rowsAffected === 0) continue; // another tick already claimed this one
+
         let anySucceeded = false;
         for (const sub of subs) {
           const result = await sendPush(sub, { title: n.title, body: n.body, link: n.link });
@@ -63,16 +84,8 @@ async function sendPendingPushNotifications() {
             pruned++;
           }
         }
-        // Marked sent if it reached at least one of the person's
-        // devices — a person with a phone + laptop subscribed
-        // shouldn't get this re-tried forever just because one of the
-        // two failed.
-        if (anySucceeded) {
-          await db.execute({ sql: `UPDATE notifications SET push_sent=1 WHERE id=?`, args: [n.id] });
-          sent++;
-        } else {
-          failed++;
-        }
+        if (anySucceeded) sent++;
+        else failed++;
       }
     } catch (err) {
       console.error(`[pushReminders] failed processing user ${user.id}:`, err.message);
