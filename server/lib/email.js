@@ -65,23 +65,29 @@ function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel })
   </div>`;
 }
 
-function reminderEmailHtml({ title, body, link }) {
-  const url = link ? `${CLIENT_URL}${link}` : CLIENT_URL;
+// One email per user per cron run, listing everything pending — not
+// one email per item. Five things due in the same 10-minute window is
+// one email with five rows, not five separate emails.
+function reminderDigestEmailHtml({ items }) {
+  const esc = (s) => String(s).replace(/</g, '&lt;');
+  const rows = items.map((n) => {
+    const url = n.link ? `${CLIENT_URL}${n.link}` : CLIENT_URL;
+    return `
+      <a href="${url}" style="display:block;text-decoration:none;background:#F4F3FF;border:1px solid #EBE8FF;border-radius:14px;padding:14px 16px;margin-bottom:10px;">
+        <div style="color:#1E2233;font-size:14px;font-weight:600;margin-bottom:3px;">${esc(n.title)}</div>
+        <div style="color:#5A5F73;font-size:13px;line-height:1.5;">${esc(n.body)}</div>
+      </a>`;
+  }).join('');
+  const heading = items.length === 1 ? '1 thing needs your attention' : `${items.length} things need your attention`;
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:20px;">
       <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;font-size:24px;line-height:48px;text-align:center;">✦</div>
     </div>
-    <h2 style="color:#1E2233;text-align:center;margin:0 0 10px;font-size:19px;">${title}</h2>
-    <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;margin:0 0 24px;">${body}</p>
-    <div style="text-align:center;">
-      <a href="${url}"
-        style="display:inline-block;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;text-decoration:none;padding:12px 30px;border-radius:14px;font-weight:600;font-size:14px;">
-        Open Nuvora
-      </a>
-    </div>
-    <p style="color:#9AA0B5;font-size:11px;line-height:1.6;text-align:center;margin-top:28px;">
-      You're getting this because you have reminders on for this task/habit in Nuvora.
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 20px;font-size:19px;">${heading}</h2>
+    ${rows}
+    <p style="color:#9AA0B5;font-size:11px;line-height:1.6;text-align:center;margin-top:24px;">
+      You're getting this because these have reminders on in Nuvora. Tap any item above to open it.
     </p>
   </div>`;
 }
@@ -115,7 +121,15 @@ async function sendViaResend({ to, subject, html }) {
       'Content-Type':  'application/json',
     },
     body: JSON.stringify({
-      from:    `${FROM_NAME} <onboarding@resend.dev>`,
+      // onboarding@resend.dev is Resend's own shared testing domain —
+      // fine for confirming the API call works, but real recipients'
+      // mail providers see it as an unfamiliar shared sender with zero
+      // reputation and are more likely to spam-fold it, especially once
+      // this starts sending regularly instead of the rare password
+      // reset. Falls back to it only if EMAIL_FROM was never set — set
+      // EMAIL_FROM to an address on a domain verified in the Resend
+      // dashboard (SPF/DKIM records added) once one exists.
+      from:    `${FROM_NAME} <${process.env.EMAIL_FROM || 'onboarding@resend.dev'}>`,
       to:      [to],
       subject,
       html,
@@ -202,16 +216,21 @@ async function sendPremiumRequestEmail({ userEmail, userName, planLabel, priceLa
   });
 }
 
-// ── Public: reminder email — the "you don't always have the app open"
+// ── Public: reminder digest — the "you don't always have the app open"
 // gap. Fired from the cron-triggered job in lib/emailReminders.js, one
-// per (already in-app-deduped) notification row, never resent — see
-// the notifications.email_sent migration in db/connection.js. ────────
-async function sendReminderEmail({ to, title, body, link }) {
+// email per user per run bundling everything pending (never one email
+// per item — see emailReminders.js), items never resent once sent —
+// see the notifications.email_sent migration in db/connection.js. ────
+async function sendReminderDigestEmail({ to, items }) {
+  if (!items.length) return;
+  const subject = items.length === 1
+    ? items[0].title.replace(/^[^\w]+/, '').trim()
+    : `${items.length} things need your attention`;
   await dispatch({
-    to, label: 'reminder',
-    subject: title.replace(/^[^\w]+/, '').trim() || 'Nuvora reminder',
-    html: reminderEmailHtml({ title, body, link }),
+    to, label: 'reminder digest',
+    subject: subject || 'Nuvora reminders',
+    html: reminderDigestEmailHtml({ items }),
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderEmail };
+module.exports = { sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail };
