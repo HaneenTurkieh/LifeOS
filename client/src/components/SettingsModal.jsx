@@ -16,6 +16,7 @@ import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
 import { isTodayBirthday, getAge } from '../utils/birthday.js';
 import VoiceInputButton, { appendText } from './VoiceInputButton.jsx';
+import { enablePush, disablePush, getCurrentSubscription, pushSupported } from '../utils/pushNotifications.js';
 
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
@@ -252,6 +253,29 @@ function AccountTab() {
 function AppearanceTab() {
   const { mode, setMode, fontScale, setFontScale } = useTheme();
   const { lang, setLang, t } = useLanguage();
+  const toast = useToast();
+  const [pushOn, setPushOn]   = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    getCurrentSubscription().then((sub) => setPushOn(Boolean(sub))).catch(() => {});
+  }, []);
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+      } else {
+        await enablePush();
+        setPushOn(true);
+        toast.success(t('settings.pushEnabled'));
+      }
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const THEMES = [
     { key:'light',  label:t('settings.light'),  icon:'☀️', desc:t('settings.lightDesc')  },
     { key:'dark',   label:t('settings.dark'),   icon:'🌙', desc:t('settings.darkDesc')   },
@@ -328,6 +352,31 @@ function AppearanceTab() {
         <p className="text-center text-xs text-ink/40 dark:text-white/30 mt-2 font-semibold">
           {FONT_SCALES[fontScale].label}
         </p>
+      </div>
+      <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-1 mt-3 block">
+        {t('settings.pushNotifications')}
+      </label>
+      <div className="flex items-center gap-3 rounded-2xl px-4 py-3"
+        style={{ background:'rgba(255,255,255,0.50)', border:'1px solid rgba(255,255,255,0.65)' }}>
+        <span className="text-2xl">🔔</span>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-ink dark:text-white">{t('settings.pushNotifications')}</p>
+          <p className="text-xs text-ink/40 dark:text-white/30">
+            {pushSupported() ? t('settings.pushDesc') : t('settings.pushUnsupported')}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!pushSupported() || pushBusy}
+          onClick={togglePush}
+          className="relative h-7 w-12 rounded-full shrink-0 transition-colors disabled:opacity-40"
+          style={{ background: pushOn ? 'rgb(var(--accent-500))' : 'rgba(120,120,140,0.30)' }}
+        >
+          <span
+            className="absolute top-1 h-5 w-5 rounded-full bg-white transition-transform"
+            style={{ transform: pushOn ? 'translateX(22px)' : 'translateX(4px)' }}
+          />
+        </button>
       </div>
     </div>
   );

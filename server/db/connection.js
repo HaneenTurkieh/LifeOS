@@ -721,6 +721,28 @@ async function initDb() {
     await db.execute(`UPDATE tasks SET is_birthday=1 WHERE category='Birthday'`);
   }
 
+  // Real (phone/desktop, app-closed) push notifications — see
+  // lib/push.js + routes/push.js + lib/pushReminders.js. One row per
+  // browser/device a person has enabled push on (a phone and a laptop
+  // both subscribing means two rows) — endpoint is the unique per-
+  // device push URL the browser's push service hands back on subscribe,
+  // so UNIQUE(user_id, endpoint) can't double-subscribe the same device.
+  await db.execute(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint   TEXT NOT NULL,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, endpoint)
+  )`);
+  // Independent of email_sent — someone might have push on but email
+  // off (or vice versa), and a push send failing shouldn't block/skip
+  // the email for the same item or vice versa.
+  if (!(await hasColumn('notifications', 'push_sent'))) {
+    await db.execute(`ALTER TABLE notifications ADD COLUMN push_sent INTEGER DEFAULT 0`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

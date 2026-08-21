@@ -60,6 +60,7 @@ app.use('/api/history',      authenticate, require('./routes/history'));
 app.use('/api/chat', authenticate, require('./routes/chat'));
 app.use('/api/trees', authenticate, require('./routes/trees'));
 app.use('/api/notifications', authenticate, require('./routes/notifications'));
+app.use('/api/push', authenticate, require('./routes/push'));
 app.use('/api/exam', authenticate, require('./routes/exam'));
 app.use('/api/admin', authenticate, require('./routes/admin'));
 
