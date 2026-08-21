@@ -728,9 +728,23 @@ export default function Calendar() {
                             );
                           })}
                           {isToday && (
-                            <div className="absolute inset-x-0 flex items-center gap-1" style={{ top: (nowMinutes / 60) * HOUR_H }}>
-                              <div className="h-2 w-2 rounded-full bg-coral-500 shrink-0" style={{ marginInlineStart: -4 }} />
-                              <div className="h-px flex-1 bg-coral-500" />
+                            // Was a flat 8px dot + a solid 1px line, same
+                            // opacity start to end — easy to mistake for
+                            // just another divider, and it visually
+                            // flattened straight through whatever task
+                            // block happened to sit at the current time.
+                            // Now a glowing, gently pulsing marker with
+                            // the line fading out as it goes, so it
+                            // reads as "you are here" at a glance instead
+                            // of blending into the grid.
+                            <div className="absolute inset-x-0 flex items-center z-10" style={{ top: (nowMinutes / 60) * HOUR_H }}>
+                              <motion.div
+                                animate={{ scale: [1, 1.35, 1], opacity: [0.9, 1, 0.9] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                                className="h-2.5 w-2.5 rounded-full bg-coral-500 shrink-0"
+                                style={{ marginInlineStart: -5, boxShadow: '0 0 0 4px rgba(248,113,113,0.18), 0 0 10px rgba(248,113,113,0.55)' }}
+                              />
+                              <div className="h-px flex-1" style={{ background: `linear-gradient(${lang === 'ar' ? 'to left' : 'to right'}, rgba(248,113,113,0.85), rgba(248,113,113,0.10))` }} />
                             </div>
                           )}
                         </div>
