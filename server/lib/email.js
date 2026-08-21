@@ -65,6 +65,27 @@ function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel })
   </div>`;
 }
 
+function reminderEmailHtml({ title, body, link }) {
+  const url = link ? `${CLIENT_URL}${link}` : CLIENT_URL;
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;font-size:24px;line-height:48px;text-align:center;">✦</div>
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 10px;font-size:19px;">${title}</h2>
+    <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;margin:0 0 24px;">${body}</p>
+    <div style="text-align:center;">
+      <a href="${url}"
+        style="display:inline-block;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;text-decoration:none;padding:12px 30px;border-radius:14px;font-weight:600;font-size:14px;">
+        Open Nuvora
+      </a>
+    </div>
+    <p style="color:#9AA0B5;font-size:11px;line-height:1.6;text-align:center;margin-top:28px;">
+      You're getting this because you have reminders on for this task/habit in Nuvora.
+    </p>
+  </div>`;
+}
+
 // ── Path 1: Brevo transactional HTTP API ──────────────────────
 async function sendViaBrevoApi({ to, subject, html }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -181,4 +202,16 @@ async function sendPremiumRequestEmail({ userEmail, userName, planLabel, priceLa
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail };
+// ── Public: reminder email — the "you don't always have the app open"
+// gap. Fired from the cron-triggered job in lib/emailReminders.js, one
+// per (already in-app-deduped) notification row, never resent — see
+// the notifications.email_sent migration in db/connection.js. ────────
+async function sendReminderEmail({ to, title, body, link }) {
+  await dispatch({
+    to, label: 'reminder',
+    subject: title.replace(/^[^\w]+/, '').trim() || 'Nuvora reminder',
+    html: reminderEmailHtml({ title, body, link }),
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderEmail };

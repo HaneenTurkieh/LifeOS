@@ -687,6 +687,25 @@ async function initDb() {
     PRIMARY KEY (user_id, started_at)
   )`);
 
+  // Email reminders (see routes/cron.js + lib/emailReminders.js) need to
+  // convert a task's local wall-clock deadline into a real UTC instant
+  // the same way the in-browser notification poll already does via
+  // tz_offset — but a cron job has no browser to ask. Piggybacking on
+  // GET /notifications (which already receives tz_offset on every poll)
+  // to persist the most recent value here means the cron job gets a
+  // reasonably fresh timezone for free, no new client work required.
+  if (!(await hasColumn('users', 'tz_offset_min'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN tz_offset_min INTEGER DEFAULT NULL`);
+  }
+  // Tracks whether a given (already-deduped) notification row has been
+  // emailed yet, so the cron job can run as often as it likes without
+  // ever sending the same reminder twice — same idempotency approach as
+  // dedupe_key above, just for the email side-effect instead of the
+  // in-app row itself.
+  if (!(await hasColumn('notifications', 'email_sent'))) {
+    await db.execute(`ALTER TABLE notifications ADD COLUMN email_sent INTEGER DEFAULT 0`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

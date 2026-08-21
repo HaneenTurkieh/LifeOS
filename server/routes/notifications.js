@@ -351,8 +351,16 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
 
 router.get('/', async (req, res) => {
   try {
-    await generateNotifications(req.user.id, Number(req.query.tz_offset) || 0);
+    const tzOffsetMin = Number(req.query.tz_offset) || 0;
+    await generateNotifications(req.user.id, tzOffsetMin);
     await ensureBirthdayTask(req.user.id);
+    // Piggyback the browser's own tz_offset (sent on every poll already)
+    // onto the user row — the cron-triggered email job (lib/emailReminders.js)
+    // has no browser to ask, so it reads this instead. Best-effort/fire
+    // and forget: a slightly stale offset just means an email fires a
+    // little early/late, never a correctness issue worth failing the
+    // request over.
+    db.execute({ sql: `UPDATE users SET tz_offset_min=? WHERE id=?`, args: [tzOffsetMin, req.user.id] }).catch(() => {});
     const result = await db.execute({
       sql:  `SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30`,
       args: [req.user.id],
@@ -394,3 +402,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.generateNotifications = generateNotifications;

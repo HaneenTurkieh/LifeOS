@@ -39,6 +39,7 @@ app.use(express.json());
 // Public routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/paddle', require('./routes/paddle')); // webhook is unauthenticated; verified via Paddle-Signature instead
+app.use('/api/cron', require('./routes/cron')); // no JWT — protected by CRON_SECRET header instead, checked inside
 
 // Protected routes
 app.use('/api/tasks',        authenticate, require('./routes/tasks'));
