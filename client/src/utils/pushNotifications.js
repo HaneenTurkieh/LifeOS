@@ -6,6 +6,20 @@ export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window;
 }
 
+// iOS Safari only exposes PushManager at all — even the API existing —
+// once the site has been added to the Home Screen (iOS 16.4+); a
+// regular Safari tab makes pushSupported() above correctly return
+// false, but that reads as "this phone can't do it" when the real
+// story is "it can, once installed". Used to swap in a more useful,
+// actionable message than a flat "not supported" for this one specific
+// case.
+export function isIos() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+export function isStandalone() {
+  return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
 // pushManager.subscribe wants the VAPID public key as a raw Uint8Array,
 // not the base64url string the server hands back — this is the
 // standard conversion (padding restored, URL-safe chars swapped back)

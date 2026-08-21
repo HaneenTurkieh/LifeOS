@@ -16,7 +16,7 @@ import Modal         from './Modal.jsx';
 import AvatarCropper from './AvatarCropper.jsx';
 import { isTodayBirthday, getAge } from '../utils/birthday.js';
 import VoiceInputButton, { appendText } from './VoiceInputButton.jsx';
-import { enablePush, disablePush, getCurrentSubscription, pushSupported } from '../utils/pushNotifications.js';
+import { enablePush, disablePush, getCurrentSubscription, pushSupported, isIos, isStandalone } from '../utils/pushNotifications.js';
 
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
@@ -276,6 +276,7 @@ function AppearanceTab() {
       setPushBusy(false);
     }
   };
+  const needsIosInstall = isIos() && !isStandalone();
   const THEMES = [
     { key:'light',  label:t('settings.light'),  icon:'☀️', desc:t('settings.lightDesc')  },
     { key:'dark',   label:t('settings.dark'),   icon:'🌙', desc:t('settings.darkDesc')   },
@@ -362,22 +363,36 @@ function AppearanceTab() {
         <div className="flex-1">
           <p className="text-sm font-semibold text-ink dark:text-white">{t('settings.pushNotifications')}</p>
           <p className="text-xs text-ink/40 dark:text-white/30">
-            {pushSupported() ? t('settings.pushDesc') : t('settings.pushUnsupported')}
+            {needsIosInstall ? t('settings.pushIosHint')
+              : pushSupported() ? t('settings.pushDesc') : t('settings.pushUnsupported')}
           </p>
         </div>
-        <button
-          type="button"
-          disabled={!pushSupported() || pushBusy}
-          onClick={togglePush}
-          className="relative h-7 w-12 rounded-full shrink-0 transition-colors disabled:opacity-40"
-          style={{ background: pushOn ? 'rgb(var(--accent-500))' : 'rgba(120,120,140,0.30)' }}
-        >
-          <span
-            className="absolute top-1 h-5 w-5 rounded-full bg-white transition-transform"
-            style={{ transform: pushOn ? 'translateX(22px)' : 'translateX(4px)' }}
-          />
-        </button>
+        {!needsIosInstall && (
+          <button
+            type="button"
+            disabled={!pushSupported() || pushBusy}
+            onClick={togglePush}
+            className="relative h-7 w-12 rounded-full shrink-0 transition-colors disabled:opacity-40"
+            style={{ background: pushOn ? 'rgb(var(--accent-500))' : 'rgba(120,120,140,0.30)' }}
+          >
+            <span
+              className="absolute top-1 h-5 w-5 rounded-full bg-white transition-transform"
+              style={{ transform: pushOn ? 'translateX(22px)' : 'translateX(4px)' }}
+            />
+          </button>
+        )}
       </div>
+      {needsIosInstall && (
+        // iOS Safari doesn't expose PushManager at all in a regular tab
+        // — the toggle above would just silently fail to do anything
+        // useful, so it's hidden entirely and replaced with the actual
+        // fix: install as a Home Screen app first, then come back.
+        <div className="flex items-start gap-2.5 rounded-2xl px-4 py-3 -mt-1"
+          style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.18)' }}>
+          <span className="text-lg leading-none mt-0.5">📲</span>
+          <p className="text-xs leading-relaxed text-ink/60 dark:text-white/50">{t('settings.pushIosSteps')}</p>
+        </div>
+      )}
     </div>
   );
 }
