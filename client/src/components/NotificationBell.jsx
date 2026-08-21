@@ -76,7 +76,10 @@ export default function NotificationBell() {
 
   const load = useCallback(async () => {
     try {
-      const data = await api.get('/notifications');
+      // tz_offset lets the server convert a task's local deadline_time
+      // into a real UTC instant for the new "due soon" reminder — same
+      // convention Flow's forest history already uses (see Focus.jsx).
+      const data = await api.get(`/notifications?tz_offset=${new Date().getTimezoneOffset()}`);
       setNotifications(data.notifications || []);
       setUnread(data.unread || 0);
     } catch (_) {}
