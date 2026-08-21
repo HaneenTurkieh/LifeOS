@@ -256,6 +256,7 @@ function AppearanceTab() {
   const toast = useToast();
   const [pushOn, setPushOn]   = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   useEffect(() => {
     getCurrentSubscription().then((sub) => setPushOn(Boolean(sub))).catch(() => {});
   }, []);
@@ -274,6 +275,26 @@ function AppearanceTab() {
       toast.error(err.message);
     } finally {
       setPushBusy(false);
+    }
+  };
+  // Escape hatch for duplicate/repetitive pushes on one device — normal
+  // disablePush() only ever removes the ONE endpoint this browser
+  // currently knows about, so it can't clean up an orphaned second
+  // subscription left over from an earlier install/re-enable that the
+  // browser itself has since forgotten. This wipes every subscription
+  // row on the account (server/routes/push.js's POST /reset) and turns
+  // the toggle off locally so the next tap re-subscribes clean.
+  const resetPush = async () => {
+    setResetBusy(true);
+    try {
+      try { await disablePush(); } catch (_) {}
+      await api.post('/push/reset', {});
+      setPushOn(false);
+      toast.success(t('settings.pushResetDone'));
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setResetBusy(false);
     }
   };
   const needsIosInstall = isIos() && !isStandalone();
@@ -393,6 +414,24 @@ function AppearanceTab() {
           </button>
         )}
       </div>
+      {pushOn && !needsIosInstall && (
+        // Getting the SAME notification twice on one device almost
+        // always means an orphaned subscription row is sitting behind
+        // the current one (see POST /push/reset's own comment) — the
+        // toggle itself can't fix that since disablePush() only ever
+        // knows about the one endpoint this browser currently holds.
+        // Surfaced as a quiet text link rather than another switch —
+        // this isn't a setting to leave in a particular state, it's a
+        // one-off "start over" action for exactly this symptom.
+        <button
+          type="button"
+          disabled={resetBusy}
+          onClick={resetPush}
+          className="self-start text-[11px] font-semibold text-ink/35 dark:text-white/30 hover:text-coral-500 dark:hover:text-coral-400 transition disabled:opacity-40 -mt-1 ps-1"
+        >
+          {resetBusy ? t('settings.pushResetting') : t('settings.pushResetLink')}
+        </button>
+      )}
       {needsIosInstall && (
         // iOS Safari doesn't expose PushManager at all in a regular tab
         // — the toggle above would just silently fail to do anything
