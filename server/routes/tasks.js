@@ -15,7 +15,17 @@ function nextRecurrenceDate(recurrence, fromDate) {
   } else if (recurrence === 'monthly') {
     base.setMonth(base.getMonth() + 1);
   } else if (recurrence === 'yearly') {
-    base.setFullYear(base.getFullYear() + 1);
+    // setFullYear alone mishandles Feb 29 — JS Date auto-normalizes a
+    // nonexistent Feb 29 into Mar 1, silently drifting the date by a
+    // day every non-leap year. Same leap-year guard used for birthdays
+    // in notifications.js's rollForwardBirthdays/ensureBirthdayTask.
+    const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const nextYear = base.getFullYear() + 1;
+    if (base.getMonth() === 1 && base.getDate() === 29 && !isLeap(nextYear)) {
+      base.setFullYear(nextYear, 1, 28);
+    } else {
+      base.setFullYear(nextYear);
+    }
   } else if (recurrence?.startsWith('custom:')) {
     const raw  = recurrence.split(':')[1] || '';
     const days = raw.split(',').map(Number).filter((n) => !isNaN(n)).sort((a, b) => a - b);
@@ -81,6 +91,7 @@ router.post('/', async (req, res) => {
       category = 'general', deadline = null,
       deadline_time = null, recurrence = null,
       project_id = null, remind_offsets_min = null,
+      is_birthday = false,
     } = req.body;
 
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
@@ -101,12 +112,13 @@ router.post('/', async (req, res) => {
     const insert = await db.execute({
       sql:  `INSERT INTO tasks
                (user_id, title, description, priority, category,
-                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?)`,
+                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min, is_birthday)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?)`,
       args: [
         req.user.id, title.trim(), description, priority, category,
         deadline || null, deadline_time || null, recurrence || null,
         Number(maxPos.rows[0].m) + 1, project_id || null, remindOffsetsJson,
+        is_birthday ? 1 : 0,
       ],
     });
 
@@ -224,7 +236,14 @@ router.put('/:id', async (req, res) => {
       // Gated behind !alreadyEarnedXp too — otherwise toggling a
       // recurring task done/undone/done would spawn a duplicate
       // "next occurrence" row every time, not just XP.
-      if (updates.recurrence && !alreadyEarnedXp) {
+      // Also excludes is_birthday: birthdays have no "mark done" control
+      // on the client (see Tasks.jsx/Calendar.jsx), but nothing stops a
+      // birthday task from being marked done via some other surface that
+      // lists all tasks generically (e.g. Focus's task picker) — without
+      // this guard that would spawn a second row for next year on top of
+      // the one rollForwardBirthdays (notifications.js) already rolls
+      // forward in place, permanently duplicating that person's birthday.
+      if (updates.recurrence && !alreadyEarnedXp && !updates.is_birthday) {
         const nextDeadline = nextRecurrenceDate(updates.recurrence, updates.deadline);
 
         const maxPos = await db.execute({

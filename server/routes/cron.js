@@ -7,8 +7,22 @@
 // pinger has no user to log in as) — protected instead by a shared
 // secret, same spirit as the Paddle webhook's signature check.
 const express = require('express');
+const crypto  = require('crypto');
 const router  = express.Router();
 const { sendPendingReminderEmails } = require('../lib/emailReminders');
+
+// Plain string !== leaks timing information (how many leading characters
+// matched) that could theoretically help a remote guesser narrow down
+// the secret one byte at a time. Low real-world risk for a personal
+// app's cron endpoint, but timingSafeEqual costs nothing to use instead.
+// It throws on mismatched buffer lengths rather than just returning
+// false, so length is checked explicitly first.
+function secretsMatch(a, b) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function checkSecret(req, res) {
   const expected = process.env.CRON_SECRET;
@@ -19,7 +33,7 @@ function checkSecret(req, res) {
   }
   const rawHeader = req.headers.authorization || '';
   const got = rawHeader.replace(/^Bearer\s+/i, '');
-  if (got !== expected) {
+  if (!secretsMatch(got, expected)) {
     // Never log the actual secret values (even though this is a private
     // log, no reason to put it in plaintext) — but log enough shape
     // info to tell "header never arrived" apart from "wrong value" apart

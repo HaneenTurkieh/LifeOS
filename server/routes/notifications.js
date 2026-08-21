@@ -83,8 +83,8 @@ async function ensureBirthdayTask(userId) {
     // NOT EXISTS) makes it one atomic statement instead of two separate
     // round-trips, closing the window entirely.
     await db.execute({
-      sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source)
-             SELECT ?, ?, ?, 'low', 'Birthday', ?, 'nuvora'
+      sql:  `INSERT INTO tasks (user_id, title, description, priority, category, deadline, source, is_birthday)
+             SELECT ?, ?, ?, 'low', 'Birthday', ?, 'nuvora', 1
              WHERE NOT EXISTS (
                SELECT 1 FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' AND deadline = ? AND title = ?
              )`,
@@ -93,8 +93,8 @@ async function ensureBirthdayTask(userId) {
   } catch (err) { console.error('ensureBirthdayTask failed (non-fatal):', err.message); }
 }
 
-// Manually-added birthdays (category='Birthday', recurrence='yearly' —
-// see the "🎂 Someone's birthday" toggle in Calendar's quick-add) don't
+// Manually-added birthdays (is_birthday=1, recurrence='yearly' — see the
+// "🎂 Someone's birthday" toggle in Calendar's quick-add) don't
 // go through the normal done→advance-recurrence path everything else
 // uses (see PUT /tasks/:id below): there's deliberately no "mark done"
 // control for a birthday on the client, since a birthday isn't a thing
@@ -108,7 +108,7 @@ async function rollForwardBirthdays(userId, today) {
   const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
   const rows = (await db.execute({
     sql:  `SELECT id, deadline FROM tasks
-           WHERE user_id=? AND category='Birthday' AND recurrence='yearly' AND deadline < ?`,
+           WHERE user_id=? AND is_birthday=1 AND recurrence='yearly' AND deadline < ?`,
     args: [userId, today],
   })).rows;
   for (const row of rows) {
@@ -133,7 +133,7 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
     db.execute({
       sql:  `SELECT id, title, deadline FROM tasks
              WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
-               AND category != 'Birthday'
+               AND is_birthday=0
              ORDER BY deadline ASC LIMIT 5`,
       args: [userId, today],
     }),
@@ -196,7 +196,7 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
     sql:  `SELECT id, title, deadline, deadline_time, remind_offsets_min FROM tasks
            WHERE user_id=? AND status!='done' AND deadline IS NOT NULL
              AND deadline >= ? AND deadline <= date(?, '+1 day')
-             AND category != 'Birthday'`,
+             AND is_birthday=0`,
     args: [userId, today, today],
   });
   const nowMs = Date.now();
@@ -263,7 +263,7 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   const stagnantTasks = await db.execute({
     sql:  `SELECT id, title FROM tasks
            WHERE user_id=? AND status='todo' AND source != 'nuvora'
-             AND category != 'Birthday'
+             AND is_birthday=0
              AND COALESCE(time_spent_minutes,0) = 0
              AND date(created_at) <= date(?, '-2 days')
            ORDER BY created_at ASC LIMIT 3`,
