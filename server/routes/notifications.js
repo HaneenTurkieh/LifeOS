@@ -6,6 +6,28 @@ const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 
 const MOOD_CHECKPOINTS = [12, 15, 18, 21];
 
+// See tasks.remind_offsets_min migration in db/connection.js — a task
+// with no custom reminder settings just gets this one, automatically.
+const DEFAULT_REMIND_OFFSETS  = [60];
+// Don't fire a "due soon" ping for an offset window whose moment has
+// already passed by more than this — at that point 'overdue' (above)
+// already covers it, and a "15 minutes before" notice arriving a day
+// late is just noise.
+const REMIND_STALE_FLOOR_MIN  = -1440;
+
+function remindLabel(offsetMin) {
+  if (offsetMin >= 1440) {
+    const days = Math.round(offsetMin / 1440);
+    return days <= 1 ? 'in 1 day' : `in ${days} days`;
+  }
+  if (offsetMin >= 60) {
+    const hours = Math.round(offsetMin / 60);
+    return hours <= 1 ? 'in 1 hour' : `in ${hours} hours`;
+  }
+  if (offsetMin <= 0) return 'now';
+  return `in ${offsetMin} minutes`;
+}
+
 // Nuvora-authored yearly birthday entry — self-seeds onto the Calendar
 // the same way the grace-period notices below self-seed, so the person
 // never has to remember to add their own birthday. It's a real task
@@ -129,43 +151,71 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
 
   // "Remind before" — tasks only ever got a notification once already
   // overdue (right above). Goals already get a heads-up before their
-  // deadline; tasks didn't. Fires once, ~1hr ahead for a task with a
-  // specific deadline_time, or any time on the day itself for a
-  // date-only deadline — then never again for that task (default
-  // dedupe: once per entity, forever, same as 'overdue' above).
+  // deadline; tasks didn't. Every task with a deadline_time gets the
+  // standard 1-hour-before ping automatically — that's DEFAULT_REMIND_
+  // OFFSETS, used whenever remind_offsets_min is unset — but a task can
+  // ask for extra (or different) lead times too, e.g. [1440, 60, 15] for
+  // "1 day, 1 hour, AND 15 minutes before". Each offset is its own
+  // dedupe key (the link carries it), so a task with 3 offsets can fire
+  // 3 separate reminders as each window is reached, not just one.
   const dueSoonResult = await db.execute({
-    sql:  `SELECT id, title, deadline, deadline_time FROM tasks
+    sql:  `SELECT id, title, deadline, deadline_time, remind_offsets_min FROM tasks
            WHERE user_id=? AND status!='done' AND deadline IS NOT NULL
              AND deadline >= ? AND deadline <= date(?, '+1 day')`,
     args: [userId, today, today],
   });
   const nowMs = Date.now();
   for (const task of dueSoonResult.rows) {
-    if (task.deadline_time) {
-      // deadline/deadline_time are the user's own local wall-clock
-      // values with nothing marking which timezone that is — tzOffsetMin
-      // (the browser's own getTimezoneOffset(), same convention Flow's
-      // forest history already uses) converts that reading into the
-      // real UTC instant it represents, the mirror image of how
-      // focus.js's localDay() converts a real UTC timestamp back to a
-      // local calendar day.
-      const wallClockAsUtcMs = new Date(`${task.deadline}T${task.deadline_time}:00Z`).getTime();
-      if (Number.isNaN(wallClockAsUtcMs)) continue;
-      const dueAtMs = wallClockAsUtcMs + tzOffsetMin * 60000;
-      const minutesUntilDue = (dueAtMs - nowMs) / 60000;
-      if (minutesUntilDue > 60 || minutesUntilDue < -30) continue; // outside the reminder window
-    } else if (task.deadline !== today) {
-      continue; // date-only deadline — only nudge on the day itself
+    if (!task.deadline_time) {
+      // Date-only deadline — no time-of-day to count "N minutes before"
+      // from, so custom offsets don't apply here; just the existing
+      // "due today" morning-of nudge.
+      if (task.deadline !== today) continue;
+      toCreate.push({
+        type:  'due_soon',
+        title: '⏰ Task due soon',
+        body:  `"${task.title}" is due today`,
+        link:  `/tasks?task=${task.id}`,
+        data:  { title: task.title, deadline: task.deadline },
+      });
+      continue;
     }
-    toCreate.push({
-      type:  'due_soon',
-      title: '⏰ Task due soon',
-      body:  task.deadline_time
-        ? `"${task.title}" is due at ${task.deadline_time}`
-        : `"${task.title}" is due today`,
-      link:  `/tasks?task=${task.id}`,
-      data:  { title: task.title, deadline: task.deadline },
-    });
+
+    // deadline/deadline_time are the user's own local wall-clock values
+    // with nothing marking which timezone that is — tzOffsetMin (the
+    // browser's own getTimezoneOffset(), same convention Flow's forest
+    // history already uses) converts that reading into the real UTC
+    // instant it represents, the mirror image of how focus.js's
+    // localDay() converts a real UTC timestamp back to a local
+    // calendar day.
+    const wallClockAsUtcMs = new Date(`${task.deadline}T${task.deadline_time}:00Z`).getTime();
+    if (Number.isNaN(wallClockAsUtcMs)) continue;
+    const dueAtMs = wallClockAsUtcMs + tzOffsetMin * 60000;
+    const minutesUntilDue = (dueAtMs - nowMs) / 60000;
+
+    let offsets = DEFAULT_REMIND_OFFSETS;
+    if (task.remind_offsets_min) {
+      try {
+        const parsed = JSON.parse(task.remind_offsets_min);
+        if (Array.isArray(parsed) && parsed.length) offsets = parsed;
+      } catch (_) { /* malformed — fall back to the default */ }
+    }
+
+    for (const offsetMin of offsets) {
+      // Window: we've reached this offset's lead time (or are already a
+      // bit past it — the check only runs when someone actually polls
+      // notifications, not on a fixed clock) but not so far past that
+      // it's stale. Dedupe (link encodes the offset) means each one
+      // only ever inserts once regardless of how many polls see it true.
+      if (minutesUntilDue > offsetMin || minutesUntilDue < REMIND_STALE_FLOOR_MIN) continue;
+      toCreate.push({
+        type:  'due_soon',
+        title: '⏰ Task due soon',
+        body:  `"${task.title}" is due ${remindLabel(offsetMin)} (${task.deadline_time})`,
+        link:  `/tasks?task=${task.id}&remind=${offsetMin}`,
+        data:  { title: task.title, deadline: task.deadline, offsetMin },
+      });
+    }
   }
 
   // Gentle anti-procrastination nudge — deliberately NOT tied to a

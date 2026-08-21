@@ -187,6 +187,16 @@ async function initDb() {
   if (!(await hasColumn('tasks', 'project_id'))) {
     await db.execute(`ALTER TABLE tasks ADD COLUMN project_id INTEGER DEFAULT NULL`);
   }
+  // Custom "remind before" lead times for the due-soon notification (see
+  // notifications.js) — a JSON array of minutes-before-deadline, e.g.
+  // [1440, 60, 15] for "1 day, 1 hour, and 15 minutes before". NULL (the
+  // default for every existing task, and any new one that doesn't touch
+  // this) means "just use the standard 1-hour-before" — nobody has to
+  // configure anything to keep getting reminded; this only ever adds
+  // *more* reminder points on top of that for tasks that need it.
+  if (!(await hasColumn('tasks', 'remind_offsets_min'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN remind_offsets_min TEXT DEFAULT NULL`);
+  }
   // One-time backfill: tag existing tasks whose category happens to
   // match one of this user's project titles, so tasks created before
   // this column existed get hidden from the general views too. Only

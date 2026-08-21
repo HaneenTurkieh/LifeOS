@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
       title, description = '', priority = 'medium',
       category = 'general', deadline = null,
       deadline_time = null, recurrence = null,
-      project_id = null,
+      project_id = null, remind_offsets_min = null,
     } = req.body;
 
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
@@ -88,15 +88,23 @@ router.post('/', async (req, res) => {
       args: [req.user.id],
     });
 
+    // remind_offsets_min: array of minutes-before-deadline for the
+    // "due soon" notification (see notifications.js) — e.g. [1440, 15]
+    // for "1 day and 15 minutes before". null/omitted just means "use
+    // the standard 1-hour-before default", nothing to store.
+    const remindOffsetsJson = Array.isArray(remind_offsets_min) && remind_offsets_min.length
+      ? JSON.stringify(remind_offsets_min.map(Number).filter((n) => Number.isFinite(n) && n >= 0))
+      : null;
+
     const insert = await db.execute({
       sql:  `INSERT INTO tasks
                (user_id, title, description, priority, category,
-                deadline, deadline_time, recurrence, status, progress, position, project_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?)`,
+                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?)`,
       args: [
         req.user.id, title.trim(), description, priority, category,
         deadline || null, deadline_time || null, recurrence || null,
-        Number(maxPos.rows[0].m) + 1, project_id || null,
+        Number(maxPos.rows[0].m) + 1, project_id || null, remindOffsetsJson,
       ],
     });
 
@@ -165,16 +173,33 @@ router.put('/:id', async (req, res) => {
       ? (existing.first_completed_at || new Date().toISOString())
       : (existing.first_completed_at || null);
 
+    // remind_offsets_min isn't in UPDATABLE — it's stored as a JSON
+    // string but arrives from the client as a real array, so it needs
+    // its own conversion rather than the generic passthrough merge
+    // above (which would otherwise overwrite the stored JSON string
+    // with a raw array object). Only touched when the request actually
+    // includes the field; omitting it entirely leaves whatever was
+    // already saved untouched.
+    let remindOffsetsMin = existing.remind_offsets_min;
+    if ('remind_offsets_min' in (req.body || {})) {
+      const raw = req.body.remind_offsets_min;
+      remindOffsetsMin = Array.isArray(raw) && raw.length
+        ? JSON.stringify(raw.map(Number).filter((n) => Number.isFinite(n) && n >= 0))
+        : null;
+    }
+
     await db.execute({
       sql:  `UPDATE tasks
              SET title=?, description=?, priority=?, category=?,
                  deadline=?, deadline_time=?, recurrence=?,
-                 status=?, progress=?, position=?, completed_at=?, first_completed_at=?
+                 status=?, progress=?, position=?, completed_at=?, first_completed_at=?,
+                 remind_offsets_min=?
              WHERE id = ? AND user_id = ?`,
       args: [
         updates.title, updates.description ?? '', updates.priority, updates.category,
         updates.deadline ?? null, updates.deadline_time ?? null, updates.recurrence ?? null,
         updates.status, updates.progress, updates.position, updates.completed_at, updates.first_completed_at,
+        remindOffsetsMin,
         req.params.id, req.user.id,
       ],
     });

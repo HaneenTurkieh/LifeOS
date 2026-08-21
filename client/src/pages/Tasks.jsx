@@ -47,8 +47,19 @@ function sortByPriority(tasks) {
 const emptyForm = {
   title:'', description:'', priority:'medium',
   category:'General', deadline:'', deadline_time:'',
-  recurrenceType:'', customDays:[],
+  recurrenceType:'', customDays:[], remindOffsets:[60],
 };
+// Presets for the optional "remind before" picker (minutes before the
+// deadline_time) — 60 (1 hour) is on by default for every task with a
+// time set, matching the server's own DEFAULT_REMIND_OFFSETS in
+// notifications.js, so a task saved without ever touching this still
+// gets the standard reminder. Toggling any of these is purely additive/
+// subtractive from that same list.
+const REMIND_PRESETS = [
+  { minutes: 1440, label: 'tasks.remind1Day'  },
+  { minutes: 60,   label: 'tasks.remind1Hour' },
+  { minutes: 15,   label: 'tasks.remind15Min' },
+];
 function formToRecurrence(form) {
   if (!form.recurrenceType) return null;
   if (form.recurrenceType === 'custom') {
@@ -197,11 +208,19 @@ export default function Tasks() {
   const openEditModal   = (task) => {
     setEditingTask(task);
     const { recurrenceType, customDays } = recurrenceToForm(task.recurrence);
+    let remindOffsets = [60];
+    if (task.remind_offsets_min) {
+      try {
+        const parsed = JSON.parse(task.remind_offsets_min);
+        if (Array.isArray(parsed)) remindOffsets = parsed;
+      } catch (_) { /* malformed — fall back to the default */ }
+    }
     setForm({
       title: task.title, description: task.description||'',
       priority: (task.priority||'medium').toLowerCase(),
       category: task.category, deadline: task.deadline||'',
       deadline_time: task.deadline_time||'', recurrenceType, customDays,
+      remindOffsets,
     });
     setModalOpen(true);
   };
@@ -215,6 +234,9 @@ export default function Tasks() {
         priority: form.priority, category: form.category,
         deadline: form.deadline||null, deadline_time: form.deadline_time||null,
         recurrence,
+        // No time set means "remind before" has nothing to count from —
+        // don't persist a stale offset list for a task that can't use it.
+        remind_offsets_min: form.deadline_time ? form.remindOffsets : null,
       };
       if (editingTask) { await api.put(`/tasks/${editingTask.id}`, payload); toast.success(t('tasks.updated')); }
       else             { await api.post('/tasks', payload);                   toast.success(t('tasks.added'));   }
@@ -304,6 +326,41 @@ export default function Tasks() {
             <input type="time" className="input-field" value={form.deadline_time}
               onChange={e => setForm({...form, deadline_time:e.target.value})} />
           </div>
+          {form.deadline_time && (
+            <div>
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">
+                {t('tasks.remindBefore')}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {REMIND_PRESETS.map(({ minutes, label }) => {
+                  const active = form.remindOffsets.includes(minutes);
+                  return (
+                    <button key={minutes} type="button"
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        remindOffsets: active
+                          ? f.remindOffsets.filter(m => m !== minutes)
+                          : [...f.remindOffsets, minutes],
+                      }))}
+                      className="rounded-2xl px-3.5 py-1.5 text-xs font-semibold transition-all"
+                      style={active ? {
+                        background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
+                        boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
+                      } : {
+                        background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
+                        color:'rgb(var(--accent-500) / 0.65)',
+                      }}
+                    >
+                      {t(label)}
+                    </button>
+                  );
+                })}
+              </div>
+              {form.remindOffsets.length === 0 && (
+                <p className="text-[11px] text-ink/35 dark:text-white/25 mt-1.5">{t('tasks.remindNone')}</p>
+              )}
+            </div>
+          )}
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">{t('tasks.repeat')}</label>
             <div className="flex flex-wrap gap-2">
