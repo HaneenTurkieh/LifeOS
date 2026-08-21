@@ -706,6 +706,21 @@ async function initDb() {
     await db.execute(`ALTER TABLE notifications ADD COLUMN email_sent INTEGER DEFAULT 0`);
   }
 
+  // "Someone's birthday" events (Calendar's 🎂 quick-add toggle) were
+  // originally identified purely by category==='Birthday' — a free-text
+  // field a person could coincidentally type for an unrelated task,
+  // which would then silently and permanently lose all of its overdue/
+  // due-soon notifications too (same string, same exclusion logic).
+  // A dedicated boolean is the actual reliable marker; category stays
+  // as a human-readable label but is no longer load-bearing for any
+  // notification/recurrence behavior. Backfill covers birthdays already
+  // created (by category string) before this column existed, including
+  // the self-seeded one from ensureBirthdayTask.
+  if (!(await hasColumn('tasks', 'is_birthday'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN is_birthday INTEGER DEFAULT 0`);
+    await db.execute(`UPDATE tasks SET is_birthday=1 WHERE category='Birthday'`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

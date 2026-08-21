@@ -35,12 +35,20 @@ async function sendPendingReminderEmails() {
       // a clock instead of a page load.
       await generateNotifications(user.id, user.tz_offset_min || 0);
 
+      // Filtering to EMAILABLE_TYPES in SQL (not after fetching) matters:
+      // filtering in JS after a LIMIT would let non-emailable rows
+      // (mood/streak/procrastination/announcements — never marked
+      // email_sent since they're filtered out before that UPDATE below)
+      // permanently occupy the LIMIT window ahead of real reminders,
+      // eventually starving a user of reminder emails entirely with no
+      // error anywhere to notice it by.
+      const emailableTypesArr = [...EMAILABLE_TYPES];
       const pending = (await db.execute({
         sql: `SELECT id, type, title, body, link FROM notifications
-              WHERE user_id=? AND email_sent=0
+              WHERE user_id=? AND email_sent=0 AND type IN (${emailableTypesArr.map(() => '?').join(',')})
               ORDER BY created_at ASC LIMIT 20`,
-        args: [user.id],
-      })).rows.filter((n) => EMAILABLE_TYPES.has(n.type));
+        args: [user.id, ...emailableTypesArr],
+      })).rows;
 
       if (!pending.length) continue;
 

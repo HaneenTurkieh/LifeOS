@@ -498,7 +498,7 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, onAskLumi,
                   dark:border-white/10 dark:bg-white/[0.04] p-3.5 shadow-sm transition
                   hover:bg-white/90 dark:hover:bg-white/[0.07]"
     >
-      {task.category === 'Birthday' ? (
+      {task.is_birthday ? (
         // Birthdays aren't a "done/not done" thing — there's no
         // meaningful completed state for a date that just passes and
         // comes back next year, so no clickable circle at all here.

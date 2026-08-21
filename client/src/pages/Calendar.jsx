@@ -35,7 +35,7 @@ function localToday() {
 }
 const emptyForm = {
   title:'', priority:'medium', category:'General', deadline_time:'', description:'',
-  remindOffsets:[60], recurrenceType:'', customDays:[],
+  remindOffsets:[60], recurrenceType:'', customDays:[], isBirthday:false,
 };
 // Recurrence encode/decode — same convention as the Tasks page
 // (`recurrence` is null, 'daily'/'weekly'/'monthly', or 'custom:0,2,4').
@@ -329,6 +329,7 @@ export default function Calendar() {
       remindOffsets,
       recurrenceType,
       customDays,
+      isBirthday:    Boolean(task.is_birthday),
     });
     setSelected(null);
   };
@@ -378,6 +379,7 @@ export default function Calendar() {
         deadline: addModalOpen,
         recurrence: formToRecurrence(addForm),
         remind_offsets_min: addForm.deadline_time ? addForm.remindOffsets : null,
+        is_birthday: addForm.isBirthday,
       });
       toast.success(t('tasks.added'));
       setAddModalOpen(null);
@@ -591,7 +593,7 @@ export default function Calendar() {
                     <p className={`text-xs font-bold uppercase tracking-widest ${textSub}`}>{t('calendar.editTask')}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    {selectedTask.category !== 'Birthday' && (
+                    {!selectedTask.is_birthday && (
                       <button
                         onClick={() => markDone(selectedTask)}
                         className="flex h-7 w-7 items-center justify-center rounded-xl transition text-sage-500 hover:bg-sage-500/10"
@@ -643,58 +645,64 @@ export default function Calendar() {
                     <input type="date" className="input-field text-sm" value={editForm.deadline || ''}
                       onChange={e => setEditForm({...editForm, deadline:e.target.value})}/>
                   </div>
-                  <input type="time" className="input-field text-sm" value={editForm.deadline_time}
-                    onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}/>
-                  {editForm.deadline_time && (
-                    <ReminderPicker
-                      value={editForm.remindOffsets}
-                      onChange={(remindOffsets) => setEditForm(f => ({ ...f, remindOffsets }))}
-                      t={t} compact
-                    />
-                  )}
-                  <div>
-                    <label className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 block ${textSub}`}>
-                      {t('tasks.repeat')}
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {RECURRENCE_OPTIONS.map(opt => (
-                        <button key={opt.value} type="button"
-                          onClick={() => setEditForm(f => ({ ...f, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[] }))}
-                          className="rounded-xl px-3 py-1 text-[11px] font-semibold transition-all"
-                          style={editForm.recurrenceType === opt.value ? {
-                            background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
-                            boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
-                          } : {
-                            background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
-                            color:'rgb(var(--accent-500) / 0.65)',
-                          }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    {editForm.recurrenceType === 'custom' && (
-                      <div className="flex gap-1.5 mt-2">
-                        {Array.from({ length: 7 }, (_, i) => {
-                          const isOn = editForm.customDays.includes(i);
-                          return (
-                            <button key={i} type="button"
-                              onClick={() => setEditForm(f => ({ ...f, customDays: isOn ? f.customDays.filter(x=>x!==i) : [...f.customDays, i] }))}
-                              className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition-all"
-                              style={isOn ? {
-                                background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))',
-                                color:'white', boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.35)',
+                  {editForm.isBirthday ? (
+                    <p className={`text-[11px] ${isDark?'text-white/25':'text-ink/35'}`}>{t('calendar.birthdayHint')}</p>
+                  ) : (
+                    <>
+                      <input type="time" className="input-field text-sm" value={editForm.deadline_time}
+                        onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}/>
+                      {editForm.deadline_time && (
+                        <ReminderPicker
+                          value={editForm.remindOffsets}
+                          onChange={(remindOffsets) => setEditForm(f => ({ ...f, remindOffsets }))}
+                          t={t} compact
+                        />
+                      )}
+                      <div>
+                        <label className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 block ${textSub}`}>
+                          {t('tasks.repeat')}
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {RECURRENCE_OPTIONS.map(opt => (
+                            <button key={opt.value} type="button"
+                              onClick={() => setEditForm(f => ({ ...f, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[] }))}
+                              className="rounded-xl px-3 py-1 text-[11px] font-semibold transition-all"
+                              style={editForm.recurrenceType === opt.value ? {
+                                background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
+                                boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
                               } : {
-                                background:'rgb(var(--accent-500) / 0.08)',
-                                border:'1px solid rgb(var(--accent-500) / 0.18)',
-                                color:'rgb(var(--accent-500) / 0.60)',
+                                background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
+                                color:'rgb(var(--accent-500) / 0.65)',
                               }}>
-                              {dayLetter(i)}
+                              {opt.label}
                             </button>
-                          );
-                        })}
+                          ))}
+                        </div>
+                        {editForm.recurrenceType === 'custom' && (
+                          <div className="flex gap-1.5 mt-2">
+                            {Array.from({ length: 7 }, (_, i) => {
+                              const isOn = editForm.customDays.includes(i);
+                              return (
+                                <button key={i} type="button"
+                                  onClick={() => setEditForm(f => ({ ...f, customDays: isOn ? f.customDays.filter(x=>x!==i) : [...f.customDays, i] }))}
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition-all"
+                                  style={isOn ? {
+                                    background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))',
+                                    color:'white', boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.35)',
+                                  } : {
+                                    background:'rgb(var(--accent-500) / 0.08)',
+                                    border:'1px solid rgb(var(--accent-500) / 0.18)',
+                                    color:'rgb(var(--accent-500) / 0.60)',
+                                  }}>
+                                  {dayLetter(i)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                   <button onClick={saveTask} disabled={saving}
                     className="btn-primary justify-center text-sm py-2.5">
                     {saving ? t('common.saving') : t('calendar.saveChanges')}
@@ -901,11 +909,11 @@ export default function Calendar() {
               value={addForm.category} onChange={e => setAddForm({...addForm, category:e.target.value})} />
           </div>
           <button type="button"
-            onClick={() => setAddForm(f => f.category === 'Birthday'
-              ? { ...f, category: 'General', recurrenceType: '', customDays: [] }
-              : { ...f, category: 'Birthday', recurrenceType: 'yearly', customDays: [], deadline_time: '' })}
+            onClick={() => setAddForm(f => f.isBirthday
+              ? { ...f, isBirthday: false, category: 'General', recurrenceType: '', customDays: [] }
+              : { ...f, isBirthday: true, category: 'Birthday', recurrenceType: 'yearly', customDays: [], deadline_time: '' })}
             className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all self-start"
-            style={addForm.category === 'Birthday' ? {
+            style={addForm.isBirthday ? {
               background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
               boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
             } : {
@@ -915,25 +923,25 @@ export default function Calendar() {
           >
             🎂 {t('calendar.birthdayToggle')}
           </button>
-          {addForm.category === 'Birthday' && (
+          {addForm.isBirthday && (
             <p className="text-[11px] text-ink/35 dark:text-white/25 -mt-2">{t('calendar.birthdayHint')}</p>
           )}
           <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium"
             style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)', color:'rgb(var(--accent-500))' }}>
             📅 {addModalOpen && fmtLabel(addModalOpen)}
           </div>
-          {addForm.category !== 'Birthday' && (
+          {!addForm.isBirthday && (
             <input type="time" className="input-field" value={addForm.deadline_time}
               onChange={e => setAddForm({...addForm, deadline_time:e.target.value})} />
           )}
-          {addForm.deadline_time && addForm.category !== 'Birthday' && (
+          {addForm.deadline_time && !addForm.isBirthday && (
             <ReminderPicker
               value={addForm.remindOffsets}
               onChange={(remindOffsets) => setAddForm(f => ({ ...f, remindOffsets }))}
               t={t}
             />
           )}
-          {addForm.category !== 'Birthday' && (
+          {!addForm.isBirthday && (
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-ink/40 dark:text-white/30 mb-2 block">
               {t('tasks.repeat')}
