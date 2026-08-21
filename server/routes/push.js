@@ -68,4 +68,30 @@ router.get('/status', async (req, res) => {
   }
 });
 
+// Blunt "start completely fresh" tool — deletes EVERY subscription row on
+// the account, not just the one the calling browser currently knows
+// about. Normal /unsubscribe only ever targets its own endpoint (so
+// turning push off on a laptop can't kill a phone's subscription too),
+// but that's exactly the gap that lets a stale, orphaned row survive
+// under the hood: re-adding Nuvora to the Home Screen, or re-enabling
+// push after the browser silently rotated the subscription, can leave
+// an old row behind that /unsubscribe never had a chance to target
+// (the browser itself no longer remembers it existed) while a new one
+// gets created alongside it — two rows, same physical device, both
+// still valid, so every notification arrives twice. This is the
+// explicit escape hatch: wipe every row for this account, then
+// re-enable push from a clean slate.
+router.post('/reset', async (req, res) => {
+  try {
+    const result = await db.execute({
+      sql: `DELETE FROM push_subscriptions WHERE user_id=?`,
+      args: [req.user.id],
+    });
+    res.json({ ok: true, removed: result.rowsAffected });
+  } catch (err) {
+    console.error('POST /push/reset error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 module.exports = router;
