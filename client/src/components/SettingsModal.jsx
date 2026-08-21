@@ -390,7 +390,14 @@ function AppearanceTab() {
         <div className="flex items-start gap-2.5 rounded-2xl px-4 py-3 -mt-1"
           style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.18)' }}>
           <span className="text-lg leading-none mt-0.5">📲</span>
-          <p className="text-xs leading-relaxed text-ink/60 dark:text-white/50">{t('settings.pushIosSteps')}</p>
+          <div className="flex-1">
+            <p className="text-xs leading-relaxed text-ink/60 dark:text-white/50 mb-1.5">{t('settings.pushIosSteps')}</p>
+            <ol className="text-xs leading-relaxed text-ink/60 dark:text-white/50 list-decimal ps-4 space-y-1">
+              <li>{t('settings.pushIosStep1')}</li>
+              <li>{t('settings.pushIosStep2')}</li>
+              <li>{t('settings.pushIosStep3')}</li>
+            </ol>
+          </div>
         </div>
       )}
     </div>
@@ -1099,9 +1106,15 @@ export default function SettingsModal({ open, onClose }) {
   const [tab, setTab]     = useState('profile');
   const { user }          = useAuth();
   const { resolvedTheme } = useTheme();
-  const { t }             = useLanguage();
+  const { t, lang }       = useLanguage();
   const isDark            = resolvedTheme === 'dark';
   const closeAndReset = () => { setTab('profile'); onClose(); };
+  // The mobile tab row's fade mask has to fade out on whichever edge
+  // scrollable content actually continues past — that's the right side
+  // in English (row starts at the left) but the left side in Arabic
+  // (row starts at the right, per RTL's own flex direction), so a
+  // fixed to-right gradient would fade the wrong edge for AR users.
+  const navFadeMask = `linear-gradient(to ${lang === 'ar' ? 'left' : 'right'}, black 0%, black 92%, transparent 100%)`;
   // Was its own hand-duplicated copy of server/routes/admin.js's owner
   // allowlist — now just reads the flag the server already computes from
   // its own single source of truth (see server/lib/ownerEmails.js) and
@@ -1125,8 +1138,20 @@ export default function SettingsModal({ open, onClose }) {
     <Modal open={open} onClose={closeAndReset} title={t('settings.title')} maxWidth="max-w-xl">
       <div className="flex flex-col lg:flex-row -mx-6 -mb-6 mt-2" style={{ minHeight:400 }}>
         <div
+          // On phone widths the nav row is wider than the modal (Profile /
+          // Account / Appearance / Premium / …), so it scrolls horizontally
+          // — but with no visual cue, the last item just gets sliced off
+          // at the modal's edge and reads as a rendering bug rather than
+          // "swipe for more." The fade mask + trailing spacer below give
+          // it the same "there's more this way" look iOS's own scrollable
+          // chip rows use, instead of a hard cut mid-label.
           className="flex lg:flex-col lg:w-40 shrink-0 overflow-x-auto lg:overflow-x-visible py-2 lg:py-3 px-2"
-          style={{ background:navBg, borderBottom:`1px solid ${navBorder}` }}
+          style={{
+            background: navBg,
+            borderBottom: `1px solid ${navBorder}`,
+            WebkitMaskImage: navFadeMask,
+            maskImage: navFadeMask,
+          }}
         >
           <div className="hidden lg:flex flex-col items-center gap-2 py-4 mb-1">
             <Avatar user={user} size={44}/>

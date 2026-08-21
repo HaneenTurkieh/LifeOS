@@ -14,7 +14,16 @@ export function pushSupported() {
 // actionable message than a flat "not supported" for this one specific
 // case.
 export function isIos() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) return true;
+  // Safari's per-site "Request Desktop Website" rewrites the UA on
+  // iPhone/iPad to look byte-for-byte like a real Mac's — the one thing
+  // it can't fake is touch support, since an actual Mac trackpad never
+  // reports more than 0-1 touch points this way. Without this, anyone
+  // who'd toggled desktop-site mode for Nuvora (easy to do by accident,
+  // and it's remembered per-domain) saw a flat "not supported in this
+  // browser" instead of the actual fix (open Settings > Aa > Request
+  // Mobile Website, or just add to Home Screen and reopen from there).
+  return /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
 }
 export function isStandalone() {
   return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
