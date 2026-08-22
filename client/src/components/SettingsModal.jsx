@@ -25,12 +25,30 @@ import { enablePush, disablePush, getCurrentSubscription, pushSupported, isIos, 
 // visibly rendered as OFF and then, a beat later, popped to its ON
 // styling (highlighted background/border — see that style's own
 // comment) EVERY single time Settings was opened, even for someone who
-// already has push on and always will until they change it. Module-
-// scoped (not component state) so it survives the modal itself
-// unmounting between opens within the same page load: after the first
-// real check, every later open already starts correct and just never
-// visibly changes at all.
-let cachedPushOn = null;
+// already has push on and always will until they change it.
+//
+// A plain module-scoped variable only survives while the SAME page load
+// is still alive — fine for opening Settings twice in one session, but
+// not what actually got tested: closing the installed app fully and
+// relaunching (a normal thing to do, and exactly how push/splash were
+// both being tested) reloads the page from scratch, wiping any
+// in-memory JS state, so the flash came right back every time. This
+// pairs the same in-memory variable (fast, no synchronous storage read
+// needed by the time render happens) with localStorage as the part that
+// actually crosses a full reload — read once at module init (this file
+// only ever gets evaluated once regardless of how many times the modal
+// itself opens/closes), written every time the real state becomes known.
+const PUSH_CACHE_KEY = 'nuvora_push_on';
+let cachedPushOn = (() => {
+  try {
+    const raw = localStorage.getItem(PUSH_CACHE_KEY);
+    return raw === null ? null : raw === '1';
+  } catch (_) { return null; }
+})();
+function setCachedPushOn(on) {
+  cachedPushOn = on;
+  try { localStorage.setItem(PUSH_CACHE_KEY, on ? '1' : '0'); } catch (_) {}
+}
 
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
@@ -274,7 +292,7 @@ function AppearanceTab() {
   useEffect(() => {
     getCurrentSubscription().then((sub) => {
       const on = Boolean(sub);
-      cachedPushOn = on;
+      setCachedPushOn(on);
       setPushOn(on);
     }).catch(() => {});
   }, []);
@@ -283,11 +301,11 @@ function AppearanceTab() {
     try {
       if (pushOn) {
         await disablePush();
-        cachedPushOn = false;
+        setCachedPushOn(false);
         setPushOn(false);
       } else {
         await enablePush();
-        cachedPushOn = true;
+        setCachedPushOn(true);
         setPushOn(true);
         toast.success(t('settings.pushEnabled'));
       }
@@ -309,7 +327,7 @@ function AppearanceTab() {
     try {
       try { await disablePush(); } catch (_) {}
       await api.post('/push/reset', {});
-      cachedPushOn = false;
+      setCachedPushOn(false);
       setPushOn(false);
       toast.success(t('settings.pushResetDone'));
     } catch (err) {
