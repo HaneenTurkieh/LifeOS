@@ -33,7 +33,20 @@ export default function MobileNav() {
   return (
     <>
       {/* Bottom nav */}
-      <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-50 glass-panel rounded-3xl px-2 py-2">
+      {/* That white block floating mid-page mid-scroll on iPhone/iPad is
+          a known WebKit bug, not a layout bug: a `position: fixed`
+          element that ALSO has `backdrop-filter: blur` (glass-panel's
+          own backdrop-blur-xl) can get left behind during scroll —
+          Safari finishes compositing at the old scroll offset before
+          catching up, so for a frame or two it's rendering the nav's
+          blurred backdrop at the wrong spot with nothing (a plain white
+          rect) behind it yet. transform: translateZ(0) forces this
+          element onto its own GPU layer instead of being repainted
+          inline with the rest of the page — the standard, well-known
+          fix for this exact fixed+backdrop-filter WebKit combination.
+      */}
+      <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-50 glass-panel rounded-3xl px-2 py-2"
+        style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}>
         <div className="flex items-center justify-between">
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
