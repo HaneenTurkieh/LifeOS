@@ -35,7 +35,7 @@ function localToday() {
 }
 const emptyForm = {
   title:'', priority:'medium', category:'General', deadline_time:'', description:'',
-  remindOffsets:[60], recurrenceType:'', customDays:[], isBirthday:false,
+  remindOffsets:[60], recurrenceType:'', customDays:[], isBirthday:false, recurrenceUntil:'',
 };
 // Recurrence encode/decode — same convention as the Tasks page
 // (`recurrence` is null, 'daily'/'weekly'/'monthly', or 'custom:0,2,4').
@@ -330,6 +330,7 @@ export default function Calendar() {
       recurrenceType,
       customDays,
       isBirthday:    Boolean(task.is_birthday),
+      recurrenceUntil: task.recurrence_until || '',
     });
     setSelected(null);
   };
@@ -338,6 +339,7 @@ export default function Calendar() {
     if (!editForm.title.trim()) { toast.error(t('calendar.titleEmpty')); return; }
     setSaving(true);
     try {
+      const recurrence = formToRecurrence(editForm);
       await api.put(`/tasks/${selectedTask.id}`, {
         title:         editForm.title.trim(),
         description:   editForm.description || '',
@@ -346,7 +348,8 @@ export default function Calendar() {
         deadline:      editForm.deadline || null,
         deadline_time: editForm.deadline_time || null,
         remind_offsets_min: editForm.deadline_time ? editForm.remindOffsets : null,
-        recurrence: formToRecurrence(editForm),
+        recurrence,
+        recurrence_until: recurrence ? (editForm.recurrenceUntil || null) : null,
       });
       setSelectedTask(null);
       toast.success(t('tasks.updated'));
@@ -385,10 +388,12 @@ export default function Calendar() {
     if (!addForm.title.trim()) return;
     setSaving(true);
     try {
+      const recurrence = formToRecurrence(addForm);
       await api.post('/tasks', {
         ...addForm,
         deadline: addModalOpen,
-        recurrence: formToRecurrence(addForm),
+        recurrence,
+        recurrence_until: recurrence ? (addForm.recurrenceUntil || null) : null,
         remind_offsets_min: addForm.deadline_time ? addForm.remindOffsets : null,
         is_birthday: addForm.isBirthday,
       });
@@ -711,6 +716,15 @@ export default function Calendar() {
                             })}
                           </div>
                         )}
+                        {editForm.recurrenceType && (
+                          <div className="mt-2">
+                            <label className={`text-[10px] mb-1 block ${textSub}`}>{t('tasks.repeatUntil')}</label>
+                            <input type="date" className="input-field text-sm" style={{ maxWidth: 180 }}
+                              value={editForm.recurrenceUntil}
+                              min={editForm.deadline || undefined}
+                              onChange={e => setEditForm({...editForm, recurrenceUntil: e.target.value})} />
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -993,6 +1007,15 @@ export default function Calendar() {
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {addForm.recurrenceType && (
+              <div className="mt-3">
+                <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.repeatUntil')}</label>
+                <input type="date" className="input-field" style={{ maxWidth: 200 }}
+                  value={addForm.recurrenceUntil}
+                  min={addModalOpen || undefined}
+                  onChange={e => setAddForm({...addForm, recurrenceUntil: e.target.value})} />
               </div>
             )}
           </div>
