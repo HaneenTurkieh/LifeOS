@@ -158,7 +158,34 @@ function ShortcutsModal({ onClose }) {
 // FocusProvider to only wrap AppShell — which ProtectedRoute only ever
 // renders once a user is confirmed authenticated — means Focus data
 // simply doesn't load until there's a real session to load it for.
+// index.html's static #splash (kept alive intentionally — see its own
+// comment there) needs to be faded and removed once the real app has
+// actually mounted, with a floor on how briefly it's allowed to show:
+// without MIN_MS, a fast/cached load could hide it in well under
+// 100ms — technically correct (nothing was ever blank), but a splash
+// that's on screen for one frame just reads as a flicker/glitch, not
+// as the deliberate branded loading moment it's meant to be.
+const SPLASH_MIN_MS = 450;
+function useHideSplash() {
+  useEffect(() => {
+    const el = document.getElementById('splash');
+    if (!el) return; // already removed, or this load never had one
+    const elapsed = Date.now() - (window.__splashStart || Date.now());
+    const wait = Math.max(0, SPLASH_MIN_MS - elapsed);
+    const t = setTimeout(() => {
+      el.classList.add('splash-hide');
+      el.addEventListener('transitionend', () => el.remove(), { once: true });
+      // Belt-and-suspenders: transitionend can theoretically not fire
+      // (e.g. prefers-reduced-motion stripping the transition in some
+      // browsers) — this guarantees it's gone either way.
+      setTimeout(() => el.remove(), 500);
+    }, wait);
+    return () => clearTimeout(t);
+  }, []);
+}
+
 export default function App() {
+  useHideSplash();
   return (
     <>
       <GlobalBackground />

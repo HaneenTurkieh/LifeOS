@@ -18,6 +18,20 @@ import { isTodayBirthday, getAge } from '../utils/birthday.js';
 import VoiceInputButton, { appendText } from './VoiceInputButton.jsx';
 import { enablePush, disablePush, getCurrentSubscription, pushSupported, isIos, isStandalone } from '../utils/pushNotifications.js';
 
+// getCurrentSubscription() is a real (if usually fast) async browser
+// call — navigator.serviceWorker.getRegistration() then
+// .getSubscription() — so pushOn below can never be known synchronously
+// on first paint. Starting it at a hardcoded `false` meant the push row
+// visibly rendered as OFF and then, a beat later, popped to its ON
+// styling (highlighted background/border — see that style's own
+// comment) EVERY single time Settings was opened, even for someone who
+// already has push on and always will until they change it. Module-
+// scoped (not component state) so it survives the modal itself
+// unmounting between opens within the same page load: after the first
+// real check, every later open already starts correct and just never
+// visibly changes at all.
+let cachedPushOn = null;
+
 function Avatar({ user, size = 56, onClick }) {
   if (user?.avatar) {
     return (
@@ -254,20 +268,26 @@ function AppearanceTab() {
   const { mode, setMode, fontScale, setFontScale } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const toast = useToast();
-  const [pushOn, setPushOn]   = useState(false);
+  const [pushOn, setPushOn]   = useState(cachedPushOn ?? false);
   const [pushBusy, setPushBusy] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   useEffect(() => {
-    getCurrentSubscription().then((sub) => setPushOn(Boolean(sub))).catch(() => {});
+    getCurrentSubscription().then((sub) => {
+      const on = Boolean(sub);
+      cachedPushOn = on;
+      setPushOn(on);
+    }).catch(() => {});
   }, []);
   const togglePush = async () => {
     setPushBusy(true);
     try {
       if (pushOn) {
         await disablePush();
+        cachedPushOn = false;
         setPushOn(false);
       } else {
         await enablePush();
+        cachedPushOn = true;
         setPushOn(true);
         toast.success(t('settings.pushEnabled'));
       }
@@ -289,6 +309,7 @@ function AppearanceTab() {
     try {
       try { await disablePush(); } catch (_) {}
       await api.post('/push/reset', {});
+      cachedPushOn = false;
       setPushOn(false);
       toast.success(t('settings.pushResetDone'));
     } catch (err) {

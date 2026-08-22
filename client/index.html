@@ -42,6 +42,13 @@
     -->
     <script>
       (function () {
+        // __splashStart lets App.jsx (client/src/App.jsx, top-level
+        // useEffect) enforce a MINIMUM time #splash stays visible before
+        // fading it — without this, a warm cache / fast connection could
+        // mount React in well under 100ms, which made the splash added
+        // for slow cold-launches just blink by as a flash of its own
+        // instead of ever being visible long enough to register.
+        window.__splashStart = Date.now();
         try {
           var KEY      = 'nuvora_theme';
           var OLD_KEY  = 'aurora_theme';
@@ -69,9 +76,16 @@
       took to download and parse. This renders as part of the raw HTML
       response itself, before any JS runs at all, so there's a branded
       screen (same mark + gradient as Login, no actual login form) up
-      instantly instead of white. createRoot().render() in main.jsx wipes
-      #root's children the moment React mounts, so this needs no manual
-      teardown — it just gets replaced.
+      instantly instead of white.
+
+      Deliberately a SIBLING of #root, not nested inside it — nested
+      inside meant createRoot().render() wiped it out the instant React
+      mounted, with no transition (React replaces DOM children directly,
+      it doesn't fade them), so on anything but a slow load it was
+      itself just a flash — the exact problem it was built to fix, just
+      moved earlier. Living outside #root means React mounting never
+      touches it at all; App.jsx's own effect fades and removes it
+      instead, once actually ready AND after the minimum hold above.
     -->
     <style>
       #splash {
@@ -79,7 +93,9 @@
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: 18px;
         background: radial-gradient(circle at 10% 0%, #EFEAFF 0%, #F4F6FB 35%, #EAF4F6 100%);
+        opacity: 1; transition: opacity 0.35s ease;
       }
+      #splash.splash-hide { opacity: 0; pointer-events: none; }
       html.dark #splash {
         background: radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%);
       }
@@ -98,13 +114,12 @@
   </head>
 
   <body>
-    <div id="root">
-      <div id="splash">
-        <img src="/icon-192.png" alt="" />
-        <span>Nuvora</span>
-        <div class="dot"></div>
-      </div>
+    <div id="splash">
+      <img src="/icon-192.png" alt="" />
+      <span>Nuvora</span>
+      <div class="dot"></div>
     </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
