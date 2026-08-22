@@ -58,10 +58,53 @@
         }
       })();
     </script>
+
+    <!--
+      Splash — plain CSS/HTML, no Tailwind (that's bundled into the JS
+      chunk and isn't available until main.jsx has loaded/executed).
+      Opening Nuvora from an iPhone Home Screen icon has no native splash
+      configured (no apple-touch-startup-image), so on a cold launch —
+      worse on a slow connection — the very first thing on screen used to
+      be a stark blank white rectangle for however long the JS bundle
+      took to download and parse. This renders as part of the raw HTML
+      response itself, before any JS runs at all, so there's a branded
+      screen (same mark + gradient as Login, no actual login form) up
+      instantly instead of white. createRoot().render() in main.jsx wipes
+      #root's children the moment React mounts, so this needs no manual
+      teardown — it just gets replaced.
+    -->
+    <style>
+      #splash {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 18px;
+        background: radial-gradient(circle at 10% 0%, #EFEAFF 0%, #F4F6FB 35%, #EAF4F6 100%);
+      }
+      html.dark #splash {
+        background: radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%);
+      }
+      #splash img { width: 56px; height: 56px; filter: drop-shadow(0 8px 20px rgba(124,92,255,0.35)); }
+      #splash span {
+        font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 1.1rem;
+        letter-spacing: 0.3em; color: #6B5BD6; text-transform: uppercase;
+      }
+      html.dark #splash span { color: #C3B4FF; }
+      #splash .dot {
+        width: 6px; height: 6px; border-radius: 999px; background: #A78BFA;
+        animation: splash-pulse 1.1s ease-in-out infinite;
+      }
+      @keyframes splash-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="splash">
+        <img src="/icon-192.png" alt="" />
+        <span>Nuvora</span>
+        <div class="dot"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
