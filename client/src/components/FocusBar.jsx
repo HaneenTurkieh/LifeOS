@@ -50,6 +50,16 @@ export default function FocusBar() {
           WebkitBackdropFilter: 'blur(32px)',
           border:               `1px solid ${modeColor}44`,
           boxShadow:            `0 8px 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.5) inset, 0 2px 0 rgba(255,255,255,0.6) inset`,
+          // Same fixed + backdrop-filter combination MobileNav.jsx just
+          // got fixed for (WebKit can leave a blurred `position: fixed`
+          // element rendering at a stale scroll offset for a frame or
+          // two). willChange (not a literal transform, unlike
+          // MobileNav's plain <nav>) — this is a motion.div already
+          // animating its own x/y/opacity via Framer Motion, which owns
+          // the `transform` property directly; willChange just hints
+          // the browser to give it its own GPU layer without fighting
+          // Framer's own transform management.
+          willChange:           'transform',
         }}
         onClick={() => navigate('/learning')}
       >
