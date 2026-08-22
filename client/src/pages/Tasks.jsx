@@ -48,7 +48,7 @@ function sortByPriority(tasks) {
 const emptyForm = {
   title:'', description:'', priority:'medium',
   category:'General', deadline:'', deadline_time:'',
-  recurrenceType:'', customDays:[], remindOffsets:[60],
+  recurrenceType:'', customDays:[], remindOffsets:[60], recurrenceUntil:'',
 };
 function formToRecurrence(form) {
   if (!form.recurrenceType) return null;
@@ -215,7 +215,7 @@ export default function Tasks() {
       priority: (task.priority||'medium').toLowerCase(),
       category: task.category, deadline: task.deadline||'',
       deadline_time: task.deadline_time||'', recurrenceType, customDays,
-      remindOffsets,
+      remindOffsets, recurrenceUntil: task.recurrence_until || '',
     });
     setModalOpen(true);
   };
@@ -229,6 +229,10 @@ export default function Tasks() {
         priority: form.priority, category: form.category,
         deadline: form.deadline||null, deadline_time: form.deadline_time||null,
         recurrence,
+        // No recurrence means there's no chain for an end date to cut
+        // off — same reasoning as remind_offsets_min just below not
+        // persisting for a task with no deadline_time to count from.
+        recurrence_until: recurrence ? (form.recurrenceUntil || null) : null,
         // No time set means "remind before" has nothing to count from —
         // don't persist a stale offset list for a task that can't use it.
         remind_offsets_min: form.deadline_time ? form.remindOffsets : null,
@@ -370,6 +374,20 @@ export default function Tasks() {
                     );
                   })}
                 </div>
+              </motion.div>
+            )}
+            {form.recurrenceType && (
+              // Repeat had no way to ever stop on its own — a task tied
+              // to a class, a season, a course, etc. either repeated
+              // forever or had to be deleted by hand once it was over.
+              // Optional: leaving this blank keeps today's "repeats
+              // forever" behavior exactly as-is.
+              <motion.div initial={{ opacity:0, y:-4 }} animate={{ opacity:1, y:0 }} className="mt-3">
+                <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.repeatUntil')}</label>
+                <input type="date" value={form.recurrenceUntil}
+                  min={form.deadline || undefined}
+                  onChange={(e) => setForm({...form, recurrenceUntil: e.target.value})}
+                  className="input-field" style={{ maxWidth: 200 }} />
               </motion.div>
             )}
           </div>

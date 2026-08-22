@@ -743,6 +743,18 @@ async function initDb() {
     await db.execute(`ALTER TABLE notifications ADD COLUMN push_sent INTEGER DEFAULT 0`);
   }
 
+  // Optional "repeat until" cutoff for recurring tasks (a class that
+  // runs Sun/Tue/Thu until the semester ends, a habit tied to a season,
+  // etc.) — without this, a recurring task's auto-create-next-occurrence
+  // chain (see PUT /tasks/:id in routes/tasks.js) had no way to ever
+  // stop on its own; the only way out was deleting it manually once the
+  // thing it was tracking was actually over. NULL (the default) means
+  // "repeat forever," unchanged from today's behavior — this is purely
+  // additive.
+  if (!(await hasColumn('tasks', 'recurrence_until'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence_until TEXT DEFAULT NULL`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

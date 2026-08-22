@@ -91,7 +91,7 @@ router.post('/', async (req, res) => {
       category = 'general', deadline = null,
       deadline_time = null, recurrence = null,
       project_id = null, remind_offsets_min = null,
-      is_birthday = false,
+      is_birthday = false, recurrence_until = null,
     } = req.body;
 
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
@@ -112,13 +112,17 @@ router.post('/', async (req, res) => {
     const insert = await db.execute({
       sql:  `INSERT INTO tasks
                (user_id, title, description, priority, category,
-                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min, is_birthday)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?)`,
+                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min, is_birthday, recurrence_until)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?, ?)`,
       args: [
         req.user.id, title.trim(), description, priority, category,
         deadline || null, deadline_time || null, recurrence || null,
         Number(maxPos.rows[0].m) + 1, project_id || null, remindOffsetsJson,
         is_birthday ? 1 : 0,
+        // Only meaningful alongside an actual recurrence — a one-off
+        // task ignoring a stray recurrence_until in the body is safer
+        // than accidentally storing one that nothing ever reads.
+        recurrence ? (recurrence_until || null) : null,
       ],
     });
 
@@ -140,10 +144,10 @@ router.post('/', async (req, res) => {
 // reason is both logged and returned so the client toast shows it.
 const UPDATABLE = [
   'title', 'description', 'priority', 'category',
-  'deadline', 'deadline_time', 'recurrence',
+  'deadline', 'deadline_time', 'recurrence', 'recurrence_until',
   'status', 'progress', 'position',
 ];
-const NULLABLE = new Set(['deadline', 'deadline_time', 'recurrence']);
+const NULLABLE = new Set(['deadline', 'deadline_time', 'recurrence', 'recurrence_until']);
 
 router.put('/:id', async (req, res) => {
   try {
@@ -205,13 +209,14 @@ router.put('/:id', async (req, res) => {
     await db.execute({
       sql:  `UPDATE tasks
              SET title=?, description=?, priority=?, category=?,
-                 deadline=?, deadline_time=?, recurrence=?,
+                 deadline=?, deadline_time=?, recurrence=?, recurrence_until=?,
                  status=?, progress=?, position=?, completed_at=?, first_completed_at=?,
                  remind_offsets_min=?
              WHERE id = ? AND user_id = ?`,
       args: [
         updates.title, updates.description ?? '', updates.priority, updates.category,
         updates.deadline ?? null, updates.deadline_time ?? null, updates.recurrence ?? null,
+        updates.recurrence ? (updates.recurrence_until ?? null) : null,
         updates.status, updates.progress, updates.position, updates.completed_at, updates.first_completed_at,
         remindOffsetsMin,
         req.params.id, req.user.id,
@@ -246,28 +251,37 @@ router.put('/:id', async (req, res) => {
       if (updates.recurrence && !alreadyEarnedXp && !updates.is_birthday) {
         const nextDeadline = nextRecurrenceDate(updates.recurrence, updates.deadline);
 
-        const maxPos = await db.execute({
-          sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
-          args: [req.user.id],
-        });
+        // Optional cutoff (see tasks.recurrence_until migration) — a
+        // plain string compare is safe since both sides are always
+        // YYYY-MM-DD. Past it, the chain simply stops here instead of
+        // spawning a next occurrence: no new row, nextTask stays null,
+        // same as a non-recurring task being completed normally.
+        const pastCutoff = updates.recurrence_until && nextDeadline > updates.recurrence_until;
 
-        const nextInsert = await db.execute({
-          sql:  `INSERT INTO tasks
-                   (user_id, title, description, priority, category,
-                    deadline, deadline_time, recurrence, status, progress, position)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
-          args: [
-            req.user.id,
-            updates.title, updates.description ?? '', updates.priority, updates.category,
-            nextDeadline, updates.deadline_time ?? null, updates.recurrence,
-            Number(maxPos.rows[0].m) + 1,
-          ],
-        });
+        if (!pastCutoff) {
+          const maxPos = await db.execute({
+            sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
+            args: [req.user.id],
+          });
 
-        nextTask = (await db.execute({
-          sql:  `SELECT * FROM tasks WHERE id = ?`,
-          args: [Number(nextInsert.lastInsertRowid)],
-        })).rows[0];
+          const nextInsert = await db.execute({
+            sql:  `INSERT INTO tasks
+                     (user_id, title, description, priority, category,
+                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
+            args: [
+              req.user.id,
+              updates.title, updates.description ?? '', updates.priority, updates.category,
+              nextDeadline, updates.deadline_time ?? null, updates.recurrence, updates.recurrence_until ?? null,
+              Number(maxPos.rows[0].m) + 1,
+            ],
+          });
+
+          nextTask = (await db.execute({
+            sql:  `SELECT * FROM tasks WHERE id = ?`,
+            args: [Number(nextInsert.lastInsertRowid)],
+          })).rows[0];
+        }
       }
     }
 
