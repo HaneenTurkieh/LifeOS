@@ -4,6 +4,13 @@ dist/
 .vite/
 *.log
 
+# Internal working notes — AI-assistant session handoffs and brand/strategy
+# drafts. Useful for continuing work across sessions, not meant for public
+# view (references personal details and internal decision-making in a
+# voice written for an AI assistant, not a portfolio audience).
+HANDOFF.md
+Nuvora_Brand_Brief.md
+
 # Local dev SQLite artifacts — production runs on Turso (TURSO_DATABASE_URL),
 # this file is never read by the deployed app. Was accidentally committed;
 # untracked here so it stops showing up in diffs/history going forward.
