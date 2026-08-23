@@ -447,7 +447,20 @@ function AppearanceTab() {
             style={{ background: pushOn ? 'rgb(var(--accent-500))' : 'rgba(120,120,140,0.30)' }}
           >
             <span
-              className="absolute top-1 h-5 w-5 rounded-full bg-white transition-transform"
+              // `left-0` is load-bearing, not decorative — with no explicit
+              // inset, this span's horizontal start position falls back to
+              // the browser's implicit "static position" math instead of a
+              // pinned value, which iOS Safari can get wrong inside an
+              // animated container like this modal (Framer Motion's own
+              // transform on ancestors doesn't change this button's
+              // containing block — it's already `relative` — but Safari has
+              // real bugs computing the static position of an unpositioned
+              // abs-child in exactly this kind of context). That's what
+              // made the knob render outside the track instead of sliding
+              // smoothly within it. Anchoring left-0 removes the ambiguity;
+              // translateX below is then a clean, fully-determined offset
+              // from a known 0.
+              className="absolute top-1 left-0 h-5 w-5 rounded-full bg-white transition-transform"
               style={{ transform: pushOn ? 'translateX(22px)' : 'translateX(4px)' }}
             />
           </button>
