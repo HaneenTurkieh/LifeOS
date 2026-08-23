@@ -755,6 +755,31 @@ async function initDb() {
     await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence_until TEXT DEFAULT NULL`);
   }
 
+  // Paddle webhook events aren't guaranteed to arrive in the order they
+  // happened (e.g. a retried subscription.updated could land after a
+  // later subscription.canceled) — without tracking which event was
+  // actually most recent, an out-of-order "still active" event could
+  // silently resurrect Premium right after a real cancellation. See
+  // routes/paddle.js's ordering guard.
+  if (!(await hasColumn('user_premium', 'paddle_last_event_at'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_last_event_at TEXT DEFAULT NULL`);
+  }
+
+  // Tiny key/value table — first use is a cron heartbeat (see
+  // routes/cron.js). The whole reminders pipeline (push + email) depends
+  // entirely on an external free service, cron-job.org, actually pinging
+  // POST /reminders on schedule — nothing inside this app was watching
+  // whether that ever stopped happening, so a paused/expired/broken
+  // cron-job.org account would silently kill reminders with zero signal.
+  // Every successful /reminders run now stamps last_reminders_run_at
+  // here; GET /admin/cron-health (owner-only) reads it back and flags
+  // staleness so this is actually visible instead of invisible.
+  await db.execute(`CREATE TABLE IF NOT EXISTS app_meta (
+    key        TEXT PRIMARY KEY,
+    value      TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   console.log('✅ Database connected and migrations applied.');
 }
 

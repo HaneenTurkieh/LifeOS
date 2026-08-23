@@ -3,14 +3,21 @@
 // Render times out outbound SMTP connections (ETIMEDOUT on CONN), so the
 // HTTP API path is the reliable one in production.
 const nodemailer = require('nodemailer');
-const CLIENT_URL = process.env.CLIENT_URL || 'https://life-os-three-xi.vercel.app';
+const CLIENT_URL = process.env.CLIENT_URL || 'https://nuvora.ps';
 const FROM_NAME  = 'Nuvora';
+
+// feedbackEmailHtml/premiumRequestEmailHtml used to drop userEmail/userName
+// straight into the HTML unescaped — the feedback form (routes/feedback.js)
+// lets any client send an arbitrary `email` string, so a "feedback"
+// submission could inject markup/links into the email that lands in your
+// own inbox. Only `message` was ever escaped before; this covers the rest.
+function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 
 function resetEmailHtml({ name, resetUrl }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <img src="https://life-os-three-xi.vercel.app/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
+      <img src="${CLIENT_URL}/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">Reset your password</h2>
     <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
@@ -36,11 +43,11 @@ function feedbackEmailHtml({ userEmail, message }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <img src="https://life-os-three-xi.vercel.app/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
+      <img src="${CLIENT_URL}/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New Nuvora feedback</h2>
     <p style="color:#5A5F73;font-size:13px;text-align:center;margin:0 0 20px;">
-      From: <strong>${userEmail || 'not provided'}</strong>
+      From: <strong>${esc(userEmail) || 'not provided'}</strong>
     </p>
     <div style="background:#F4F3FF;border:1px solid #EBE8FF;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:1.6;">
       ${safe}
@@ -56,10 +63,10 @@ function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel })
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New Premium request</h2>
     <p style="color:#5A5F73;font-size:13px;text-align:center;margin:0 0 20px;">
-      From: <strong>${userName || 'A user'}</strong> (${userEmail || 'not provided'})
+      From: <strong>${esc(userName) || 'A user'}</strong> (${esc(userEmail) || 'not provided'})
     </p>
     <div style="background:#F4F3FF;border:1px solid #EBE8FF;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:1.6;text-align:center;">
-      Wants the <strong>${planLabel}</strong> plan — ${priceLabel}.<br/>
+      Wants the <strong>${esc(planLabel)}</strong> plan — ${esc(priceLabel)}.<br/>
       No payment has been collected yet — reach out to arrange it.
     </div>
   </div>`;
@@ -82,7 +89,7 @@ function reminderDigestEmailHtml({ items }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:20px;">
-      <img src="https://life-os-three-xi.vercel.app/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
+      <img src="${CLIENT_URL}/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 20px;font-size:19px;">${heading}</h2>
     ${rows}

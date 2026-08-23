@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, FolderKanban, Sparkles, CheckCircle2, CheckSquare, Square, Pencil, ChevronDown, Plus } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import GlassCard    from '../components/GlassCard.jsx';
 import Modal        from '../components/Modal.jsx';
 import EmptyState   from '../components/EmptyState.jsx';
@@ -49,6 +50,7 @@ export default function Projects({ openTrigger = 0 }) {
   const [addingTaskFor, setAddingTaskFor] = useState(null); // project object
   const [newTaskForm,   setNewTaskForm]   = useState({ title: '', description: '', priority: 'medium' });
   const toast = useToast();
+  const { t } = useLanguage();
 
   const load = useCallback(async () => {
     try { setItems(await api.get('/projects')); }
@@ -113,7 +115,7 @@ export default function Projects({ openTrigger = 0 }) {
       setAllTasks((list) => list.map((t) =>
         t.id === editingProjectTask.id ? { ...t, ...taskEditForm } : t
       ));
-      toast.success('Task updated');
+      toast.success(t('projects.taskUpdated'));
       setEditingProjectTask(null);
     } catch (err) { toast.error(err.message); }
   };
@@ -122,7 +124,7 @@ export default function Projects({ openTrigger = 0 }) {
     setAllTasks((list) => list.filter((t) => t.id !== task.id)); // optimistic
     try {
       await api.del(`/tasks/${task.id}`);
-      toast.success('Task deleted');
+      toast.success(t('projects.taskDeleted'));
     } catch (err) {
       toast.error(err.message);
       loadTasks(); // revert if it failed server-side
@@ -145,7 +147,7 @@ export default function Projects({ openTrigger = 0 }) {
         project_id: addingTaskFor.id,
       });
       setAllTasks((list) => [...list, created]);
-      toast.success('Task added');
+      toast.success(t('projects.taskAdded'));
       setAddingTaskFor(null);
     } catch (err) { toast.error(err.message); }
   };
@@ -155,7 +157,7 @@ export default function Projects({ openTrigger = 0 }) {
     if (!form.title.trim()) return;
     try {
       await api.post('/projects', form);
-      toast.success('Project added');
+      toast.success(t('projects.addSuccess'));
       setForm(emptyForm); setModalOpen(false); load();
     } catch (err) { toast.error(err.message); }
   };
@@ -167,7 +169,7 @@ export default function Projects({ openTrigger = 0 }) {
   };
 
   const removeItem = async (id) => {
-    try { await api.del(`/projects/${id}`); toast.success('Removed'); load(); }
+    try { await api.del(`/projects/${id}`); toast.success(t('projects.removeSuccess')); load(); }
     catch (err) { toast.error(err.message); }
   };
 
@@ -219,7 +221,7 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
         if (match) tasks = JSON.parse(match[0]);
       }
       setBreakdown({ project, tasks });
-    } catch (err) { toast.error('Could not generate tasks. Try again.'); }
+    } catch (err) { toast.error(t('projects.breakdownFailed')); }
     finally { setBreaking(null); }
   };
 
@@ -237,7 +239,7 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
           project_id: breakdown.project.id,
         })
       ));
-      toast.success(`${breakdown.tasks.length} tasks added — you'll see them right on this project's card.`);
+      toast.success(t('projects.tasksAddedCount', { n: breakdown.tasks.length }));
       setBreakdown(null);
       loadTasks();
     } catch (err) { toast.error(err.message); }
@@ -430,7 +432,7 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
               <textarea
                 className="input-field"
                 rows={3}
-                placeholder="Optional context (leave blank to skip)"
+                placeholder={t('projects.contextPh')}
                 value={extraNote}
                 onChange={(e) => setExtraNote(e.target.value)}
                 autoFocus
@@ -494,12 +496,12 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
         {editingProjectTask && (
           <form onSubmit={saveProjectTaskEdit} className="flex flex-col gap-3.5">
             <div className="flex items-center gap-2">
-              <input className="input-field flex-1" placeholder="Task title" value={taskEditForm.title}
+              <input className="input-field flex-1" placeholder={t('projects.taskTitlePh')} value={taskEditForm.title}
                 onChange={(e) => setTaskEditForm({ ...taskEditForm, title: e.target.value })} autoFocus required />
               <VoiceInputButton size="sm" onText={(c) => setTaskEditForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
             </div>
             <div className="flex items-center gap-2">
-              <textarea className="input-field flex-1" placeholder="Description (optional)" rows={2}
+              <textarea className="input-field flex-1" placeholder={t('projects.descOptionalPh')} rows={2}
                 value={taskEditForm.description}
                 onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })} />
               <VoiceInputButton size="sm" onText={(c) => setTaskEditForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
@@ -524,12 +526,12 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
         {addingTaskFor && (
           <form onSubmit={createProjectTask} className="flex flex-col gap-3.5">
             <div className="flex items-center gap-2">
-              <input className="input-field flex-1" placeholder="Task title" value={newTaskForm.title}
+              <input className="input-field flex-1" placeholder={t('projects.taskTitlePh')} value={newTaskForm.title}
                 onChange={(e) => setNewTaskForm({ ...newTaskForm, title: e.target.value })} autoFocus required />
               <VoiceInputButton size="sm" onText={(c) => setNewTaskForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
             </div>
             <div className="flex items-center gap-2">
-              <textarea className="input-field flex-1" placeholder="Description (optional)" rows={2}
+              <textarea className="input-field flex-1" placeholder={t('projects.descOptionalPh')} rows={2}
                 value={newTaskForm.description}
                 onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })} />
               <VoiceInputButton size="sm" onText={(c) => setNewTaskForm((f) => ({ ...f, description: appendText(f.description, c) }))} />
@@ -549,12 +551,12 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New project">
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
           <div className="flex items-center gap-2">
-            <input className="input-field flex-1" placeholder="Project title" value={form.title}
+            <input className="input-field flex-1" placeholder={t('projects.titlePh')} value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
           </div>
           <div className="flex items-center gap-2">
-            <textarea className="input-field flex-1" placeholder="Description (optional)" rows={2}
+            <textarea className="input-field flex-1" placeholder={t('projects.descOptionalPh')} rows={2}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, description: appendText(f.description, c) }))} />

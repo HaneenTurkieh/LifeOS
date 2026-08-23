@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, BookOpen, GraduationCap, Award } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import GlassCard from '../components/GlassCard.jsx';
 import Modal from '../components/Modal.jsx';
@@ -39,6 +40,7 @@ export default function Learning() {
   // while actively dragging; the actual save only fires once, on release.
   const [dragProgress, setDragProgress] = useState({});
   const toast = useToast();
+  const { t } = useLanguage();
 
   const load = useCallback(async () => {
     try { setItems(await api.get('/learning')); } catch (e) { toast.error(e.message); } finally { setLoading(false); }
@@ -51,7 +53,7 @@ export default function Learning() {
     if (!form.title.trim()) return;
     try {
       await api.post('/learning', form);
-      toast.success('Added to your learning list');
+      toast.success(t('learning.addSuccess'));
       setForm(emptyForm);
       setModalOpen(false);
       load();
@@ -71,7 +73,7 @@ export default function Learning() {
   };
 
   const removeItem = async (id) => {
-    try { await api.del(`/learning/${id}`); toast.success('Removed'); load(); }
+    try { await api.del(`/learning/${id}`); toast.success(t('learning.removeSuccess')); load(); }
     catch (err) { toast.error(err.message); }
   };
 
@@ -138,15 +140,15 @@ export default function Learning() {
             <option value="certification">Certification</option>
           </select>
           <div className="flex items-center gap-2">
-            <input className="input-field flex-1" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+            <input className="input-field flex-1" placeholder={t('learning.titlePh')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
           </div>
           <div className="flex items-center gap-2">
-            <input className="input-field flex-1" placeholder="Provider / author (optional)" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} />
+            <input className="input-field flex-1" placeholder={t('learning.providerPh')} value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, provider: appendText(f.provider, c) }))} />
           </div>
           <div className="flex items-center gap-2">
-            <textarea className="input-field flex-1" placeholder="Notes (optional)" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <textarea className="input-field flex-1" placeholder={t('learning.notesPh')} rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, notes: appendText(f.notes, c) }))} />
           </div>
           <button type="submit" className="btn-primary justify-center mt-1">Add</button>
