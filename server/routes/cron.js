@@ -115,6 +115,20 @@ router.post('/reminders', async (req, res) => {
     catch (err) { console.error('[cron/reminders] email step failed:', err.message); }
     try { push = await sendPendingPushNotifications(); }
     catch (err) { console.error('[cron/reminders] push step failed:', err.message); }
+
+    // Heartbeat — see the app_meta comment in db/connection.js. Written
+    // even if one of the steps above failed (still means cron-job.org is
+    // alive and reaching us), so this only ever tells you "the external
+    // pinger stopped," not "something inside failed" — that's what the
+    // individual error logs above are for.
+    try {
+      await db.execute({
+        sql: `INSERT INTO app_meta (key, value, updated_at) VALUES ('last_reminders_run_at', datetime('now'), datetime('now'))
+              ON CONFLICT(key) DO UPDATE SET value = datetime('now'), updated_at = datetime('now')`,
+        args: [],
+      });
+    } catch (err) { console.error('[cron/reminders] heartbeat write failed:', err.message); }
+
     res.json({ ok: true, email, push, focus });
   } catch (err) {
     console.error('[cron/reminders] failed:', err.message);

@@ -14,6 +14,8 @@ app.use((req, res, next) => {
     'http://localhost:5173',
     'https://life-os-three-xi.vercel.app',
     'https://life-os-git-main-ctrl-alt-elite07.vercel.app',
+    'https://nuvora.ps',
+    'https://www.nuvora.ps',
   ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Trash2, Briefcase, Link as LinkIcon } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import GlassCard from '../components/GlassCard.jsx';
 import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -23,6 +24,7 @@ export default function Internships({ openTrigger = 0 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm]         = useState(emptyForm);
   const toast = useToast();
+  const { t } = useLanguage();
 
   const load = useCallback(async () => {
     try { setItems(await api.get('/internships')); } catch (e) { toast.error(e.message); } finally { setLoading(false); }
@@ -40,7 +42,7 @@ export default function Internships({ openTrigger = 0 }) {
     if (!form.company.trim() || !form.role.trim()) return;
     try {
       await api.post('/internships', { ...form, applied_date: form.applied_date || null });
-      toast.success('Application added');
+      toast.success(t('internships.addSuccess'));
       setForm(emptyForm);
       setModalOpen(false);
       load();
@@ -52,7 +54,7 @@ export default function Internships({ openTrigger = 0 }) {
     catch (err) { toast.error(err.message); }
   };
   const removeItem  = async (id) => {
-    try { await api.del(`/internships/${id}`); toast.success('Removed'); load(); }
+    try { await api.del(`/internships/${id}`); toast.success(t('internships.removeSuccess')); load(); }
     catch (err) { toast.error(err.message); }
   };
 
@@ -114,12 +116,12 @@ export default function Internships({ openTrigger = 0 }) {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add application">
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
           <div className="flex items-center gap-2">
-            <input className="input-field flex-1" placeholder="Company" value={form.company}
+            <input className="input-field flex-1" placeholder={t('internships.companyPh')} value={form.company}
               onChange={(e) => setForm({ ...form, company: e.target.value })} autoFocus required />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, company: appendText(f.company, c) }))} />
           </div>
           <div className="flex items-center gap-2">
-            <input className="input-field flex-1" placeholder="Role" value={form.role}
+            <input className="input-field flex-1" placeholder={t('internships.rolePh')} value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })} required />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, role: appendText(f.role, c) }))} />
           </div>
@@ -130,10 +132,10 @@ export default function Internships({ openTrigger = 0 }) {
             <input type="date" className="input-field" value={form.applied_date}
               onChange={(e) => setForm({ ...form, applied_date: e.target.value })} />
           </div>
-          <input className="input-field" placeholder="Listing link (optional)" value={form.link}
+          <input className="input-field" placeholder={t('internships.linkPh')} value={form.link}
             onChange={(e) => setForm({ ...form, link: e.target.value })} />
           <div className="flex items-center gap-2">
-            <textarea className="input-field flex-1" placeholder="Notes (optional)" rows={2} value={form.notes}
+            <textarea className="input-field flex-1" placeholder={t('internships.notesPh')} rows={2} value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             <VoiceInputButton size="sm" onText={(c) => setForm((f) => ({ ...f, notes: appendText(f.notes, c) }))} />
           </div>

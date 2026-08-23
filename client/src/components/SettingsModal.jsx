@@ -85,7 +85,7 @@ function ProfileTab() {
   const [cropSrc,  setCropSrc]  = useState(null);
   const handleFile = useCallback((file) => {
     if (!file) return;
-    if (file.size > 10*1024*1024) { toast.error('Image must be under 10MB'); return; }
+    if (file.size > 10*1024*1024) { toast.error(t('settings.imageTooLarge')); return; }
     const reader = new FileReader();
     reader.onload = e => setCropSrc(e.target.result);
     reader.readAsDataURL(file);
@@ -310,7 +310,7 @@ function AppearanceTab() {
         toast.success(t('settings.pushEnabled'));
       }
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.code ? t(`push.error.${err.code}`) : err.message);
     } finally {
       setPushBusy(false);
     }
@@ -331,7 +331,7 @@ function AppearanceTab() {
       setPushOn(false);
       toast.success(t('settings.pushResetDone'));
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.code ? t(`push.error.${err.code}`) : err.message);
     } finally {
       setResetBusy(false);
     }
@@ -610,6 +610,20 @@ function PremiumTab() {
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
+  // For a real Paddle subscription, the old toggle() above only ever hid
+  // Premium locally — Paddle kept billing since nothing told it to
+  // actually cancel. This opens Paddle's own hosted portal, scoped
+  // straight to that subscription's cancel screen; the existing webhook
+  // is what flips is_premium off once Paddle confirms the cancellation,
+  // same as any other Paddle-driven change.
+  const openPortal = async () => {
+    setBusy(true);
+    try {
+      const { url } = await api.post('/focus/premium/portal', {});
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) { toast.error(err.message); }
+    finally { setBusy(false); }
+  };
   const requestPlan = async (planKey) => {
     setRequesting(planKey);
     try {
@@ -690,7 +704,14 @@ function PremiumTab() {
             {t('settings.yourPlan')}: {plans.find(p => p.key === status.plan)?.name || status.plan}
           </p>
         )}
-        {status.is_premium && (
+        {status.is_premium && status.has_paddle_subscription && (
+          <button onClick={openPortal} disabled={busy}
+            className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40"
+            style={backToFreeStyle}>
+            {busy ? '…' : t('settings.manageSubscription')}
+          </button>
+        )}
+        {status.is_premium && !status.has_paddle_subscription && (
           <button onClick={toggle} disabled={busy}
             className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40"
             style={backToFreeStyle}>
@@ -1034,6 +1055,8 @@ function StatsTab() {
   const [errors,        setErrors]        = useState(null);
   const [errorsLoading, setErrorsLoading] = useState(true);
   const [showErrors,    setShowErrors]    = useState(false);
+  const [cronHealth,    setCronHealth]    = useState(null);
+  const [grantingId,    setGrantingId]    = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -1044,6 +1067,31 @@ function StatsTab() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  // Surfaces whether the external cron-job.org pinger that drives ALL
+  // push/email reminders is still actually alive — see the app_meta
+  // comment in server/db/connection.js. Without this, a paused/expired
+  // cron-job.org account kills reminders for every user with zero signal.
+  useEffect(() => {
+    let active = true;
+    api.get('/admin/cron-health')
+      .then((d) => { if (active) setCronHealth(d); })
+      .catch(() => { if (active) setCronHealth(null); });
+    return () => { active = false; };
+  }, []);
+
+  async function grantPremium(userId, grant) {
+    setGrantingId(userId);
+    try {
+      await api.post(`/admin/users/${userId}/premium`, { grant });
+      setUsers((list) => list.map((u) => (u.id === userId ? { ...u, is_premium: grant } : u)));
+      toast.success(grant ? 'Premium granted' : 'Premium revoked');
+    } catch (e) {
+      toast.error(e.message || 'Could not update premium status');
+    } finally {
+      setGrantingId(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -1078,6 +1126,21 @@ function StatsTab() {
         <h3 className="font-display font-bold text-ink dark:text-white mb-1">User growth</h3>
         <p className={`text-xs ${isDark?'text-white/40':'text-ink/45'}`}>Visible only to your account.</p>
       </div>
+
+      {cronHealth && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
+          style={cronHealth.stale
+            ? { background:'rgba(239,68,68,0.10)', border:'1px solid rgba(239,68,68,0.25)' }
+            : { background:'rgba(34,197,94,0.10)', border:'1px solid rgba(34,197,94,0.22)' }}>
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cronHealth.stale ? '#EF4444' : '#22C55E' }} />
+          <p className={`text-xs ${isDark?'text-white/70':'text-ink/70'}`}>
+            {cronHealth.stale
+              ? `Reminders cron looks stale — last run ${cronHealth.last_run_at ? `${cronHealth.minutes_ago}min ago` : 'never'}. Check cron-job.org.`
+              : `Reminders cron is healthy — last run ${cronHealth.minutes_ago}min ago.`}
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <StatCard icon={Users}      label="Total users" value={stats.total_users}      isDark={isDark} />
         <StatCard icon={TrendingUp} label="New today"   value={stats.new_today}        isDark={isDark} />
@@ -1128,9 +1191,25 @@ function StatsTab() {
                   <p className={`text-xs font-semibold truncate ${isDark?'text-white':'text-ink'}`}>{u.name || '—'}</p>
                   <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{u.email}</p>
                 </div>
-                <p className={`text-[10px] shrink-0 ${isDark?'text-white/30':'text-ink/35'}`}>
-                  {u.created_at ? String(u.created_at).slice(0, 10) : ''}
-                </p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <p className={`text-[10px] ${isDark?'text-white/30':'text-ink/35'}`}>
+                    {u.created_at ? String(u.created_at).slice(0, 10) : ''}
+                  </p>
+                  {/* Fulfills the "Request Premium" honor-system email flow —
+                      that route intentionally never flips is_premium itself
+                      (payment isn't verified there), so before this button
+                      existed the only way to actually grant it was editing
+                      the database by hand. */}
+                  <button
+                    disabled={grantingId === u.id}
+                    onClick={() => grantPremium(u.id, !u.is_premium)}
+                    className="text-[10px] font-semibold px-2 py-1 rounded-lg disabled:opacity-40"
+                    style={u.is_premium
+                      ? { background:'rgba(239,68,68,0.10)', color:'#EF4444' }
+                      : { background:'rgba(124,58,237,0.12)', color:'rgb(var(--accent-500))' }}>
+                    {grantingId === u.id ? '…' : u.is_premium ? 'Revoke' : 'Grant'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

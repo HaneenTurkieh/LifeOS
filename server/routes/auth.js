@@ -103,6 +103,19 @@ router.post('/login', async (req, res) => {
 
     const loginEmail = email.trim().toLowerCase();
 
+    // Nothing previously stopped unlimited password guesses against a
+    // known email — per-IP catches a single attacker hammering many
+    // accounts, per-email catches many attempts (e.g. a botnet) against
+    // one target account. Same two-key pattern as /forgot-password below.
+    const limited = rateLimit(
+      [`login:ip:${req.ip}`, `login:email:${loginEmail}`],
+      {
+        'login:ip:':    { max: 20, windowMs: 15 * 60 * 1000 },
+        'login:email:': { max: 8,  windowMs: 15 * 60 * 1000 },
+      }
+    );
+    if (limited) return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+
     const result = await db.execute({
       sql:  `SELECT * FROM users WHERE email = ? COLLATE NOCASE`,
       args: [loginEmail],

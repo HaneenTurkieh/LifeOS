@@ -100,7 +100,7 @@ async function callOpenRouter({
           'Authorization': `Bearer ${key}`,
           // Not required for billing, just OpenRouter's own attribution —
           // harmless to send, helps their leaderboard/analytics.
-          'HTTP-Referer':  'https://life-os-three-xi.vercel.app',
+          'HTTP-Referer':  'https://nuvora.ps',
           'X-Title':       'Nuvora',
         },
         body:   JSON.stringify(body),

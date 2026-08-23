@@ -207,7 +207,7 @@ export default function GlobalSearch({ open, onClose }) {
                       <button
                         key={p.path}
                         onClick={() => go({ path: p.path })}
-                        className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all ${quickClr}`}
+                        className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-start text-xs font-medium transition-all ${quickClr}`}
                         style={{ background: quickBg, border: quickBorder }}
                       >
                         <span className="text-base shrink-0">{p.icon}</span>
@@ -236,7 +236,7 @@ export default function GlobalSearch({ open, onClose }) {
                               key={`${r.type}-${r.label}`}
                               onClick={() => go(r)}
                               onMouseEnter={() => setActive(globalIdx)}
-                              className="w-full flex items-center gap-3 px-5 py-3 text-left transition-colors"
+                              className="w-full flex items-center gap-3 px-5 py-3 text-start transition-colors"
                               style={{
                                 background: isActive
                                   ? isDark ? 'rgb(var(--accent-500) / 0.15)' : 'rgb(var(--accent-500) / 0.08)'

@@ -688,7 +688,7 @@ export default function Login() {
                     </div>
                   ) : (
                     <button type="button"
-                      onClick={() => toast.error('Add VITE_GOOGLE_CLIENT_ID (client) + GOOGLE_CLIENT_ID (server) to enable this')}
+                      onClick={() => toast.error(t('login.googleNotConfigured'))}
                       className="flex w-full items-center justify-center gap-2.5 rounded-full py-3 text-sm font-semibold transition"
                       style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'white', border: isDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(30,34,51,0.14)', color: titleClr }}>
                       <GoogleG size={16} /> {t('login.continueGoogle')}

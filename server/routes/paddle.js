@@ -58,20 +58,40 @@ function verifySignature(rawBody, signatureHeader, secret) {
   return crypto.timingSafeEqual(a, b);
 }
 
-async function upsertPremium(userId, { isPremium, plan, customerId, subscriptionId, priceId, status }) {
+async function upsertPremium(userId, { isPremium, plan, customerId, subscriptionId, priceId, status, eventOccurredAt }) {
   await db.execute({
     sql: `INSERT INTO user_premium
-            (user_id, is_premium, plan, paddle_customer_id, paddle_subscription_id, paddle_price_id, paddle_status)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            (user_id, is_premium, plan, paddle_customer_id, paddle_subscription_id, paddle_price_id, paddle_status, paddle_last_event_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id) DO UPDATE SET
             is_premium              = excluded.is_premium,
             plan                    = excluded.plan,
             paddle_customer_id      = excluded.paddle_customer_id,
             paddle_subscription_id  = excluded.paddle_subscription_id,
             paddle_price_id         = excluded.paddle_price_id,
-            paddle_status           = excluded.paddle_status`,
-    args: [userId, isPremium ? 1 : 0, plan, customerId || null, subscriptionId || null, priceId || null, status || null],
+            paddle_status           = excluded.paddle_status,
+            paddle_last_event_at    = excluded.paddle_last_event_at`,
+    args: [userId, isPremium ? 1 : 0, plan, customerId || null, subscriptionId || null, priceId || null, status || null, eventOccurredAt || null],
   });
+}
+
+// Paddle doesn't guarantee delivery order — a retried/delayed event can
+// arrive after a newer one already landed. Without this, an out-of-order
+// "still active" event could silently resurrect Premium right after a
+// real cancellation. Returns true if `eventOccurredAt` is not older than
+// whatever we last actually applied for this user (so it's safe to
+// process); an event with no timestamp at all is let through rather than
+// silently dropped, since that's a Paddle payload shape change, not
+// something we want to fail closed on.
+async function isNewerEvent(userId, eventOccurredAt) {
+  if (!eventOccurredAt) return true;
+  const row = (await db.execute({
+    sql: `SELECT paddle_last_event_at FROM user_premium WHERE user_id = ?`,
+    args: [userId],
+  })).rows[0];
+  const lastAppliedAt = row?.paddle_last_event_at;
+  if (!lastAppliedAt) return true;
+  return new Date(eventOccurredAt).getTime() >= new Date(lastAppliedAt).getTime();
 }
 
 router.post('/webhook', async (req, res) => {
@@ -115,6 +135,10 @@ router.post('/webhook', async (req, res) => {
     if (eventType === 'subscription.created' || eventType === 'subscription.updated' ||
         eventType === 'subscription.activated' || eventType === 'subscription.resumed' ||
         eventType === 'subscription.trialing') {
+      if (!(await isNewerEvent(userId, event.occurred_at))) {
+        console.warn(`Paddle webhook: ${eventType} for user ${userId} is older than the last applied event — ignoring (out of order)`);
+        return res.status(200).json({ received: true, ignored: true });
+      }
       const priceId  = data.items?.[0]?.price?.id;
       const plan     = PRICE_TO_PLAN[priceId] || null;
       const isActive = ACTIVE_STATUSES.has(data.status);
@@ -125,9 +149,14 @@ router.post('/webhook', async (req, res) => {
         subscriptionId: data.id,
         priceId,
         status: data.status,
+        eventOccurredAt: event.occurred_at,
       });
       console.log(`Paddle: user ${userId} subscription ${data.id} → ${data.status} (${plan || 'unknown plan'})`);
     } else if (eventType === 'subscription.canceled' || eventType === 'subscription.paused') {
+      if (!(await isNewerEvent(userId, event.occurred_at))) {
+        console.warn(`Paddle webhook: ${eventType} for user ${userId} is older than the last applied event — ignoring (out of order)`);
+        return res.status(200).json({ received: true, ignored: true });
+      }
       await upsertPremium(userId, {
         isPremium: false,
         plan: null,
@@ -135,6 +164,7 @@ router.post('/webhook', async (req, res) => {
         subscriptionId: data.id,
         priceId: data.items?.[0]?.price?.id,
         status: data.status,
+        eventOccurredAt: event.occurred_at,
       });
       console.log(`Paddle: user ${userId} subscription ${data.id} → ${data.status}, Premium revoked`);
     } else {

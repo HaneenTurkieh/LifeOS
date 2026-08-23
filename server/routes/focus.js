@@ -1267,6 +1267,53 @@ router.get('/premium/status', async (req, res) => {
   try { res.json(await getPremium(req.user.id)); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
+
+// ── POST /premium/portal — real Paddle-subscription cancellation ──────
+// The old /premium/toggle only ever flipped is_premium locally — for
+// someone on a REAL Paddle subscription that meant "Back to Free" made
+// the app stop showing Premium while Paddle kept billing their card
+// every cycle, since nothing ever told Paddle to actually cancel. This
+// generates a one-time link to Paddle's own hosted Customer Portal,
+// scoped straight to the "cancel this subscription" screen — Paddle
+// handles the real cancellation there, and the existing webhook
+// (routes/paddle.js, subscription.canceled) is what actually flips
+// is_premium off once that happens, same as any other Paddle-driven
+// change.
+router.post('/premium/portal', async (req, res) => {
+  try {
+    const apiKey = process.env.PADDLE_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: 'Subscription management is not configured yet. Contact support to cancel.' });
+    }
+    const row = (await db.execute({
+      sql: `SELECT paddle_customer_id, paddle_subscription_id FROM user_premium WHERE user_id = ?`,
+      args: [req.user.id],
+    })).rows[0];
+    if (!row?.paddle_customer_id) {
+      return res.status(400).json({ error: 'No active subscription found for this account.' });
+    }
+
+    const paddleRes = await fetch(`https://api.paddle.com/customers/${row.paddle_customer_id}/portal-sessions`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(row.paddle_subscription_id ? { subscription_ids: [row.paddle_subscription_id] } : {}),
+    });
+    if (!paddleRes.ok) {
+      const errBody = await paddleRes.text();
+      console.error('Paddle portal-session error:', paddleRes.status, errBody);
+      return res.status(502).json({ error: 'Could not reach Paddle. Try again in a moment.' });
+    }
+    const paddleData = await paddleRes.json();
+    const subUrls = paddleData?.data?.urls?.subscriptions?.[0];
+    const url = subUrls?.cancel_subscription || paddleData?.data?.urls?.general?.overview;
+    if (!url) return res.status(502).json({ error: 'Paddle did not return a management link.' });
+
+    res.json({ url });
+  } catch (err) {
+    console.error('POST /premium/portal error:', err);
+    res.status(500).json({ error: 'Could not open subscription management.' });
+  }
+});
 // Despite the name, this is a one-way "back to Free" action, not a real
 // toggle — the client only ever calls it from the button shown when
 // status.is_premium is ALREADY true (SettingsModal.jsx's PremiumTab), for

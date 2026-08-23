@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift, Bell } from 'lucide-react';
 import { api } from '../api/client.js';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 export function markOnboarded(userId) {
   localStorage.setItem(`nuvora_onboarded_${userId}`, '1');
@@ -52,6 +53,7 @@ function PrimaryBtn({ onClick, disabled, children }) {
   );
 }
 function WelcomeStep({ name, onNext }) {
+  const { t, isRTL } = useLanguage();
   return (
     <div className="flex flex-col items-center text-center gap-6">
       <motion.div
@@ -63,18 +65,18 @@ function WelcomeStep({ name, onNext }) {
       </motion.div>
       <div>
         <h1 className="font-display text-3xl font-bold text-white mb-2">
-          Welcome to Nuvora, {name} 👋
+          {t('onboarding.welcomeTitle', { name })}
         </h1>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Your personal productivity OS. Let's set you up in 2 minutes.
+          {t('onboarding.welcomeSubtitle')}
         </p>
       </div>
       <div className="flex flex-col gap-3 w-full">
         {[
-          { icon: <ListChecks size={16} />, text: 'Smart task management with priorities' },
-          { icon: <Target size={16} />,     text: 'Goals broken into milestones'          },
-          { icon: <RefreshCw size={16} />,  text: 'Habits that build streaks'             },
-          { icon: <Sparkles size={16} />,   text: 'Lumi AI — your productivity assistant' },
+          { icon: <ListChecks size={16} />, text: t('onboarding.feature1') },
+          { icon: <Target size={16} />,     text: t('onboarding.feature2') },
+          { icon: <RefreshCw size={16} />,  text: t('onboarding.feature3') },
+          { icon: <Sparkles size={16} />,   text: t('onboarding.feature4') },
         ].map(({ icon, text }) => (
           <div key={text}
             className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-white/70"
@@ -85,7 +87,7 @@ function WelcomeStep({ name, onNext }) {
         ))}
       </div>
       <PrimaryBtn onClick={onNext}>
-        Get started <ArrowRight size={16} />
+        {t('onboarding.getStarted')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
       </PrimaryBtn>
     </div>
   );
@@ -98,6 +100,7 @@ function WelcomeStep({ name, onNext }) {
 // onboarding feeling "too long" since most people skipped at least
 // one of the three anyway.
 function QuickSetupStep({ onNext }) {
+  const { t, isRTL } = useLanguage();
   const [task,  setTask]  = useState('');
   const [goal,  setGoal]  = useState('');
   const [habit, setHabit] = useState('');
@@ -143,7 +146,7 @@ function QuickSetupStep({ onNext }) {
           style={done
             ? { background: 'rgba(74,222,128,0.20)', border: '1px solid rgba(74,222,128,0.4)', color: '#4ADE80' }
             : { background: 'rgb(var(--accent-500) / 0.25)', border: '1px solid rgb(var(--accent-500) / 0.5)', color: 'white' }}>
-          {done ? <CheckCircle2 size={14} /> : 'Add'}
+          {done ? <CheckCircle2 size={14} /> : t('onboarding.add')}
         </motion.button>
       </div>
       {presets && !done && (
@@ -164,18 +167,18 @@ function QuickSetupStep({ onNext }) {
     <div className="flex flex-col gap-4">
       <div className="text-center">
         <div className="text-3xl mb-2">⚡</div>
-        <h2 className="font-display text-xl font-bold text-white">Quick setup</h2>
-        <p className="text-white/50 text-sm mt-1">Add what's useful — skip the rest, no pressure.</p>
+        <h2 className="font-display text-xl font-bold text-white">{t('onboarding.setupTitle')}</h2>
+        <p className="text-white/50 text-sm mt-1">{t('onboarding.setupSubtitle')}</p>
       </div>
-      <Row icon={<ListChecks size={15} />} placeholder="First task…" value={task}
+      <Row icon={<ListChecks size={15} />} placeholder={t('onboarding.taskPlaceholder')} value={task}
         onChange={(e) => setTask(e.target.value)} onSubmit={addTask} done={doneTask} />
-      <Row icon={<Target size={15} />} placeholder="A goal…" value={goal}
+      <Row icon={<Target size={15} />} placeholder={t('onboarding.goalPlaceholder')} value={goal}
         onChange={(e) => setGoal(e.target.value)} onSubmit={addGoal} done={doneGoal} />
-      <Row icon={<RefreshCw size={15} />} placeholder="A daily habit…" value={habit}
+      <Row icon={<RefreshCw size={15} />} placeholder={t('onboarding.habitPlaceholder')} value={habit}
         onChange={(e) => setHabit(e.target.value)} onSubmit={addHabit} done={doneHabit}
-        presets={['Exercise 💪', 'Read 📖', 'Meditate 🧘', 'Study 📚']} />
+        presets={[t('onboarding.presetExercise'), t('onboarding.presetRead'), t('onboarding.presetMeditate'), t('onboarding.presetStudy')]} />
       <PrimaryBtn onClick={onNext}>
-        Continue <ArrowRight size={16} />
+        {t('onboarding.continue')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
       </PrimaryBtn>
     </div>
   );
@@ -187,6 +190,7 @@ function QuickSetupStep({ onNext }) {
 // keeping; XP/levels is condensed to a single line since it's
 // contextual flavor, not something anyone needs to study here.
 function LumiStep({ onNext }) {
+  const { t, isRTL } = useLanguage();
   const isMac = navigator.platform?.includes('Mac');
   return (
     <div className="flex flex-col items-center text-center gap-4">
@@ -198,22 +202,22 @@ function LumiStep({ onNext }) {
         ✦
       </motion.div>
       <div>
-        <h2 className="font-display text-2xl font-bold text-white mb-2">Meet Lumi + shortcuts</h2>
+        <h2 className="font-display text-2xl font-bold text-white mb-2">{t('onboarding.lumiTitle')}</h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Lumi knows your tasks, goals, and habits — ask her anything. Navigate instantly with shortcuts.
+          {t('onboarding.lumiSubtitle')}
         </p>
       </div>
       <div className="w-full rounded-2xl p-4"
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
-        <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3">Quick shortcuts</p>
-        <div className="grid grid-cols-2 gap-1.5 text-left">
+        <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3">{t('onboarding.shortcutsLabel')}</p>
+        <div className="grid grid-cols-2 gap-1.5 text-start">
           {[
-            { key: isMac ? '⌘K' : 'Ctrl+K', desc: 'Search'       },
-            { key: 'D',                      desc: 'Dashboard'     },
-            { key: 'T',                      desc: 'Tasks'         },
-            { key: 'F',                      desc: 'Flow timer'    },
-            { key: 'N',                      desc: 'New task'      },
-            { key: '?',                      desc: 'All shortcuts' },
+            { key: isMac ? '⌘K' : 'Ctrl+K', desc: t('onboarding.shortcutSearch')    },
+            { key: 'D',                      desc: t('onboarding.shortcutDashboard') },
+            { key: 'T',                      desc: t('onboarding.shortcutTasks')     },
+            { key: 'F',                      desc: t('onboarding.shortcutFlow')      },
+            { key: 'N',                      desc: t('onboarding.shortcutNewTask')   },
+            { key: '?',                      desc: t('onboarding.shortcutAll')       },
           ].map(({ key, desc }) => (
             <div key={key}
               className="flex items-center justify-between px-3 py-1.5 rounded-xl"
@@ -228,21 +232,22 @@ function LumiStep({ onNext }) {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-left"
+      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-start"
         style={{ background: 'rgba(255,184,77,0.10)', border: '1px solid rgba(255,184,77,0.22)' }}>
         <span className="text-sun-300 shrink-0"><Gift size={16} /></span>
         <p className="text-xs text-white/65 leading-snug">
-          Tasks & habits earn XP, grow your tree, and unlock a free 7-day Premium trial at level 5.
+          {t('onboarding.xpHint')}
         </p>
       </div>
       <PrimaryBtn onClick={onNext}>
-        Let's go <ArrowRight size={16} />
+        {t('onboarding.letsGo')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
       </PrimaryBtn>
     </div>
   );
 }
 
 function DoneStep({ name, onFinish }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center text-center gap-6">
       <motion.div
@@ -255,25 +260,25 @@ function DoneStep({ name, onFinish }) {
       </motion.div>
       <div>
         <h2 className="font-display text-2xl font-bold text-white mb-2">
-          You're all set, {name}!
+          {t('onboarding.doneTitle', { name })}
         </h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          Nuvora is ready. Your dashboard is live, Lumi is waiting, and your first task is already logged.
+          {t('onboarding.doneSubtitle')}
         </p>
       </div>
       {/* Easy to miss otherwise — the bell only ever shows up once something's
           actually due, and push needs an explicit opt-in in Settings, so
           without a line here most people would never discover either exists
           until they'd already missed something. */}
-      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-left"
+      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-start"
         style={{ background: 'rgba(124,58,237,0.10)', border: '1px solid rgba(124,58,237,0.22)' }}>
         <span className="text-accent-300 shrink-0"><Bell size={16} /></span>
         <p className="text-xs text-white/65 leading-snug">
-          You'll get reminders for tasks & deadlines — bell, email, and (once you add Nuvora to your phone's Home Screen) push. Turn any of them on in Settings.
+          {t('onboarding.notifHint')}
         </p>
       </div>
       <PrimaryBtn onClick={onFinish}>
-        Open Nuvora ✦
+        {t('onboarding.openApp')}
       </PrimaryBtn>
     </div>
   );

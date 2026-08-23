@@ -57,11 +57,15 @@ export async function getCurrentSubscription() {
 // load with no interaction), subscribe, and tell the server about it.
 export async function enablePush() {
   if (!pushSupported()) {
-    throw new Error('Push notifications aren\'t supported in this browser.');
+    const err = new Error('Push notifications aren\'t supported in this browser.');
+    err.code = 'push_unsupported';
+    throw err;
   }
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
-    throw new Error('Notification permission was not granted.');
+    const err = new Error('Notification permission was not granted.');
+    err.code = 'push_permission_denied';
+    throw err;
   }
   const reg = await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
