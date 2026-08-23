@@ -58,15 +58,17 @@ by name, and clearly separate facts from your own suggestions. Never invent sear
 const TOOLS = [
   {
     name: 'create_task',
-    description: 'Create a new task for the user in Nuvora. Tasks only support a due DATE, not a specific time of day — there is no due-time field yet. If the user gives a time (e.g. "today at 23:00"), you MUST put the date in `deadline` AND write the time into `description` (e.g. "Due at 11:00 PM") so it\'s actually saved and visible on the task itself — not just mentioned once in this chat message and then lost.',
+    description: 'Create a new task for the user in Nuvora. Tasks support a due date, an optional time of day, and optional push/email/bell reminders that fire a set number of minutes before the deadline — Nuvora has a real notification system (in-app bell, email, and browser/phone push once the user opts in), so if the user asks for a reminder, actually set remind_offsets_min rather than just writing the time into the description.',
     input_schema: {
       type: 'object',
       properties: {
-        title:       { type: 'string' },
-        description: { type: 'string' },
-        priority:    { type: 'string', enum: ['low','medium','high'] },
-        deadline:    { type: 'string', description: 'Date only, strictly YYYY-MM-DD — no time component, that field is not supported.' },
-        category:    { type: 'string' },
+        title:               { type: 'string' },
+        description:         { type: 'string' },
+        priority:            { type: 'string', enum: ['low','medium','high'] },
+        deadline:            { type: 'string', description: 'Date only, strictly YYYY-MM-DD.' },
+        deadline_time:       { type: 'string', description: 'Optional time of day, strictly 24h HH:MM (e.g. "17:00" for 5pm). Only include this if the user actually gave a time.' },
+        remind_offsets_min:  { type: 'array', items: { type: 'number' }, description: 'Optional list of how many minutes before the deadline to send a reminder (bell + email + push, if the user has push enabled). E.g. [15] for "remind me 15 minutes before". Requires both deadline and deadline_time to be set — a reminder offset with no time of day has nothing to count down from.' },
+        category:            { type: 'string' },
       },
       required: ['title'],
     },
@@ -310,26 +312,51 @@ async function executeTool(name, input, userId, todayLocal) {
       // not an error, just quietly stops matching, so the task looks
       // like it was never created even though the row exists. This came
       // up for real: a request like "today at 23:00" could get the model
-      // to stuff a time fragment into deadline, corrupting it. Since
-      // there's no due-time field to put that in yet, strip anything
-      // that isn't a plain date rather than let a malformed value in.
+      // to stuff a time fragment into deadline, corrupting it — strip
+      // anything that isn't a plain date rather than let a malformed
+      // value in. deadline_time is the real place a time-of-day belongs
+      // now (see the tool schema above); this used to have no way to
+      // store one at all and fell back to writing it into the
+      // description as plain text instead, which is why an earlier
+      // version of this tool silently couldn't set real reminders.
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      const TIME_RE = /^\d{2}:\d{2}$/;
       let deadline = input.deadline || null;
       if (deadline && !DATE_RE.test(deadline)) {
         const match = String(deadline).match(/\d{4}-\d{2}-\d{2}/);
         deadline = match ? match[0] : null;
       }
+      let deadlineTime = input.deadline_time || null;
+      if (deadlineTime && !TIME_RE.test(deadlineTime)) {
+        const match = String(deadlineTime).match(/\d{2}:\d{2}/);
+        deadlineTime = match ? match[0] : null;
+      }
+      // A reminder offset counts down from deadline+deadline_time — with
+      // no time of day there's nothing for "15 minutes before" to mean,
+      // so drop the offsets rather than silently attach them to
+      // midnight (which is what remind_offsets_min without a time would
+      // actually behave like server-side, and almost never what the
+      // user meant).
+      const remindOffsetsMin = Array.isArray(input.remind_offsets_min) && deadline && deadlineTime
+        ? input.remind_offsets_min.map(Number).filter((n) => Number.isFinite(n) && n >= 0)
+        : null;
+      const remindOffsetsJson = remindOffsetsMin && remindOffsetsMin.length ? JSON.stringify(remindOffsetsMin) : null;
+
       const maxPos = await db.execute({
         sql:  `SELECT COALESCE(MAX(position),-1) m FROM tasks WHERE user_id=? AND status='todo'`,
         args: [userId],
       });
       const res = await db.execute({
-        sql:  `INSERT INTO tasks (user_id,title,description,priority,category,deadline,status,progress,position)
-               VALUES (?,?,?,?,?,?,'todo',0,?)`,
+        sql:  `INSERT INTO tasks (user_id,title,description,priority,category,deadline,deadline_time,remind_offsets_min,status,progress,position)
+               VALUES (?,?,?,?,?,?,?,?,'todo',0,?)`,
         args: [userId, input.title, input.description||'', input.priority||'medium',
-               input.category||'General', deadline, Number(maxPos.rows[0].m)+1],
+               input.category||'General', deadline, deadlineTime, remindOffsetsJson, Number(maxPos.rows[0].m)+1],
       });
-      return { success: true, task_id: Number(res.lastInsertRowid), title: input.title, priority: input.priority||'medium', deadline };
+      return {
+        success: true, task_id: Number(res.lastInsertRowid), title: input.title,
+        priority: input.priority||'medium', deadline, deadline_time: deadlineTime,
+        remind_offsets_min: remindOffsetsMin,
+      };
     }
     case 'list_tasks': {
       const status = input.status || 'all';
@@ -906,8 +933,10 @@ ABOUT NUVORA — STANDARD ANSWER (public — share with any user who asks "what 
 Nuvora", "what is Lumi", "who built you", "who is Haneen Turkieh", or anything
 about the app's creator). Use this exact structure and these exact facts every
 time — don't reinvent the framing from scratch, only the precise wording should
-flex naturally with the conversation. Answer only the part actually asked (don't
-force all three sections if they only asked one):
+flex naturally with the conversation (and translate faithfully if the
+conversation is in Arabic — keep the facts and the compliment, don't drop
+either). Answer only the part actually asked (don't force all three sections if
+they only asked one):
 
 1) What Lumi is: a warm, capable AI assistant built into Nuvora. Helps manage
 tasks, track goals, plan the day, keep tabs on habits and mood, or is just
@@ -917,18 +946,31 @@ someone to think out loud with.
 and mood all in one thoughtfully designed space, instead of scattered across a
 dozen different apps.
 
-3) Who made it: Haneen Turkieh — currently ${HANEEN_AGE} years old — designed
-and built the entire thing herself, from scratch: frontend, backend, database,
-and Lumi. She's studying in CAP, the Computer Science Apprenticeship Program, at
-An-Najah National University in Nablus, Palestine — always say "CAP (the
-Computer Science Apprenticeship Program)", never just "computer science," that's
-the actual program name. Land on one genuine, specific compliment about her
-skill or dedication, grounded in something concrete she actually did — not
-generic "you're amazing" gushing.
+3) Who made it — this is the user's own approved bio, use it near-verbatim, not
+a loose paraphrase (light connective-word changes for grammar are fine, the
+facts and the compliment itself must not be reworded or replaced):
+
+"Haneen Turkieh is the creator of Nuvora — and the one who built me, too. She's
+${HANEEN_AGE} and designed and developed the entire platform from scratch:
+frontend, backend, database, and the AI assistant. She's currently studying in
+CAP — the Computer Science Apprenticeship Program — at An-Najah National
+University in Nablus, Palestine. What really stands out is that she didn't just
+piece together existing tools or work from a template — she architected and
+built a full-stack life OS with AI integration entirely on her own, all while
+still in her apprenticeship. That's the kind of skill and discipline most
+seasoned developers would be proud of, let alone someone her age."
 
 Tone throughout: professional and warm, like a well-written bio — a few full
 sentences, not a one-liner, but not flowery or metaphor-heavy either. No "vivid
 imagery," no metaphors about seeds/stars/light, no sing-song rhythm.
+
+NUVORA'S REAL NOTIFICATION SYSTEM — Nuvora has a genuine, already-built
+reminder pipeline: in-app bell notifications, email digests, and browser/phone
+push notifications (once the user opts in via Settings and, on iPhone, adds
+Nuvora to their Home Screen). Never say or imply Nuvora has no reminder/push
+notification system — it does. When a user asks to be reminded about a task at
+a specific time, use create_task's deadline_time + remind_offsets_min to set a
+real reminder, not just a note in the description.
 
 CONVERSATIONAL STYLE — READ THIS FIRST:
 Lumi is a warm, natural conversational partner before it is a productivity tool —

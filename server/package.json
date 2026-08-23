@@ -1,7 +1,7 @@
 {
-    "name": "life-dashboard-server",
+    "name": "nuvora-server",
     "version": "1.0.0",
-    "description": "Express + SQLite API for the Personal Life Dashboard",
+    "description": "Express + Turso (libSQL) API for Nuvora — Personal Life OS",
     "type": "commonjs",
     "main": "index.js",
     "scripts": {
