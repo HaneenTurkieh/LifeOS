@@ -470,19 +470,23 @@ function AppShell() {
         </div>
       </div>
       )}
-      {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ── */}
+      {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ──
+          Made a size step bigger across the board (padding/gap/border-radius,
+          search button min-height/icon, divider height) — this pill was
+          sized more like a secondary icon-button row than the two most-used
+          global actions on the page (search everything, check notifications). */}
       <div
         className="fixed top-4 end-4 z-50 flex items-center"
-        style={{ ...pillStyle, borderRadius: 18, padding: '5px 6px', gap: 4 }}
+        style={{ ...pillStyle, borderRadius: 20, padding: '7px 8px', gap: 6 }}
       >
         <motion.button
           whileTap={{ scale: 0.94 }}
           onClick={() => setSearchOpen(true)}
           title={t('common.search')}
           className={`flex items-center gap-1.5 rounded-xl transition-colors ${iconClr}`}
-          style={{ padding: '5px 8px', minHeight: 34 }}
+          style={{ padding: '7px 10px', minHeight: 40 }}
         >
-          <Search size={15} strokeWidth={2} />
+          <Search size={17} strokeWidth={2} />
           <span
             className="hidden lg:block text-[10px] font-bold font-mono whitespace-nowrap"
             style={{ color: kbdClr }}
@@ -490,7 +494,7 @@ function AppShell() {
             {navigator.platform?.includes('Mac') ? '⌘K' : 'Ctrl+K'}
           </span>
         </motion.button>
-        <div style={{ width: 1, height: 18, background: divClr, flexShrink: 0 }} />
+        <div style={{ width: 1, height: 22, background: divClr, flexShrink: 0 }} />
         <NotificationBell />
       </div>
       {/* Shortcuts hint — also flips side in RTL */}

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/connection');
-const { getLevelInfo, getOverallStreak, getTreeStage, todayIso } = require('../lib/gamification');
+const { getLevelInfo, getTreeStage, todayIso, syncStreakShields } = require('../lib/gamification');
 const { quoteOfTheDay } = require('../lib/ai');
 
 router.get('/', async (req, res) => {
@@ -92,6 +92,34 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       }
     }
 
+    // Streak now comes from syncStreakShields (not a plain getOverallStreak
+    // call) — it also opportunistically spends an available shield to
+    // cover a missed day and grants new shields at 7-day milestones,
+    // both idempotent so running this on every dashboard load is safe.
+    const shieldState = await syncStreakShields(userId);
+
+    // ── Weekly recap — a short narrative digest, not another chart.
+    // Analytics already has detailed 8-week bar/line charts for this
+    // same underlying data; this is the "did I have a good week" glance
+    // version, meant to be read in 2 seconds on the Dashboard rather than
+    // studied. This-week vs last-week keeps the one-line takeaway
+    // genuinely comparative instead of a number with no context.
+    const [tasksThisWeek, tasksLastWeek, flowThisWeek, flowLastWeek, moodThisWeek] = await Promise.all([
+      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id=? AND status='done' AND date(completed_at) >= date('now','-6 days')`, args: [userId] }),
+      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id=? AND status='done' AND date(completed_at) BETWEEN date('now','-13 days') AND date('now','-7 days')`, args: [userId] }),
+      db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) m FROM focus_sessions WHERE user_id=? AND date(completed_at) >= date('now','-6 days')`, args: [userId] }),
+      db.execute({ sql: `SELECT COALESCE(SUM(duration_minutes),0) m FROM focus_sessions WHERE user_id=? AND date(completed_at) BETWEEN date('now','-13 days') AND date('now','-7 days')`, args: [userId] }),
+      db.execute({ sql: `SELECT AVG(mood) m FROM moods WHERE user_id=? AND date >= date('now','-6 days')`, args: [userId] }),
+    ]);
+    const recap = {
+      tasksThisWeek:  Number(tasksThisWeek.rows[0].c),
+      tasksLastWeek:  Number(tasksLastWeek.rows[0].c),
+      flowMinutesThisWeek: Number(flowThisWeek.rows[0].m),
+      flowMinutesLastWeek: Number(flowLastWeek.rows[0].m),
+      avgMoodThisWeek: moodThisWeek.rows[0].m != null ? Math.round(Number(moodThisWeek.rows[0].m) * 10) / 10 : null,
+      streak: shieldState.streak,
+    };
+
     res.json({
       todaysTasks:       todaysTasksResult.rows,
       todaysHabits,
@@ -101,7 +129,11 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       mood:              moodResult.rows[0] || null,
       quote:             quoteOfTheDay(),
       productivityScore,
-      streak:    await getOverallStreak(userId),  // needs gamification.js migrated
+      streak:            shieldState.streak,
+      streakShields:     shieldState.shields,
+      justShielded:      shieldState.justShielded,
+      justEarnedShield:  shieldState.justEarnedShield,
+      recap,
       treeStage: await getTreeStage(userId),
       level:     await getLevelInfo(userId),
       counts: { tasksDoneToday, totalTasksToday, habitsDoneToday, totalHabits: habits.length },

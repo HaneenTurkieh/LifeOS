@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2, Info, Target, Square } from 'lucide-react';
+import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -64,6 +64,27 @@ function formatDeadline(d) {
   const [, m, day] = d.split('-');
   return `${day}/${m}`;
 }
+// Small this-week-vs-last-week delta pill for the Weekly Recap card.
+// No internal state, so it's safe at module scope even though it's only
+// used in one place — keeps the three recap rows below from repeating
+// the same up/down/flat branching three times.
+function DeltaBadge({ diff }) {
+  const rounded = Math.round(diff * 10) / 10;
+  if (rounded === 0) {
+    return (
+      <span className="flex items-center gap-0.5 text-[10px] font-semibold text-ink/30 dark:text-white/25">
+        <Minus size={10} />0
+      </span>
+    );
+  }
+  const Icon  = rounded > 0 ? TrendingUp : TrendingDown;
+  const color = rounded > 0 ? 'text-sage-500' : 'text-coral-500';
+  return (
+    <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${color}`}>
+      <Icon size={10} />{Math.abs(rounded)}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const { user }    = useAuth();
@@ -83,6 +104,7 @@ export default function Dashboard() {
   // hover — phones and iPads have no hover, so those explanations were
   // simply unreachable there. Tap-to-open popover works on every device.
   const [openHint,     setOpenHint]     = useState(null);
+  const [justCompletedId, setJustCompletedId] = useState(null);
   // Real bug that used to live here: the rough/meh-mood quote was a
   // single hardcoded string (t('dash.roughQuote')), so it looked
   // identical literally every time someone had a low mood day. Now a
@@ -91,6 +113,10 @@ export default function Dashboard() {
   // visibly flicker) on every re-render, but does vary the next time the
   // page loads or mood changes.
   const [roughQuoteIndex] = useState(() => Math.floor(Math.random() * 6) + 1);
+  // Same idea as roughQuoteIndex, but for the mirrored great-day
+  // treatment below — picked once per mount so it doesn't re-roll on
+  // every re-render.
+  const [greatQuoteIndex] = useState(() => Math.floor(Math.random() * 6) + 1);
   const statsRef = useRef(null);
   useEffect(() => {
     if (!openHint) return;
@@ -113,6 +139,12 @@ export default function Dashboard() {
         api.get('/trees'),
       ]);
       setData(dash);
+      // Both flags only ever come back true on the exact load where the
+      // server-side change actually happened (see syncStreakShields —
+      // idempotent, doesn't re-fire on the next load), so no extra
+      // client-side dedup needed here.
+      if (dash.justShielded)     toast.success(t('dash.shieldUsed'));
+      if (dash.justEarnedShield) toast.success(t('dash.shieldEarned'));
       setEquippedTree(trees.equipped || 'seedling');
       setTreeData(trees);
     } catch (e) { toast.error(e.message); }
@@ -133,12 +165,35 @@ export default function Dashboard() {
     finally { setMoodSaving(false); }
   };
   const completeTask = async (task) => {
+    // Two things used to be wrong here, both read as "the circle isn't
+    // even checking": (1) nothing happened on screen until the full PUT
+    // round trip resolved — Tasks.jsx's own markDone already updates
+    // local state before the request resolves, this one never did — and
+    // (2) even once it resolved, the task just vanished from the list
+    // with no checked-state moment at all, which reads as "didn't
+    // register" rather than "done." Fix: flash a filled checkmark the
+    // instant you tap (real, immediate feedback), THEN remove the row a
+    // beat later — the API call itself fires immediately in parallel, so
+    // this delay is purely the visual confirmation, not added latency.
+    setJustCompletedId(task.id);
+    const req = api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+    setTimeout(() => {
+      setJustCompletedId((cur) => (cur === task.id ? null : cur));
+      setData((prev) => prev && {
+        ...prev,
+        todaysTasks: prev.todaysTasks.filter((t) => t.id !== task.id),
+        counts: { ...prev.counts, tasksDoneToday: (prev.counts?.tasksDoneToday || 0) + 1 },
+      });
+    }, 420);
     try {
-      const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+      const { xpAwarded, unlocked } = await req;
       if (xpAwarded) toast.xp(xpAwarded, task.title);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g,' ')));
-      load();
-    } catch (e) { toast.error(e.message); }
+      load(); // reconciles productivity score/streak/tree with real server state
+    } catch (e) {
+      toast.error(e.message);
+      load(); // roll back the optimistic removal too
+    }
   };
   const deleteTask = async (task) => {
     try {
@@ -159,7 +214,7 @@ export default function Dashboard() {
 
   if (loading || !data) return <PageLoader />;
   const firstName = user?.name?.split(' ')[0] || '';
-  const { todaysTasks, todaysHabits, upcomingDeadlines, nextMilestones, birthday, mood, quote, productivityScore, streak, level, counts } = data;
+  const { todaysTasks, todaysHabits, nextMilestones, birthday, mood, quote, productivityScore, streak, streakShields, recap, level, counts } = data;
   const moodValue  = mood?.mood || null;
   const isRoughDay = moodValue && moodValue <= 2;
   const isGreatDay = moodValue && moodValue >= 4;
@@ -229,7 +284,15 @@ export default function Dashboard() {
             <p className="text-sm text-ink/45 dark:text-white/40 mb-6">{subtitle}</p>
             <div className="relative z-30 flex flex-wrap gap-4">
               {[
-                { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint'), glow:'rgba(251,146,60,0.45)' },
+                {
+                  icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'),
+                  // Shield count folded into the same hint rather than a
+                  // second popover — it's context for the streak number,
+                  // not a separate concept worth its own stat card.
+                  hint: streakShields > 0 ? `${t('dash.streakHint')} ${t('dash.shieldsAvailable', { n: streakShields })}` : t('dash.streakHint'),
+                  badge: streakShields > 0 ? `🛡️${streakShields}` : null,
+                  glow:'rgba(251,146,60,0.45)',
+                },
                 { icon: isBirthday ? '🎁' : '⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees'), glow:'rgb(var(--accent-500) / 0.45)' },
                 // "X/Y done" reads as "achieved today" to most people, but Y is
                 // tasks *due* today and X counts a task as done no matter which
@@ -239,7 +302,7 @@ export default function Dashboard() {
                 counts.totalTasksToday > 0
                   ? { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(Math.max(0, counts.totalTasksToday - counts.tasksDoneToday)), label:t('dash.leftToday'), hint:t('dash.leftTodayCountHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
                   : { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
-              ].map(({ icon, color, value, label, hint, onClick, glow }) => (
+              ].map(({ icon, color, value, label, hint, onClick, glow, badge }) => (
                 <motion.div
                   key={label}
                   whileHover={onClick ? { y:-2 } : {}}
@@ -266,6 +329,14 @@ export default function Dashboard() {
                   }}
                   className={`relative flex items-center gap-3 rounded-2xl px-5 py-3.5 ${onClick ? 'cursor-pointer' : ''}`}
                 >
+                  {badge && (
+                    <span
+                      className="absolute -top-2 -end-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white shadow"
+                      style={{ background: 'linear-gradient(135deg, #60A5FA, #3B82F6)' }}
+                    >
+                      {badge}
+                    </span>
+                  )}
                   <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
                     {icon}
                   </div>
@@ -354,6 +425,10 @@ export default function Dashboard() {
                 <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
                   "{t(`dash.roughQuote${roughQuoteIndex}`)}" 💙
                 </p>
+              ) : isGreatDay ? (
+                <p className="text-xs text-amber-600/70 dark:text-amber-300/60 italic leading-relaxed flex-1 min-w-0">
+                  "{t(`dash.greatQuote${greatQuoteIndex}`)}" 🚀
+                </p>
               ) : quote && (
                 <p className="text-xs text-ink/35 dark:text-white/25 italic leading-relaxed flex-1 min-w-0">
                   "{quote.text}" — {quote.author}
@@ -375,6 +450,21 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="relative">
+                  {/* Great-day treatment mirrors the rough-day one above,
+                      just celebratory instead of restrictive: same slot,
+                      an ambient glow ring behind the sphere instead of
+                      swapping it out entirely (the score itself is good
+                      news today, no reason to hide it) plus a short note
+                      under the "change tree" button below, same spot the
+                      rough-day heart's note sits in. */}
+                  {isGreatDay && (
+                    <motion.div
+                      className="pointer-events-none absolute inset-0 -m-3 rounded-full"
+                      style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.35) 0%, transparent 70%)' }}
+                      animate={{ scale: [1, 1.12, 1], opacity: [0.5, 0.85, 0.5] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                  )}
                   <ProductivitySphere score={productivityScore} equippedTree={isBirthday ? 'christmas' : equippedTree} mysticTree={isBirthday ? null : equippedMysticTree} />
                   <button
                     onClick={(e) => { e.stopPropagation(); setOpenHint((cur) => cur === 'score' ? null : 'score'); }}
@@ -410,6 +500,11 @@ export default function Dashboard() {
                   className="flex items-center gap-1 text-xs text-ink/35 dark:text-white/30 hover:text-lavender-500 transition">
                   <TreePine size={11} /> {t('dash.changeTree')}
                 </button>
+                {isGreatDay && (
+                  <p className="text-[10px] text-amber-600/70 dark:text-amber-300/60 text-center max-w-[90px] leading-relaxed">
+                    {t('dash.greatDayNote')}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -435,6 +530,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
+                <AnimatePresence initial={false}>
                 {visibleTasks.map((task) => {
                   const dl        = daysUntil(task.deadline);
                   const isOverdue = dl !== null && dl < 0;
@@ -442,14 +538,18 @@ export default function Dashboard() {
                   const isSoon    = dl !== null && dl > 0 && dl <= 3;
                   return (
                     <motion.div key={task.id} layout
+                      exit={{ opacity: 0, x: 24, transition: { duration: 0.25 } }}
                       className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
                       style={isDark
                         ? { background:'rgba(255,255,255,0.028)', border:'1px solid rgba(255,255,255,0.06)', backdropFilter:'blur(12px)' }
                         : { background:'rgba(255,255,255,0.19)', border:'1px solid rgba(255,255,255,0.80)', backdropFilter:'blur(12px)' }}
                     >
                       <button onClick={() => completeTask(task)}
+                        disabled={justCompletedId === task.id}
                         className="shrink-0 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
-                        <Circle size={18} />
+                        {justCompletedId === task.id
+                          ? <CheckCircle2 size={18} className="text-sage-500" />
+                          : <Circle size={18} />}
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-ink dark:text-white truncate">{task.title}</p>
@@ -480,6 +580,7 @@ export default function Dashboard() {
                     </motion.div>
                   );
                 })}
+                </AnimatePresence>
                 {isRoughDay && todaysTasks.length > 2 && (
                   <p className="text-xs text-ink/35 dark:text-white/25 text-center py-2">
                     {t('dash.moreTasks', { n: todaysTasks.length - 2 })} →{' '}
@@ -497,28 +598,116 @@ export default function Dashboard() {
               timer that grows a tree live while you work) and the least
               discoverable. First card in this column on purpose: highest
               visibility real estate on the page after the hero stats. */}
+          {/* Redesigned bigger/livelier per feedback that the first pass
+              "wasn't pretty interesting" — a static small icon + one-line
+              pitch undersold a feature meant to be the app's hook. Now:
+              a real growing-tree animation cycling on its own (not just a
+              static emoji), a glowing ambient blob behind it (same
+              "gamified accent" language as the Streak/XP stat cards), a
+              real button instead of a text link, and the current streak
+              folded in here too — ties Flow directly to the number
+              people already check most, instead of the two features
+              feeling unrelated. */}
           <GlassCard
             interactive
             onClick={() => navigate('/learning')}
-            className="p-5 overflow-hidden"
+            className="p-6 overflow-hidden relative"
             style={{
-              background: 'linear-gradient(135deg, rgb(var(--accent-500) / 0.16), rgba(74,222,128,0.08))',
-              border: '1px solid rgb(var(--accent-500) / 0.22)',
+              background: 'linear-gradient(150deg, rgb(var(--accent-500) / 0.20) 0%, rgba(74,222,128,0.10) 60%, rgba(74,222,128,0.14) 100%)',
+              border: '1px solid rgb(var(--accent-500) / 0.28)',
+              boxShadow: '0 16px 40px rgb(var(--accent-500) / 0.16)',
             }}
           >
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))] shadow-glow">
-                🌱
-              </div>
+            <motion.div
+              className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full"
+              style={{ background: 'radial-gradient(circle, rgba(74,222,128,0.35) 0%, transparent 70%)' }}
+              animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.9, 0.6] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className="relative flex items-center gap-4">
+              <motion.div
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-emerald-500 shadow-glow"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <motion.span
+                  key="flow-tree-cycle"
+                  animate={{ opacity: [1, 1, 0, 0, 1] }}
+                  transition={{ duration: 3.6, repeat: Infinity, times: [0, 0.3, 0.4, 0.9, 1] }}
+                >
+                  🌱
+                </motion.span>
+              </motion.div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-display font-bold text-sm text-ink dark:text-white">{t('dash.flowTitle')}</h3>
-                <p className="text-xs text-ink/55 dark:text-white/45 mt-0.5 leading-relaxed">{t('dash.flowSubtitle')}</p>
-                <span className="inline-flex items-center gap-1 mt-2.5 text-xs font-semibold text-[rgb(var(--accent-600))] dark:text-lavender-300">
-                  {t('dash.flowCta')} →
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-display font-bold text-base text-ink dark:text-white">{t('dash.flowTitle')}</h3>
+                  {streak > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(251,146,60,0.18)', color: '#C2410C' }}>
+                      🔥 {t('dash.flowStreakTie', { n: streak })}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-ink/55 dark:text-white/45 mt-1 leading-relaxed">{t('dash.flowSubtitle')}</p>
               </div>
             </div>
+            <motion.div
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="relative mt-4 flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-white"
+              style={{
+                background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, #16A34A 100%)',
+                boxShadow: '0 8px 20px rgb(var(--accent-500) / 0.35)',
+              }}
+            >
+              {t('dash.flowCta')} →
+            </motion.div>
           </GlassCard>
+          {/* Weekly Recap — a 2-second narrative glance, not a chart.
+              Analytics already has the detailed 8-week bar/line breakdown
+              of this same data; this is deliberately just three numbers
+              with a this-week-vs-last-week delta, meant to be read at a
+              glance on the Dashboard rather than studied. */}
+          {recap && (
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={15} className="text-lavender-500" />
+                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.recapTitle')}</h3>
+              </div>
+              <div className="flex flex-col divide-y divide-ink/5 dark:divide-white/5">
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={13} className="text-sage-500 shrink-0" />
+                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapTasks')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-ink dark:text-white">{recap.tasksThisWeek}</span>
+                    <DeltaBadge diff={recap.tasksThisWeek - recap.tasksLastWeek} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <Clock size={13} className="text-[rgb(var(--accent-500))] shrink-0" />
+                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapFlow')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-ink dark:text-white">{recap.flowMinutesThisWeek}</span>
+                    <DeltaBadge diff={recap.flowMinutesThisWeek - recap.flowMinutesLastWeek} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <Smile size={13} className="text-lavender-500 shrink-0" />
+                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapMood')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-ink dark:text-white">
+                      {recap.avgMoodThisWeek != null ? recap.avgMoodThisWeek : t('dash.recapNoMood')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-ink/30 dark:text-white/20 mt-2 text-end">{t('dash.recapVsLastWeek')}</p>
+            </GlassCard>
+          )}
           {nextMilestones?.length > 0 && (
             <GlassCard className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -612,24 +801,12 @@ export default function Dashboard() {
               </div>
             </GlassCard>
           )}
-          {upcomingDeadlines?.length > 0 && (
-            <GlassCard className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock size={14} className="text-lavender-500" />
-                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.comingUp')}</h3>
-              </div>
-              <div className="flex flex-col gap-2">
-                {upcomingDeadlines.slice(0, 3).map((task) => (
-                  <div key={task.id} className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-ink/65 dark:text-white/55 truncate">{task.title}</span>
-                    <span className="text-[10px] text-ink/35 dark:text-white/25 shrink-0 flex items-center gap-1">
-                      <Calendar size={9} /> {formatDeadline(task.deadline)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          )}
+          {/* "Coming up" (upcoming deadlines) removed on purpose — it
+              duplicated what the Tasks tab already shows, and per your
+              instructor's note, that space is better spent making the
+              Flow card the more prominent, more interesting thing on
+              this page. See the Flow card above, which absorbed the
+              redesign work this slot's removal made room for. */}
           <GlassCard className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -704,7 +881,7 @@ export default function Dashboard() {
               </div>
             </div>
           </GlassCard>
-          {quote && !isRoughDay && (
+          {quote && !isRoughDay && !isGreatDay && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm">💬</span>
@@ -721,6 +898,15 @@ export default function Dashboard() {
                 "{t(`dash.roughQuote${roughQuoteIndex}`)}"
               </p>
               <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Nuvora</p>
+            </GlassCard>
+          )}
+          {isGreatDay && (
+            <GlassCard className="p-5"
+              style={{ background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.20)' }}>
+              <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
+                "{t(`dash.greatQuote${greatQuoteIndex}`)}"
+              </p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">🚀 Nuvora</p>
             </GlassCard>
           )}
         </div>

@@ -83,13 +83,15 @@ async function getFreezeDate(userId) {
   }
 }
 
-async function getOverallStreak(userId) {
-  // A day counts toward the streak only if the person logged a habit or
-  // completed a task — deliberately narrow by request. An earlier version
-  // of this also counted Flow/focus sessions (a day with only a Pomodoro
-  // run still kept the streak alive), but that's been pulled back out:
-  // the streak should reflect actually ticking tasks/habits, not general
-  // app activity.
+// A day counts toward the streak only if the person logged a habit or
+// completed a task — deliberately narrow by request. An earlier version
+// of this also counted Flow/focus sessions (a day with only a Pomodoro
+// run still kept the streak alive), but that's been pulled back out:
+// the streak should reflect actually ticking tasks/habits, not general
+// app activity. Pulled out of getOverallStreak so syncStreakShields
+// below can look at real (unshielded) activity separately from what
+// getOverallStreak reports once freeze/shield dates are folded in.
+async function getRawActivityDates(userId) {
   const [habitResult, taskResult] = await Promise.all([
     db.execute({
       sql:  `SELECT DISTINCT hl.date FROM habit_logs hl
@@ -103,15 +105,21 @@ async function getOverallStreak(userId) {
       args: [userId],
     }),
   ]);
-  const dates = new Set([
+  return new Set([
     ...habitResult.rows.map((r) => r.date),
     ...taskResult.rows.map((r) => r.date),
   ]);
+}
 
-  // Premium streak freeze — the excused date counts as completed.
-  const freeze = await getFreezeDate(userId);
-  if (freeze) dates.add(freeze);
+async function getShieldedDates(userId) {
+  const result = await db.execute({
+    sql:  `SELECT date FROM user_shielded_dates WHERE user_id = ?`,
+    args: [userId],
+  });
+  return result.rows.map((r) => r.date);
+}
 
+function walkStreak(dates) {
   let streak = 0;
   let cursorIso = todayIso();
   if (!dates.has(cursorIso)) cursorIso = shiftIsoDate(cursorIso, -1);
@@ -120,6 +128,94 @@ async function getOverallStreak(userId) {
     cursorIso = shiftIsoDate(cursorIso, -1);
   }
   return streak;
+}
+
+async function getOverallStreak(userId) {
+  const dates = await getRawActivityDates(userId);
+
+  // Premium streak freeze — the excused date counts as completed.
+  const freeze = await getFreezeDate(userId);
+  if (freeze) dates.add(freeze);
+
+  // Free-tier streak shields — same idea, auto-applied instead of
+  // manually triggered. See syncStreakShields for how these get added.
+  (await getShieldedDates(userId)).forEach((d) => dates.add(d));
+
+  return walkStreak(dates);
+}
+
+const MAX_STREAK_SHIELDS = 2;
+const SHIELD_EVERY_DAYS  = 7;
+
+// Called once per dashboard load (not from the task-completion path —
+// that's deliberately kept fast, see routes/tasks.js). Does two things,
+// in order: (1) if yesterday broke an otherwise-active streak and a
+// shield is available, spend one to cover it, and (2) check whether the
+// (possibly just-repaired) streak has crossed a new 7-day milestone and,
+// if so, award a shield for it. Both steps are idempotent — safe to run
+// on every dashboard load, not just once — because the shielded-date
+// INSERT is UNIQUE-guarded and the milestone check only ever moves
+// shield_milestone forward, never re-grants a milestone already paid out.
+async function syncStreakShields(userId) {
+  const userRow = (await db.execute({
+    sql:  `SELECT streak_shields, shield_milestone FROM users WHERE id = ?`,
+    args: [userId],
+  })).rows[0];
+  let shields   = Number(userRow?.streak_shields   || 0);
+  let milestone = Number(userRow?.shield_milestone || 0);
+
+  const rawDates = await getRawActivityDates(userId);
+  const freeze   = await getFreezeDate(userId);
+  if (freeze) rawDates.add(freeze);
+  (await getShieldedDates(userId)).forEach((d) => rawDates.add(d));
+
+  const yesterday  = shiftIsoDate(todayIso(), -1);
+  const dayBefore  = shiftIsoDate(todayIso(), -2);
+  let justShielded = false;
+
+  // Only worth spending a shield if there was actually a streak in
+  // progress that yesterday would otherwise have snapped — a shield
+  // shouldn't fire for someone who simply wasn't using the app at all.
+  const hadActiveStreak = rawDates.has(dayBefore);
+  if (!rawDates.has(yesterday) && hadActiveStreak && shields > 0) {
+    const insert = await db.execute({
+      sql:  `INSERT OR IGNORE INTO user_shielded_dates (user_id, date) VALUES (?, ?)`,
+      args: [userId, yesterday],
+    });
+    if (Number(insert.rowsAffected) === 1) {
+      shields -= 1;
+      justShielded = true;
+      rawDates.add(yesterday);
+      await db.execute({
+        sql:  `UPDATE users SET streak_shields = ? WHERE id = ? AND streak_shields > 0`,
+        args: [shields, userId],
+      });
+    }
+  }
+
+  const streak = walkStreak(rawDates);
+  const currentMilestoneStep = Math.floor(streak / SHIELD_EVERY_DAYS);
+  let justEarnedShield = false;
+  if (currentMilestoneStep > milestone && shields < MAX_STREAK_SHIELDS) {
+    shields  = Math.min(MAX_STREAK_SHIELDS, shields + 1);
+    milestone = currentMilestoneStep;
+    justEarnedShield = true;
+    await db.execute({
+      sql:  `UPDATE users SET streak_shields = ?, shield_milestone = ? WHERE id = ?`,
+      args: [shields, milestone, userId],
+    });
+  } else if (currentMilestoneStep > milestone) {
+    // Capped on shields but still record the milestone as paid out, so
+    // reaching day 14 with a full shield bank doesn't re-offer day 7's
+    // reward once a shield gets spent later.
+    milestone = currentMilestoneStep;
+    await db.execute({
+      sql:  `UPDATE users SET shield_milestone = ? WHERE id = ?`,
+      args: [milestone, userId],
+    });
+  }
+
+  return { streak, shields, justShielded, justEarnedShield };
 }
 
 async function getHabitStreak(habitId) {
@@ -193,4 +289,5 @@ async function evaluateAchievements(userId) {
 module.exports = {
   addXp, getTotalXp, getLevelInfo, getOverallStreak,
   getHabitStreak, getTreeStage, evaluateAchievements, todayIso,
+  ACHIEVEMENTS, syncStreakShields,
 };

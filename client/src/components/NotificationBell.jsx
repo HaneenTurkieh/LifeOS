@@ -151,7 +151,8 @@ export default function NotificationBell() {
         whileHover={{ scale: 1.08, y: -2 }}
         whileTap={{ scale: 0.94 }}
         onClick={() => { setOpen((o) => !o); if (!open) load(); }}
-        className="relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all"
+        title={t('notif.title')}
+        className="relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all"
         style={{
           background:           bellBg,
           border:               bellBorder,
@@ -163,7 +164,7 @@ export default function NotificationBell() {
         }}
       >
         <Bell
-          size={17}
+          size={18}
           strokeWidth={2}
           className={open
             ? 'text-lavender-400'

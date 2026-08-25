@@ -45,6 +45,26 @@ async function initDb() {
       await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT DEFAULT NULL`);
     }
   }
+  // ── Streak shields — free-tier, earned automatically ────────────
+  // Distinct from Premium's manual "Freeze" (user_premium.freeze_date,
+  // opt-in, one day at a time, Premium-only). A shield is earned on its
+  // own every 7-day streak milestone and spends itself automatically —
+  // no button to remember to press — to bridge exactly one missed day
+  // before a streak would otherwise reset. shield_milestone tracks the
+  // highest 7-day multiple already rewarded so the same milestone can
+  // never grant twice.
+  if (!(await hasColumn('users', 'streak_shields'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN streak_shields INTEGER DEFAULT 0 NOT NULL`);
+  }
+  if (!(await hasColumn('users', 'shield_milestone'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN shield_milestone INTEGER DEFAULT 0 NOT NULL`);
+  }
+  await db.execute(`CREATE TABLE IF NOT EXISTS user_shielded_dates (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    date    TEXT NOT NULL,
+    UNIQUE(user_id, date)
+  )`);
   // ── CV Builder was missing every section that actually makes a CV a
   //    CV — no professional summary, no work experience, no education.
   //    Only projects/skills/certifications existed, so exported CVs were
