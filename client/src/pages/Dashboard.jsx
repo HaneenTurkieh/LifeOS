@@ -11,38 +11,13 @@ import { useWeather, weatherEmoji } from '../hooks/useWeather.js';
 import GlassCard          from '../components/GlassCard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
-import MysticSvg          from '../components/MysticTreeIcon.jsx';
 import { isTodayBirthday } from '../utils/birthday.js';
 
-const TREE_EMOJIS = {
-  seedling:'🌱', sprout:'🌿', oak:'🌳',
-  cherry_blossom:'🌸', coral:'🪸', bamboo:'🎋', cactus:'🌵',
-  palm:'🌴', water:'💧', maple:'🍁', pine:'🌲', flamingo:'🦩', money:'💰', crystal:'✨',
-  christmas:'🎄',
-};
-const TREE_NAMES = {
-  seedling:'Seedling', sprout:'Sprout', oak:'Oak',
-  cherry_blossom:'Cherry Blossom', coral:'Coral Tree', bamboo:'Bamboo', cactus:'Cactus',
-  palm:'Palm', water:'Water Tree', maple:'Maple', pine:'Pine', flamingo:'Flamingo Tree', money:'Money Tree', crystal:'Crystal Tree',
-  christmas:'Birthday Tree',
-};
-const TREE_DESC = {
-  seedling:'Every journey starts here.',
-  sprout:'Your first real growth.',
-  oak:'Strong and steady.',
-  cherry_blossom:'Beautiful under pressure.',
-  coral:'Vivid and alive, like a reef beneath the waves.',
-  bamboo:'Flexible, fast, unstoppable.',
-  cactus:'Thrives on very little — resilience in its purest form.',
-  palm:'Thriving in the heat.',
-  water:'Fluid, calm, endlessly renewing.',
-  maple:'Changes color, never loses its roots.',
-  pine:'Evergreen. Always growing.',
-  flamingo:'Rare, pink, impossible to miss.',
-  money:'Grows richer the more you tend it.',
-  crystal:'Legendary. For the dedicated.',
-  christmas:'One day a year, just for you. Not for sale — a birthday gift from Nuvora.',
-};
+// TREE_EMOJIS/TREE_NAMES/TREE_DESC and the MysticSvg import used to live
+// here for the "Your Tree" card, which was removed (it duplicated the
+// equipped-tree art + "change tree" link already in the hero section
+// above) — trimmed along with it since nothing else on this page reads
+// them. Still defined in TreeShop.jsx for the actual shop page.
 const MOOD_OPTIONS = [
   { value:1, emoji:'😞', label:'mood.rough' },
   { value:2, emoji:'😐', label:'mood.meh'   },
@@ -235,21 +210,10 @@ export default function Dashboard() {
   // otherwise the title promises 2 tasks while the empty state says "nothing
   // due today", which read as a bug (it was one).
   const taskLabel    = isRoughDay && todaysTasks.length > 0 ? t('dash.justTwo') : t('dash.todaysTasks');
-  const totalXp      = treeData?.totalXp || 0;
-  // Real bug this fixes: this used to be NEXT_TREE[equippedTree] — a
-  // second, hand-maintained copy of the tree progression that had
-  // drifted out of sync with the real catalogue in trees.js (missing
-  // Coral, Cactus, Water, Maple, Flamingo, Money Tree entirely) AND used
-  // the wrong signal to begin with: which tree happens to be *equipped*
-  // (a cosmetic choice) rather than which tree hasn't been unlocked yet.
-  // Equip an old tree while saving for a new one, or have your equipped
-  // tree be one of the ones missing from that list, and the bar had
-  // nothing real to track — looked permanently stuck. treeData.trees
-  // already comes straight from the server's real catalogue, in
-  // ascending-cost order, with `owned` on every entry — the cheapest
-  // one not yet owned IS the next tree to progress toward, no separate
-  // list to keep in sync.
-  const nextTree     = treeData?.trees?.find((t) => !t.owned) || null;
+  // totalXp/nextTree (progress toward the next unlockable tree) used to
+  // be computed here for the "Your Tree" card, which was removed — that
+  // XP-progress bar lives on the Trees/Shop page itself, so it wasn't
+  // lost, just no longer duplicated on the Dashboard.
   // The actual designed Mystic Tree (shape/colour/glow), not just the
   // "mystic:<id>" key — so we can render the real shape the person made
   // instead of a generic placeholder emoji.
@@ -600,12 +564,30 @@ export default function Dashboard() {
           </GlassCard>
         </div>
         <div className="flex flex-col gap-4">
-          {/* Flow used to have zero presence outside the mobile "More"
-              bucket and a single line in the onboarding shortcuts list —
-              easily the most distinctive feature in the app (a real focus
-              timer that grows a tree live while you work) and the least
-              discoverable. First card in this column on purpose: highest
-              visibility real estate on the page after the hero stats. */}
+          {/* Mood now leads the column, Flow sits right under it — your
+              call. Same two cards, just swapped order from the last pass. */}
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Smile size={15} className="text-lavender-500" />
+              <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.mood')}</h3>
+            </div>
+            <div className="flex justify-between">
+              {MOOD_OPTIONS.map((m) => (
+                <button key={m.value} onClick={() => saveMood(m.value)} disabled={moodSaving}
+                  className="flex flex-col items-center gap-1 group">
+                  <motion.span
+                    whileHover={{ scale:1.2, y:-2 }} whileTap={{ scale:0.9 }}
+                    className={`text-2xl transition-all ${
+                      mood?.mood === m.value ? 'scale-125 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100'
+                    }`}
+                  >
+                    {m.emoji}
+                  </motion.span>
+                  <span className="text-[10px] text-ink/40 dark:text-white/30">{t(m.label)}</span>
+                </button>
+              ))}
+            </div>
+          </GlassCard>
           {/* Redesigned bigger/livelier per feedback that the first pass
               "wasn't pretty interesting" — a static small icon + one-line
               pitch undersold a feature meant to be the app's hook. Now:
@@ -621,14 +603,6 @@ export default function Dashboard() {
             onClick={() => navigate('/learning')}
             className="p-6 overflow-hidden relative"
             style={{
-              // Was accent → green (emerald), which read as a mismatched
-              // "growth app" cliché stapled onto Nuvora's actual palette —
-              // everything else on this page is pink/lavender/indigo
-              // (cosmic, not botanical). Swapped the green stop for the
-              // app's own indigo/violet tokens (tailwind.config.js
-              // `nuvora.indigo`/`nuvora.violet`) so the card reads as part
-              // of the same family as the Streak/XP cards instead of an
-              // off-brand accent.
               background: 'linear-gradient(150deg, rgb(var(--accent-500) / 0.22) 0%, rgba(99,102,241,0.12) 55%, rgba(139,92,246,0.16) 100%)',
               border: '1px solid rgb(var(--accent-500) / 0.28)',
               boxShadow: '0 16px 40px rgb(var(--accent-500) / 0.16)',
@@ -677,31 +651,6 @@ export default function Dashboard() {
               {t('dash.flowCta')} →
             </motion.div>
           </GlassCard>
-          {/* Mood moved to the top of this column, right after Flow — per
-              your call to lead with mood and push Your Week further down.
-              Same card as before, just relocated. */}
-          <GlassCard className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Smile size={15} className="text-lavender-500" />
-              <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.mood')}</h3>
-            </div>
-            <div className="flex justify-between">
-              {MOOD_OPTIONS.map((m) => (
-                <button key={m.value} onClick={() => saveMood(m.value)} disabled={moodSaving}
-                  className="flex flex-col items-center gap-1 group">
-                  <motion.span
-                    whileHover={{ scale:1.2, y:-2 }} whileTap={{ scale:0.9 }}
-                    className={`text-2xl transition-all ${
-                      mood?.mood === m.value ? 'scale-125 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100'
-                    }`}
-                  >
-                    {m.emoji}
-                  </motion.span>
-                  <span className="text-[10px] text-ink/40 dark:text-white/30">{t(m.label)}</span>
-                </button>
-              ))}
-            </div>
-          </GlassCard>
           {nextMilestones?.length > 0 && (
             <GlassCard className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -730,53 +679,6 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </GlassCard>
-          )}
-          {/* Weekly Recap — a 2-second narrative glance, not a chart.
-              Analytics already has the detailed 8-week bar/line breakdown
-              of this same data; this is deliberately just three numbers
-              with a this-week-vs-last-week delta. Sits mid-column now —
-              Mood moved up to lead the column instead. */}
-          {recap && (
-            <GlassCard className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={15} className="text-lavender-500" />
-                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.recapTitle')}</h3>
-              </div>
-              <div className="flex flex-col divide-y divide-ink/5 dark:divide-white/5">
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={13} className="text-sage-500 shrink-0" />
-                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapTasks')}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-ink dark:text-white">{recap.tasksThisWeek}</span>
-                    <DeltaBadge diff={recap.tasksThisWeek - recap.tasksLastWeek} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    <Clock size={13} className="text-[rgb(var(--accent-500))] shrink-0" />
-                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapFlow')}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-ink dark:text-white">{recap.flowMinutesThisWeek}</span>
-                    <DeltaBadge diff={recap.flowMinutesThisWeek - recap.flowMinutesLastWeek} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    <Smile size={13} className="text-lavender-500 shrink-0" />
-                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapMood')}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-ink dark:text-white">
-                      {recap.avgMoodThisWeek != null ? recap.avgMoodThisWeek : t('dash.recapNoMood')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <p className="text-[10px] text-ink/30 dark:text-white/20 mt-2 text-end">{t('dash.recapVsLastWeek')}</p>
             </GlassCard>
           )}
           {todaysHabits.length > 0 && !isRoughDay && (
@@ -820,85 +722,14 @@ export default function Dashboard() {
               </div>
             </GlassCard>
           )}
-          {/* "Coming up" (upcoming deadlines) removed on purpose — it
-              duplicated what the Tasks tab already shows, and per your
-              instructor's note, that space is better spent making the
-              Flow card the more prominent, more interesting thing on
-              this page. See the Flow card above, which absorbed the
-              redesign work this slot's removal made room for. */}
-          <GlassCard className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <TreePine size={15} className="text-lavender-500" />
-                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.yourTree')}</h3>
-              </div>
-              <button onClick={() => navigate('/trees')}
-                className="text-xs text-lavender-600 dark:text-lavender-300 font-semibold hover:underline">
-                {t('dash.shop')}
-              </button>
-            </div>
-            <div className="flex items-center gap-4">
-              <motion.div
-                animate={{ y:[0,-5,0] }} transition={{ duration:3, repeat:Infinity, ease:'easeInOut' }}
-                className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shrink-0"
-                style={{
-                  background:'linear-gradient(135deg, rgb(var(--accent-500) / 0.12), rgb(var(--accent-600) / 0.06))',
-                  border:'1px solid rgb(var(--accent-500) / 0.18)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.60)',
-                }}
-              >
-                {isBirthday
-                  ? '🎄'
-                  : equippedMysticTree
-                  ? <MysticSvg shapeKey={equippedMysticTree.shape_key} size={34} colorHex={equippedMysticTree.color_hex} glowHex={equippedMysticTree.glow_hex} />
-                  : (TREE_EMOJIS[equippedTree] || '🌱')}
-              </motion.div>
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-bold text-ink dark:text-white text-sm">
-                  {isBirthday
-                    ? TREE_NAMES.christmas
-                    : equippedTree?.startsWith('mystic')
-                    ? (treeData?.mystic?.trees?.find((mt) => `mystic:${mt.id}` === equippedTree)?.custom_name || 'Mystic Tree')
-                    : (TREE_NAMES[equippedTree] || 'Seedling')}
-                </p>
-                <p className="text-[11px] text-ink/40 dark:text-white/30 mt-0.5">
-                  {isBirthday
-                    ? TREE_DESC.christmas
-                    : equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
-                </p>
-                {/* The streak number used to repeat here too — same 🔥
-                    figure already sitting in the top stat card AND on the
-                    Flow card badge just above this one. Third copy of the
-                    same number on one screen read as filler rather than
-                    new information, so this card now sticks to what's
-                    actually specific to it: which tree you have and how
-                    close the next one is. */}
-                {nextTree && (
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-ink/35 dark:text-white/25">
-                        {t('dash.next')}: {TREE_EMOJIS[nextTree.key]} {nextTree.name}
-                      </span>
-                      <span className="text-[10px] font-bold text-lavender-500">
-                        {Math.min(totalXp, nextTree.cost).toLocaleString()} / {nextTree.cost.toLocaleString()} XP
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-ink/5 dark:bg-white/5 overflow-hidden">
-                      <motion.div
-                        initial={{ width:0 }}
-                        animate={{ width:`${Math.min(100,(totalXp/nextTree.cost)*100)}%` }}
-                        transition={{ duration:1, ease:[0.16,1,0.3,1] }}
-                        className="h-full rounded-full"
-                        style={{ background:'linear-gradient(90deg, rgb(var(--accent-500)), #60A5FA)' }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {!nextTree && (
-                  <p className="text-[10px] text-amber-500 font-semibold mt-1">{t('dash.fullCollection')}</p>
-                )}
-              </div>
-            </div>
-          </GlassCard>
+          {/* "Coming up" (upcoming deadlines) removed on purpose earlier —
+              duplicated the Tasks tab. "Your Tree" card removed here too,
+              per your call — the same equipped-tree art + "change tree"
+              link already sit in the hero section up top (ProductivitySphere
+              + the "change tree" button beside it), and the shop itself is
+              one tap away via the nav, so this card was showing the same
+              tree a second time on the same page without adding anything
+              the hero didn't already say. */}
           {quote && !isRoughDay && !isGreatDay && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -925,6 +756,53 @@ export default function Dashboard() {
                 "{t(`dash.greatQuote${greatQuoteIndex}`)}"
               </p>
               <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">🚀 Nuvora</p>
+            </GlassCard>
+          )}
+          {/* Weekly Recap — a 2-second narrative glance, not a chart.
+              Analytics already has the detailed 8-week bar/line breakdown
+              of this same data; this is deliberately just three numbers
+              with a this-week-vs-last-week delta. Pushed to the very
+              bottom of the column now, per your call. */}
+          {recap && (
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={15} className="text-lavender-500" />
+                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.recapTitle')}</h3>
+              </div>
+              <div className="flex flex-col divide-y divide-ink/5 dark:divide-white/5">
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={13} className="text-sage-500 shrink-0" />
+                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapTasks')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-ink dark:text-white">{recap.tasksThisWeek}</span>
+                    <DeltaBadge diff={recap.tasksThisWeek - recap.tasksLastWeek} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <Clock size={13} className="text-[rgb(var(--accent-500))] shrink-0" />
+                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapFlow')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-ink dark:text-white">{recap.flowMinutesThisWeek}</span>
+                    <DeltaBadge diff={recap.flowMinutesThisWeek - recap.flowMinutesLastWeek} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <Smile size={13} className="text-lavender-500 shrink-0" />
+                    <span className="text-xs text-ink/60 dark:text-white/50">{t('dash.recapMood')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-ink dark:text-white">
+                      {recap.avgMoodThisWeek != null ? recap.avgMoodThisWeek : t('dash.recapNoMood')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-ink/30 dark:text-white/20 mt-2 text-end">{t('dash.recapVsLastWeek')}</p>
             </GlassCard>
           )}
         </div>
