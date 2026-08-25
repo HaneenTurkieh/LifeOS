@@ -391,8 +391,16 @@ export default function Tasks() {
                     "dd/mm/yyyy" here) so it can't visually double up with
                     the overlay below on browsers that don't render blank
                     like iOS Safari does — only one placeholder ever shows. */}
+                {/* autoComplete="off" + a name Safari's autofill heuristics
+                    won't recognize — without these, Safari sometimes
+                    "suggests" a guessed date into an untyped date input and
+                    paints its own text on top using -webkit-text-fill-color,
+                    which our color:transparent trick above can't override
+                    (that's the stray pre-filled date some people were
+                    seeing here instead of an empty field). */}
                 <input type="date" className="input-field" value={form.deadline}
-                  style={!form.deadline ? { color: 'transparent' } : undefined}
+                  autoComplete="off" name="nuvora-task-deadline-date"
+                  style={!form.deadline ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
                   onChange={e => setForm({...form, deadline:e.target.value})} />
                 {!form.deadline && (
                   <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
@@ -405,7 +413,8 @@ export default function Tasks() {
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
               <div className="relative">
                 <input type="time" className="input-field" value={form.deadline_time}
-                  style={!form.deadline_time ? { color: 'transparent' } : undefined}
+                  autoComplete="off" name="nuvora-task-deadline-time"
+                  style={!form.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
                   onChange={e => setForm({...form, deadline_time:e.target.value})} />
                 {!form.deadline_time && (
                   <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">

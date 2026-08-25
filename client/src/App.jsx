@@ -471,22 +471,27 @@ function AppShell() {
       </div>
       )}
       {/* ── Floating pill — search + bell (end-4 = right in LTR, LEFT in RTL) ──
-          Made a size step bigger across the board (padding/gap/border-radius,
-          search button min-height/icon, divider height) — this pill was
-          sized more like a secondary icon-button row than the two most-used
-          global actions on the page (search everything, check notifications). */}
+          The previous pass just bumped padding/icon sizes, which still read
+          as a small icon-button row rather than an actual "wider bar" — the
+          search button now looks like a real search field (icon + "Search"
+          label + the ⌘K hint pinned to its far end via flex-1) instead of a
+          bare icon, which is what actually makes the whole pill visibly
+          wider, not just taller. */}
       <div
         className="fixed top-4 end-4 z-50 flex items-center"
         style={{ ...pillStyle, borderRadius: 20, padding: '7px 8px', gap: 6 }}
       >
         <motion.button
-          whileTap={{ scale: 0.94 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => setSearchOpen(true)}
           title={t('common.search')}
-          className={`flex items-center gap-1.5 rounded-xl transition-colors ${iconClr}`}
-          style={{ padding: '7px 10px', minHeight: 40 }}
+          className={`flex items-center gap-2 rounded-xl transition-colors ${iconClr}`}
+          style={{ padding: '8px 12px', minHeight: 40, minWidth: 128 }}
         >
-          <Search size={17} strokeWidth={2} />
+          <Search size={17} strokeWidth={2} className="shrink-0" />
+          <span className="hidden sm:block flex-1 text-start text-xs font-semibold whitespace-nowrap">
+            {t('common.search')}
+          </span>
           <span
             className="hidden lg:block text-[10px] font-bold font-mono whitespace-nowrap"
             style={{ color: kbdClr }}
