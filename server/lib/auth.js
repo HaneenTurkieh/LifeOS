@@ -36,6 +36,30 @@ if (process.env.NODE_ENV !== 'test' && !process.env.JWT_SECRET) {
   console.warn('⚠️  JWT_SECRET is not set — using a random secret generated for this process only. Everyone will be logged out on the next restart. Set JWT_SECRET in server/.env (or your host\'s environment variables) to fix this permanently.');
 }
 
+// ---------- Password strength ----------
+// Used by /register, /me/password, and /reset-password so the rule is
+// enforced consistently no matter which route sets a password. Kept
+// simple on purpose: length + character variety, not a full entropy
+// scorer — mirrors what the client-side strength meter checks so the
+// server never rejects something the UI showed as "strong".
+const PASSWORD_MIN_LENGTH = 8;
+
+function validatePassword(password) {
+  if (!password || password.length < PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    return 'Password must include at least one letter';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must include at least one number';
+  }
+  if (!/[^a-zA-Z0-9]/.test(password)) {
+    return 'Password must include at least one special character (like ! @ # $ %)';
+  }
+  return null; // valid
+}
+
 async function hashPassword(plainPassword) {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(plainPassword, salt);
@@ -99,5 +123,5 @@ function timingSafeEqual(a, b) {
 
 module.exports = {
   hashPassword, comparePassword, signToken, verifyToken, authenticate,
-  generateResetToken, hashResetToken, timingSafeEqual,
+  generateResetToken, hashResetToken, timingSafeEqual, validatePassword,
 };

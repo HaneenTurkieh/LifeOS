@@ -8,6 +8,12 @@ export default {
         display: ['"Outfit"', 'sans-serif'],
         body:    ['"Inter"', 'sans-serif'],
         mono:    ['"JetBrains Mono"', 'monospace'],
+        // Used once, deliberately: the Dashboard greeting only ("Good
+        // afternoon, Haneen"). Every other heading in the app stays
+        // font-display (Outfit) — functional/data text staying sans-serif
+        // is the whole point, an editorial serif everywhere would just be
+        // noise.
+        serif: ['"Fraunces"', 'serif'],
       },
       colors: {
         ink: '#1E2233',

@@ -45,9 +45,40 @@ function sortByPriority(tasks) {
     return 0;
   });
 }
+// Fixed set on purpose — this used to be a freeform text input, which
+// meant every user invented their own spelling ("uni", "Uni", "School",
+// "university stuff"...) and analytics could never group tasks by
+// category since there was no shared vocabulary. Stored as a stable
+// English slug regardless of UI language (same pattern as `priority`:
+// 'high'/'medium'/'low' stored, translated only for display) so category
+// grouping in Stats stays consistent no matter what language someone's
+// using Nuvora in. 'other' is the escape hatch — picking it reveals a
+// free-text field, and whatever's typed there is what actually gets
+// saved (not the literal word "other").
+const CATEGORY_OPTIONS = [
+  { value: 'general',    labelKey: 'tasks.categoryGeneral' },
+  { value: 'university', labelKey: 'tasks.categoryUniversity' },
+  { value: 'personal',   labelKey: 'tasks.categoryPersonal' },
+  { value: 'health',     labelKey: 'tasks.categoryHealth' },
+  { value: 'finance',    labelKey: 'tasks.categoryFinance' },
+  { value: 'other',      labelKey: 'tasks.categoryOther' },
+];
+const KNOWN_CATEGORY_VALUES = new Set(CATEGORY_OPTIONS.map(o => o.value).filter(v => v !== 'other'));
+// Given whatever's stored in a task's `category` column (old freeform
+// text, a known slug, or empty), figure out which dropdown option should
+// be selected — falls back to 'other' with the raw value preserved so
+// legacy freeform categories never silently disappear when you edit an
+// older task.
+function categoryToSelect(cat) {
+  const norm = (cat || '').trim().toLowerCase();
+  if (!norm) return { select: 'general', custom: '' };
+  if (KNOWN_CATEGORY_VALUES.has(norm)) return { select: norm, custom: '' };
+  return { select: 'other', custom: cat };
+}
 const emptyForm = {
   title:'', description:'', priority:'medium',
-  category:'General', deadline:'', deadline_time:'',
+  category:'general', categorySelect:'general', categoryCustom:'',
+  deadline:'', deadline_time:'',
   recurrenceType:'', customDays:[], remindOffsets:[60], recurrenceUntil:'',
 };
 function formToRecurrence(form) {
@@ -210,10 +241,12 @@ export default function Tasks() {
         if (Array.isArray(parsed)) remindOffsets = parsed;
       } catch (_) { /* malformed — fall back to the default */ }
     }
+    const { select: categorySelect, custom: categoryCustom } = categoryToSelect(task.category);
     setForm({
       title: task.title, description: task.description||'',
       priority: (task.priority||'medium').toLowerCase(),
-      category: task.category, deadline: task.deadline||'',
+      category: task.category, categorySelect, categoryCustom,
+      deadline: task.deadline||'',
       deadline_time: task.deadline_time||'', recurrenceType, customDays,
       remindOffsets, recurrenceUntil: task.recurrence_until || '',
     });
@@ -226,7 +259,10 @@ export default function Tasks() {
       const recurrence = formToRecurrence(form);
       const payload = {
         title: form.title.trim(), description: form.description,
-        priority: form.priority, category: form.category,
+        // "Other" picked but left blank on submit → don't save an empty
+        // category string, fall back to 'general' rather than leaving the
+        // task uncategorized.
+        priority: form.priority, category: form.category.trim() || 'general',
         deadline: form.deadline||null, deadline_time: form.deadline_time||null,
         recurrence,
         // No recurrence means there's no chain for an end date to cut
@@ -317,14 +353,38 @@ export default function Tasks() {
               <option value="medium">{t('tasks.priorityMed')}</option>
               <option value="low">{t('tasks.priorityLow')}</option>
             </select>
-            <input className="input-field" placeholder={t('calendar.category')} value={form.category}
-              onChange={e => setForm({...form, category:e.target.value})} />
+            <select className="input-field" value={form.categorySelect}
+              onChange={e => {
+                const categorySelect = e.target.value;
+                setForm(f => ({
+                  ...f, categorySelect,
+                  // Known option → that's the stored category outright.
+                  // 'other' → stored category is whatever's already in the
+                  // custom field (empty until they type something).
+                  category: categorySelect === 'other' ? f.categoryCustom : categorySelect,
+                }));
+              }}>
+              {CATEGORY_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+              ))}
+            </select>
           </div>
+          {form.categorySelect === 'other' && (
+            <input className="input-field" placeholder={t('tasks.categoryCustomPlaceholder')}
+              value={form.categoryCustom}
+              onChange={e => setForm(f => ({ ...f, categoryCustom: e.target.value, category: e.target.value }))} />
+          )}
           <div className="grid grid-cols-2 gap-3">
-            <input type="date" className="input-field" value={form.deadline}
-              onChange={e => setForm({...form, deadline:e.target.value})} />
-            <input type="time" className="input-field" value={form.deadline_time}
-              onChange={e => setForm({...form, deadline_time:e.target.value})} />
+            <div>
+              <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineDateLabel')}</label>
+              <input type="date" className="input-field" value={form.deadline}
+                onChange={e => setForm({...form, deadline:e.target.value})} />
+            </div>
+            <div>
+              <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
+              <input type="time" className="input-field" value={form.deadline_time}
+                onChange={e => setForm({...form, deadline_time:e.target.value})} />
+            </div>
           </div>
           {form.deadline_time && (
             <ReminderPicker

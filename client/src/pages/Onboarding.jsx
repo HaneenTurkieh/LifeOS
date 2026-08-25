@@ -93,42 +93,20 @@ function WelcomeStep({ name, onNext }) {
   );
 }
 
-// Combines what used to be three separate full-screen steps (task,
-// goal, habit — each its own page-flip with a "Skip for now" link)
-// into one screen with three compact quick-add rows. Same actions,
-// a third of the taps: this was the biggest single contributor to
-// onboarding feeling "too long" since most people skipped at least
-// one of the three anyway.
-function QuickSetupStep({ onNext }) {
-  const { t, isRTL } = useLanguage();
-  const [task,  setTask]  = useState('');
-  const [goal,  setGoal]  = useState('');
-  const [habit, setHabit] = useState('');
-  const [doneTask,  setDoneTask]  = useState(false);
-  const [doneGoal,  setDoneGoal]  = useState(false);
-  const [doneHabit, setDoneHabit] = useState(false);
-
-  const addTask = async () => {
-    if (!task.trim() || doneTask) return;
-    setDoneTask(true); // optimistic — this is a low-stakes quick-add, not worth blocking the row on
-    try { await api.post('/tasks', { title: task.trim(), priority: 'high', category: 'General' }); }
-    catch (_) { setDoneTask(false); }
-  };
-  const addGoal = async () => {
-    if (!goal.trim() || doneGoal) return;
-    setDoneGoal(true);
-    try { await api.post('/goals', { title: goal.trim(), category: 'Personal' }); }
-    catch (_) { setDoneGoal(false); }
-  };
-  const addHabit = async (presetName) => {
-    const n = (presetName || habit).trim();
-    if (!n || doneHabit) return;
-    setDoneHabit(true);
-    try { await api.post('/habits', { name: n, icon: 'Sparkles', color: '#7C6AF0', target_per_week: 7 }); }
-    catch (_) { setDoneHabit(false); }
-  };
-
-  const Row = ({ icon, placeholder, value, onChange, onSubmit, done, presets }) => (
+// Hoisted to module scope on purpose — this used to be defined INSIDE
+// QuickSetupStep's function body. That meant every keystroke (which
+// re-renders QuickSetupStep via setTask/setGoal/setHabit) created a
+// brand-new `Row` function identity, and React treats a new component
+// identity as a different component type — so it unmounted and remounted
+// the underlying <input> DOM node on every single character typed. That
+// remount drops focus, so fast typing looked like the field was "chopping
+// off" what people typed: keystrokes fired after the DOM node was replaced
+// never reached the (new, unfocused) input. A stable, module-level
+// component reference fixes it — same `Row` element identity across
+// re-renders, so the <input> node persists and keeps focus while typing.
+function Row({ icon, placeholder, value, onChange, onSubmit, done, presets }) {
+  const { t } = useLanguage();
+  return (
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-2">
         <div className="flex items-center gap-2 flex-1 rounded-xl px-3 py-2.5" style={{ ...inputStyle, padding: undefined }}>
@@ -162,6 +140,42 @@ function QuickSetupStep({ onNext }) {
       )}
     </div>
   );
+}
+
+// Combines what used to be three separate full-screen steps (task,
+// goal, habit — each its own page-flip with a "Skip for now" link)
+// into one screen with three compact quick-add rows. Same actions,
+// a third of the taps: this was the biggest single contributor to
+// onboarding feeling "too long" since most people skipped at least
+// one of the three anyway.
+function QuickSetupStep({ onNext }) {
+  const { t, isRTL } = useLanguage();
+  const [task,  setTask]  = useState('');
+  const [goal,  setGoal]  = useState('');
+  const [habit, setHabit] = useState('');
+  const [doneTask,  setDoneTask]  = useState(false);
+  const [doneGoal,  setDoneGoal]  = useState(false);
+  const [doneHabit, setDoneHabit] = useState(false);
+
+  const addTask = async () => {
+    if (!task.trim() || doneTask) return;
+    setDoneTask(true); // optimistic — this is a low-stakes quick-add, not worth blocking the row on
+    try { await api.post('/tasks', { title: task.trim(), priority: 'high', category: 'general' }); }
+    catch (_) { setDoneTask(false); }
+  };
+  const addGoal = async () => {
+    if (!goal.trim() || doneGoal) return;
+    setDoneGoal(true);
+    try { await api.post('/goals', { title: goal.trim(), category: 'Personal' }); }
+    catch (_) { setDoneGoal(false); }
+  };
+  const addHabit = async (presetName) => {
+    const n = (presetName || habit).trim();
+    if (!n || doneHabit) return;
+    setDoneHabit(true);
+    try { await api.post('/habits', { name: n, icon: 'Sparkles', color: '#7C6AF0', target_per_week: 7 }); }
+    catch (_) { setDoneHabit(false); }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -246,6 +260,50 @@ function LumiStep({ onNext }) {
   );
 }
 
+// New step, on purpose — Flow (a live focus timer that grows a tree while
+// you work) is arguably the most distinctive thing in the app, but before
+// this it had zero explanation anywhere in onboarding — just one line in
+// the LumiStep keyboard-shortcuts grid ("F → Flow"), which explains the
+// hotkey to someone who already knows what Flow is, not what it actually
+// does. This gives it its own beat, the same weight as the Lumi intro.
+function FlowStep({ onNext }) {
+  const { t, isRTL } = useLanguage();
+  return (
+    <div className="flex flex-col items-center text-center gap-4">
+      <motion.div
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="flex h-16 w-16 items-center justify-center rounded-3xl text-3xl"
+        style={{ background: 'linear-gradient(135deg,#4ADE80 0%,#22C55E 100%)', boxShadow: '0 16px 40px rgba(34,197,94,0.40)' }}>
+        🌱
+      </motion.div>
+      <div>
+        <h2 className="font-display text-2xl font-bold text-white mb-2">{t('onboarding.flowTitle')}</h2>
+        <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
+          {t('onboarding.flowSubtitle')}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2.5 w-full">
+        {[
+          { icon: '⏱️', text: t('onboarding.flowPoint1') },
+          { icon: '🌳', text: t('onboarding.flowPoint2') },
+          { icon: '📱', text: t('onboarding.flowPoint3') },
+        ].map(({ icon, text }) => (
+          <div key={text}
+            className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-start text-sm text-white/70"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
+            <span className="shrink-0">{icon}</span>
+            {text}
+          </div>
+        ))}
+      </div>
+      <PrimaryBtn onClick={onNext}>
+        {t('onboarding.continue')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
+      </PrimaryBtn>
+    </div>
+  );
+}
+
 function DoneStep({ name, onFinish }) {
   const { t } = useLanguage();
   return (
@@ -303,6 +361,7 @@ export default function Onboarding({ user, onComplete }) {
     <WelcomeStep    key="welcome" name={name} onNext={next} />,
     <QuickSetupStep key="setup"   onNext={next} />,
     <LumiStep       key="lumi"    onNext={next} />,
+    <FlowStep       key="flow"    onNext={next} />,
     <DoneStep       key="done"    name={name}   onFinish={finish} />,
   ];
   const totalSteps = stepContent.length - 2;
