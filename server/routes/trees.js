@@ -40,14 +40,23 @@ const PREMIUM_TREES = [
   { key: 'aurora',  name: 'Aurora Tree',  emoji: '🌌', priceUsd: 2.99, priceId: null, description: 'Lights up like the northern sky, every night.' },
   { key: 'phoenix', name: 'Phoenix Tree', emoji: '🔥', priceUsd: 2.99, priceId: null, description: 'Rises brighter every time you restart.' },
   { key: 'galaxy',  name: 'Galaxy Tree',  emoji: '🌠', priceUsd: 2.99, priceId: null, description: 'A universe of its own, growing in your pocket.' },
+  // Second wave — three more, added so the premium tier reads as an
+  // actual collection worth browsing instead of a 3-item afterthought.
+  { key: 'nebula',  name: 'Nebula Tree',  emoji: '🪐', priceUsd: 2.99, priceId: null, description: 'A cloud of stardust, still taking shape.' },
+  { key: 'eclipse', name: 'Eclipse Tree', emoji: '🌑', priceUsd: 2.99, priceId: null, description: 'Dark at the center, gold at every edge.' },
+  { key: 'comet',   name: 'Comet Tree',   emoji: '☄️', priceUsd: 2.99, priceId: null, description: 'Blazes past once — and stays remembered forever.' },
 ];
-// Buying the collection together costs less than buying all three
-// individually ($6.99 vs $8.97) — the "buy the whole collection" option
-// your instructor described. Its own separate Paddle Price, not a
-// discount code, so it grants all three trees at once from one webhook.
+// Two collections now instead of one — the original sky-themed three,
+// and a second pack for the newer additions. Buying either bundle costs
+// less than buying its three trees individually ($6.99 vs $8.97) — the
+// "buy the whole collection" option your instructor described. Each is
+// its own separate Paddle Price, not a discount code, so it grants all
+// three trees at once from one webhook.
 const TREE_COLLECTIONS = [
   { key: 'celestial', name: 'Celestial Collection', treeKeys: ['aurora', 'phoenix', 'galaxy'], priceUsd: 6.99, priceId: null,
     description: 'All three sky trees, together — Aurora, Phoenix, and Galaxy.' },
+  { key: 'astral', name: 'Astral Collection', treeKeys: ['nebula', 'eclipse', 'comet'], priceUsd: 6.99, priceId: null,
+    description: 'The deep-space trio — Nebula, Eclipse, and Comet.' },
 ];
 
 // ── Constellation — your own zodiac, star by star ───────────────

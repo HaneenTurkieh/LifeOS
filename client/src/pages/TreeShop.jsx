@@ -14,6 +14,20 @@ import MysticSvg  from '../components/MysticTreeIcon.jsx';
 //    the user's own zodiac + which star comes next ─────────────
 const MYSTIC_COLORS = ['#8B5CF6', '#F472B6', '#F59E0B', '#10B981', '#38BDF8', '#6366F1', '#FB7185', '#EAB308'];
 
+// Every premium tree used to share one flat gold treatment regardless of
+// which tree it was — that's a lot of why they read as "not attractive":
+// three (now six) different trees all wearing the same color made the row
+// look like one design repeated, not six distinct things worth Browse-ing.
+// Each tree now carries its own accent, echoed through its border/glow/
+// badge/button, the same way RARITY does for the earnable trees above.
+const PREMIUM_COLORS = {
+  aurora:  '#38BDF8',
+  phoenix: '#FB923C',
+  galaxy:  '#A855F7',
+  nebula:  '#EC4899',
+  eclipse: '#FBBF24',
+  comet:   '#7DD3FC',
+};
 const RARITY = {
   seedling:       { label: 'shop.rarStarter',   color: '#4CC38A', bg: 'rgba(76,195,138,0.12)' },
   sprout:         { label: 'shop.rarCommon',    color: '#60A5FA', bg: 'rgba(96,165,250,0.12)' },
@@ -144,55 +158,78 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
 // (gold/champagne instead of rarity colors, a price tag instead of an XP
 // pill) so it reads as its own category, not just another rarity level.
 function PremiumTreeCard({ tree, onBuy, loading, t }) {
+  const c = PREMIUM_COLORS[tree.key] || '#F59E0B';
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={!tree.owned ? { y: -4, transition: { type: 'spring', stiffness: 400, damping: 25 } } : {}}
-      className="relative flex flex-col items-center rounded-3xl p-6 text-center"
+      whileHover={!tree.owned ? { y: -4, scale: 1.015, transition: { type: 'spring', stiffness: 400, damping: 25 } } : {}}
+      // h-full + flex column with the description set to flex-1 below is
+      // what actually fixes the misalignment — cards in the same grid row
+      // already stretch to equal height, but without something inside
+      // absorbing the extra space, a card with a 1-line description had
+      // its price/Buy button sitting noticeably higher than a card with a
+      // 2-line one. flex-1 on the description pushes price+button to the
+      // same baseline across every card in the row, regardless of how
+      // long that tree's own description happens to be.
+      className="relative flex h-full flex-col items-center rounded-3xl p-6 text-center overflow-hidden"
       style={{
         background: tree.owned
-          ? 'linear-gradient(145deg, rgba(250,204,21,0.16) 0%, rgba(250,204,21,0.05) 100%)'
-          : 'linear-gradient(145deg, rgba(30,20,10,0.06) 0%, rgba(250,204,21,0.05) 100%)',
-        border: tree.owned ? '2px solid rgba(250,204,21,0.45)' : '1px solid rgba(250,204,21,0.30)',
+          ? `linear-gradient(145deg, ${c}29 0%, ${c}0D 100%)`
+          : `linear-gradient(145deg, rgba(20,16,35,0.05) 0%, ${c}14 100%)`,
+        border: tree.owned ? `2px solid ${c}73` : `1px solid ${c}4D`,
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-        boxShadow: tree.owned ? '0 12px 32px rgba(250,204,21,0.18), inset 0 2px 0 rgba(255,255,255,0.5)' : '0 4px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.5)',
+        boxShadow: tree.owned ? `0 12px 32px ${c}2E, inset 0 2px 0 rgba(255,255,255,0.5)` : `0 4px 20px ${c}1A, inset 0 1px 0 rgba(255,255,255,0.5)`,
       }}
     >
-      <div className="absolute top-3 end-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-        style={{ background: 'rgba(250,204,21,0.18)', color: '#B45309' }}>
-        {t('shop.premiumBadge')}
+      {/* Soft ambient glow behind the icon, tinted to the tree's own
+          color — same "gamified accent" language used elsewhere in the
+          app, here doing double duty as what makes six cards actually
+          look like six different things at a glance. */}
+      <motion.div
+        className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 h-32 w-32 rounded-full"
+        style={{ background: `radial-gradient(circle, ${c}55 0%, transparent 70%)` }}
+        animate={{ opacity: [0.5, 0.9, 0.5], scale: [1, 1.12, 1] }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <div className="relative flex flex-col items-center h-full w-full">
+        <div className="absolute top-0 end-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+          style={{ background: `${c}2E`, color: c }}>
+          {t('shop.premiumBadge')}
+        </div>
+        {tree.owned && (
+          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-0.5 text-[10px] font-bold text-white"
+            style={{ background: c, boxShadow: `0 2px 8px ${c}73` }}>
+            <Check size={10} /> {t('shop.equipped')}
+          </div>
+        )}
+        <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          className="relative text-7xl mt-2 mb-3 select-none" style={{ filter: `drop-shadow(0 4px 14px ${c}88)` }}>
+          {tree.emoji}
+        </motion.div>
+        <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.name}</h3>
+        <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug flex-1">{tree.description}</p>
+        {!tree.owned && (
+          <div className="flex items-center gap-1 mb-4 rounded-full px-3 py-1 text-xs font-bold" style={{ background: `${c}29`, color: c }}>
+            ${tree.priceUsd.toFixed(2)}
+          </div>
+        )}
+        {tree.owned ? (
+          <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}29`, color: c }}>
+            {t('shop.currentlyOwned')}
+          </div>
+        ) : (
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={() => onBuy(tree)}
+            disabled={loading}
+            className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
+            style={{ background: `linear-gradient(135deg, ${c} 0%, ${c}CC 100%)`, boxShadow: `0 6px 16px ${c}59` }}>
+            {t('shop.buy')}
+          </motion.button>
+        )}
       </div>
-      {tree.owned && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-0.5 text-[10px] font-bold text-white"
-          style={{ background: '#B45309', boxShadow: '0 2px 8px rgba(180,83,9,0.45)' }}>
-          <Check size={10} /> {t('shop.equipped')}
-        </div>
-      )}
-      <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="text-6xl mb-3 select-none">{tree.emoji}</motion.div>
-      <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.name}</h3>
-      <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug">{tree.description}</p>
-      {!tree.owned && (
-        <div className="flex items-center gap-1 mb-4 rounded-full px-3 py-1 text-xs font-bold" style={{ background: 'rgba(250,204,21,0.16)', color: '#B45309' }}>
-          ${tree.priceUsd.toFixed(2)}
-        </div>
-      )}
-      {tree.owned ? (
-        <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: 'rgba(250,204,21,0.16)', color: '#B45309' }}>
-          {t('shop.currentlyOwned')}
-        </div>
-      ) : (
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          onClick={() => onBuy(tree)}
-          disabled={loading}
-          className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', boxShadow: '0 6px 16px rgba(180,83,9,0.35)' }}>
-          {t('shop.buy')}
-        </motion.button>
-      )}
     </motion.div>
   );
 }
