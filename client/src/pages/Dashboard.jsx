@@ -730,39 +730,11 @@ export default function Dashboard() {
               one tap away via the nav, so this card was showing the same
               tree a second time on the same page without adding anything
               the hero didn't already say. */}
-          {quote && !isRoughDay && !isGreatDay && (
-            <GlassCard className="p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm">💬</span>
-                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.dailyQuote')}</h3>
-              </div>
-              <p className="text-xs text-ink/65 dark:text-white/55 italic leading-relaxed">"{quote.text}"</p>
-              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2">— {quote.author}</p>
-            </GlassCard>
-          )}
-          {isRoughDay && (
-            <GlassCard className="p-5"
-              style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
-              <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
-                "{t(`dash.roughQuote${roughQuoteIndex}`)}"
-              </p>
-              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Nuvora</p>
-            </GlassCard>
-          )}
-          {isGreatDay && (
-            <GlassCard className="p-5"
-              style={{ background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.20)' }}>
-              <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
-                "{t(`dash.greatQuote${greatQuoteIndex}`)}"
-              </p>
-              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">🚀 Nuvora</p>
-            </GlassCard>
-          )}
           {/* Weekly Recap — a 2-second narrative glance, not a chart.
               Analytics already has the detailed 8-week bar/line breakdown
               of this same data; this is deliberately just three numbers
-              with a this-week-vs-last-week delta. Pushed to the very
-              bottom of the column now, per your call. */}
+              with a this-week-vs-last-week delta. Sits above the daily
+              quote card, near the bottom of the column. */}
           {recap && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -803,6 +775,34 @@ export default function Dashboard() {
                 </div>
               </div>
               <p className="text-[10px] text-ink/30 dark:text-white/20 mt-2 text-end">{t('dash.recapVsLastWeek')}</p>
+            </GlassCard>
+          )}
+          {quote && !isRoughDay && !isGreatDay && (
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">💬</span>
+                <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.dailyQuote')}</h3>
+              </div>
+              <p className="text-xs text-ink/65 dark:text-white/55 italic leading-relaxed">"{quote.text}"</p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2">— {quote.author}</p>
+            </GlassCard>
+          )}
+          {isRoughDay && (
+            <GlassCard className="p-5"
+              style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
+              <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
+                "{t(`dash.roughQuote${roughQuoteIndex}`)}"
+              </p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">{isBirthday ? '🎂' : '💙'} Nuvora</p>
+            </GlassCard>
+          )}
+          {isGreatDay && (
+            <GlassCard className="p-5"
+              style={{ background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.20)' }}>
+              <p className="text-sm text-ink/65 dark:text-white/55 italic leading-relaxed text-center">
+                "{t(`dash.greatQuote${greatQuoteIndex}`)}"
+              </p>
+              <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2 text-center">🚀 Nuvora</p>
             </GlassCard>
           )}
         </div>
