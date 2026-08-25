@@ -198,10 +198,14 @@ function PremiumTreeCard({ tree, onBuy, loading, t }) {
           style={{ background: `${c}2E`, color: c }}>
           {t('shop.premiumBadge')}
         </div>
+        {/* "Equipped" doesn't apply here anymore — premium trees aren't
+            the one-at-a-time grown tree, they're shelf collectibles, so
+            owned ones get a plain "owned" checkmark instead of implying
+            this is the one currently active. */}
         {tree.owned && (
           <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-0.5 text-[10px] font-bold text-white"
             style={{ background: c, boxShadow: `0 2px 8px ${c}73` }}>
-            <Check size={10} /> {t('shop.equipped')}
+            <Check size={10} /> {t('shop.currentlyOwned')}
           </div>
         )}
         <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -217,7 +221,7 @@ function PremiumTreeCard({ tree, onBuy, loading, t }) {
         )}
         {tree.owned ? (
           <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}29`, color: c }}>
-            {t('shop.currentlyOwned')}
+            {t('shop.onShelf')}
           </div>
         ) : (
           <motion.button
@@ -226,11 +230,57 @@ function PremiumTreeCard({ tree, onBuy, loading, t }) {
             disabled={loading}
             className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
             style={{ background: `linear-gradient(135deg, ${c} 0%, ${c}CC 100%)`, boxShadow: `0 6px 16px ${c}59` }}>
-            {t('shop.buy')}
+            {t('shop.addToShelf')}
           </motion.button>
         )}
       </div>
     </motion.div>
+  );
+}
+// Your call — premium trees don't grow with the streak the way earnable
+// ones do (no XP progress bar makes sense for a one-time purchase), so
+// framing them as a single "equipped" swap the same way TreeCard works
+// was a mismatch. This shows everything you own together, all at once,
+// like a trophy shelf — buying a second or third one adds to the
+// display instead of replacing whichever was "grown" before.
+function ShelfDisplay({ ownedPremiumTrees, t }) {
+  return (
+    <div className="relative rounded-3xl p-6 mb-5 overflow-hidden"
+      style={{
+        background: 'linear-gradient(160deg, rgba(20,16,35,0.85) 0%, rgba(42,26,74,0.75) 100%)',
+        border: '1px solid rgba(255,255,255,0.10)',
+      }}>
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles size={15} style={{ color: '#FACC15' }} />
+        <h4 className="font-display font-semibold text-white text-sm">{t('shop.shelfTitle')}</h4>
+      </div>
+      <p className="text-xs text-white/45 mb-4">{t('shop.shelfSubtitle')}</p>
+      {ownedPremiumTrees.length === 0 ? (
+        <p className="text-xs text-white/35 italic">{t('shop.shelfEmpty')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-4">
+          {ownedPremiumTrees.map((tree) => {
+            const c = PREMIUM_COLORS[tree.key] || '#F59E0B';
+            return (
+              <div key={tree.key} className="flex flex-col items-center">
+                {/* the "pedestal" — a small glowing base each item sits
+                    on, same idea as a lit trophy-case shelf */}
+                <motion.div
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl mb-1.5"
+                  style={{ background: `${c}26`, border: `1px solid ${c}55`, boxShadow: `0 6px 18px ${c}33` }}
+                >
+                  {tree.emoji}
+                </motion.div>
+                <div className="h-1 w-8 rounded-full" style={{ background: `${c}55` }} />
+                <span className="mt-1 max-w-[64px] truncate text-[10px] font-semibold text-white/70">{tree.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 function CollectionCard({ collection, premiumTrees, onBuy, loading, t }) {
@@ -844,6 +894,7 @@ export default function TreeShop() {
             <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.premiumTitle')}</h3>
           </div>
           <p className="text-xs text-ink/45 dark:text-white/35 mb-4">{t('shop.premiumSubtitle')}</p>
+          <ShelfDisplay ownedPremiumTrees={data.premiumTrees.filter((tr) => tr.owned)} t={t} />
           {data.collections?.map((c) => (
             <CollectionCard key={c.key} collection={c} premiumTrees={data.premiumTrees} onBuy={buyCollection} loading={buying} t={t} />
           ))}
