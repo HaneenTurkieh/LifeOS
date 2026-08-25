@@ -289,8 +289,14 @@ export default function Dashboard() {
                   // Shield count folded into the same hint rather than a
                   // second popover — it's context for the streak number,
                   // not a separate concept worth its own stat card.
-                  hint: streakShields > 0 ? `${t('dash.streakHint')} ${t('dash.shieldsAvailable', { n: streakShields })}` : t('dash.streakHint'),
-                  badge: streakShields > 0 ? `🛡️${streakShields}` : null,
+                  hint: streakShields > 0 ? `${t('dash.streakHint')} ${t('dash.shieldsAvailable', { n: streakShields })}` : `${t('dash.streakHint')} ${t('dash.shieldsNoneYet')}`,
+                  // Always shown (not just once you've earned one) — a
+                  // badge that only ever appears after the fact isn't
+                  // discoverable; showing 🛡️0/2 up front is what actually
+                  // tells people the feature exists before they've hit the
+                  // 7-day mark that unlocks the first one.
+                  badge: `🛡️${streakShields}/${2}`,
+                  badgeMuted: streakShields === 0,
                   glow:'rgba(251,146,60,0.45)',
                 },
                 { icon: isBirthday ? '🎁' : '⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees'), glow:'rgb(var(--accent-500) / 0.45)' },
@@ -302,7 +308,7 @@ export default function Dashboard() {
                 counts.totalTasksToday > 0
                   ? { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(Math.max(0, counts.totalTasksToday - counts.tasksDoneToday)), label:t('dash.leftToday'), hint:t('dash.leftTodayCountHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
                   : { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
-              ].map(({ icon, color, value, label, hint, onClick, glow, badge }) => (
+              ].map(({ icon, color, value, label, hint, onClick, glow, badge, badgeMuted }) => (
                 <motion.div
                   key={label}
                   whileHover={onClick ? { y:-2 } : {}}
@@ -331,8 +337,10 @@ export default function Dashboard() {
                 >
                   {badge && (
                     <span
-                      className="absolute -top-2 -end-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white shadow"
-                      style={{ background: 'linear-gradient(135deg, #60A5FA, #3B82F6)' }}
+                      className="absolute -top-2 -end-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold shadow"
+                      style={badgeMuted
+                        ? { background: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(30,34,51,0.14)', color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(30,34,51,0.55)' }
+                        : { background: 'linear-gradient(135deg, #60A5FA, #3B82F6)', color: 'white' }}
                     >
                       {badge}
                     </span>
@@ -613,20 +621,28 @@ export default function Dashboard() {
             onClick={() => navigate('/learning')}
             className="p-6 overflow-hidden relative"
             style={{
-              background: 'linear-gradient(150deg, rgb(var(--accent-500) / 0.20) 0%, rgba(74,222,128,0.10) 60%, rgba(74,222,128,0.14) 100%)',
+              // Was accent → green (emerald), which read as a mismatched
+              // "growth app" cliché stapled onto Nuvora's actual palette —
+              // everything else on this page is pink/lavender/indigo
+              // (cosmic, not botanical). Swapped the green stop for the
+              // app's own indigo/violet tokens (tailwind.config.js
+              // `nuvora.indigo`/`nuvora.violet`) so the card reads as part
+              // of the same family as the Streak/XP cards instead of an
+              // off-brand accent.
+              background: 'linear-gradient(150deg, rgb(var(--accent-500) / 0.22) 0%, rgba(99,102,241,0.12) 55%, rgba(139,92,246,0.16) 100%)',
               border: '1px solid rgb(var(--accent-500) / 0.28)',
               boxShadow: '0 16px 40px rgb(var(--accent-500) / 0.16)',
             }}
           >
             <motion.div
               className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full"
-              style={{ background: 'radial-gradient(circle, rgba(74,222,128,0.35) 0%, transparent 70%)' }}
+              style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.35) 0%, transparent 70%)' }}
               animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.9, 0.6] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             />
             <div className="relative flex items-center gap-4">
               <motion.div
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-emerald-500 shadow-glow"
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[#6366F1] shadow-glow"
                 animate={{ y: [0, -5, 0] }}
                 transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
               >
@@ -654,18 +670,73 @@ export default function Dashboard() {
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
               className="relative mt-4 flex items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-white"
               style={{
-                background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, #16A34A 100%)',
+                background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, #6366F1 100%)',
                 boxShadow: '0 8px 20px rgb(var(--accent-500) / 0.35)',
               }}
             >
               {t('dash.flowCta')} →
             </motion.div>
           </GlassCard>
+          {/* Mood moved to the top of this column, right after Flow — per
+              your call to lead with mood and push Your Week further down.
+              Same card as before, just relocated. */}
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Smile size={15} className="text-lavender-500" />
+              <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.mood')}</h3>
+            </div>
+            <div className="flex justify-between">
+              {MOOD_OPTIONS.map((m) => (
+                <button key={m.value} onClick={() => saveMood(m.value)} disabled={moodSaving}
+                  className="flex flex-col items-center gap-1 group">
+                  <motion.span
+                    whileHover={{ scale:1.2, y:-2 }} whileTap={{ scale:0.9 }}
+                    className={`text-2xl transition-all ${
+                      mood?.mood === m.value ? 'scale-125 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100'
+                    }`}
+                  >
+                    {m.emoji}
+                  </motion.span>
+                  <span className="text-[10px] text-ink/40 dark:text-white/30">{t(m.label)}</span>
+                </button>
+              ))}
+            </div>
+          </GlassCard>
+          {nextMilestones?.length > 0 && (
+            <GlassCard className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-lavender-500" />
+                  <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.nextMilestones')}</h3>
+                </div>
+                <button onClick={() => navigate('/goals')}
+                  className="text-xs text-lavender-600 dark:text-lavender-300 font-semibold hover:underline">
+                  {t('dash.viewAll')}
+                </button>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {nextMilestones.map((m) => (
+                  <div key={m.id} className="flex items-start gap-2.5">
+                    <button onClick={() => toggleMilestone(m)}
+                      className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
+                      <Square size={15} />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-ink dark:text-white truncate">{m.title}</p>
+                      <p className="text-[10px] text-ink/40 dark:text-white/30 truncate mt-0.5">
+                        {m.goal_title}{m.scheduled_date ? ` · ${formatDeadline(m.scheduled_date)}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
           {/* Weekly Recap — a 2-second narrative glance, not a chart.
               Analytics already has the detailed 8-week bar/line breakdown
               of this same data; this is deliberately just three numbers
-              with a this-week-vs-last-week delta, meant to be read at a
-              glance on the Dashboard rather than studied. */}
+              with a this-week-vs-last-week delta. Sits mid-column now —
+              Mood moved up to lead the column instead. */}
           {recap && (
             <GlassCard className="p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -708,58 +779,6 @@ export default function Dashboard() {
               <p className="text-[10px] text-ink/30 dark:text-white/20 mt-2 text-end">{t('dash.recapVsLastWeek')}</p>
             </GlassCard>
           )}
-          {nextMilestones?.length > 0 && (
-            <GlassCard className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Target size={15} className="text-lavender-500" />
-                  <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.nextMilestones')}</h3>
-                </div>
-                <button onClick={() => navigate('/goals')}
-                  className="text-xs text-lavender-600 dark:text-lavender-300 font-semibold hover:underline">
-                  {t('dash.viewAll')}
-                </button>
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {nextMilestones.map((m) => (
-                  <div key={m.id} className="flex items-start gap-2.5">
-                    <button onClick={() => toggleMilestone(m)}
-                      className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
-                      <Square size={15} />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-ink dark:text-white truncate">{m.title}</p>
-                      <p className="text-[10px] text-ink/40 dark:text-white/30 truncate mt-0.5">
-                        {m.goal_title}{m.scheduled_date ? ` · ${formatDeadline(m.scheduled_date)}` : ''}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          )}
-          <GlassCard className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Smile size={15} className="text-lavender-500" />
-              <h3 className="font-display font-semibold text-sm text-ink dark:text-white">{t('dash.mood')}</h3>
-            </div>
-            <div className="flex justify-between">
-              {MOOD_OPTIONS.map((m) => (
-                <button key={m.value} onClick={() => saveMood(m.value)} disabled={moodSaving}
-                  className="flex flex-col items-center gap-1 group">
-                  <motion.span
-                    whileHover={{ scale:1.2, y:-2 }} whileTap={{ scale:0.9 }}
-                    className={`text-2xl transition-all ${
-                      mood?.mood === m.value ? 'scale-125 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100'
-                    }`}
-                  >
-                    {m.emoji}
-                  </motion.span>
-                  <span className="text-[10px] text-ink/40 dark:text-white/30">{t(m.label)}</span>
-                </button>
-              ))}
-            </div>
-          </GlassCard>
           {todaysHabits.length > 0 && !isRoughDay && (
             <GlassCard className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -846,14 +865,13 @@ export default function Dashboard() {
                     ? TREE_DESC.christmas
                     : equippedTree?.startsWith('mystic') ? 'One of a kind. Made by you.' : TREE_DESC[equippedTree]}
                 </p>
-                {/* Deliberately plain — "First sprout" etc. right under a
-                    named, purchased species like "Cherry Blossom" read as
-                    a contradiction (is it a cherry blossom or a sprout?).
-                    Streak stays visible, just without pretending it's a
-                    growth stage of the specific tree you already own. */}
-                <p className="text-[10px] text-sage-600 dark:text-sage-400 font-medium mt-1 flex items-center gap-1">
-                  <span>🔥</span> {t('goals.dayStreak', { n: streak })}
-                </p>
+                {/* The streak number used to repeat here too — same 🔥
+                    figure already sitting in the top stat card AND on the
+                    Flow card badge just above this one. Third copy of the
+                    same number on one screen read as filler rather than
+                    new information, so this card now sticks to what's
+                    actually specific to it: which tree you have and how
+                    close the next one is. */}
                 {nextTree && (
                   <div className="mt-2">
                     <div className="flex items-center justify-between mb-1">
