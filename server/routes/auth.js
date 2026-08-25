@@ -10,6 +10,7 @@ const {
   authenticate,
   generateResetToken,
   hashResetToken,
+  validatePassword,
 } = require('../lib/auth');
 const { sendPasswordResetEmail } = require('../lib/email');
 const { rateLimit }              = require('../lib/rateLimit');
@@ -50,7 +51,8 @@ router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name?.trim())                   return res.status(400).json({ error: 'Name is required' });
   if (!email || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'A valid email is required' });
-  if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const pwError = validatePassword(password);
+  if (pwError) return res.status(400).json({ error: pwError });
 
   const normalizedEmail = email.trim().toLowerCase();
   const trimmedName     = name.trim();
@@ -260,7 +262,8 @@ router.patch('/me', authenticate, async (req, res) => {
 router.post('/me/password', authenticate, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both fields are required' });
-  if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  const pwError = validatePassword(newPassword);
+  if (pwError) return res.status(400).json({ error: pwError });
 
   try {
     const result = await db.execute({
@@ -362,7 +365,8 @@ router.get('/reset-password/:token', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
   if (!token)   return res.status(400).json({ error: 'Reset token is required' });
-  if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const pwError = validatePassword(password);
+  if (pwError) return res.status(400).json({ error: pwError });
 
   try {
     const tokenHash  = hashResetToken(token);

@@ -203,8 +203,8 @@ export default function Dashboard() {
     : null;
 
   return (
-    <div className="flex flex-col gap-5">
-      <GlassCard className="p-7">
+    <div className="flex flex-col gap-6">
+      <GlassCard className="p-7 sm:p-8">
         {/* ref moved up here (was on just the stats row below) so the new
             score-ring info button — which lives in the sphere column, a
             sibling of that row, not inside it — is also treated as
@@ -223,14 +223,14 @@ export default function Dashboard() {
                 Nuvora · {todayLabel}
               </p>
             </div>
-            <h1 className="font-display text-3xl font-bold text-ink dark:text-white mb-1">
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-ink dark:text-white mb-1.5">
               {isBirthday ? t('greet.birthday') : t(greetKey)}, {firstName} {isBirthday ? '🎂' : '👋'}
             </h1>
-            <p className="text-sm text-ink/45 dark:text-white/40 mb-5">{subtitle}</p>
-            <div className="relative z-30 flex flex-wrap gap-3">
+            <p className="text-sm text-ink/45 dark:text-white/40 mb-6">{subtitle}</p>
+            <div className="relative z-30 flex flex-wrap gap-4">
               {[
-                { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint') },
-                { icon: isBirthday ? '🎁' : '⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees') },
+                { icon:'🔥', color:'from-sun-400 to-sun-500', value:`${streak}d`, label:t('dash.streak'), hint:t('dash.streakHint'), glow:'rgba(251,146,60,0.45)' },
+                { icon: isBirthday ? '🎁' : '⚡', color:'from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))]', value:`${level?.xp || 0} XP`, label:t('dash.lvl', { n: level?.level || 1 }), hint:t('dash.lvlHint'), onClick:() => navigate('/trees'), glow:'rgb(var(--accent-500) / 0.45)' },
                 // "X/Y done" reads as "achieved today" to most people, but Y is
                 // tasks *due* today and X counts a task as done no matter which
                 // day it was actually finished — someone who finished a task
@@ -239,15 +239,32 @@ export default function Dashboard() {
                 counts.totalTasksToday > 0
                   ? { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(Math.max(0, counts.totalTasksToday - counts.tasksDoneToday)), label:t('dash.leftToday'), hint:t('dash.leftTodayCountHint', { done: counts.tasksDoneToday, total: counts.totalTasksToday }) }
                   : { icon:'📋', color:'from-nuvora-sky to-blue-500', value:String(todaysTasks.length), label:t('dash.leftToday'), hint:t('dash.leftTodayHint') },
-              ].map(({ icon, color, value, label, hint, onClick }) => (
+              ].map(({ icon, color, value, label, hint, onClick, glow }) => (
                 <motion.div
                   key={label}
                   whileHover={onClick ? { y:-2 } : {}}
                   onClick={onClick}
-                  className={`relative flex items-center gap-3 rounded-2xl px-4 py-3 ${onClick ? 'cursor-pointer' : ''}`}
-                  style={isDark
-                    ? { background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.09)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }
-                    : { background:'rgba(255,255,255,0.22)', border:'1px solid rgba(255,255,255,0.90)', backdropFilter:'blur(16px)', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.90)' }}
+                  // Card is lifted to the top of its own stacking order
+                  // while its hint is open — see note on the popover below
+                  // for why this (not just the popover's own z-index)
+                  // is what actually keeps it from rendering underneath
+                  // the next card in the row.
+                  style={{
+                    ...(isDark
+                      ? { background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.10)', backdropFilter:'blur(20px)' }
+                      : { background:'rgba(255,255,255,0.30)', border:'1px solid rgba(255,255,255,0.95)', backdropFilter:'blur(20px)' }),
+                    // Layered shadow: a soft ambient drop-shadow underneath
+                    // (colored for Streak/XP — the "gamified accent" glow —
+                    // neutral for the plain utility card) plus the original
+                    // inset top highlight on top of it, instead of just the
+                    // single flat inset shadow this used to have.
+                    boxShadow: [
+                      glow ? `0 10px 28px ${glow}` : (isDark ? '0 10px 24px rgba(0,0,0,0.28)' : '0 10px 24px rgba(124,106,240,0.10)'),
+                      isDark ? 'inset 0 1px 0 rgba(255,255,255,0.10)' : 'inset 0 1px 0 rgba(255,255,255,0.95)',
+                    ].join(', '),
+                    zIndex: openHint === label ? 50 : undefined,
+                  }}
+                  className={`relative flex items-center gap-3 rounded-2xl px-5 py-3.5 ${onClick ? 'cursor-pointer' : ''}`}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-white text-base bg-gradient-to-br ${color}`}>
                     {icon}
@@ -286,7 +303,24 @@ export default function Dashboard() {
                         exit={{ opacity:0, y:-4, scale:0.96 }}
                         transition={{ duration:0.15 }}
                         onClick={(e) => e.stopPropagation()}
-                        className={`absolute top-full mt-2 start-0 z-20 w-56 rounded-xl px-3 py-2.5 text-xs leading-relaxed ${isDark ? 'text-white/80' : 'text-ink/70'}`}
+                        // Real bug this fixes: `backdropFilter` on the card
+                        // above creates its own stacking context, so this
+                        // popover's z-20 only ever ordered it against its
+                        // OWN card's children — it never competed with the
+                        // *next* card in the row, which (also having its
+                        // own backdrop-filter stacking context) simply
+                        // painted after it in DOM order regardless of any
+                        // z-index set here. On narrow/mobile widths, where
+                        // this w-56 popover is wider than its own card, that
+                        // made it visually clip under/behind whichever
+                        // stat-card sat next to it — the "hidden explanation"
+                        // bug. The real fix had to happen one level up: see
+                        // `zIndex: openHint === label ? 50 : undefined` on
+                        // the card's own style above, which lifts the
+                        // card's entire stacking context (this popover
+                        // included) above its siblings. This z-30 here is
+                        // now just for ordering within the card itself.
+                        className={`absolute top-full mt-2 start-0 z-30 w-56 max-w-[calc(100vw-3rem)] rounded-xl px-3 py-2.5 text-xs leading-relaxed ${isDark ? 'text-white/80' : 'text-ink/70'}`}
                         style={isDark
                           ? { background:'rgba(32,26,54,0.98)', border:'1px solid rgba(255,255,255,0.14)', boxShadow:'0 12px 32px rgba(0,0,0,0.45)' }
                           : { background:'rgba(255,255,255,0.98)', border:'1px solid rgba(255,255,255,0.90)', boxShadow:'0 12px 32px rgba(0,0,0,0.14)' }}
@@ -457,6 +491,34 @@ export default function Dashboard() {
           </GlassCard>
         </div>
         <div className="flex flex-col gap-4">
+          {/* Flow used to have zero presence outside the mobile "More"
+              bucket and a single line in the onboarding shortcuts list —
+              easily the most distinctive feature in the app (a real focus
+              timer that grows a tree live while you work) and the least
+              discoverable. First card in this column on purpose: highest
+              visibility real estate on the page after the hero stats. */}
+          <GlassCard
+            interactive
+            onClick={() => navigate('/learning')}
+            className="p-5 overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, rgb(var(--accent-500) / 0.16), rgba(74,222,128,0.08))',
+              border: '1px solid rgb(var(--accent-500) / 0.22)',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))] shadow-glow">
+                🌱
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-display font-bold text-sm text-ink dark:text-white">{t('dash.flowTitle')}</h3>
+                <p className="text-xs text-ink/55 dark:text-white/45 mt-0.5 leading-relaxed">{t('dash.flowSubtitle')}</p>
+                <span className="inline-flex items-center gap-1 mt-2.5 text-xs font-semibold text-[rgb(var(--accent-600))] dark:text-lavender-300">
+                  {t('dash.flowCta')} →
+                </span>
+              </div>
+            </div>
+          </GlassCard>
           {nextMilestones?.length > 0 && (
             <GlassCard className="p-5">
               <div className="flex items-center justify-between mb-3">

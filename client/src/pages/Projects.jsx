@@ -49,6 +49,13 @@ export default function Projects({ openTrigger = 0 }) {
   // couple of quick manual to-dos, or none yet, had nowhere for them to go.
   const [addingTaskFor, setAddingTaskFor] = useState(null); // project object
   const [newTaskForm,   setNewTaskForm]   = useState({ title: '', description: '', priority: 'medium' });
+  // There was no way to rename a project once created at all — the title
+  // was only ever set once, in the "New project" modal. This is a small
+  // inline edit (not a full modal) since renaming is a one-field, low-
+  // stakes action — matches how the pencil already works for a project's
+  // own tasks (openEditProjectTask below) but scoped to just the title.
+  const [renamingId,   setRenamingId]   = useState(null);
+  const [renameValue,  setRenameValue]  = useState('');
   const toast = useToast();
   const { t } = useLanguage();
 
@@ -173,6 +180,19 @@ export default function Projects({ openTrigger = 0 }) {
     catch (err) { toast.error(err.message); }
   };
 
+  const startRename = (item) => { setRenamingId(item.id); setRenameValue(item.title); };
+  const cancelRename = () => { setRenamingId(null); setRenameValue(''); };
+  const saveRename = async (item) => {
+    const title = renameValue.trim();
+    if (!title || title === item.title) { cancelRename(); return; }
+    try {
+      await api.put(`/projects/${item.id}`, { title });
+      setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, title } : p)));
+      toast.success(t('projects.renameSuccess'));
+    } catch (err) { toast.error(err.message); }
+    finally { cancelRename(); }
+  };
+
   // ── AI: break project into tasks ─────────────────────────────
   // Stage + existing-task titles ground the AI in roughly where a
   // project stands, but a 5-stage label is still a coarse guess — it
@@ -267,7 +287,30 @@ Return ONLY a JSON array of objects with keys: title (string), priority (high/me
             <GlassCard key={item.id} delay={i * 0.04} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-display font-bold text-ink dark:text-white">{item.title}</h3>
+                  {renamingId === item.id ? (
+                    <input
+                      autoFocus
+                      className="input-field font-display font-bold text-ink dark:text-white w-full"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => saveRename(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); saveRename(item); }
+                        if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3 className="font-display font-bold text-ink dark:text-white truncate">{item.title}</h3>
+                      <button
+                        onClick={() => startRename(item)}
+                        title={t('projects.rename')}
+                        className="shrink-0 text-ink/25 hover:text-lavender-500 dark:text-white/25 dark:hover:text-lavender-300 transition"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  )}
                   {item.description && (
                     <p className="text-sm text-ink/50 dark:text-white/40 mt-1">{item.description}</p>
                   )}

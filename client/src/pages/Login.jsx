@@ -238,6 +238,29 @@ function WelcomeStage({ onPick, t, parallax = { x: 0, y: 0 } }) {
   );
 }
 
+// Mirrors the server's rule in server/lib/auth.js (validatePassword) so the
+// bar never tells someone their password is "Strong" right before the
+// server rejects it for missing a character class. 4 checks, 1 point each.
+function getPasswordStrength(password) {
+  if (!password) return { score: 0, ratio: 0 };
+  const checks = [
+    password.length >= 8,
+    /[a-zA-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^a-zA-Z0-9]/.test(password),
+  ];
+  const score = checks.filter(Boolean).length;
+  return { score, ratio: score / checks.length };
+}
+
+const STRENGTH_META = [
+  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' }, // 0-1
+  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' },
+  { labelKey: 'login.pwStrengthFair',   color: '#f59e0b' },
+  { labelKey: 'login.pwStrengthGood',   color: '#eab308' },
+  { labelKey: 'login.pwStrengthStrong', color: '#22c55e' },
+];
+
 export default function Login() {
   // 'welcome' shows first on every visit; picking Log in / Sign up moves
   // to 'form'. Two different stages, not to be confused with `mode`
@@ -344,6 +367,7 @@ export default function Login() {
     if (submitting) return;
     setError('');
     if (!isLogin && password !== confirmPassword) { setError(t('login.pwMismatch')); return; }
+    if (!isLogin && getPasswordStrength(password).score < 4) { setError(t('login.pwRequirements')); return; }
     setSubmitting(true);
     try {
       if (isLogin) {
@@ -618,6 +642,21 @@ export default function Login() {
                           {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
                         </button>
                       </div>
+                      {!isDisplayLogin && password && (() => {
+                        const { score, ratio } = getPasswordStrength(password);
+                        const meta = STRENGTH_META[score];
+                        return (
+                          <div className="mt-1.5">
+                            <div className="h-1 w-full rounded-full overflow-hidden" style={{ background: 'rgba(120,120,120,0.25)' }}>
+                              <div className="h-full rounded-full transition-all duration-300"
+                                style={{ width: `${ratio * 100}%`, background: meta.color }} />
+                            </div>
+                            <p className="mt-1 text-[11px]" style={{ color: meta.color }}>
+                              {t(meta.labelKey)} — {t('login.pwRequirements')}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <AnimatePresence mode="popLayout">

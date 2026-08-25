@@ -9,17 +9,21 @@ import {
 import SettingsModal from './SettingsModal.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
-// Labels are translation keys — resolved with t() at render time
+// Labels are translation keys — resolved with t() at render time.
+// Flow used to be buried in the "More" sheet, which meant the single most
+// distinctive feature in the app — a live focus timer that grows a tree
+// while you work — was the one thing most people never opened. Promoted
+// to a direct tab; everything else in MORE_ITEMS stays there.
 const NAV = [
   { to: '/',          icon: LayoutDashboard, label: 'nav.dashboard' },
   { to: '/tasks',     icon: ListChecks,      label: 'nav.tasks'     },
   { to: '/calendar',  icon: CalendarDays,    label: 'nav.calendar'  },
   { to: '/goals',     icon: Target,          label: 'nav.goals'     },
+  { to: '/learning',  icon: Timer,           label: 'nav.flow'      },
   { to: '/ai',        icon: Sparkles,        label: 'nav.lumi'      },
 ];
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,          label: 'nav.history'   },
-  { to: '/learning',  icon: Timer,          label: 'nav.flow'      },
   { to: '/exam',      icon: GraduationCap,  label: 'nav.exam'      },
   { to: '/analytics', icon: BarChart3,      label: 'nav.analytics' },
   { to: '/launchpad', icon: Rocket,         label: 'nav.launchpad' },
