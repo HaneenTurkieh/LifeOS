@@ -21,6 +21,35 @@ const TREES = [
   { key: 'crystal',        name: 'Crystal Tree',   emoji: '✨', cost: 5000, description: 'Legendary. For the dedicated.' },
 ];
 
+// ── Premium trees — real money, not XP ───────────────────────────
+// The XP catalogue above has a ceiling (Crystal Tree tops it out at
+// 5000 XP) — these three sit above that ceiling entirely and can only be
+// bought, never earned, same pattern as an "extraordinary" cosmetic tier
+// in a live-service game. priceId is a Paddle one-time Price — set to
+// null until a real one exists. `checkoutPlan`-style graceful no-op:
+// TreeShop's buy button shows a "not available yet" toast instead of a
+// broken/fake purchase when priceId is null, exactly like the existing
+// Premium subscription flow already does when VITE_PADDLE_CLIENT_TOKEN
+// is unset (see client/src/lib/paddle.js).
+//
+// TO ACTIVATE: create these as one-time (not recurring) Products/Prices
+// in Paddle → Catalog → Products, then paste the real price IDs in below
+// AND in the matching TREE_PRICE_MAP in routes/paddle.js (kept in sync
+// manually, same convention as PRICE_TO_PLAN there).
+const PREMIUM_TREES = [
+  { key: 'aurora',  name: 'Aurora Tree',  emoji: '🌌', priceUsd: 2.99, priceId: null, description: 'Lights up like the northern sky, every night.' },
+  { key: 'phoenix', name: 'Phoenix Tree', emoji: '🔥', priceUsd: 2.99, priceId: null, description: 'Rises brighter every time you restart.' },
+  { key: 'galaxy',  name: 'Galaxy Tree',  emoji: '🌠', priceUsd: 2.99, priceId: null, description: 'A universe of its own, growing in your pocket.' },
+];
+// Buying the collection together costs less than buying all three
+// individually ($6.99 vs $8.97) — the "buy the whole collection" option
+// your instructor described. Its own separate Paddle Price, not a
+// discount code, so it grants all three trees at once from one webhook.
+const TREE_COLLECTIONS = [
+  { key: 'celestial', name: 'Celestial Collection', treeKeys: ['aurora', 'phoenix', 'galaxy'], priceUsd: 6.99, priceId: null,
+    description: 'All three sky trees, together — Aurora, Phoenix, and Galaxy.' },
+];
+
 // ── Constellation — your own zodiac, star by star ───────────────
 // Replaced the old free-form "design any shape" Mystic Tree slots.
 // Every account has exactly one zodiac sign (derived from birthday,
@@ -76,6 +105,21 @@ router.get('/', async (req, res) => {
       canAfford: totalXp >= t.cost,
     }));
 
+    // Same `user_trees` ownership table as the XP catalogue above — a
+    // premium tree grant (from the Paddle webhook) and an XP unlock both
+    // just end up as a row there, so nothing needed to change downstream
+    // (equip, dashboard tree render, etc. don't care how a tree was
+    // acquired).
+    const premiumTrees = PREMIUM_TREES.map(t => ({
+      ...t,
+      owned:    owned.has(t.key),
+      equipped: equipped === t.key,
+    }));
+    const collections = TREE_COLLECTIONS.map(c => ({
+      ...c,
+      owned: c.treeKeys.every((k) => owned.has(k)),
+    }));
+
     const totalEarnedXp = Number(earnedResult.rows[0].total);
     const zodiac = getZodiacSign(userRow.rows[0]?.birthday);
     const unlockedStars = zodiac ? starsUnlockedFor(totalEarnedXp) : 0;
@@ -106,7 +150,7 @@ router.get('/', async (req, res) => {
       trees:           mysticTrees,
     };
 
-    res.json({ trees, totalXp, totalEarnedXp, equipped, mystic });
+    res.json({ trees, premiumTrees, collections, totalXp, totalEarnedXp, equipped, mystic });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -219,9 +263,12 @@ router.post('/equip', async (req, res) => {
       });
       if (!owned.rows[0]) return res.status(403).json({ error: 'Mystic Tree not found' });
     } else {
-      const tree = TREES.find(t => t.key === tree_key);
+      // Premium trees aren't in the XP catalogue at all — check both so
+      // equipping a purchased Aurora/Phoenix/Galaxy tree doesn't 400 as
+      // "unknown" just because it's not one of the earnable ones.
+      const tree = TREES.find(t => t.key === tree_key) || PREMIUM_TREES.find(t => t.key === tree_key);
       if (!tree) return res.status(400).json({ error: 'Unknown tree' });
-      if (tree.cost > 0) {
+      if (tree.cost > 0 || tree.priceUsd) {
         const owned = await db.execute({
           sql: `SELECT 1 FROM user_trees WHERE user_id=? AND tree_key=?`,
           args: [req.user.id, tree_key],
@@ -240,4 +287,9 @@ router.post('/equip', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
+// Exported so routes/paddle.js's webhook handler can grant the right
+// tree(s) for a completed one-time purchase without re-hardcoding the
+// catalogue a second time.
 module.exports = router;
+module.exports.PREMIUM_TREES = PREMIUM_TREES;
+module.exports.TREE_COLLECTIONS = TREE_COLLECTIONS;

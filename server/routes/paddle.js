@@ -20,6 +20,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const { db }  = require('../db/connection');
+const { PREMIUM_TREES, TREE_COLLECTIONS } = require('./trees.js');
 
 // Maps a Paddle Price ID (from the Nuvora Premium product) to our internal
 // plan key. Keep this in sync with the PLANS array in routes/focus.js.
@@ -28,6 +29,17 @@ const PRICE_TO_PLAN = {
   'pri_01kzrz863vxsrjcjnkrnk1pzya': 'semester',
   'pri_01kzrz9dxpyt5pwyb4kkb26gb6': 'annual',
 };
+
+// Maps a Paddle Price ID for a one-time tree/collection purchase to what
+// to grant. Built from PREMIUM_TREES/TREE_COLLECTIONS in routes/trees.js
+// automatically — filters out entries that still have priceId: null
+// (not yet created in Paddle), so this map is genuinely empty until real
+// price IDs are pasted into trees.js. Once that happens, no change is
+// needed here — it picks the new IDs up automatically.
+const TREE_PRICE_MAP = Object.fromEntries([
+  ...PREMIUM_TREES.filter((t) => t.priceId).map((t) => [t.priceId, { treeKeys: [t.key] }]),
+  ...TREE_COLLECTIONS.filter((c) => c.priceId).map((c) => [c.priceId, { treeKeys: c.treeKeys }]),
+]);
 
 // Subscription statuses that mean "this person should have Premium".
 const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due']);
@@ -167,9 +179,41 @@ router.post('/webhook', async (req, res) => {
         eventOccurredAt: event.occurred_at,
       });
       console.log(`Paddle: user ${userId} subscription ${data.id} → ${data.status}, Premium revoked`);
+    } else if (eventType === 'transaction.completed') {
+      // One-time purchases only — subscription.* above is still the only
+      // source of truth for is_premium. A transaction can contain
+      // multiple line items in principle, so check all of them rather
+      // than assuming index 0 like the subscription branches do (those
+      // are always single-price by construction on our side).
+      const items = Array.isArray(data.items) ? data.items : [];
+      const treeKeysToGrant = new Set();
+      for (const item of items) {
+        const priceId = item?.price?.id;
+        const grant = priceId && TREE_PRICE_MAP[priceId];
+        if (grant) grant.treeKeys.forEach((k) => treeKeysToGrant.add(k));
+      }
+      if (treeKeysToGrant.size === 0) {
+        // Not a tree/collection purchase we recognize — could be a
+        // subscription's own transaction record (Paddle sends one of
+        // these alongside subscription.* events too), just log it.
+        console.log(`Paddle webhook: transaction.completed for user ${userId} matched no known tree/collection price — no action taken`);
+      } else {
+        // INSERT OR IGNORE: a retried webhook delivery for the same
+        // transaction must not double-grant (or error on) an already-
+        // owned tree — same idempotency concern as everywhere else
+        // Paddle events are handled in this file.
+        await db.batch(
+          [...treeKeysToGrant].map((key) => ({
+            sql:  `INSERT OR IGNORE INTO user_trees (user_id, tree_key) VALUES (?, ?)`,
+            args: [userId, key],
+          })),
+          'write'
+        );
+        console.log(`Paddle: user ${userId} granted tree(s) [${[...treeKeysToGrant].join(', ')}] from transaction ${data.id}`);
+      }
     } else {
-      // transaction.* events and anything else — subscription.* is our
-      // source of truth for is_premium, so these are just logged.
+      // Everything else — subscription.* is our source of truth for
+      // is_premium, so unrecognized events are just logged.
       console.log(`Paddle webhook: received ${eventType} (no action taken)`);
     }
 

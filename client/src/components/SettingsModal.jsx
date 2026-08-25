@@ -17,6 +17,7 @@ import AvatarCropper from './AvatarCropper.jsx';
 import { isTodayBirthday, getAge } from '../utils/birthday.js';
 import VoiceInputButton, { appendText } from './VoiceInputButton.jsx';
 import { enablePush, disablePush, getCurrentSubscription, pushSupported, isIos, isStandalone } from '../utils/pushNotifications.js';
+import { ensurePaddleInitialized, setPaddleEventHandler } from '../lib/paddle.js';
 
 // getCurrentSubscription() is a real (if usually fast) async browser
 // call — navigator.serviceWorker.getRegistration() then
@@ -506,27 +507,9 @@ function AppearanceTab() {
   );
 }
 
-// ── Paddle.js — lazy singleton init ──────────────────────────────
-// Paddle.js is loaded via a <script> tag in index.html, so window.Paddle
-// may not exist yet the instant this component mounts, and — since this
-// modal can mount/unmount many times in a session — Paddle.Initialize()
-// must only ever be called once for the whole page. Its eventCallback is
-// therefore a stable module-level function that just forwards to whatever
-// the currently-mounted PremiumTab last registered, rather than trying to
-// pass a fresh per-instance closure into an init call that may not
-// actually run (because a previous instance already initialized it).
-let paddleInitialized = false;
-let paddleEventHandler = null;
-function paddleEventDispatch(event) { paddleEventHandler?.(event); }
-function ensurePaddleInitialized() {
-  if (paddleInitialized) return true;
-  if (!window.Paddle) return false;
-  const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
-  if (!token) return false; // not configured yet — checkout button will no-op with a toast
-  window.Paddle.Initialize({ token, eventCallback: paddleEventDispatch });
-  paddleInitialized = true;
-  return true;
-}
+// Paddle.js singleton init now lives in lib/paddle.js — shared with
+// TreeShop.jsx's premium tree/collection checkout, so Paddle.Initialize()
+// still only ever runs once no matter which checkout flow mounts first.
 
 // ── Premium tab ───────────────────────────────────────────────
 function PremiumTab() {
@@ -563,7 +546,7 @@ function PremiumTab() {
   // client). So: show an "activating" state and poll status a few times
   // rather than assuming it's already flipped.
   useEffect(() => {
-    paddleEventHandler = (event) => {
+    setPaddleEventHandler((event) => {
       if (event?.name === 'checkout.completed') {
         setCheckingOut(null);
         toast.success(t('settings.paymentActivating'));
@@ -581,7 +564,7 @@ function PremiumTab() {
       } else if (event?.name === 'checkout.closed') {
         setCheckingOut(null);
       }
-    };
+    });
     ensurePaddleInitialized();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -783,6 +766,41 @@ function PremiumTab() {
           <p className="text-[11px] text-ink/45 dark:text-white/35">
             {t('settings.trialTeaser', { level: trial.requiredLevel, current: trial.level })}
           </p>
+        </div>
+      )}
+      {/* Comparison table — this is deliberately here, right before the
+          price cards, not buried lower on the tab. A vague "unlock more"
+          paywall pitch converts worse than someone actually seeing what
+          they'd be giving up vs. what stays exactly the same either way
+          — especially relevant right when the price itself is going up. */}
+      {!status.is_premium && (
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgb(var(--accent-500) / 0.15)' }}>
+          <div className="grid grid-cols-[1fr_auto_auto]">
+            <div className="px-4 py-2.5" />
+            <div className="px-4 py-2.5 text-center text-xs font-semibold text-ink/50 dark:text-white/40">{t('settings.freeName')}</div>
+            <div className="px-4 py-2.5 text-center text-xs font-bold text-sun-600 flex items-center justify-center gap-1">
+              <Crown size={12} /> {t('settings.premiumName')}
+            </div>
+            <div className="col-span-3 px-4 py-2 text-xs text-ink/60 dark:text-white/50"
+              style={{ background: 'rgb(var(--accent-500) / 0.04)', borderTop: '1px solid rgb(var(--accent-500) / 0.10)', borderBottom: '1px solid rgb(var(--accent-500) / 0.10)' }}>
+              {t('settings.compareBaseline')}
+            </div>
+            <div className="px-4 py-1.5" />
+            <div className="px-4 py-1.5 text-center text-sage-500">✓</div>
+            <div className="px-4 py-1.5 text-center text-sage-500">✓</div>
+            {PERKS.map((perk, i) => (
+              <React.Fragment key={perk.title}>
+                <div className="px-4 py-2 flex items-center gap-2 text-xs text-ink/70 dark:text-white/60"
+                  style={{ borderTop: i === 0 ? '1px solid rgb(var(--accent-500) / 0.10)' : undefined }}>
+                  <span>{perk.icon}</span> {perk.title}
+                </div>
+                <div className="px-4 py-2 text-center text-ink/20 dark:text-white/15"
+                  style={{ borderTop: i === 0 ? '1px solid rgb(var(--accent-500) / 0.10)' : undefined }}>—</div>
+                <div className="px-4 py-2 text-center text-sage-500"
+                  style={{ borderTop: i === 0 ? '1px solid rgb(var(--accent-500) / 0.10)' : undefined }}>✓</div>
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       )}
       {!status.is_premium && plans.length > 0 && (

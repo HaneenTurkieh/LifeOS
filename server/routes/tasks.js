@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
-const { addXp, evaluateAchievements } = require('../lib/gamification');
+const { addXp, evaluateAchievements, ACHIEVEMENTS } = require('../lib/gamification');
 
 // ── Next recurrence date ───────────────────────────────────────
 function nextRecurrenceDate(recurrence, fromDate) {
@@ -285,23 +285,62 @@ router.put('/:id', async (req, res) => {
       }
     }
 
-    // This was the source of the "SQLITE_CONSTRAINT: FOREIGN KEY" error:
-    // user_achievements.key references achievements(key), and if the
-    // achievements catalogue isn't seeded, the insert fails and used to
-    // take the whole save down with it. Now it's non-fatal.
-    let unlocked = [];
-    try {
-      unlocked = await evaluateAchievements(req.user.id);
-    } catch (e) {
-      console.error('evaluateAchievements failed (non-fatal):', e.message);
-    }
-
     const task = (await db.execute({
       sql:  `SELECT * FROM tasks WHERE id = ? AND user_id = ?`,
       args: [req.params.id, req.user.id],
     })).rows[0];
 
-    res.json({ task, xpAwarded, unlocked, nextTask });
+    // Respond now — everything below used to run and be AWAITED before
+    // this response went out on every single save (not just
+    // completions): a streak recalculation (2 unbounded table scans) +
+    // 2 more count queries + up to 5 sequential achievement-lookup
+    // queries, on every task edit, most of which don't even touch
+    // completion status. That chain of DB round trips inside the
+    // request/response cycle is what made the checkbox and the "+20 XP"
+    // toast feel slow — the toast only fires client-side once this
+    // response resolves, so it was waiting on all of that for no reason
+    // most of the time.
+    res.json({ task, xpAwarded, nextTask, unlocked: [] });
+
+    // Only evaluate achievements on an actual todo→done transition —
+    // that's the only time these counts can move. A rename/reschedule/
+    // category change has nothing to do with achievements and used to
+    // pay this same cost for no reason.
+    if (!wasDone && isNowDone) {
+      evaluateAchievements(req.user.id)
+        .then(async (unlocked) => {
+          if (!unlocked.length) return;
+          // Achievement unlocks now surface through the notification
+          // bell instead of an inline toast on the completion response
+          // — the bell already polls, and this keeps the common case
+          // (every completion) fast without losing the rare case
+          // (unlocking something) entirely.
+          for (const key of unlocked) {
+            const meta = ACHIEVEMENTS.find((a) => a.key === key);
+            if (!meta) continue;
+            try {
+              await db.execute({
+                sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+                       VALUES (?, 'achievement_unlocked', ?, ?, NULL, ?, ?)
+                       ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
+                args: [
+                  req.user.id,
+                  `🏆 ${meta.title}`,
+                  meta.description,
+                  `achievement:${key}:${req.user.id}`,
+                  JSON.stringify({ key }),
+                ],
+              });
+            } catch (e) {
+              console.error('achievement notification insert failed (non-fatal):', e.message);
+            }
+          }
+        })
+        // This was already non-fatal to the save before (the FK-seeding
+        // bug this comment used to describe) — still true, just running
+        // after the response now instead of before it.
+        .catch((e) => console.error('evaluateAchievements failed (non-fatal):', e.message));
+    }
   } catch (err) {
     // Log full detail server-side AND return the message so the
     // client toast shows the real reason instead of a generic one.

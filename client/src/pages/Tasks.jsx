@@ -377,13 +377,42 @@ export default function Tasks() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineDateLabel')}</label>
-              <input type="date" className="input-field" value={form.deadline}
-                onChange={e => setForm({...form, deadline:e.target.value})} />
+              {/* input type="date"/"time" ignore the placeholder attribute
+                  entirely — there's no native way to show dim hint text in
+                  an empty one. Some browsers fill that gap with their own
+                  "dd/mm/yyyy"-style hint, but iOS Safari renders truly
+                  blank, which read as a broken/dead field. This overlay
+                  (pointer-events-none, so every click still reaches the
+                  real input underneath) fakes the same dim placeholder
+                  look everywhere, consistently. */}
+              <div className="relative">
+                {/* color:transparent when empty hides the browser's OWN
+                    built-in empty-state text (desktop Chrome shows a real
+                    "dd/mm/yyyy" here) so it can't visually double up with
+                    the overlay below on browsers that don't render blank
+                    like iOS Safari does — only one placeholder ever shows. */}
+                <input type="date" className="input-field" value={form.deadline}
+                  style={!form.deadline ? { color: 'transparent' } : undefined}
+                  onChange={e => setForm({...form, deadline:e.target.value})} />
+                {!form.deadline && (
+                  <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
+                    {t('tasks.selectDate')}
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
-              <input type="time" className="input-field" value={form.deadline_time}
-                onChange={e => setForm({...form, deadline_time:e.target.value})} />
+              <div className="relative">
+                <input type="time" className="input-field" value={form.deadline_time}
+                  style={!form.deadline_time ? { color: 'transparent' } : undefined}
+                  onChange={e => setForm({...form, deadline_time:e.target.value})} />
+                {!form.deadline_time && (
+                  <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
+                    {t('tasks.selectTime')}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           {form.deadline_time && (

@@ -5,6 +5,7 @@ import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { ensurePaddleInitialized, setPaddleEventHandler } from '../lib/paddle.js';
 import PageHeader from '../components/PageHeader.jsx';
 import PageLoader from '../components/Loader.jsx';
 import MysticSvg  from '../components/MysticTreeIcon.jsx';
@@ -137,6 +138,98 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
         </div>
       )}
     </motion.div>
+  );
+}
+// Real-money tier — deliberately distinct visual language from TreeCard
+// (gold/champagne instead of rarity colors, a price tag instead of an XP
+// pill) so it reads as its own category, not just another rarity level.
+function PremiumTreeCard({ tree, onBuy, loading, t }) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={!tree.owned ? { y: -4, transition: { type: 'spring', stiffness: 400, damping: 25 } } : {}}
+      className="relative flex flex-col items-center rounded-3xl p-6 text-center"
+      style={{
+        background: tree.owned
+          ? 'linear-gradient(145deg, rgba(250,204,21,0.16) 0%, rgba(250,204,21,0.05) 100%)'
+          : 'linear-gradient(145deg, rgba(30,20,10,0.06) 0%, rgba(250,204,21,0.05) 100%)',
+        border: tree.owned ? '2px solid rgba(250,204,21,0.45)' : '1px solid rgba(250,204,21,0.30)',
+        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+        boxShadow: tree.owned ? '0 12px 32px rgba(250,204,21,0.18), inset 0 2px 0 rgba(255,255,255,0.5)' : '0 4px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.5)',
+      }}
+    >
+      <div className="absolute top-3 end-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+        style={{ background: 'rgba(250,204,21,0.18)', color: '#B45309' }}>
+        {t('shop.premiumBadge')}
+      </div>
+      {tree.owned && (
+        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-0.5 text-[10px] font-bold text-white"
+          style={{ background: '#B45309', boxShadow: '0 2px 8px rgba(180,83,9,0.45)' }}>
+          <Check size={10} /> {t('shop.equipped')}
+        </div>
+      )}
+      <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="text-6xl mb-3 select-none">{tree.emoji}</motion.div>
+      <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.name}</h3>
+      <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug">{tree.description}</p>
+      {!tree.owned && (
+        <div className="flex items-center gap-1 mb-4 rounded-full px-3 py-1 text-xs font-bold" style={{ background: 'rgba(250,204,21,0.16)', color: '#B45309' }}>
+          ${tree.priceUsd.toFixed(2)}
+        </div>
+      )}
+      {tree.owned ? (
+        <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: 'rgba(250,204,21,0.16)', color: '#B45309' }}>
+          {t('shop.currentlyOwned')}
+        </div>
+      ) : (
+        <motion.button
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          onClick={() => onBuy(tree)}
+          disabled={loading}
+          className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
+          style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', boxShadow: '0 6px 16px rgba(180,83,9,0.35)' }}>
+          {t('shop.buy')}
+        </motion.button>
+      )}
+    </motion.div>
+  );
+}
+function CollectionCard({ collection, premiumTrees, onBuy, loading, t }) {
+  const emojis = collection.treeKeys.map((k) => premiumTrees.find((pt) => pt.key === k)?.emoji || '🌳').join(' ');
+  const individualTotal = collection.treeKeys.reduce((sum, k) => sum + (premiumTrees.find((pt) => pt.key === k)?.priceUsd || 0), 0);
+  return (
+    <div className="relative flex flex-col sm:flex-row items-center gap-5 rounded-3xl p-6 mb-4"
+      style={{
+        background: 'linear-gradient(135deg, rgba(124,106,240,0.12) 0%, rgba(250,204,21,0.10) 100%)',
+        border: '1px solid rgba(124,106,240,0.25)', backdropFilter: 'blur(20px)',
+      }}>
+      <div className="text-4xl shrink-0">{emojis}</div>
+      <div className="flex-1 min-w-0 text-center sm:text-start">
+        <h3 className="font-display font-bold text-ink dark:text-white text-sm">{collection.name}</h3>
+        <p className="text-xs text-ink/50 dark:text-white/40 mt-0.5">{collection.description}</p>
+        {!collection.owned && individualTotal > 0 && (
+          <p className="text-[11px] text-ink/35 dark:text-white/30 mt-1">
+            {t('shop.collectionSavings', { individual: individualTotal.toFixed(2), bundle: collection.priceUsd.toFixed(2) })}
+          </p>
+        )}
+      </div>
+      {collection.owned ? (
+        <div className="shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold" style={{ background: 'rgba(124,106,240,0.15)', color: 'rgb(var(--accent-600))' }}>
+          {t('shop.currentlyOwned')}
+        </div>
+      ) : (
+        <motion.button
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          onClick={() => onBuy(collection)}
+          disabled={loading}
+          className="shrink-0 rounded-2xl px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+          style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 6px 16px rgb(var(--accent-500) / 0.35)' }}>
+          {t('shop.buyCollection', { price: collection.priceUsd.toFixed(2) })}
+        </motion.button>
+      )}
+    </div>
   );
 }
 function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
@@ -449,12 +542,55 @@ export default function TreeShop() {
   const [mysticEditingId, setMysticEditingId] = useState(null); // null = designing a new slot
   const [mysticActing,    setMysticActing]    = useState(false);
   const [showZodiacIntro, setShowZodiacIntro] = useState(false);
+  const [buying, setBuying] = useState(false);
   const load = useCallback(async () => {
     try { setData(await api.get('/trees')); }
     catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
+  // Same Paddle.js singleton + checkout.completed pattern as the Premium
+  // subscription flow in SettingsModal.jsx (see client/src/lib/paddle.js)
+  // — re-registers this page's own handler whenever it's mounted, since
+  // only one listener is active at a time and Settings' handler shouldn't
+  // still be the one firing while someone's buying a tree.
+  useEffect(() => {
+    setPaddleEventHandler((event) => {
+      if (event?.name === 'checkout.completed') {
+        setBuying(false);
+        toast.success(t('shop.purchaseActivating'));
+        let tries = 0;
+        const poll = setInterval(() => {
+          tries += 1;
+          load().then(() => { if (tries >= 6) clearInterval(poll); });
+        }, 2000);
+      } else if (event?.name === 'checkout.closed') {
+        setBuying(false);
+      }
+    });
+    ensurePaddleInitialized();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const buyPremiumTree = (tree) => {
+    if (!tree.priceId) { toast.error(t('shop.notAvailableYet')); return; }
+    if (!ensurePaddleInitialized()) { toast.error(t('settings.paymentLoading')); return; }
+    setBuying(true);
+    window.Paddle.Checkout.open({
+      items: [{ priceId: tree.priceId, quantity: 1 }],
+      customer: user?.email ? { email: user.email } : undefined,
+      customData: { user_id: String(user?.id || '') },
+    });
+  };
+  const buyCollection = (collection) => {
+    if (!collection.priceId) { toast.error(t('shop.notAvailableYet')); return; }
+    if (!ensurePaddleInitialized()) { toast.error(t('settings.paymentLoading')); return; }
+    setBuying(true);
+    window.Paddle.Checkout.open({
+      items: [{ priceId: collection.priceId, quantity: 1 }],
+      customer: user?.email ? { email: user.email } : undefined,
+      customData: { user_id: String(user?.id || '') },
+    });
+  };
   // First time this account's zodiac actually resolves (birthday set,
   // sign derived), explain the mechanic once — same
   // "nuvora_onboarded_<id>" localStorage pattern used by Onboarding.jsx,
@@ -660,6 +796,27 @@ export default function TreeShop() {
           <TreeCard key={tree.key} tree={tree} onUnlock={(tr) => setConfirm(tr)} onEquip={handleEquip} loading={acting} t={t} />
         ))}
       </div>
+      {/* Premium tier — every tree above tops out at 5000 XP (Crystal
+          Tree); these three sit past that ceiling on purpose, real-money
+          only, framed as the natural next step once someone's collected
+          everything earnable rather than a random upsell dropped in. */}
+      {data?.premiumTrees?.length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles size={16} style={{ color: '#B45309' }} />
+            <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.premiumTitle')}</h3>
+          </div>
+          <p className="text-xs text-ink/45 dark:text-white/35 mb-4">{t('shop.premiumSubtitle')}</p>
+          {data.collections?.map((c) => (
+            <CollectionCard key={c.key} collection={c} premiumTrees={data.premiumTrees} onBuy={buyCollection} loading={buying} t={t} />
+          ))}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {data.premiumTrees.map((tree) => (
+              <PremiumTreeCard key={tree.key} tree={tree} onBuy={buyPremiumTree} loading={buying} t={t} />
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-10 rounded-3xl p-6"
         style={{ background: 'rgba(255,255,255,0.40)', border: '1px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(16px)' }}>
         <div className="flex items-center gap-2 mb-4">
