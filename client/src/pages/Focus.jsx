@@ -68,13 +68,13 @@ const xpFor = (min) => Math.floor(min / 5) * 2;
 const MODE_LABEL_KEYS = { focus: 'flow.focus', short: 'flow.shortBreak', long: 'flow.longBreak' };
 
 // ── Forest-style land plot: today's trees planted on grass ─────────────
-function LandPlot({ trees, t }) {
+function LandPlot({ trees, t, height = 190, compact = false }) {
   const seeded = (i) => {
     const x = Math.sin(i * 12.9898) * 43758.5453;
     return x - Math.floor(x);
   };
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden mb-4" style={{ height: 190 }}>
+    <div className={`relative w-full rounded-3xl overflow-hidden ${compact ? '' : 'mb-4'}`} style={{ height }}>
       <div className="absolute inset-0" style={{
         background: 'linear-gradient(180deg, rgba(147,197,253,0.30) 0%, rgba(147,197,253,0.06) 55%, transparent 62%)',
       }} />
@@ -926,9 +926,40 @@ export default function Flow() {
                 <div className="flex flex-col gap-2">
                   {memberList.map((m) => (
                     <div key={m.user_id} className="flex items-center gap-3 rounded-2xl px-4 py-3" style={lg()}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white text-xs font-bold shrink-0"
-                        style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}88 100%)` }}>
-                        {m.display_name?.[0]?.toUpperCase() || '?'}
+                      {/* Was just a 2px dot next to the name — easy to miss,
+                          and the only signal anywhere that someone's mid-
+                          session. A glowing ring around the avatar itself
+                          is a second, much harder-to-miss cue that reads
+                          at a glance even before you get to the dot/label,
+                          and (unlike the dot) is visible on the avatar
+                          wherever it's reused, not just this exact row. */}
+                      <div className="relative shrink-0">
+                        {m.is_focusing && (
+                          <motion.div
+                            className="absolute -inset-1 rounded-2xl pointer-events-none"
+                            style={{ boxShadow: `0 0 0 2px ${modeColor}` }}
+                            animate={{ opacity: [0.35, 0.9, 0.35], scale: [1, 1.08, 1] }}
+                            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                          />
+                        )}
+                        <div className="relative flex h-9 w-9 items-center justify-center rounded-xl text-white text-xs font-bold"
+                          style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}88 100%)` }}>
+                          {m.display_name?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        {/* Small corner badge — a second, distinct signal
+                            from the glow ring and the dot+label below, but
+                            a static icon rather than a popup/toast so it
+                            doesn't interrupt anyone; title= gives the exact
+                            wording on hover without needing a click. */}
+                        {m.is_focusing && (
+                          <span
+                            className="absolute -bottom-1 -end-1 flex h-4 w-4 items-center justify-center rounded-full text-[9px] shrink-0"
+                            style={{ background: modeColor, border: '1.5px solid white', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}
+                            title={t('flow.focusing')}
+                          >
+                            ⏱
+                          </span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-ink dark:text-white truncate">
@@ -1004,30 +1035,13 @@ export default function Flow() {
                         {day.trees.filter(tr => tr.status === 'alive').length} 🌳 · {day.trees.filter(tr => tr.status === 'dead').length} 🥀
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {day.trees.map((tr, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ scale: 0 }} animate={{ scale: 1 }}
-                          transition={{ delay: i * 0.03, type: 'spring', stiffness: 300, damping: 18 }}
-                          // No overflow-hidden here on purpose: several tree
-                          // emoji (🎋 🪸 🥀 🦩) render taller/wider than their
-                          // nominal font box on macOS, and a fixed-size clip
-                          // box was cropping them mid-glyph — showed up as a
-                          // "glitchy" partial icon instead of the real emoji.
-                          // Every other spot that renders these same emoji
-                          // (today's Land plot, room trees) uses plain inline
-                          // text with no clip box and never had this problem.
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl leading-none"
-                          title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
-                          style={tr.status === 'dead'
-                            ? { background: 'rgba(255,122,99,0.08)', border: '1px solid rgba(255,122,99,0.18)', filter: 'grayscale(0.4)' }
-                            : { background: 'rgba(76,195,138,0.10)', border: '1px solid rgba(76,195,138,0.20)' }}
-                        >
-                          {tr.status === 'dead' ? DEAD_EMOJI : <TreeIcon treeKey={tr.tree_key} size={26} mysticDesign={resolvedMysticDesign(tr)} />}
-                        </motion.div>
-                      ))}
-                    </div>
+                    {/* Was a flat wrap of bare emoji chips — every past day
+                        looked like a grid of stickers instead of a forest.
+                        Reusing the same grass LandPlot that today's trees
+                        already get (just shorter) means every day, past or
+                        present, actually reads as trees "planted on land"
+                        instead of a printed icon list. */}
+                    <LandPlot trees={day.trees} t={t} height={130} compact />
                   </div>
                 ))
               )}

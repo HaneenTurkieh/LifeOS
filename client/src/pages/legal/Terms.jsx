@@ -9,7 +9,7 @@ export default function Terms() {
           These Terms of Service ("Terms") govern your use of Nuvora (the "Service"), a personal
           productivity application covering tasks, goals, habits, focus sessions, an AI assistant
           ("Lumi"), an AI exam study tool, and related features, available at{' '}
-          <strong>life-os-three-xi.vercel.app</strong> and any successor domain. Nuvora is
+          <strong>nuvora.ps</strong> and any successor domain. Nuvora is
           developed and operated by Haneen Turkieh, an individual seller based in Nablus,
           Palestine ("we", "us", "our"). By creating an account or using Nuvora, you agree to
           these Terms.

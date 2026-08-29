@@ -679,7 +679,11 @@ export function FocusProvider({ children }) {
       const ss = String(timeLeft % 60).padStart(2, '0');
       document.title = `${mm}:${ss} · ${MODES[mode]?.emoji || MODES.focus.emoji} Flow`;
     } else {
-      document.title = 'Nuvora';
+      // Was just 'Nuvora' — overwrote the fuller '<title>' set in
+      // index.html the moment this effect ran (which is on every page
+      // load, since FocusContext wraps the whole app), so the tab never
+      // actually showed "Life OS" outside of an active Flow session.
+      document.title = 'Nuvora — Life OS';
     }
   }, [isRunning, timeLeft, mode]);
 

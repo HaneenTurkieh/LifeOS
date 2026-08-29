@@ -401,7 +401,8 @@ export default function Tasks() {
                 <input type="date" className="input-field" value={form.deadline}
                   autoComplete="off" name="nuvora-task-deadline-date"
                   style={!form.deadline ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
-                  onChange={e => setForm({...form, deadline:e.target.value})} />
+                  onChange={e => setForm({...form, deadline:e.target.value})}
+                  onClick={e => e.currentTarget.showPicker?.()} />
                 {!form.deadline && (
                   <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
                     {t('tasks.selectDate')}
@@ -415,7 +416,8 @@ export default function Tasks() {
                 <input type="time" className="input-field" value={form.deadline_time}
                   autoComplete="off" name="nuvora-task-deadline-time"
                   style={!form.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
-                  onChange={e => setForm({...form, deadline_time:e.target.value})} />
+                  onChange={e => setForm({...form, deadline_time:e.target.value})}
+                  onClick={e => e.currentTarget.showPicker?.()} />
                 {!form.deadline_time && (
                   <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
                     {t('tasks.selectTime')}

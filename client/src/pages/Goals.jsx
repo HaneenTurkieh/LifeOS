@@ -16,7 +16,25 @@ import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx
 
 const ICON_CHOICES  = ['Dumbbell','BookOpen','Droplets','Code2','Wind','Sparkles','Sun','Moon','Music','PenLine'];
 const COLOR_CHOICES = ['#F97316','#6366F1','#06B6D4','#22C55E','#A855F7','#EC4899','#F59E0B','#14B8A6'];
-const emptyGoalForm  = { title: '', description: '', category: 'Personal', target_date: '', milestonesText: '', day_planner_enabled: false };
+// Same vocabulary as Tasks/Calendar — a goal was previously just a
+// freeform "Personal" text box, so nothing grouped/filtered on it
+// consistently. Reusing the existing category strings/i18n keys keeps
+// one shared taxonomy across the app instead of a fourth ad-hoc one.
+const GOAL_CATEGORY_OPTIONS = [
+  { value: 'general',    labelKey: 'tasks.categoryGeneral' },
+  { value: 'university', labelKey: 'tasks.categoryUniversity' },
+  { value: 'personal',   labelKey: 'tasks.categoryPersonal' },
+  { value: 'health',     labelKey: 'tasks.categoryHealth' },
+  { value: 'finance',    labelKey: 'tasks.categoryFinance' },
+  { value: 'other',      labelKey: 'tasks.categoryOther' },
+];
+const KNOWN_GOAL_CATEGORY_VALUES = new Set(GOAL_CATEGORY_OPTIONS.map(o => o.value).filter(v => v !== 'other'));
+function goalCategoryToSelect(cat) {
+  const norm = (cat || 'personal').trim().toLowerCase();
+  if (KNOWN_GOAL_CATEGORY_VALUES.has(norm)) return { select: norm, custom: '' };
+  return { select: 'other', custom: cat || '' };
+}
+const emptyGoalForm  = { title: '', description: '', category: 'personal', categorySelect: 'personal', categoryCustom: '', target_date: '', milestonesText: '', day_planner_enabled: false };
 const emptyRecurForm = { name: '', icon: 'Sparkles', color: '#6366F1', target_per_week: 7 };
 
 function last30Dates() {
@@ -182,7 +200,7 @@ export default function Goals() {
 
   const [editModal,   setEditModal]   = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
-  const [editForm,    setEditForm]    = useState({ title: '', description: '', category: '', target_date: '' });
+  const [editForm,    setEditForm]    = useState({ title: '', description: '', category: '', categorySelect: 'personal', categoryCustom: '', target_date: '' });
   const [newMilestone, setNewMilestone] = useState('');
   const [addingMilestone, setAddingMilestone] = useState(false);
   const [editingMilestoneId, setEditingMilestoneId] = useState(null);
@@ -262,10 +280,11 @@ export default function Goals() {
 
   const openEditGoal = (goal) => {
     setEditingGoal(goal);
+    const { select: categorySelect, custom: categoryCustom } = goalCategoryToSelect(goal.category);
     setEditForm({
       title: goal.title,
       description: goal.description || '',
-      category: goal.category || 'Personal',
+      category: goal.category || 'personal', categorySelect, categoryCustom,
       target_date: goal.target_date || '',
     });
     setNewMilestone('');
@@ -416,7 +435,12 @@ export default function Goals() {
                       colorTo={g.status === 'completed' ? '#2DA76E' : undefined}
                     />
                     <div>
-                      <p className="pill bg-lavender-100 text-lavender-700 mb-1">{g.category}</p>
+                      <p className="pill bg-lavender-100 text-lavender-700 mb-1">
+                        {(() => {
+                          const opt = GOAL_CATEGORY_OPTIONS.find(o => o.value === (g.category || '').toLowerCase());
+                          return opt ? t(opt.labelKey) : g.category;
+                        })()}
+                      </p>
                       <h3 className="font-display font-bold text-ink leading-snug">{g.title}</h3>
                     </div>
                   </div>
@@ -570,11 +594,23 @@ export default function Goals() {
             <VoiceInputButton size="sm" className="mt-1" onText={(chunk) => setGoalForm(f => ({ ...f, description: appendText(f.description, chunk) }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <input className="input-field" placeholder={t('calendar.category')}
-              value={goalForm.category} onChange={(e) => setGoalForm({ ...goalForm, category: e.target.value })}/>
+            <select className="input-field" value={goalForm.categorySelect}
+              onChange={(e) => {
+                const categorySelect = e.target.value;
+                setGoalForm(f => ({ ...f, categorySelect, category: categorySelect === 'other' ? f.categoryCustom : categorySelect }));
+              }}>
+              {GOAL_CATEGORY_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+              ))}
+            </select>
             <input type="date" className="input-field"
               value={goalForm.target_date} onChange={(e) => setGoalForm({ ...goalForm, target_date: e.target.value })}/>
           </div>
+          {goalForm.categorySelect === 'other' && (
+            <input className="input-field" placeholder={t('tasks.categoryCustomPlaceholder')}
+              value={goalForm.categoryCustom}
+              onChange={(e) => setGoalForm(f => ({ ...f, categoryCustom: e.target.value, category: e.target.value }))}/>
+          )}
           {goalForm.target_date && (
             <label className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 cursor-pointer"
               style={{ background: 'rgba(139,92,246,0.06)', border: '1px dashed rgba(139,92,246,0.25)' }}>
@@ -617,11 +653,23 @@ export default function Goals() {
               <textarea className="input-field resize-none" placeholder={t('goals.descPh')} rows={2}
                 value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}/>
               <div className="grid grid-cols-2 gap-3">
-                <input className="input-field" placeholder={t('calendar.category')}
-                  value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}/>
+                <select className="input-field" value={editForm.categorySelect}
+                  onChange={(e) => {
+                    const categorySelect = e.target.value;
+                    setEditForm(f => ({ ...f, categorySelect, category: categorySelect === 'other' ? f.categoryCustom : categorySelect }));
+                  }}>
+                  {GOAL_CATEGORY_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                  ))}
+                </select>
                 <input type="date" className="input-field"
                   value={editForm.target_date} onChange={(e) => setEditForm({ ...editForm, target_date: e.target.value })}/>
               </div>
+              {editForm.categorySelect === 'other' && (
+                <input className="input-field" placeholder={t('tasks.categoryCustomPlaceholder')}
+                  value={editForm.categoryCustom}
+                  onChange={(e) => setEditForm(f => ({ ...f, categoryCustom: e.target.value, category: e.target.value }))}/>
+              )}
               <button type="submit" className="btn-primary justify-center text-sm py-2.5">
                 {t('calendar.saveChanges')}
               </button>
