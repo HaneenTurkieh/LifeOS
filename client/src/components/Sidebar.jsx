@@ -5,10 +5,11 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
   BarChart3, Rocket, Sparkles, TreePine, Settings,
-  GraduationCap, CalendarDays,
+  GraduationCap, CalendarDays, Users,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { useAuth }     from '../context/AuthContext.jsx';
 
 // Labels are translation keys — resolved with t() at render time
 const NAV = [
@@ -18,12 +19,20 @@ const NAV = [
   { to: '/calendar',  icon: CalendarDays,    label: 'nav.calendar'  },
   { to: '/goals',     icon: Target,          label: 'nav.goals'     },
   { to: '/learning',  icon: Timer,           label: 'nav.flow'      },
+  { to: '/channels',  icon: Users,           label: 'nav.channels'  },
   { to: '/ai',        icon: Sparkles,        label: 'nav.lumi'      },
   { to: '/exam',      icon: GraduationCap,   label: 'nav.exam'      },
   { to: '/analytics', icon: BarChart3,       label: 'nav.analytics' },
   { to: '/launchpad', icon: Rocket,          label: 'nav.launchpad' },
   { to: '/trees',     icon: TreePine,        label: 'nav.treeshop'  },
 ];
+// An instructor account only gets what it actually needs — Dashboard
+// (its own simplified view, see InstructorDashboard.jsx), Channels (the
+// whole point of the account), and Lumi. Settings is separate from this
+// array (its own gear icon below) and stays available to every role.
+// Per Haneen's spec: "admins have lumi and settings... only add features
+// and tabs they need."
+const INSTRUCTOR_NAV_PATHS = new Set(['/', '/channels', '/ai']);
 
 function NavTooltip({ label }) {
   return (
@@ -45,7 +54,11 @@ const hoverCard = {
 
 export default function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { t } = useLanguage();
+  const { t }    = useLanguage();
+  const { user } = useAuth();
+  const navItems = user?.role === 'instructor'
+    ? NAV.filter((item) => INSTRUCTOR_NAV_PATHS.has(item.to))
+    : NAV;
   return (
     <aside
       className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6"
@@ -69,7 +82,7 @@ export default function Sidebar() {
         </motion.div>
         {/* Nav */}
         <nav className="flex flex-col gap-1" style={{ overflow: 'visible' }}>
-          {NAV.map(({ to, icon: Icon, label }) => (
+          {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}

@@ -99,6 +99,58 @@ function reminderDigestEmailHtml({ items }) {
   </div>`;
 }
 
+function instructorCredentialsEmailHtml({ name, email, tempPassword }) {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img src="${CLIENT_URL}/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">Your instructor account is ready</h2>
+    <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
+      Hi ${esc(name) || 'there'}, welcome to Nuvora. Here are your login details — keep them safe.
+    </p>
+    <div style="background:#F4F3FF;border:1px solid #EBE8FF;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:2;text-align:center;">
+      <div>Login email: <strong>${esc(email)}</strong></div>
+      <div>Password: <strong style="font-family:monospace;letter-spacing:0.5px;">${esc(tempPassword)}</strong></div>
+    </div>
+    <div style="text-align:center;margin:24px 0 8px;">
+      <a href="${CLIENT_URL}/login"
+        style="display:inline-block;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;text-decoration:none;padding:13px 32px;border-radius:14px;font-weight:600;font-size:14px;">
+        Sign in to Nuvora
+      </a>
+    </div>
+    <p style="color:#9AA0B5;font-size:12px;line-height:1.6;text-align:center;">
+      You can change your password any time from Settings once you're signed in.
+    </p>
+  </div>`;
+}
+
+function channelInviteEmailHtml({ channelName, joinCode, instructorName }) {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img src="${CLIENT_URL}/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">You're invited to a Nuvora channel</h2>
+    <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
+      ${esc(instructorName) || 'Your instructor'} invited you to join <strong>${esc(channelName)}</strong> on Nuvora.
+    </p>
+    <div style="background:#F4F3FF;border:1px solid #EBE8FF;border-radius:14px;padding:20px;color:#1E2233;font-size:13px;line-height:1.6;text-align:center;">
+      Join code
+      <div style="font-family:monospace;font-size:22px;font-weight:700;letter-spacing:3px;margin-top:6px;color:#5B47E0;">${esc(joinCode)}</div>
+    </div>
+    <div style="text-align:center;margin:24px 0 8px;">
+      <a href="${CLIENT_URL}/channels"
+        style="display:inline-block;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;text-decoration:none;padding:13px 32px;border-radius:14px;font-weight:600;font-size:14px;">
+        Open Nuvora → Channels
+      </a>
+    </div>
+    <p style="color:#9AA0B5;font-size:12px;line-height:1.6;text-align:center;">
+      Sign in (or create a free student account), go to Channels, and enter the code above to join.
+    </p>
+  </div>`;
+}
+
 // ── Path 1: Brevo transactional HTTP API ──────────────────────
 async function sendViaBrevoApi({ to, subject, html }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -240,4 +292,25 @@ async function sendReminderDigestEmail({ to, items }) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail };
+// ── Public: instructor account credentials (classroom system) ──
+async function sendInstructorCredentialsEmail({ to, name, tempPassword }) {
+  await dispatch({
+    to, label: 'instructor credentials',
+    subject: 'Your Nuvora instructor account ✦',
+    html: instructorCredentialsEmailHtml({ name, email: to, tempPassword }),
+  });
+}
+
+// ── Public: channel join-code invite (classroom system) ────────
+async function sendChannelInviteEmail({ to, channelName, joinCode, instructorName }) {
+  await dispatch({
+    to, label: 'channel invite',
+    subject: `Join "${channelName}" on Nuvora`,
+    html: channelInviteEmailHtml({ channelName, joinCode, instructorName }),
+  });
+}
+
+module.exports = {
+  sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail,
+  sendInstructorCredentialsEmail, sendChannelInviteEmail,
+};

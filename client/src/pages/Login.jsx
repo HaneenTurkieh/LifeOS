@@ -273,6 +273,11 @@ export default function Login() {
   const [displayMode,     setDisplayMode]      = useState('login');
   const [isMorphing,      setIsMorphing]       = useState(false);
   const [name,            setName]            = useState('');
+  // 'student' | 'instructor' — only meaningful in signup mode (see the
+  // role picker rendered above the Full Name field below). Instructors
+  // skip the password fields entirely; the server generates one and
+  // emails it (see AuthContext.registerInstructor).
+  const [signupRole,      setSignupRole]      = useState('student');
   const [email,           setEmail]           = useState('');
   const [password,        setPassword]        = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -280,7 +285,7 @@ export default function Login() {
   const [error,           setError]           = useState('');
   const [submitting,      setSubmitting]      = useState(false);
 
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register, registerInstructor, loginWithGoogle } = useAuth();
   const { resolvedTheme }   = useTheme();
   const { t, lang }         = useLanguage();
   const toast                = useToast();
@@ -289,6 +294,7 @@ export default function Login() {
   const redirectTo          = location.state?.from?.pathname || '/';
   const isLogin             = mode === 'login';        // real mode — drives actual submit logic
   const isDisplayLogin      = displayMode === 'login';  // what's currently on screen
+  const isInstructorSignup  = !isDisplayLogin && signupRole === 'instructor';
   const isDark              = resolvedTheme === 'dark';
 
   const cardControls    = useAnimationControls();
@@ -366,12 +372,19 @@ export default function Login() {
     e.preventDefault();
     if (submitting) return;
     setError('');
-    if (!isLogin && password !== confirmPassword) { setError(t('login.pwMismatch')); return; }
-    if (!isLogin && getPasswordStrength(password).score < 4) { setError(t('login.pwRequirements')); return; }
+    const isInstructorSignup = !isLogin && signupRole === 'instructor';
+    // Instructor signup has no password fields on screen (see the form
+    // below) — nothing to validate here, the server generates it.
+    if (!isLogin && !isInstructorSignup && password !== confirmPassword) { setError(t('login.pwMismatch')); return; }
+    if (!isLogin && !isInstructorSignup && getPasswordStrength(password).score < 4) { setError(t('login.pwRequirements')); return; }
     setSubmitting(true);
     try {
       if (isLogin) {
         await login(email.trim(), password);
+      } else if (isInstructorSignup) {
+        const newUser = await registerInstructor(name.trim(), email.trim());
+        toast.success(t('login.instructorCreated', { email: email.trim() }));
+        if (newUser?.welcomeXp) toast.success(t('login.welcomeXp', { n: newUser.welcomeXp }));
       } else {
         const newUser = await register(name.trim(), email.trim(), password);
         if (newUser?.welcomeXp) toast.success(t('login.welcomeXp', { n: newUser.welcomeXp }));
@@ -609,6 +622,33 @@ export default function Login() {
                   <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <AnimatePresence mode="popLayout">
                       {!isDisplayLogin && (
+                        <motion.div key="role" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
+                          <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.roleQuestion')}</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { value: 'student',    label: t('login.roleStudent')    },
+                              { value: 'instructor', label: t('login.roleInstructor') },
+                            ].map((opt) => (
+                              <button key={opt.value} type="button" onClick={() => setSignupRole(opt.value)}
+                                className="rounded-2xl py-2.5 text-sm font-semibold transition"
+                                style={signupRole === opt.value ? {
+                                  background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)',
+                                  color: 'white',
+                                  boxShadow: '0 6px 18px rgb(var(--accent-500) / 0.35)',
+                                } : { background: inputBg, border: inputBorder, color: inputClr }}>
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                          {signupRole === 'instructor' && (
+                            <p className="mt-1.5 text-[11px]" style={{ color: subClr }}>{t('login.instructorHint')}</p>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <AnimatePresence mode="popLayout">
+                      {!isDisplayLogin && (
                         <motion.div key="name" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
                           <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.fullName')}</label>
                           <div className="relative">
@@ -629,6 +669,7 @@ export default function Login() {
                       </div>
                     </div>
 
+                    {!isInstructorSignup && (
                     <div>
                       <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.password')}</label>
                       <div className="relative">
@@ -658,9 +699,10 @@ export default function Login() {
                         );
                       })()}
                     </div>
+                    )}
 
                     <AnimatePresence mode="popLayout">
-                      {!isDisplayLogin && (
+                      {!isDisplayLogin && !isInstructorSignup && (
                         <motion.div key="confirm" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }}>
                           <label className="text-xs font-semibold mb-1.5 block" style={{ color:labelClr }}>{t('login.confirmPw')}</label>
                           <div className="relative">

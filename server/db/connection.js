@@ -800,6 +800,29 @@ async function initDb() {
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  // ── Instructor/Student classroom system ──────────────────────
+  // role distinguishes an instructor account from a regular ('student')
+  // one — drives the signup flow, the restricted instructor nav, and
+  // which side of the /channels routes an account is allowed to use.
+  // Every existing account defaults to 'student' (nobody's current
+  // access changes on deploy).
+  if (!(await hasColumn('users', 'role'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student'`);
+  }
+  // assigned_by/channel_id let a task or goal created by an instructor
+  // (POST /channels/:id/assign-task|assign-goal) be told apart from one
+  // the student typed in themselves, and traced back to the channel it
+  // came from for the instructor's analytics — NULL on both for every
+  // normal, self-created task/goal.
+  for (const table of ['tasks', 'goals']) {
+    if (!(await hasColumn(table, 'assigned_by'))) {
+      await db.execute(`ALTER TABLE ${table} ADD COLUMN assigned_by INTEGER DEFAULT NULL`);
+    }
+    if (!(await hasColumn(table, 'channel_id'))) {
+      await db.execute(`ALTER TABLE ${table} ADD COLUMN channel_id INTEGER DEFAULT NULL`);
+    }
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

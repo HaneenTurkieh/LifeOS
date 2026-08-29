@@ -63,6 +63,16 @@ export function AuthProvider({ children }) {
     return { ...u, welcomeXp: welcomeXp || 0 };
   };
 
+  // Instructor signup path — no password from the person, the server
+  // generates one and emails it (see routes/auth.js POST
+  // /register-instructor). Still logs them straight in on top of that.
+  const registerInstructor = async (name, email) => {
+    const { token, user: u, welcomeXp, emailSent } = await api.post('/auth/register-instructor', { name, email });
+    setToken(token);
+    setUser(u);
+    return { ...u, welcomeXp: welcomeXp || 0, emailSent };
+  };
+
   // `credential` is the ID token Google's Identity Services library hands
   // back client-side (see Login.jsx) — the server verifies it and either
   // logs into an existing account with that email or creates a new one.
@@ -101,6 +111,7 @@ export function AuthProvider({ children }) {
       loading,
       login,
       register,
+      registerInstructor,
       loginWithGoogle,
       logout,
       deleteAccount,

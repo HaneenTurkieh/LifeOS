@@ -9,6 +9,7 @@ import { useLanguage }    from '../context/LanguageContext.jsx';
 import { useTheme }       from '../context/ThemeContext.jsx';
 import { useWeather, weatherEmoji } from '../hooks/useWeather.js';
 import GlassCard          from '../components/GlassCard.jsx';
+import InstructorDashboard from '../components/InstructorDashboard.jsx';
 import ProductivitySphere from '../components/ProductivitySphere.jsx';
 import PageLoader         from '../components/Loader.jsx';
 import { isTodayBirthday } from '../utils/birthday.js';
@@ -222,6 +223,16 @@ export default function Dashboard() {
   const equippedMysticTree = equippedTree?.startsWith('mystic')
     ? treeData?.mystic?.trees?.find((mt) => `mystic:${mt.id}` === equippedTree) || null
     : null;
+
+  // Instructor accounts get their own lightweight landing view instead
+  // of this whole student-oriented dashboard (mood/habits/goals/forest
+  // don't apply to them) — see InstructorDashboard.jsx. Placed after
+  // every hook above has already run unconditionally, so this doesn't
+  // break the rules of hooks; the data those hooks fetched for a
+  // student account is just unused on this branch.
+  if (user?.role === 'instructor') {
+    return <InstructorDashboard user={user} t={t} />;
+  }
 
   return (
     <div className="flex flex-col gap-6">
