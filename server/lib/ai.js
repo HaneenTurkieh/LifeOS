@@ -13,13 +13,42 @@ const QUOTES = [
     { text: 'You do not rise to the level of your goals; you fall to the level of your systems.', author: 'James Clear' },
     { text: 'Action is the foundational key to all success.', author: 'Pablo Picasso' },
     { text: 'A year from now you may wish you had started today.', author: 'Karen Lamb' },
+    { text: 'Well begun is half done.', author: 'Aristotle' },
+    { text: 'The way to get started is to quit talking and begin doing.', author: 'Walt Disney' },
+    { text: 'Success is the sum of small efforts, repeated day in and day out.', author: 'Robert Collier' },
+    { text: "It always seems impossible until it's done.", author: 'Nelson Mandela' },
+    { text: 'Focus on being productive instead of busy.', author: 'Tim Ferriss' },
+    { text: 'Motivation gets you going, but discipline keeps you growing.', author: 'John C. Maxwell' },
+    { text: 'What you do every day matters more than what you do once in a while.', author: 'Gretchen Rubin' },
+    { text: 'The future depends on what you do today.', author: 'Mahatma Gandhi' },
+    { text: 'Progress, not perfection.', author: 'Unknown' },
+    { text: 'Do the hard jobs first. The easy jobs will take care of themselves.', author: 'Dale Carnegie' },
+    { text: 'You don’t have to be great to start, but you have to start to be great.', author: 'Zig Ziglar' },
+    { text: 'Either you run the day, or the day runs you.', author: 'Jim Rohn' },
+    { text: 'Amateurs sit and wait for inspiration; the rest of us just get up and go to work.', author: 'Stephen King' },
+    { text: 'The expert in anything was once a beginner.', author: 'Helen Hayes' },
+    { text: 'A goal without a plan is just a wish.', author: 'Antoine de Saint-Exupéry' },
+    { text: 'Little by little, a little becomes a lot.', author: 'Tanzanian Proverb' },
+    { text: 'Done is better than perfect.', author: 'Sheryl Sandberg' },
+    { text: 'The pain of discipline weighs ounces; the pain of regret weighs tons.', author: 'Jim Rohn' },
+    { text: 'You are what you do repeatedly.', author: 'Will Durant (on Aristotle)' },
+    { text: 'Start where you are. Use what you have. Do what you can.', author: 'Arthur Ashe' },
+    { text: 'Energy and persistence conquer all things.', author: 'Benjamin Franklin' },
+    { text: 'The only way to do great work is to love what you do.', author: 'Steve Jobs' },
+    { text: 'Slow progress is still progress.', author: 'Unknown' },
+    { text: 'Great things are done by a series of small things brought together.', author: 'Vincent van Gogh' },
   ];
-  
+
+  // True daily rotation, restored — one quote per calendar day, not
+  // random per page load. The earlier "never changes" complaint was a
+  // pool-size problem (7 quotes → visible repeats within a week), not a
+  // rotation-logic problem, so the real fix was widening QUOTES to 30
+  // while keeping the deterministic day-based pick.
   function quoteOfTheDay() {
     const day = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
     return QUOTES[day % QUOTES.length];
   }
-  
+
   // ---------- AI Daily Planner ----------
   // Builds an hour-by-hour plan from available hours + energy level,
   // front-loading hard/important tasks when energy is high.

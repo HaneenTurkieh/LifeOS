@@ -13,6 +13,10 @@ import Modal        from '../components/Modal.jsx';
 import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
 import ReminderPicker from '../components/ReminderPicker.jsx';
 
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+function byPriorityThenNothing(a, b) {
+  return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
+}
 const PRIORITY_COLORS = {
   high:   { bg:'rgba(255,122,99,0.20)', border:'rgba(255,122,99,0.45)', text:'#FF7A63', dark:'rgba(255,122,99,0.25)' },
   medium: { bg:'rgba(255,184,77,0.20)', border:'rgba(255,184,77,0.45)', text:'#d97706', dark:'rgba(255,184,77,0.25)' },
@@ -34,9 +38,28 @@ function localToday() {
   return toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
 }
 const emptyForm = {
-  title:'', priority:'medium', category:'General', deadline_time:'', description:'',
+  title:'', priority:'medium', category:'general', categorySelect:'general', categoryCustom:'',
+  deadline_time:'', description:'',
   remindOffsets:[60], recurrenceType:'', customDays:[], isBirthday:false, recurrenceUntil:'',
 };
+// Same category vocabulary as Tasks.jsx — a proper dropdown instead of a
+// freeform text box, so a task added from Calendar lands in the same
+// known buckets ('general', 'university', ...) that Tasks/Analytics
+// already group and filter by, rather than an arbitrary typed string.
+const CATEGORY_OPTIONS = [
+  { value: 'general',    labelKey: 'tasks.categoryGeneral' },
+  { value: 'university', labelKey: 'tasks.categoryUniversity' },
+  { value: 'personal',   labelKey: 'tasks.categoryPersonal' },
+  { value: 'health',     labelKey: 'tasks.categoryHealth' },
+  { value: 'finance',    labelKey: 'tasks.categoryFinance' },
+  { value: 'other',      labelKey: 'tasks.categoryOther' },
+];
+const KNOWN_CATEGORY_VALUES = new Set(CATEGORY_OPTIONS.map(o => o.value).filter(v => v !== 'other'));
+function categoryToSelect(cat) {
+  const norm = (cat || 'general').trim().toLowerCase();
+  if (KNOWN_CATEGORY_VALUES.has(norm)) return { select: norm, custom: '' };
+  return { select: 'other', custom: cat || '' };
+}
 // Recurrence encode/decode — same convention as the Tasks page
 // (`recurrence` is null, 'daily'/'weekly'/'monthly', or 'custom:0,2,4').
 function formToRecurrence(form) {
@@ -666,7 +689,8 @@ export default function Calendar() {
                   ) : (
                     <>
                       <input type="time" className="input-field text-sm" value={editForm.deadline_time}
-                        onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}/>
+                        onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}
+                        onClick={e => e.currentTarget.showPicker?.()}/>
                       {editForm.deadline_time && (
                         <ReminderPicker
                           value={editForm.remindOffsets}
@@ -751,8 +775,12 @@ export default function Calendar() {
             )}
             {!selectedTask && selected && (() => {
               const dayTasksAll = tasks.filter(tk => tk.deadline === selected);
-              const timedTasks  = dayTasksAll.filter(tk => tk.deadline_time);
-              const allDayTasks = dayTasksAll.filter(tk => !tk.deadline_time);
+              // High → low priority first; layoutTimedTasks then sorts by
+              // start time on top of this (JS array sort is stable), so
+              // same-time tasks keep this priority order instead of
+              // whatever order the API happened to return them in.
+              const timedTasks  = dayTasksAll.filter(tk => tk.deadline_time).sort(byPriorityThenNothing);
+              const allDayTasks = dayTasksAll.filter(tk => !tk.deadline_time).sort(byPriorityThenNothing);
               const isToday     = selected === todayStr;
               const nowMinutes  = now.getHours() * 60 + now.getMinutes();
               return (
@@ -930,34 +958,68 @@ export default function Calendar() {
               <option value="medium">{t('tasks.medium')}</option>
               <option value="low">{t('tasks.low')}</option>
             </select>
-            <input className="input-field" placeholder={t('calendar.category')}
-              value={addForm.category} onChange={e => setAddForm({...addForm, category:e.target.value})} />
+            <select className="input-field" value={addForm.categorySelect}
+              onChange={e => {
+                const categorySelect = e.target.value;
+                setAddForm(f => ({
+                  ...f, categorySelect,
+                  category: categorySelect === 'other' ? f.categoryCustom : categorySelect,
+                }));
+              }}>
+              {CATEGORY_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+              ))}
+            </select>
           </div>
-          <button type="button"
-            onClick={() => setAddForm(f => f.isBirthday
-              ? { ...f, isBirthday: false, category: 'General', recurrenceType: '', customDays: [] }
-              : { ...f, isBirthday: true, category: 'Birthday', recurrenceType: 'yearly', customDays: [], deadline_time: '' })}
-            className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all self-start"
-            style={addForm.isBirthday ? {
-              background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
-              boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
-            } : {
-              background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
-              color:'rgb(var(--accent-500) / 0.65)',
-            }}
-          >
-            🎂 {t('calendar.birthdayToggle')}
-          </button>
-          {addForm.isBirthday && (
-            <p className="text-[11px] text-ink/35 dark:text-white/25 -mt-2">{t('calendar.birthdayHint')}</p>
+          {addForm.categorySelect === 'other' && (
+            <input className="input-field" placeholder={t('tasks.categoryCustomPlaceholder')}
+              value={addForm.categoryCustom}
+              onChange={e => setAddForm(f => ({ ...f, categoryCustom: e.target.value, category: e.target.value }))} />
           )}
+          {/* Was a bare "Someone's birthday" toggle with no explanation
+              until after you clicked it — the hint only rendered once
+              addForm.isBirthday was already true. Showing the hint
+              unconditionally means it reads as a mini-description of the
+              toggle itself ("this switches the task into birthday mode"),
+              not just a confirmation after the fact. */}
+          <div className="flex flex-col gap-1">
+            <button type="button"
+              onClick={() => setAddForm(f => f.isBirthday
+                ? { ...f, isBirthday: false, recurrenceType: '', customDays: [] }
+                : { ...f, isBirthday: true, recurrenceType: 'yearly', customDays: [], deadline_time: '' })}
+              className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all self-start"
+              style={addForm.isBirthday ? {
+                background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
+                boxShadow:'0 4px 12px rgb(var(--accent-500) / 0.30)',
+              } : {
+                background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)',
+                color:'rgb(var(--accent-500) / 0.65)',
+              }}
+            >
+              🎂 {t('calendar.birthdayToggle')}
+            </button>
+            <p className="text-[11px] text-ink/35 dark:text-white/25">{t('calendar.birthdayHint')}</p>
+          </div>
           <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium"
             style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)', color:'rgb(var(--accent-500))' }}>
             📅 {addModalOpen && fmtLabel(addModalOpen)}
           </div>
           {!addForm.isBirthday && (
-            <input type="time" className="input-field" value={addForm.deadline_time}
-              onChange={e => setAddForm({...addForm, deadline_time:e.target.value})} />
+            <div>
+              <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
+              <div className="relative">
+                <input type="time" className="input-field" value={addForm.deadline_time}
+                  autoComplete="off" name="nuvora-calendar-task-time"
+                  style={!addForm.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
+                  onChange={e => setAddForm({...addForm, deadline_time:e.target.value})}
+                  onClick={e => e.currentTarget.showPicker?.()} />
+                {!addForm.deadline_time && (
+                  <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
+                    {t('tasks.selectTime')}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
           {addForm.deadline_time && !addForm.isBirthday && (
             <ReminderPicker

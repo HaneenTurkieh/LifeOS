@@ -83,15 +83,17 @@ export default function Dashboard() {
   // Real bug that used to live here: the rough/meh-mood quote was a
   // single hardcoded string (t('dash.roughQuote')), so it looked
   // identical literally every time someone had a low mood day. Now a
-  // pool of 6 (see translations.js), and this picks one at random once
-  // per mount — a lazy useState initializer so it doesn't re-roll (and
-  // visibly flicker) on every re-render, but does vary the next time the
-  // page loads or mood changes.
-  const [roughQuoteIndex] = useState(() => Math.floor(Math.random() * 6) + 1);
-  // Same idea as roughQuoteIndex, but for the mirrored great-day
-  // treatment below — picked once per mount so it doesn't re-roll on
-  // every re-render.
-  const [greatQuoteIndex] = useState(() => Math.floor(Math.random() * 6) + 1);
+  // pool of 6 (see translations.js) — and, like the neutral daily quote
+  // in server/lib/ai.js, picked deterministically from the calendar day
+  // rather than randomly per page load, so it's true "one per day"
+  // rotation instead of re-rolling (and possibly repeating) every time
+  // the dashboard happens to remount.
+  const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+  const roughQuoteIndex = (dayIndex % 6) + 1;
+  // Offset from roughQuoteIndex so a rough day and a great day landing
+  // on the same calendar day don't coincidentally pick the "same numbered"
+  // quote out of each pool.
+  const greatQuoteIndex = ((dayIndex + 3) % 6) + 1;
   const statsRef = useRef(null);
   useEffect(() => {
     if (!openHint) return;
@@ -242,7 +244,7 @@ export default function Dashboard() {
                 Nuvora · {todayLabel}
               </p>
             </div>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight text-ink dark:text-white mb-1.5">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-ink dark:text-white mb-1.5">
               {isBirthday ? t('greet.birthday') : t(greetKey)}, {firstName} {isBirthday ? '🎂' : '👋'}
             </h1>
             <p className="text-sm text-ink/45 dark:text-white/40 mb-6">{subtitle}</p>

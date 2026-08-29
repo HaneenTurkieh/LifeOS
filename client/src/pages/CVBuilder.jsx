@@ -1,7 +1,28 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Trash2, FolderGit2, Lightbulb, Award, Sparkles, X, Download, Briefcase, GraduationCap, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { api } from '../api/client.js';
+import { api, getToken } from '../api/client.js';
+
+// api.post always JSON.stringify()s its body, which mangles a FormData
+// file upload — same reason ExamAssistant.jsx (the other file-extraction
+// caller) bypasses the shared client for its own /exam/extract call
+// rather than going through `api`.
+const BASE_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:4000/api'
+  : 'https://lifeos-0l81.onrender.com/api';
+async function uploadForExtract(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/exam/extract`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Extraction failed');
+  return data;
+}
 import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -81,9 +102,20 @@ export default function CVBuilder({ openTrigger = 0 }) {
   // below, so someone building a CV entry for a project they're already
   // tracking doesn't have to retype the title/description from scratch.
   const [launchpadProjects, setLaunchpadProjects] = useState([]);
+  // ── Suggestions: Lumi proposing CV entries, from either your own
+  // completed tasks/goals or an uploaded LinkedIn export — rather than
+  // starting every Experience/Project/Certification entry from a blank
+  // form. Accepting a card just posts it straight to /cv/<section> (same
+  // endpoint the manual Add form uses); dismissing just drops it from
+  // this in-memory list, nothing's saved until you accept it.
+  const [suggestions,  setSuggestions]  = useState([]);
+  const [suggesting,   setSuggesting]   = useState(false); // 'tasks' | 'linkedin' | false
+  const linkedinInputRef = useRef(null);
+  const [tasksForSuggest, setTasksForSuggest] = useState([]);
+  const [goalsForSuggest, setGoalsForSuggest] = useState([]);
   const load = useCallback(async () => {
     try {
-      const [experience, education, projects, skills, certifications, prof, lp] = await Promise.all([
+      const [experience, education, projects, skills, certifications, prof, lp, tasks, goals] = await Promise.all([
         api.get('/cv/experience'),
         api.get('/cv/education'),
         api.get('/cv/projects'),
@@ -91,11 +123,15 @@ export default function CVBuilder({ openTrigger = 0 }) {
         api.get('/cv/certifications'),
         api.get('/cv/profile'),
         api.get('/projects').catch(() => []),
+        api.get('/tasks').catch(() => []),
+        api.get('/goals').catch(() => []),
       ]);
       setData({ experience, education, projects, skills, certifications });
       setProfile(prof || EMPTY_PROFILE);
       setProfileDraft(prof || EMPTY_PROFILE);
       setLaunchpadProjects(lp || []);
+      setTasksForSuggest(tasks || []);
+      setGoalsForSuggest(goals || []);
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
@@ -208,6 +244,108 @@ ${cvSummary}`,
     finally { setReviewing(false); }
   };
 
+  // Lumi's /chat replies in prose by default — asked here for JSON only,
+  // but models still sometimes wrap it in a ```json fence or add a
+  // sentence before/after, so pull out the first [...] block rather than
+  // trusting the whole response to be bare JSON.
+  const parseSuggestions = (text) => {
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    try {
+      const parsed = JSON.parse(match[0]);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((s) => s && s.section && FORMS[s.section])
+        .map((s, i) => ({ id: `sugg-${Date.now()}-${i}`, ...s }));
+    } catch { return []; }
+  };
+
+  const suggestFromTasks = async () => {
+    const doneTasks = tasksForSuggest.filter((tk) => tk.status === 'done').slice(0, 40);
+    const activeGoals = goalsForSuggest.slice(0, 20);
+    if (doneTasks.length === 0 && activeGoals.length === 0) {
+      toast.error(t('cv.suggestNoData'));
+      return;
+    }
+    setSuggesting('tasks');
+    try {
+      const taskLines = doneTasks.map((tk) => `• ${tk.title}${tk.description ? ` — ${tk.description}` : ''}${tk.category ? ` [${tk.category}]` : ''}`).join('\n') || 'None';
+      const goalLines = activeGoals.map((g) => `• ${g.title}${g.description ? ` — ${g.description}` : ''}`).join('\n') || 'None';
+      const res = await api.post('/chat', {
+        messages: [{
+          role: 'user',
+          content: `You're helping a student turn their real task/goal history into CV-worthy entries. Here is their completed task history and goals:
+
+COMPLETED TASKS:
+${taskLines}
+
+GOALS:
+${goalLines}
+
+Only suggest entries for things that are substantial enough for a CV (a real project, a certification, meaningful experience) — skip routine chores/errands. Respond with ONLY a JSON array (no prose, no markdown fence), where each item is one of:
+{"section":"projects","title":"...","description":"...","tech":"..."}
+{"section":"experience","role":"...","company":"...","description":"..."}
+{"section":"certifications","title":"...","issuer":"...","date":""}
+Return at most 6 items. If nothing is CV-worthy, return [].`,
+        }],
+        no_history: true,
+        mode: 'review',
+      });
+      const found = parseSuggestions(res.text || '');
+      if (found.length === 0) toast.error(t('cv.suggestNone'));
+      setSuggestions((prev) => [...found, ...prev]);
+    } catch (_) { toast.error(t('cv.suggestFailed')); }
+    finally { setSuggesting(false); }
+  };
+
+  const importFromLinkedIn = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSuggesting('linkedin');
+    try {
+      // Reuses the same generic file→text extraction the Exam Assistant
+      // uses (a LinkedIn "Save to PDF" profile export is just a PDF) —
+      // no new upload/parsing infra needed for this half of the feature.
+      const extracted = await uploadForExtract(file);
+      const rawText = (extracted.text || '').slice(0, 12000);
+      if (!rawText.trim()) { toast.error(t('cv.suggestNone')); return; }
+      const res = await api.post('/chat', {
+        messages: [{
+          role: 'user',
+          content: `This is raw text extracted from a LinkedIn profile export (PDF). Pull out real Experience, Education, Projects, and Certification entries from it. Respond with ONLY a JSON array (no prose, no markdown fence), where each item is one of:
+{"section":"experience","role":"...","company":"...","location":"","start_date":"","end_date":"","description":"..."}
+{"section":"education","school":"...","degree":"...","field":"","start_date":"","end_date":""}
+{"section":"projects","title":"...","description":"...","tech":""}
+{"section":"certifications","title":"...","issuer":"...","date":""}
+Dates, if present, as YYYY-MM-DD or leave blank if unclear. Skip anything you can't confidently extract.
+
+TEXT:
+${rawText}`,
+        }],
+        no_history: true,
+        mode: 'review',
+      });
+      const found = parseSuggestions(res.text || '');
+      if (found.length === 0) toast.error(t('cv.suggestNone'));
+      setSuggestions((prev) => [...found, ...prev]);
+    } catch (_) { toast.error(t('cv.suggestFailed')); }
+    finally { setSuggesting(false); }
+  };
+
+  const acceptSuggestion = async (s) => {
+    try {
+      const { id, section, ...fields } = s;
+      const payload = { ...FORMS[section], ...fields };
+      if (section === 'experience') payload.is_current = payload.is_current ? 1 : 0;
+      await api.post(`/cv/${section}`, payload);
+      setSuggestions((prev) => prev.filter((x) => x.id !== id));
+      toast.success(t('cv.addSuccess'));
+      load();
+    } catch (err) { toast.error(err.message); }
+  };
+  const dismissSuggestion = (id) => setSuggestions((prev) => prev.filter((x) => x.id !== id));
+
   if (loading) return <PageLoader />;
 
   const hasContent =
@@ -278,6 +416,73 @@ ${cvSummary}`,
             onChange={(e) => setProfileDraft({ ...profileDraft, cv_summary: e.target.value })} />
           <VoiceInputButton size="sm" className="mt-1" onText={(c) => setProfileDraft((p) => ({ ...p, cv_summary: appendText(p.cv_summary, c) }))} />
         </div>
+      </GlassCard>
+
+      {/* ── Suggestions: Lumi proposing entries from your real task/goal
+           history, or from an uploaded LinkedIn export — an alternative
+           starting point to typing every entry from a blank form
+           yourself (which is still just as available below). */}
+      <GlassCard className="p-5 mb-6">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-ink/35 dark:text-white/25">{t('cv.suggestTitle')}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={suggestFromTasks}
+              disabled={!!suggesting}
+              className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-semibold transition disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08))', border: '1px solid rgba(168,85,247,0.30)', color: '#A855F7' }}
+            >
+              {suggesting === 'tasks'
+                ? <><div className="h-3.5 w-3.5 rounded-full border-2 border-violet-400 border-t-violet-600 animate-spin" /> {t('cv.suggestingFromTasks')}</>
+                : <><Sparkles size={13} /> {t('cv.suggestFromTasks')}</>}
+            </button>
+            <button
+              onClick={() => linkedinInputRef.current?.click()}
+              disabled={!!suggesting}
+              className="flex items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-semibold transition disabled:opacity-50"
+              style={{ background: 'rgba(10,102,194,0.10)', border: '1px solid rgba(10,102,194,0.30)', color: '#0A66C2' }}
+            >
+              {suggesting === 'linkedin'
+                ? <><div className="h-3.5 w-3.5 rounded-full border-2 border-blue-400 border-t-blue-600 animate-spin" /> {t('cv.importingLinkedIn')}</>
+                : <>📎 {t('cv.importFromLinkedIn')}</>}
+            </button>
+            <input ref={linkedinInputRef} type="file" accept=".pdf,.docx,.txt" className="hidden" onChange={importFromLinkedIn} />
+          </div>
+        </div>
+        <p className="text-xs text-ink/40 dark:text-white/30 mb-1">{t('cv.suggestHint')}</p>
+
+        {suggestions.length > 0 && (
+          <div className="flex flex-col gap-2 mt-3">
+            {suggestions.map((s) => {
+              const heading = s.title || s.role || s.school || '';
+              const sub = s.company || s.issuer || s.school || s.tech || '';
+              const tabInfo = TABS.find((tb) => tb.key === s.section);
+              return (
+                <div key={s.id} className="flex items-start gap-3 rounded-2xl p-3.5"
+                  style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-0.5">
+                      {tabInfo ? tabInfo.label : s.section}
+                    </p>
+                    <p className="text-sm font-semibold text-ink dark:text-white truncate">{heading}{sub ? ` — ${sub}` : ''}</p>
+                    {s.description && <p className="text-xs text-ink/50 dark:text-white/40 mt-0.5 line-clamp-2">{s.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => acceptSuggestion(s)}
+                      className="rounded-xl px-3 py-1.5 text-xs font-semibold text-white"
+                      style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)' }}>
+                      {t('cv.addSuggestion')}
+                    </button>
+                    <button onClick={() => dismissSuggestion(s.id)}
+                      className="flex h-7 w-7 items-center justify-center rounded-xl text-ink/30 dark:text-white/25 hover:bg-ink/5 dark:hover:bg-white/10">
+                      <X size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </GlassCard>
 
       {/* ── Top bar: tabs + action buttons ──────────────────── */}
