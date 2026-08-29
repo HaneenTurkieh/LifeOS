@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
   MoreHorizontal, BarChart3, Timer, Rocket, TreePine,
-  GraduationCap, CalendarDays, X, Settings,
+  GraduationCap, CalendarDays, X, Settings, Users,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { useAuth }     from '../context/AuthContext.jsx';
 
 // Labels are translation keys — resolved with t() at render time.
 // Flow used to be buried in the "More" sheet, which meant the single most
@@ -24,16 +25,29 @@ const NAV = [
 ];
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,          label: 'nav.history'   },
+  { to: '/channels',  icon: Users,          label: 'nav.channels'  },
   { to: '/exam',      icon: GraduationCap,  label: 'nav.exam'      },
   { to: '/analytics', icon: BarChart3,      label: 'nav.analytics' },
   { to: '/launchpad', icon: Rocket,         label: 'nav.launchpad' },
   { to: '/trees',     icon: TreePine,       label: 'nav.treeshop'  },
 ];
+// Same restriction as Sidebar.jsx's INSTRUCTOR_NAV_PATHS — an instructor
+// account only gets Dashboard, Channels, and Lumi (Settings is always
+// reachable via the sheet regardless of role).
+const INSTRUCTOR_NAV = [
+  { to: '/',         icon: LayoutDashboard, label: 'nav.dashboard' },
+  { to: '/channels', icon: Users,           label: 'nav.channels'  },
+  { to: '/ai',       icon: Sparkles,        label: 'nav.lumi'      },
+];
 
 export default function MobileNav() {
   const [moreOpen,     setMoreOpen]     = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { t } = useLanguage();
+  const { t }    = useLanguage();
+  const { user } = useAuth();
+  const isInstructor = user?.role === 'instructor';
+  const navItems  = isInstructor ? INSTRUCTOR_NAV : NAV;
+  const moreItems = isInstructor ? [] : MORE_ITEMS;
   return (
     <>
       {/* Bottom nav */}
@@ -52,7 +66,7 @@ export default function MobileNav() {
       <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-50 glass-panel rounded-3xl px-2 py-2"
         style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}>
         <div className="flex items-center justify-between">
-          {NAV.map(({ to, icon: Icon, label }) => (
+          {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -124,7 +138,7 @@ export default function MobileNav() {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                {MORE_ITEMS.map(({ to, icon: Icon, label }) => (
+                {moreItems.map(({ to, icon: Icon, label }) => (
                   <NavLink
                     key={to}
                     to={to}

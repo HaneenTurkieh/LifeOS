@@ -4,7 +4,7 @@ import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
   Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift, Sparkles,
-  BarChart3, Users, TrendingUp,
+  BarChart3, Users, TrendingUp, GraduationCap,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -1179,6 +1179,15 @@ function StatsTab() {
       <div className="flex gap-3">
         <StatCard icon={BarChart3} label="Last 7 days"  value={stats.new_last_7_days}  isDark={isDark} />
         <StatCard icon={BarChart3} label="Last 30 days" value={stats.new_last_30_days} isDark={isDark} />
+      </div>
+      {/* Classroom system adoption — instructor accounts, channels
+          they've created, and distinct students sitting in at least
+          one channel. Undefined on stats loaded before this shipped
+          falls back to 0 rather than rendering "undefined". */}
+      <div className="flex gap-3">
+        <StatCard icon={GraduationCap} label="Instructors" value={stats.total_instructors ?? 0} isDark={isDark} />
+        <StatCard icon={Users}         label="Channels"    value={stats.total_channels ?? 0}    isDark={isDark} />
+        <StatCard icon={Users}         label="In a channel" value={stats.channel_students ?? 0} isDark={isDark} />
       </div>
       {stats.by_day.length > 0 && (
         <div className="rounded-2xl px-4 py-3.5"

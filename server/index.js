@@ -65,6 +65,7 @@ app.use('/api/notifications', authenticate, require('./routes/notifications'));
 app.use('/api/push', authenticate, require('./routes/push'));
 app.use('/api/exam', authenticate, require('./routes/exam'));
 app.use('/api/admin', authenticate, require('./routes/admin'));
+app.use('/api/channels', authenticate, require('./routes/channels'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Personal Life Dashboard API' }));
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

@@ -261,3 +261,45 @@ CREATE TABLE IF NOT EXISTS focus_room_tree (
   started_at   TEXT,
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ── Instructor/Student classroom system ─────────────────────────
+-- A channel is one instructor's "class" — students join it with a
+-- short code (emailed or shared directly). The channel is read-only
+-- for students (see channel_messages): only the owning instructor can
+-- post announcements or assign work. Assigned tasks/goals are plain
+-- rows in the normal tasks/goals tables (see their assigned_by/
+-- channel_id columns, added via migration in connection.js) so they
+-- show up in a student's existing Tasks/Calendar/Goals views with zero
+-- extra client-side plumbing — the channel is just the label on who
+-- created them and where they came from.
+CREATE TABLE IF NOT EXISTS channels (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  join_code     TEXT NOT NULL UNIQUE,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_channels_instructor ON channels(instructor_id);
+
+CREATE TABLE IF NOT EXISTS channel_members (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(channel_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_channel_members_channel ON channel_members(channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_members_student ON channel_members(student_id);
+
+-- Read-only announcement feed — only the instructor (channel owner) is
+-- ever allowed to insert here (enforced in routes/channels.js), never
+-- students, which is the literal "no one can type but the admins"
+-- requirement.
+CREATE TABLE IF NOT EXISTS channel_messages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  sender_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_channel_messages_channel ON channel_messages(channel_id);

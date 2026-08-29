@@ -12,7 +12,7 @@ const {
   hashResetToken,
   validatePassword,
 } = require('../lib/auth');
-const { sendPasswordResetEmail } = require('../lib/email');
+const { sendPasswordResetEmail, sendInstructorCredentialsEmail } = require('../lib/email');
 const { rateLimit }              = require('../lib/rateLimit');
 const { addXp }                  = require('../lib/gamification');
 const { isOwnerEmail }           = require('../lib/ownerEmails');
@@ -43,7 +43,22 @@ function publicUser(row) {
     // lib/ownerEmails.js) — the server is the only place that ever
     // decides this now.
     isOwner:  isOwnerEmail(row.email),
+    // 'student' | 'instructor' — see server/db/schema.sql / connection.js
+    // migration. Drives the restricted instructor nav + the Channels
+    // page's instructor-vs-student view on the client.
+    role:     row.role || 'student',
   };
+}
+
+// A short, guaranteed-valid (per validatePassword's own rules: 8+ chars,
+// a letter, a digit, a symbol) random password for instructor accounts,
+// which never type their own password in — see POST /register-instructor
+// below. Not meant to be memorable; it's emailed once and can be changed
+// from Settings after first login.
+function generateTempPassword() {
+  const hex = crypto.randomBytes(4).toString('hex'); // 8 hex chars, letters+digits
+  const sym = '!#$%*'[Math.floor(Math.random() * 5)];
+  return `Nv${hex}${sym}`;
 }
 
 // ── POST /register ────────────────────────────────────────────
@@ -93,6 +108,64 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'An account with that email already exists' });
     }
     console.error('Register error:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+// ── POST /register-instructor ──────────────────────────────────
+// Instructor signup path (Login.jsx's role picker): unlike /register,
+// there's no password field on this form — per the spec, an instructor
+// only types their name + email, Nuvora generates the password itself
+// and emails it to them, and they're logged straight in on top of that
+// (so the flow isn't blocked on them going to check their inbox first).
+router.post('/register-instructor', async (req, res) => {
+  const { name, email } = req.body;
+  if (!name?.trim())                   return res.status(400).json({ error: 'Name is required' });
+  if (!email || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'A valid email is required' });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const trimmedName     = name.trim();
+
+  try {
+    const existing = await db.execute({
+      sql:  `SELECT id FROM users WHERE email = ? COLLATE NOCASE`,
+      args: [normalizedEmail],
+    });
+    if (existing.rows[0]) return res.status(409).json({ error: 'An account with that email already exists' });
+
+    const tempPassword  = generateTempPassword();
+    const password_hash = await hashPassword(tempPassword);
+    const insert = await db.execute({
+      sql:  `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'instructor')`,
+      args: [trimmedName, normalizedEmail, password_hash],
+    });
+    const user = (await db.execute({
+      sql:  `SELECT * FROM users WHERE id = ?`,
+      args: [Number(insert.lastInsertRowid)],
+    })).rows[0];
+
+    let welcomeXpAwarded = 0;
+    try { await addXp(user.id, WELCOME_XP, 'Welcome gift'); welcomeXpAwarded = WELCOME_XP; }
+    catch (e) { console.error('Welcome XP grant failed:', e); }
+
+    // Credentials are emailed for the person's own record — the account
+    // is also usable immediately via the token returned below, so a
+    // failed/delayed email never blocks them from getting in right now.
+    let emailSent = false;
+    try {
+      await sendInstructorCredentialsEmail({ to: normalizedEmail, name: trimmedName, tempPassword });
+      emailSent = true;
+    } catch (e) { console.error('Instructor credentials email failed:', e); }
+
+    res.status(201).json({
+      token: signToken(user), user: publicUser(user),
+      welcomeXp: welcomeXpAwarded, emailSent,
+    });
+  } catch (err) {
+    if (err.message?.includes('UNIQUE constraint')) {
+      return res.status(409).json({ error: 'An account with that email already exists' });
+    }
+    console.error('Instructor register error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });

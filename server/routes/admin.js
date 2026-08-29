@@ -13,7 +13,7 @@ function requireOwner(req, res, next) {
 // ── GET /stats — total users + signup growth, owner-only ──────────
 router.get('/stats', requireOwner, async (req, res) => {
   try {
-    const [total, today, week, month, byDay] = await Promise.all([
+    const [total, today, week, month, byDay, instructors, channels, channelStudents] = await Promise.all([
       db.execute(`SELECT COUNT(*) c FROM users`),
       db.execute(`SELECT COUNT(*) c FROM users WHERE date(created_at) = date('now')`),
       db.execute(`SELECT COUNT(*) c FROM users WHERE created_at >= datetime('now','-7 days')`),
@@ -25,6 +25,11 @@ router.get('/stats', requireOwner, async (req, res) => {
         GROUP BY day
         ORDER BY day ASC
       `),
+      // Classroom system adoption — "add these to my stats as the
+      // owner" (the last item on the big feature list).
+      db.execute(`SELECT COUNT(*) c FROM users WHERE role = 'instructor'`),
+      db.execute(`SELECT COUNT(*) c FROM channels`),
+      db.execute(`SELECT COUNT(DISTINCT student_id) c FROM channel_members`),
     ]);
     res.json({
       total_users:       Number(total.rows[0].c),
@@ -32,6 +37,9 @@ router.get('/stats', requireOwner, async (req, res) => {
       new_last_7_days:   Number(week.rows[0].c),
       new_last_30_days:  Number(month.rows[0].c),
       by_day:            byDay.rows.map((r) => ({ day: r.day, count: Number(r.c) })),
+      total_instructors: Number(instructors.rows[0].c),
+      total_channels:    Number(channels.rows[0].c),
+      channel_students:  Number(channelStudents.rows[0].c),
     });
   } catch (err) {
     console.error('GET /admin/stats error:', err);

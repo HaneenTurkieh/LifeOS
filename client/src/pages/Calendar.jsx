@@ -940,8 +940,15 @@ export default function Calendar() {
         title={addModalOpen ? `${t('calendar.addTo')} · ${fmtLabel(addModalOpen)}` : t('calendar.addTo')}
       >
         <form onSubmit={submitAdd} className="flex flex-col gap-3.5">
+          {/* This field IS where the birthday person's name goes once the
+              toggle below is on — Dashboard's birthday card literally
+              displays this title as the sub-line under "Birthday in N
+              days". It wasn't obvious from a generic "Task title"
+              placeholder that this same box does double duty, which is
+              exactly the "what does someone's birthday do?" confusion. */}
           <div className="flex items-center gap-2">
-            <input className="input-field flex-1" placeholder={t('tasks.taskTitle')}
+            <input className="input-field flex-1"
+              placeholder={addForm.isBirthday ? t('calendar.birthdayNamePh') : t('tasks.taskTitle')}
               value={addForm.title} onChange={e => setAddForm({...addForm, title:e.target.value})}
               autoFocus required />
             <VoiceInputButton size="sm" onText={(c) => setAddForm((f) => ({ ...f, title: appendText(f.title, c) }))} />
