@@ -300,6 +300,8 @@ CREATE TABLE IF NOT EXISTS channel_messages (
   channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
   sender_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body       TEXT NOT NULL,
+  event_date TEXT DEFAULT NULL,    -- optional "this is about" date, e.g. a deadline the announcement refers to
+  event_time TEXT DEFAULT NULL,    -- "HH:MM", only meaningful alongside event_date
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_channel_messages_channel ON channel_messages(channel_id);
@@ -312,6 +314,22 @@ CREATE INDEX IF NOT EXISTS idx_channel_messages_channel ON channel_messages(chan
 -- formats (see connection.js's forgot-password migration comment); a
 -- token refresh check is exactly the kind of precise-instant comparison
 -- that format mismatch bites hardest, so this sidesteps it entirely.
+-- Real two-way messaging between an instructor and one student in their
+-- channel — separate from channel_messages (the read-only broadcast
+-- announcement feed above). One thread per (channel, student) pair;
+-- student_id always identifies the thread even when sender_id is the
+-- instructor, so both sides query the exact same rows.
+CREATE TABLE IF NOT EXISTS channel_chat_messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_id  INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  student_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_role TEXT NOT NULL,   -- 'instructor' | 'student' — who sent it
+  body        TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_channel_chat_thread ON channel_chat_messages(channel_id, student_id);
+
 CREATE TABLE IF NOT EXISTS google_sheets_tokens (
   user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   access_token  TEXT NOT NULL,

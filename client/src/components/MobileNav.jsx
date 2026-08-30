@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, LayoutDashboard, ListChecks, Target, Sparkles,
   MoreHorizontal, BarChart3, Timer, Rocket, TreePine,
-  GraduationCap, CalendarDays, X, Settings, Users,
+  GraduationCap, CalendarDays, X, Settings, Users, Trophy,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -26,6 +26,7 @@ const NAV = [
 const MORE_ITEMS = [
   { to: '/history',   icon: Clock,          label: 'nav.history'   },
   { to: '/channels',  icon: Users,          label: 'nav.channels'  },
+  { to: '/rankings',  icon: Trophy,         label: 'nav.rankings'  },
   { to: '/exam',      icon: GraduationCap,  label: 'nav.exam'      },
   { to: '/analytics', icon: BarChart3,      label: 'nav.analytics' },
   { to: '/launchpad', icon: Rocket,         label: 'nav.launchpad' },

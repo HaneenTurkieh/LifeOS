@@ -192,13 +192,14 @@ router.post('/:id/invite', requireInstructor, async (req, res) => {
     if (!valid.length) return res.status(400).json({ error: 'At least one valid email is required' });
 
     let sent = 0;
+    const failed = [];
     for (const to of valid) {
       try {
         await sendChannelInviteEmail({ to, channelName: channel.name, joinCode: channel.join_code, instructorName: req.user.name });
         sent++;
-      } catch (e) { console.error(`Channel invite to ${to} failed:`, e.message); }
+      } catch (e) { console.error(`Channel invite to ${to} failed:`, e.message); failed.push(to); }
     }
-    res.json({ sent, total: valid.length });
+    res.json({ sent, total: valid.length, failed });
   } catch (err) { console.error('POST /channels/:id/invite error:', err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -228,22 +229,114 @@ router.get('/:id/messages', async (req, res) => {
 });
 
 // ── POST /:id/messages — instructor only (read-only channel) ─────
+// Also drops a real bell notification for every current member — an
+// announcement that only ever showed up if someone happened to reopen
+// the channel wasn't actually "announcing" anything.
 router.post('/:id/messages', requireInstructor, async (req, res) => {
   const channel = await loadOwnedChannel(req, res);
   if (!channel) return;
   try {
     const body = String(req.body.body || '').trim();
     if (!body) return res.status(400).json({ error: 'Message cannot be empty' });
+    const eventDate = req.body.event_date || null;
+    const eventTime = eventDate ? (req.body.event_time || null) : null; // time only means anything alongside a date
     const insert = await db.execute({
-      sql:  `INSERT INTO channel_messages (channel_id, sender_id, body) VALUES (?, ?, ?)`,
-      args: [channel.id, req.user.id, body.slice(0, 2000)],
+      sql:  `INSERT INTO channel_messages (channel_id, sender_id, body, event_date, event_time) VALUES (?, ?, ?, ?, ?)`,
+      args: [channel.id, req.user.id, body.slice(0, 2000), eventDate, eventTime],
     });
+    const messageId = Number(insert.lastInsertRowid);
     const message = (await db.execute({
       sql: `SELECT cm.*, u.name AS sender_name FROM channel_messages cm JOIN users u ON u.id = cm.sender_id WHERE cm.id = ?`,
-      args: [Number(insert.lastInsertRowid)],
+      args: [messageId],
     })).rows[0];
+
+    const members = (await db.execute({
+      sql: `SELECT student_id FROM channel_members WHERE channel_id = ?`, args: [channel.id],
+    })).rows;
+    // dedupe_key includes the message's own id, not just channel+type —
+    // reusing buildDedupeKey's generic `${type}:${link}` shape here would
+    // collide every subsequent announcement in the same channel onto the
+    // first one's key (ON CONFLICT DO NOTHING would silently swallow it).
+    const dedupeKey = `channel_announcement:msg${messageId}`;
+    for (const { student_id } of members) {
+      await db.execute({
+        sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+               VALUES (?, 'channel_announcement', ?, ?, '/channels', ?, ?)
+               ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
+        args: [
+          student_id, `${channel.name}: new announcement`, body.slice(0, 200), dedupeKey,
+          JSON.stringify({ channelName: channel.name, eventDate, eventTime }),
+        ],
+      });
+    }
+
     res.status(201).json(message);
   } catch (err) { console.error('POST /channels/:id/messages error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── Chat: real two-way messaging, one thread per (channel, student) ──
+// Distinct from channel_messages (the read-only broadcast feed) — every
+// route below checks the caller is either the channel's own instructor,
+// or the exact student the thread belongs to (never any other student).
+async function authorizeThread(req, res) {
+  const channel = (await db.execute({
+    sql: `SELECT * FROM channels WHERE id = ?`, args: [req.params.id],
+  })).rows[0];
+  if (!channel) { res.status(404).json({ error: 'Channel not found' }); return null; }
+  const studentId = Number(req.params.studentId);
+  const isOwner = channel.instructor_id === req.user.id;
+  const isSelf  = req.user.id === studentId;
+  if (!isOwner && !isSelf) { res.status(403).json({ error: 'Not authorized' }); return null; }
+  if (isSelf) {
+    const member = (await db.execute({
+      sql: `SELECT 1 FROM channel_members WHERE channel_id = ? AND student_id = ?`,
+      args: [channel.id, studentId],
+    })).rows[0];
+    if (!member) { res.status(403).json({ error: 'Not a member of this channel' }); return null; }
+  }
+  return { channel, studentId, isOwner };
+}
+
+router.get('/:id/chat/:studentId', async (req, res) => {
+  const ctx = await authorizeThread(req, res);
+  if (!ctx) return;
+  try {
+    const rows = (await db.execute({
+      sql: `SELECT * FROM channel_chat_messages WHERE channel_id = ? AND student_id = ? ORDER BY created_at ASC LIMIT 300`,
+      args: [ctx.channel.id, ctx.studentId],
+    })).rows;
+    res.json(rows);
+  } catch (err) { console.error('GET /channels/:id/chat error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+router.post('/:id/chat/:studentId', async (req, res) => {
+  const ctx = await authorizeThread(req, res);
+  if (!ctx) return;
+  try {
+    const body = String(req.body.body || '').trim();
+    if (!body) return res.status(400).json({ error: 'Message cannot be empty' });
+    const senderRole = ctx.isOwner ? 'instructor' : 'student';
+    const insert = await db.execute({
+      sql:  `INSERT INTO channel_chat_messages (channel_id, student_id, sender_id, sender_role, body)
+             VALUES (?, ?, ?, ?, ?)`,
+      args: [ctx.channel.id, ctx.studentId, req.user.id, senderRole, body.slice(0, 2000)],
+    });
+    // Notify whichever side didn't just send it.
+    const notifyUserId = ctx.isOwner ? ctx.studentId : ctx.channel.instructor_id;
+    await db.execute({
+      sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+             VALUES (?, 'channel_chat', ?, ?, '/channels', ?, ?)`,
+      args: [
+        notifyUserId, `${ctx.channel.name}: new message`, body.slice(0, 200),
+        `channel_chat:msg${Number(insert.lastInsertRowid)}`,
+        JSON.stringify({ channelName: ctx.channel.name }),
+      ],
+    });
+    const message = (await db.execute({
+      sql: `SELECT * FROM channel_chat_messages WHERE id = ?`, args: [Number(insert.lastInsertRowid)],
+    })).rows[0];
+    res.status(201).json(message);
+  } catch (err) { console.error('POST /channels/:id/chat error:', err); res.status(500).json({ error: 'Database error' }); }
 });
 
 // ── POST /:id/assign-task — fan out a task to channel members ────

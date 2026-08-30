@@ -829,6 +829,14 @@ async function initDb() {
   if (!(await hasColumn('channels', 'sheets_spreadsheet_id'))) {
     await db.execute(`ALTER TABLE channels ADD COLUMN sheets_spreadsheet_id TEXT DEFAULT NULL`);
   }
+  // Optional "this is about" date/time on a channel announcement (e.g. an
+  // exam date), separate from created_at (when it was posted).
+  if (!(await hasColumn('channel_messages', 'event_date'))) {
+    await db.execute(`ALTER TABLE channel_messages ADD COLUMN event_date TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('channel_messages', 'event_time'))) {
+    await db.execute(`ALTER TABLE channel_messages ADD COLUMN event_time TEXT DEFAULT NULL`);
+  }
 
   console.log('✅ Database connected and migrations applied.');
 }
