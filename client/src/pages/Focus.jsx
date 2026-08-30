@@ -88,7 +88,7 @@ function LandPlot({ trees, t, height = 190, compact = false }) {
         // (the per-day history rows) stays a bit smaller than the main
         // "today" plot since it has less vertical room to work with.
         trees.map((tr, i) => {
-          const treeSize  = compact ? 40 : 56;
+          const treeSize  = compact ? 48 : 58;
           const leftPct   = 8 + seeded(i) * 82;
           const bottomPct = 6 + seeded(i + 50) * 24;
           return (

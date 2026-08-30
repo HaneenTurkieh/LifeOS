@@ -39,13 +39,22 @@ function Trunk({ color = '#8B5A2B', cx = 22, topY = 28, width = 4.5, lean = 0 })
     />
   );
 }
-function Blobs({ points, color, opacity = 1 }) {
+function Blobs({ points, color, opacity = 1, outline = true }) {
   // A cluster of overlapping circles — the base building block for any
   // "leafy round canopy" species (oak, cherry blossom, flamingo…), just
-  // with a different color/count/spread per caller.
+  // with a different color/count/spread per caller. A thin darkened-
+  // outline stroke (derived from the fill, not a fixed color) is what
+  // actually keeps a lighter canopy — sprout, cherry blossom's pale pink
+  // — from washing out against LandPlot's own green grass gradient;
+  // opacity-layered "shading" blobs (opacity < 1, used for depth accents)
+  // skip it since they're meant to blend, not define an edge.
   return (
     <g opacity={opacity}>
-      {points.map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={r} fill={color} />)}
+      {points.map(([x, y, r], i) => (
+        <circle key={i} cx={x} cy={y} r={r} fill={color}
+          stroke={outline && opacity === 1 ? 'rgba(0,0,0,0.22)' : 'none'}
+          strokeWidth={outline && opacity === 1 ? 0.7 : 0} />
+      ))}
     </g>
   );
 }
@@ -56,8 +65,8 @@ function Seedling() {
     <g>
       <Roots cx={22} color="#4C7A3A" />
       <path d="M22 51 L22 38" stroke="#4CA05A" strokeWidth="2" strokeLinecap="round" />
-      <path d="M22 41 Q15 38 14 32 Q21 33 22 41 Z" fill="#5FBE6E" />
-      <path d="M22 39 Q29 36 30 30 Q23 31 22 39 Z" fill="#4CA05A" />
+      <path d="M22 41 Q15 38 14 32 Q21 33 22 41 Z" fill="#5FBE6E" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M22 39 Q29 36 30 30 Q23 31 22 39 Z" fill="#4CA05A" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
     </g>
   );
 }
@@ -188,15 +197,17 @@ function Maple() {
   );
 }
 function Pine() {
+  // Flat single-tone dark green used to disappear into LandPlot's own
+  // grass gradient — each tier now gets a distinct, brighter shade
+  // (darkest at the base, brightest at the tip) so the silhouette reads
+  // as a layered conifer instead of blending into the lawn behind it.
   return (
     <g>
       <Roots />
       <rect x={19.5} y={44} width={5} height={7} fill="#7A5240" />
-      <g fill="#15803D">
-        <polygon points="9,44 35,44 22,32" />
-        <polygon points="11,34 33,34 22,22" />
-        <polygon points="13,24 31,24 22,12" />
-      </g>
+      <polygon points="9,44 35,44 22,32" fill="#0E7A3C" stroke="#0A5C2C" strokeWidth="0.6" />
+      <polygon points="11,34 33,34 22,22" fill="#189B4A" stroke="#0A5C2C" strokeWidth="0.6" />
+      <polygon points="13,24 31,24 22,12" fill="#22B85A" stroke="#0A5C2C" strokeWidth="0.6" />
     </g>
   );
 }
@@ -256,11 +267,9 @@ function ChristmasTree() {
     <g>
       <Roots />
       <rect x={19.5} y={44} width={5} height={7} fill="#7A5240" />
-      <g fill="#166534">
-        <polygon points="9,44 35,44 22,32" />
-        <polygon points="11,34 33,34 22,22" />
-        <polygon points="13,24 31,24 22,12" />
-      </g>
+      <polygon points="9,44 35,44 22,32" fill="#0E7A3C" stroke="#0A5C2C" strokeWidth="0.6" />
+      <polygon points="11,34 33,34 22,22" fill="#189B4A" stroke="#0A5C2C" strokeWidth="0.6" />
+      <polygon points="13,24 31,24 22,12" fill="#22B85A" stroke="#0A5C2C" strokeWidth="0.6" />
       <g>
         {[[16, 40], [28, 40], [22, 30], [18, 29], [26, 19], [22, 18]].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r={1.3} fill={['#EF4444', '#FBBF24', '#60A5FA'][i % 3]} />
@@ -353,7 +362,15 @@ export default function TreeSvg({ speciesKey, size = 34, className = '' }) {
     <svg
       viewBox="0 0 44 56" width={size} height={size}
       className={className}
-      style={{ display: 'inline-block', overflow: 'visible' }}
+      style={{
+        display: 'inline-block', overflow: 'visible',
+        // A dark-green pine/christmas canopy against LandPlot's own
+        // green grass gradient was nearly invisible (same problem the
+        // old emoji glyphs dodged with a text-shadow) — this drop-shadow
+        // is what actually separates every species from whatever
+        // background it sits on, not just the dark-canopy ones.
+        filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.5))',
+      }}
     >
       <Species />
     </svg>
