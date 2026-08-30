@@ -495,9 +495,15 @@ export default function Dashboard() {
           </div>
         </div>
       </GlassCard>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* items-start: CSS grid rows stretch every item to the row's tallest
+          member by default, so with the right column stacking 4 cards
+          (Mood/Flow/Milestones/Week) the left "today's tasks" card used to
+          get force-stretched to match — a 2-task list sitting in a card
+          tall enough for 15, with a huge dead gap at the bottom. Grid items
+          now size to their own content instead. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         <div className="lg:col-span-2">
-          <GlassCard className="p-6 h-full">
+          <GlassCard className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display font-semibold text-ink dark:text-white">{taskLabel}</h2>
               <button onClick={() => navigate('/tasks')}
