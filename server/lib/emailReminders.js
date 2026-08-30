@@ -19,7 +19,18 @@ const { sendReminderDigestEmail } = require('./email');
 // the procrastination nudge, one-time feature announcements) stays an
 // in-app-only "normal" notification — those aren't urgent enough to be
 // worth training people to half-ignore their email from Nuvora.
-const EMAILABLE_TYPES = new Set(['overdue', 'due_soon', 'deadline', 'milestone_due']);
+//
+// The classroom types below are the one deliberate exception: Haneen's
+// spec is "ANY thing from instructor... must be notified through mail,
+// notifications and web notifications" — an announcement, a chat
+// message, a Flow Room invite, or an assigned task/goal all come from a
+// real person a student is expecting to hear from, not a background
+// nudge, so they ride the same digest pipeline as the urgent stuff.
+const EMAILABLE_TYPES = new Set([
+  'overdue', 'due_soon', 'deadline', 'milestone_due',
+  'channel_announcement', 'channel_chat', 'channel_room_invite',
+  'channel_task_assigned', 'channel_goal_assigned',
+]);
 
 async function sendPendingReminderEmails() {
   const users = (await db.execute({
