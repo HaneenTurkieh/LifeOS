@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Copy, Mail, Trash2, Send, BarChart3, Download,
   Megaphone, ListChecks, Target, ChevronLeft, LogIn, Sheet, Timer,
-  MessageCircle, Upload,
+  MessageCircle, Upload, GraduationCap,
 } from 'lucide-react';
 import { api, getToken } from '../api/client.js';
 import { useAuth }     from '../context/AuthContext.jsx';
@@ -113,6 +113,15 @@ export default function Channels() {
     );
   }
 
+  const totalStudents = channels.reduce((sum, ch) => sum + (ch.member_count || 0), 0);
+  const instructorNames = [...new Set(channels.map((ch) => ch.instructor_name).filter(Boolean))];
+  // A grid with 1–2 real cards next to a mostly-blank page reads as
+  // broken, not "clean" — so below a certain count we pad the same grid
+  // out with a real, useful CTA tile (create/join another) instead of
+  // leaving dead space. At 3+ it's already a full-looking row on every
+  // breakpoint down to sm:grid-cols-2, so the CTA drops out entirely.
+  const showCta = channels.length > 0 && channels.length < 3;
+
   return (
     <div className="flex flex-col gap-6">
       <GlassCard className="p-6 sm:p-7">
@@ -133,7 +142,7 @@ export default function Channels() {
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              <input id="channels-join-input" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 placeholder={t('channels.joinCodePh')} maxLength={6} dir="ltr"
                 className={`${inputCls} w-44 text-center font-mono tracking-widest`} />
               <button onClick={joinChannel} disabled={joining}
@@ -144,6 +153,21 @@ export default function Channels() {
             </div>
           )}
         </div>
+        {channels.length > 0 && (
+          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-ink/5 dark:border-white/8 text-xs font-medium text-ink/50 dark:text-white/40 flex-wrap">
+            <span className="flex items-center gap-1.5"><Users size={13} />
+              {isInstructor ? t('channels.statChannelCount', { n: channels.length }) : t('channels.statJoinedCount', { n: channels.length })}
+            </span>
+            {isInstructor && (
+              <span className="flex items-center gap-1.5"><GraduationCap size={13} />
+                {t('channels.statStudentCount', { n: totalStudents })}
+              </span>
+            )}
+            {!isInstructor && instructorNames.length > 0 && (
+              <span className="truncate">{t('channels.statInstructors', { names: instructorNames.join(', ') })}</span>
+            )}
+          </div>
+        )}
       </GlassCard>
 
       {channels.length === 0 ? (
@@ -154,12 +178,22 @@ export default function Channels() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {channels.map((ch) => (
             <GlassCard key={ch.id} interactive onClick={() => setActiveId(ch.id)} className="p-5 cursor-pointer">
-              <h3 className="font-display font-bold text-ink dark:text-white truncate">{ch.name}</h3>
-              {isInstructor ? (
-                <p className="text-xs text-ink/45 dark:text-white/40 mt-1">{t('channels.members', { n: ch.member_count || 0 })}</p>
-              ) : (
-                <p className="text-xs text-ink/45 dark:text-white/40 mt-1">{ch.instructor_name}</p>
-              )}
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-base font-display font-bold text-white"
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
+                  {ch.name.trim().slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-display font-bold text-ink dark:text-white truncate">{ch.name}</h3>
+                  {isInstructor ? (
+                    <p className="text-xs text-ink/45 dark:text-white/40 mt-0.5 flex items-center gap-1">
+                      <Users size={11} /> {t('channels.members', { n: ch.member_count || 0 })}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-ink/45 dark:text-white/40 mt-0.5 truncate">{ch.instructor_name}</p>
+                  )}
+                </div>
+              </div>
               {isInstructor && (
                 <span className="inline-block mt-3 rounded-lg px-2 py-1 text-[11px] font-mono font-bold tracking-widest bg-ink/5 dark:bg-white/10 text-ink/60 dark:text-white/50">
                   {ch.join_code}
@@ -167,6 +201,20 @@ export default function Channels() {
               )}
             </GlassCard>
           ))}
+          {showCta && (
+            <GlassCard
+              interactive
+              onClick={() => (isInstructor ? setShowCreate(true) : document.getElementById('channels-join-input')?.focus())}
+              className="p-5 cursor-pointer flex flex-col items-center justify-center text-center gap-2 border-2 border-dashed border-ink/10 dark:border-white/12 !shadow-none"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ink/5 dark:bg-white/8 text-ink/40 dark:text-white/40">
+                {isInstructor ? <Plus size={18} /> : <LogIn size={18} />}
+              </div>
+              <p className="text-xs font-semibold text-ink/50 dark:text-white/40">
+                {isInstructor ? t('channels.ctaCreateAnother') : t('channels.ctaJoinAnother')}
+              </p>
+            </GlassCard>
+          )}
         </div>
       )}
 
