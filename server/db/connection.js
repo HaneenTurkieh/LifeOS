@@ -823,6 +823,13 @@ async function initDb() {
     }
   }
 
+  // Which spreadsheet (if any) a channel's analytics have been synced
+  // to — set the first time an instructor syncs a given channel (see
+  // POST /channels/:id/sheets/sync), NULL until then.
+  if (!(await hasColumn('channels', 'sheets_spreadsheet_id'))) {
+    await db.execute(`ALTER TABLE channels ADD COLUMN sheets_spreadsheet_id TEXT DEFAULT NULL`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

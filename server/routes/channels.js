@@ -20,6 +20,7 @@ const crypto  = require('crypto');
 const { db }             = require('../db/connection');
 const { sendChannelInviteEmail } = require('../lib/email');
 const { buildDedupeKey } = require('../lib/notificationDedupe');
+const googleSheets = require('../lib/googleSheets');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -371,6 +372,62 @@ router.get('/:id/analytics', requireInstructor, async (req, res) => {
     })).rows;
     res.json(rows);
   } catch (err) { console.error('GET /channels/:id/analytics error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── POST /:id/sheets/sync — push analytics into a real Google Sheet ──
+// First sync for a channel creates a spreadsheet (titled after the
+// channel) and remembers its id on channels.sheets_spreadsheet_id;
+// every sync after that overwrites the same sheet's data range, so
+// re-running it is just "refresh the numbers," not a growing pile of
+// duplicate sheets. Falls back cleanly to a clear error if the
+// instructor hasn't connected Google yet (see routes/sheets.js) — CSV
+// export (GET /:id/export.csv) keeps working regardless either way.
+router.post('/:id/sheets/sync', requireInstructor, async (req, res) => {
+  const channel = await loadOwnedChannel(req, res);
+  if (!channel) return;
+  try {
+    const accessToken = await googleSheets.getValidAccessToken(req.user.id);
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Connect Google Sheets first.', code: 'NOT_CONNECTED' });
+    }
+
+    const rows = (await db.execute({
+      sql: `
+        SELECT
+          u.name, u.email,
+          (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id AND t.channel_id = ?) AS tasks_assigned,
+          (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id AND t.channel_id = ? AND t.status = 'done') AS tasks_done,
+          (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ?) AS goals_assigned,
+          (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ? AND g.status = 'completed') AS goals_done,
+          (SELECT COALESCE(SUM(amount), 0) FROM xp_log x WHERE x.user_id = u.id) AS total_xp
+        FROM channel_members m
+        JOIN users u ON u.id = m.student_id
+        WHERE m.channel_id = ?
+        ORDER BY u.name COLLATE NOCASE ASC`,
+      args: [channel.id, channel.id, channel.id, channel.id, channel.id],
+    })).rows;
+
+    let spreadsheetId = channel.sheets_spreadsheet_id;
+    if (!spreadsheetId) {
+      spreadsheetId = await googleSheets.createSpreadsheet(accessToken, `Nuvora — ${channel.name}`);
+      await db.execute({
+        sql: `UPDATE channels SET sheets_spreadsheet_id = ? WHERE id = ?`,
+        args: [spreadsheetId, channel.id],
+      });
+    }
+
+    const header = ['Name', 'Email', 'Tasks assigned', 'Tasks done', 'Goals assigned', 'Goals done', 'Total XP', 'Last synced'];
+    const values = [header].concat(rows.map((r) => [
+      r.name, r.email, r.tasks_assigned, r.tasks_done, r.goals_assigned, r.goals_done, r.total_xp,
+      new Date().toLocaleString(),
+    ]));
+    await googleSheets.writeValues(accessToken, spreadsheetId, values);
+
+    res.json({ spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` });
+  } catch (err) {
+    console.error('POST /channels/:id/sheets/sync error:', err);
+    res.status(500).json({ error: err.message || 'Sync failed' });
+  }
 });
 
 // ── GET /:id/export.csv — CSV fallback for the analytics table ───
