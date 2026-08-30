@@ -201,6 +201,34 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
   const [roomCode,   setRoomCode]   = useState('');
   const [invitingRoom, setInvitingRoom] = useState(false);
   const [copied,     setCopied]     = useState(false);
+  const [sheetsStatus, setSheetsStatus] = useState(null); // { connected, configured }
+  const [syncing,    setSyncing]    = useState(false);
+
+  useEffect(() => {
+    if (!isInstructor) return;
+    api.get('/sheets/status').then(setSheetsStatus).catch(() => setSheetsStatus({ connected: false, configured: false }));
+  }, [isInstructor]);
+
+  const connectSheets = async () => {
+    try {
+      const state = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem('nuvora_gsheets_oauth_state', state);
+      const { url } = await api.get(`/sheets/auth-url?state=${encodeURIComponent(state)}`);
+      window.location.href = url;
+    } catch (err) { toast.error(err.message || t('channels.sheetsNotConfigured')); }
+  };
+  const syncSheets = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const r = await api.post(`/channels/${channel.id}/sheets/sync`, {});
+      toast.success(t('channels.sheetsSynced'));
+      window.open(r.spreadsheetUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      if (err.code === 'NOT_CONNECTED') setSheetsStatus((s) => ({ ...s, connected: false }));
+      toast.error(err.message);
+    } finally { setSyncing(false); }
+  };
 
   const post = async () => {
     if (!postBody.trim() || posting) return;
@@ -457,10 +485,24 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                 className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold bg-ink/5 dark:bg-white/8 text-ink dark:text-white">
                 <Download size={13} /> {t('channels.exportCsv')}
               </button>
-              <button onClick={() => toast.success(t('channels.sheetsComingSoon'))}
-                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold bg-ink/5 dark:bg-white/8 text-ink/50 dark:text-white/40">
-                <Sheet size={13} /> {t('channels.connectSheets')}
-              </button>
+              {!sheetsStatus?.configured ? (
+                <button onClick={() => toast.error(t('channels.sheetsNotConfigured'))}
+                  className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold bg-ink/5 dark:bg-white/8 text-ink/40 dark:text-white/30">
+                  <Sheet size={13} /> {t('channels.connectSheets')}
+                </button>
+              ) : sheetsStatus?.connected ? (
+                <button onClick={syncSheets} disabled={syncing}
+                  className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold disabled:opacity-50"
+                  style={{ background: 'rgba(15,157,88,0.10)', border: '1px solid rgba(15,157,88,0.30)', color: '#0F9D58' }}>
+                  <Sheet size={13} /> {syncing ? t('channels.syncing') : t('channels.syncToSheets')}
+                </button>
+              ) : (
+                <button onClick={connectSheets}
+                  className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold"
+                  style={{ background: 'rgba(10,102,194,0.10)', border: '1px solid rgba(10,102,194,0.30)', color: '#0A66C2' }}>
+                  <Sheet size={13} /> {t('channels.connectSheets')}
+                </button>
+              )}
             </div>
           </GlassCard>
 

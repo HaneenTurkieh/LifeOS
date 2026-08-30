@@ -303,3 +303,19 @@ CREATE TABLE IF NOT EXISTS channel_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_channel_messages_channel ON channel_messages(channel_id);
+
+-- One Google account connection per instructor — access/refresh tokens
+-- for the Sheets sync (see lib/googleSheets.js). expires_at is stored as
+-- an epoch-ms INTEGER (not the app's usual TEXT datetime('now') format)
+-- specifically so it can be compared directly against JS Date.now() —
+-- this app has hit real bugs elsewhere from mixing datetime string
+-- formats (see connection.js's forgot-password migration comment); a
+-- token refresh check is exactly the kind of precise-instant comparison
+-- that format mismatch bites hardest, so this sidesteps it entirely.
+CREATE TABLE IF NOT EXISTS google_sheets_tokens (
+  user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  access_token  TEXT NOT NULL,
+  refresh_token TEXT,
+  expires_at    INTEGER NOT NULL,
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);

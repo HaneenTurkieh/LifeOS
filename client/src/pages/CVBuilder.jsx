@@ -450,6 +450,7 @@ ${rawText}`,
           </div>
         </div>
         <p className="text-xs text-ink/40 dark:text-white/30 mb-1">{t('cv.suggestHint')}</p>
+        <p className="text-[11px] text-ink/35 dark:text-white/25 mb-1">📎 {t('cv.linkedinDownloadHint')}</p>
 
         {suggestions.length > 0 && (
           <div className="flex flex-col gap-2 mt-3">

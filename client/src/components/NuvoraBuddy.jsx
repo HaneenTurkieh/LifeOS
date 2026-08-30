@@ -100,13 +100,15 @@ export default function NuvoraBuddy({ size = 64, wave = false, waveLoop = true, 
   ];
 
   // Mouth shape by mood: bigger smile on great days, flatter on okay days,
-  // a gentle downturn (+ worried brows) on rough/meh ones. Falls back to
-  // the original friendly default when no mood is known yet.
+  // a gentle downturn (+ worried brows) on rough/meh ones. The resting
+  // default — no mood logged yet, OR mood === 4 ("good", which never had
+  // its own shape) — is a clear, unmistakable smile, not the fainter
+  // curve this used to fall back to. Nova's "neutral" is happy, not blank.
   const mouthPath =
     mood >= 5 ? 'M23 39 Q32 49.5 41 39' :
     mood === 3 ? 'M25 41.5 Q32 43.5 39 41.5' :
     mood != null && mood <= 2 ? 'M25 42.5 Q32 38 39 42.5' :
-    'M25 40 Q32 46.5 39 40';
+    'M24 39.5 Q32 48 40 39.5';
   const showConcernBrows = mood != null && mood <= 2;
 
   return (
