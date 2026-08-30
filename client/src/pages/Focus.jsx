@@ -82,7 +82,13 @@ function LandPlot({ trees, t, height = 190, compact = false }) {
           <p className="text-white/85 text-xs font-semibold drop-shadow">{t('flow.landEmptyDesc')}</p>
         </div>
       ) : (
+        // Was a fixed 32-34px regardless of plot size — barely readable
+        // detail (roots, canopy shape) at that size once there was more
+        // than one tree on the grass. Scaled up meaningfully; compact
+        // (the per-day history rows) stays a bit smaller than the main
+        // "today" plot since it has less vertical room to work with.
         trees.map((tr, i) => {
+          const treeSize  = compact ? 40 : 56;
           const leftPct   = 8 + seeded(i) * 82;
           const bottomPct = 6 + seeded(i + 50) * 24;
           return (
@@ -117,8 +123,8 @@ function LandPlot({ trees, t, height = 190, compact = false }) {
                 // planted tree doesn't turn into a different picture when
                 // it dies, it just fades.
                 tr.tree_key?.startsWith('mystic:') && tr.shape_key
-                  ? <MysticSvg shapeKey={tr.shape_key} size={32} colorHex={tr.color_hex} glowHex={tr.glow_hex} />
-                  : <TreeSvg speciesKey={tr.tree_key} size={34} />
+                  ? <MysticSvg shapeKey={tr.shape_key} size={treeSize} colorHex={tr.color_hex} glowHex={tr.glow_hex} />
+                  : <TreeSvg speciesKey={tr.tree_key} size={treeSize} />
               }
             </motion.div>
           );
