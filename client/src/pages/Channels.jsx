@@ -666,6 +666,21 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
               </div>
             )}
           </GlassCard>
+
+          {/* Rankings no longer has its own top-level nav entry — this
+              tab is the one place it lives, for both roles, so it isn't
+              duplicated as a separate destination floating outside
+              Channels. */}
+          <GlassCard className="p-5 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-sm font-bold text-ink dark:text-white mb-0.5">{t('flow.rankingsTitle')}</h3>
+              <p className="text-xs text-ink/50 dark:text-white/40">{t('channels.flowTabStudentHint')}</p>
+            </div>
+            <Link to="/rankings" className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-white"
+              style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
+              {t('nav.rankings')}
+            </Link>
+          </GlassCard>
         </>
       )}
 
