@@ -115,12 +115,6 @@ export default function Channels() {
 
   const totalStudents = channels.reduce((sum, ch) => sum + (ch.member_count || 0), 0);
   const instructorNames = [...new Set(channels.map((ch) => ch.instructor_name).filter(Boolean))];
-  // A grid with 1–2 real cards next to a mostly-blank page reads as
-  // broken, not "clean" — so below a certain count we pad the same grid
-  // out with a real, useful CTA tile (create/join another) instead of
-  // leaving dead space. At 3+ it's already a full-looking row on every
-  // breakpoint down to sm:grid-cols-2, so the CTA drops out entirely.
-  const showCta = channels.length > 0 && channels.length < 3;
 
   return (
     <div className="flex flex-col gap-6">
@@ -201,20 +195,6 @@ export default function Channels() {
               )}
             </GlassCard>
           ))}
-          {showCta && (
-            <GlassCard
-              interactive
-              onClick={() => (isInstructor ? setShowCreate(true) : document.getElementById('channels-join-input')?.focus())}
-              className="p-5 cursor-pointer flex flex-col items-center justify-center text-center gap-2 border-2 border-dashed border-ink/10 dark:border-white/12 !shadow-none"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ink/5 dark:bg-white/8 text-ink/40 dark:text-white/40">
-                {isInstructor ? <Plus size={18} /> : <LogIn size={18} />}
-              </div>
-              <p className="text-xs font-semibold text-ink/50 dark:text-white/40">
-                {isInstructor ? t('channels.ctaCreateAnother') : t('channels.ctaJoinAnother')}
-              </p>
-            </GlassCard>
-          )}
         </div>
       )}
 
