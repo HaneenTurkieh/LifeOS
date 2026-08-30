@@ -47,6 +47,7 @@ const ExamAssistant  = lazy(() => import('./pages/ExamAssistant.jsx'));
 const Calendar       = lazy(() => import('./pages/Calendar.jsx'));
 const Channels       = lazy(() => import('./pages/Channels.jsx'));
 const GoogleSheetsCallback = lazy(() => import('./pages/GoogleSheetsCallback.jsx'));
+const FlowRankings   = lazy(() => import('./pages/FlowRankings.jsx'));
 const NotFound       = lazy(() => import('./pages/NotFound.jsx'));
 // Onboarding was fully built but never actually mounted anywhere in
 // the app — that's why it "skipped entirely" rather than just showing
@@ -403,6 +404,7 @@ function AppShell() {
               <Route path="/calendar"    element={<Calendar />} />
               <Route path="/channels"    element={<Channels />} />
               <Route path="/auth/google-sheets/callback" element={<GoogleSheetsCallback />} />
+              <Route path="/rankings"    element={<FlowRankings />} />
               <Route path="/internships" element={<Navigate to="/launchpad" replace />} />
               <Route path="/projects"    element={<Navigate to="/launchpad" replace />} />
               <Route path="/cv"          element={<Navigate to="/launchpad" replace />} />

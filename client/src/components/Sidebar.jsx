@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
   BarChart3, Rocket, Sparkles, TreePine, Settings,
-  GraduationCap, CalendarDays, Users,
+  GraduationCap, CalendarDays, Users, Trophy,
 } from 'lucide-react';
 import SettingsModal from './SettingsModal.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -19,6 +19,7 @@ const NAV = [
   { to: '/calendar',  icon: CalendarDays,    label: 'nav.calendar'  },
   { to: '/goals',     icon: Target,          label: 'nav.goals'     },
   { to: '/learning',  icon: Timer,           label: 'nav.flow'      },
+  { to: '/rankings',  icon: Trophy,          label: 'nav.rankings'  },
   { to: '/channels',  icon: Users,           label: 'nav.channels'  },
   { to: '/ai',        icon: Sparkles,        label: 'nav.lumi'      },
   { to: '/exam',      icon: GraduationCap,   label: 'nav.exam'      },

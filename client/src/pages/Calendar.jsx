@@ -231,9 +231,15 @@ export default function Calendar() {
     if (!cell.currentMonth) return [];
     const ds = toDateStr(year, month, cell.day);
     // Completed tasks stay on the day they belong to (Apple Calendar-style)
-    // instead of vanishing — sorted so open tasks lead and done ones trail.
+    // instead of vanishing — sorted so open tasks lead and done ones trail,
+    // and (per the same priority-first ordering used in the expanded day
+    // view below) high priority leads within each group. Array.sort is
+    // stable (ES2019+), so pre-sorting by priority first and then only
+    // grouping by done-status on top preserves that priority order inside
+    // each group without needing a compound comparator.
     return tasks
       .filter(tk => tk.deadline === ds)
+      .sort(byPriorityThenNothing)
       .sort((a, b) => (a.status === 'done') - (b.status === 'done'));
   };
 
