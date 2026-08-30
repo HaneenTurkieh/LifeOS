@@ -9,6 +9,7 @@ import { ensurePaddleInitialized, setPaddleEventHandler } from '../lib/paddle.js
 import PageHeader from '../components/PageHeader.jsx';
 import PageLoader from '../components/Loader.jsx';
 import MysticSvg  from '../components/MysticTreeIcon.jsx';
+import TreeSvg    from '../components/TreeSvg.jsx';
 
 // ── Constellation — colour picker only; shape/position is fixed by
 //    the user's own zodiac + which star comes next ─────────────
@@ -102,9 +103,9 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
       <motion.div
         animate={tree.equipped ? { y: [0, -4, 0] } : {}}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="text-6xl mb-3 select-none"
+        className="mb-3 select-none flex items-center justify-center"
         style={{ filter: !tree.owned && !tree.canAfford ? 'grayscale(0.75) opacity(0.7)' : 'none' }}>
-        {tree.emoji}
+        <TreeSvg speciesKey={tree.key} size={64} />
       </motion.div>
       <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.name}</h3>
       <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug">{tree.description}</p>
@@ -209,8 +210,8 @@ function PremiumTreeCard({ tree, onBuy, loading, t }) {
           </div>
         )}
         <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-          className="relative text-7xl mt-2 mb-3 select-none" style={{ filter: `drop-shadow(0 4px 14px ${c}88)` }}>
-          {tree.emoji}
+          className="relative mt-2 mb-3 select-none flex items-center justify-center" style={{ filter: `drop-shadow(0 4px 14px ${c}88)` }}>
+          <TreeSvg speciesKey={tree.key} size={76} />
         </motion.div>
         <h3 className="font-display font-bold text-ink dark:text-white text-sm mb-1">{tree.name}</h3>
         <p className="text-xs text-ink/45 dark:text-white/35 mb-4 leading-snug flex-1">{tree.description}</p>
@@ -268,10 +269,10 @@ function ShelfDisplay({ ownedPremiumTrees, t }) {
                 <motion.div
                   animate={{ y: [0, -3, 0] }}
                   transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                  className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl mb-1.5"
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl mb-1.5"
                   style={{ background: `${c}26`, border: `1px solid ${c}55`, boxShadow: `0 6px 18px ${c}33` }}
                 >
-                  {tree.emoji}
+                  <TreeSvg speciesKey={tree.key} size={34} />
                 </motion.div>
                 <div className="h-1 w-8 rounded-full" style={{ background: `${c}55` }} />
                 <span className="mt-1 max-w-[64px] truncate text-[10px] font-semibold text-white/70">{tree.name}</span>
@@ -341,7 +342,7 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-5xl mb-3">{tree.emoji}</div>
+        <div className="mb-3 flex items-center justify-center"><TreeSvg speciesKey={tree.key} size={56} /></div>
         <h3 className="font-display font-bold text-lg mb-1" style={{ color: '#1E2233' }}>{t('shop.unlockQ', { name: tree.name })}</h3>
         <p className="text-sm mb-5" style={{ color: 'rgba(30,34,51,0.50)' }}>{t('shop.spendText', { n: tree.cost.toLocaleString() })}</p>
         <div className="flex gap-2">

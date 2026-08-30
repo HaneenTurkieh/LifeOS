@@ -13,6 +13,7 @@ import EmptyState   from '../components/EmptyState.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
 import { localDateStr, isTodayBirthday } from '../utils/birthday.js';
 import MysticSvg from '../components/MysticTreeIcon.jsx';
+import TreeSvg   from '../components/TreeSvg.jsx';
 
 const OPTIONS = { focus: [15,25,30,45,50,60,90], short: [5,10], long: [15,20,30] };
 const CX = 140, CY = 140, R = 108;
@@ -46,23 +47,12 @@ const cardGlass = {
   boxShadow:            '0 24px 64px rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(0,0,0,0.08)',
   borderRadius:         '2rem',
 };
-const TREE_EMOJIS = {
-  seedling:       '🌱', sprout:  '🌿', oak:     '🌳',
-  cherry_blossom: '🌸', coral:   '🪸', bamboo:  '🎋',
-  cactus:         '🌵', palm:    '🌴', water:   '💧',
-  maple:          '🍁', pine:    '🌲', flamingo:'🦩',
-  money:          '💰', crystal: '✨', mystic:  '🔮',
-  christmas:      '🎄',
-};
+// Still used for the room-status chip's tiny "dead" indicator and the
+// live-room center icon — both small enough that a wilted glyph reads
+// fine there. Everything that shows a tree at real size (My Land, the
+// timer's center icon, the congrats popup) now renders it via TreeSvg
+// instead, see components/TreeSvg.jsx.
 const DEAD_EMOJI = '🥀';
-// Mystic trees are keyed 'mystic:<id>' (one design per unlocked slot),
-// so they never match TREE_EMOJIS by exact key — catch the prefix
-// before falling back to a generic seedling.
-function treeEmoji(key) {
-  if (!key) return '🌱';
-  if (key.startsWith('mystic')) return '🔮';
-  return TREE_EMOJIS[key] || '🌱';
-}
 
 const xpFor = (min) => Math.floor(min / 5) * 2;
 const MODE_LABEL_KEYS = { focus: 'flow.focus', short: 'flow.shortBreak', long: 'flow.longBreak' };
@@ -109,21 +99,27 @@ function LandPlot({ trees, t, height = 190, compact = false }) {
               }}
               title={`${tr.task_name || 'Focus'} · ${tr.duration_minutes}m`}
             >
-              {tr.status === 'dead' ? DEAD_EMOJI : (
+              {
                 // Mirrors TreeIcon/resolvedMysticDesign below — LandPlot is
                 // a standalone component (no closure over Flow()'s
                 // findMystic), but GET /forest already stamps shape_key/
                 // color_hex/glow_hex straight onto each day's tree entries
                 // (including today's), so a Mystic Tree can render its real
                 // zodiac shape here too instead of always falling back to
-                // the generic 🔮 placeholder that treeEmoji() gives every
-                // "mystic:*" key — which is why this plot and the day list
-                // right below it used to show two different icons for the
-                // very same tree.
+                // the generic 🔮 placeholder — which is why this plot and
+                // the day list right below it used to show two different
+                // icons for the very same tree.
+                //
+                // Dead trees render the SAME species art as alive ones —
+                // no separate wilted glyph — and rely entirely on this
+                // wrapper's own grayscale/brightness filter above (see
+                // `style` on this motion.div) to read as dead. A real
+                // planted tree doesn't turn into a different picture when
+                // it dies, it just fades.
                 tr.tree_key?.startsWith('mystic:') && tr.shape_key
                   ? <MysticSvg shapeKey={tr.shape_key} size={32} colorHex={tr.color_hex} glowHex={tr.glow_hex} />
-                  : treeEmoji(tr.tree_key)
-              )}
+                  : <TreeSvg speciesKey={tr.tree_key} size={34} />
+              }
             </motion.div>
           );
         })
@@ -230,7 +226,7 @@ export default function Flow() {
     if (mystic) {
       return <MysticSvg shapeKey={mystic.shape_key} size={size} colorHex={mystic.color_hex} glowHex={mystic.glow_hex} />;
     }
-    return <>{treeEmoji(treeKey)}</>;
+    return <TreeSvg speciesKey={treeKey} size={size} />;
   }
   // Builds the mysticDesign prop for any tree object the server has
   // already resolved shape_key/color_hex/glow_hex onto directly (room
