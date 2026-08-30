@@ -33,7 +33,7 @@ const NAV = [
 // array (its own gear icon below) and stays available to every role.
 // Per Haneen's spec: "admins have lumi and settings... only add features
 // and tabs they need."
-const INSTRUCTOR_NAV_PATHS = new Set(['/', '/channels', '/ai']);
+const INSTRUCTOR_NAV_PATHS = new Set(['/', '/channels', '/rankings', '/ai']);
 
 function NavTooltip({ label }) {
   return (

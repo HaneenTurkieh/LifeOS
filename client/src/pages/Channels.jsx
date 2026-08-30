@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Copy, Mail, Trash2, Send, BarChart3, Download,
@@ -191,7 +192,7 @@ export default function Channels() {
 // feed plus a note that assigned work shows up in their normal
 // Tasks/Calendar/Goals. ──────────────────────────────────────────
 const TABS_INSTRUCTOR = ['announcements', 'chat', 'tasks', 'flow', 'analytics'];
-const TABS_STUDENT    = ['announcements', 'chat'];
+const TABS_STUDENT    = ['announcements', 'chat', 'flow'];
 
 function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRefresh, onDeleted }) {
   const { user } = useAuth();
@@ -277,8 +278,9 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
   const [assigningTask, setAssigningTask] = useState(false);
   const [goalTitle,  setGoalTitle]  = useState('');
   const [assigningGoal, setAssigningGoal] = useState(false);
-  const [roomCode,   setRoomCode]   = useState('');
+  const [roomName,   setRoomName]   = useState('');
   const [invitingRoom, setInvitingRoom] = useState(false);
+  const [createdRoom, setCreatedRoom] = useState(null); // { code, roomName } — shown to the instructor after creating
   const [copied,     setCopied]     = useState(false);
   const [sheetsStatus, setSheetsStatus] = useState(null); // { connected, configured }
   const [syncing,    setSyncing]    = useState(false);
@@ -361,12 +363,13 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
     finally { setAssigningGoal(false); }
   };
   const inviteToRoom = async () => {
-    if (!roomCode.trim() || invitingRoom) return;
+    if (!roomName.trim() || invitingRoom) return;
     setInvitingRoom(true);
     try {
-      const r = await api.post(`/channels/${channel.id}/invite-to-room`, { roomCode: roomCode.trim() });
+      const r = await api.post(`/channels/${channel.id}/invite-to-room`, { roomName: roomName.trim() });
       toast.success(`${t('channels.roomInviteSent')} (${r.notified})`);
-      setRoomCode('');
+      setCreatedRoom({ code: r.code, roomName: r.roomName });
+      setRoomName('');
     } catch (err) { toast.error(err.message); }
     finally { setInvitingRoom(false); }
   };
@@ -618,18 +621,36 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
             <h3 className="text-sm font-bold text-ink dark:text-white flex items-center gap-2 mb-3">
               <Timer size={16} /> {t('channels.inviteToRoom')}
             </h3>
+            <p className="text-xs text-ink/40 dark:text-white/35 mb-3">{t('channels.roomNameHint')}</p>
             <div className="flex gap-2">
-              <input value={roomCode} onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                placeholder={t('channels.roomCodePh')} maxLength={6} dir="ltr"
-                className={`${inputCls} w-44 text-center font-mono tracking-widest`} />
-              <button onClick={inviteToRoom} disabled={invitingRoom || !roomCode.trim()}
-                className="rounded-full px-4 text-sm font-bold text-white disabled:opacity-50"
+              <input value={roomName} onChange={(e) => setRoomName(e.target.value)}
+                placeholder={t('channels.roomNamePh')} maxLength={80}
+                className={`${inputCls} flex-1`} />
+              <button onClick={inviteToRoom} disabled={invitingRoom || !roomName.trim()}
+                className="rounded-full px-4 text-sm font-bold text-white disabled:opacity-50 shrink-0"
                 style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
                 {t('channels.sendRoomInvite')}
               </button>
             </div>
+            {createdRoom && (
+              <div className="mt-3 rounded-xl px-3 py-2 bg-ink/[0.03] dark:bg-white/5 text-xs text-ink/60 dark:text-white/50">
+                {t('channels.roomCreatedInfo', { name: createdRoom.roomName, code: createdRoom.code })}
+              </div>
+            )}
           </GlassCard>
         </>
+      )}
+
+      {!isInstructor && tab === 'flow' && (
+        <GlassCard className="p-6 text-center">
+          <Timer size={28} className="mx-auto mb-3 text-[rgb(var(--accent-500))]" />
+          <h3 className="text-sm font-bold text-ink dark:text-white mb-1">{t('flow.rankingsTitle')}</h3>
+          <p className="text-xs text-ink/50 dark:text-white/40 mb-4">{t('channels.flowTabStudentHint')}</p>
+          <Link to="/rankings" className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-bold text-white"
+            style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
+            {t('nav.rankings')}
+          </Link>
+        </GlassCard>
       )}
 
       {isInstructor && tab === 'analytics' && (

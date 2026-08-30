@@ -20,7 +20,15 @@ const { sendPush } = require('./push');
 // mid-session" (see cron.js's notifyFinishedFocusSessions).
 // Mood/streak/procrastination/announcements stay in-app-only, same
 // reasoning as the email side.
-const PUSHABLE_TYPES = new Set(['overdue', 'due_soon', 'deadline', 'milestone_due', 'focus_complete']);
+//
+// Classroom types added alongside emailReminders.js's EMAILABLE_TYPES —
+// same "any instructor action reaches the student everywhere, not just
+// the bell" spec (see that file's comment for the full reasoning).
+const PUSHABLE_TYPES = new Set([
+  'overdue', 'due_soon', 'deadline', 'milestone_due', 'focus_complete',
+  'channel_announcement', 'channel_chat', 'channel_room_invite',
+  'channel_task_assigned', 'channel_goal_assigned',
+]);
 
 async function sendPendingPushNotifications() {
   const users = (await db.execute({

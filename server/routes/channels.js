@@ -19,7 +19,7 @@ const router  = express.Router();
 const crypto  = require('crypto');
 const { db }             = require('../db/connection');
 const { sendChannelInviteEmail } = require('../lib/email');
-const { buildDedupeKey } = require('../lib/notificationDedupe');
+const { hashPassword }   = require('../lib/auth');
 const googleSheets = require('../lib/googleSheets');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -363,7 +363,7 @@ router.post('/:id/assign-task', requireInstructor, async (req, res) => {
         sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
         args: [studentId],
       });
-      await db.execute({
+      const insert = await db.execute({
         sql:  `INSERT INTO tasks
                  (user_id, title, description, priority, category, deadline, deadline_time,
                   status, progress, position, assigned_by, channel_id)
@@ -372,6 +372,19 @@ router.post('/:id/assign-task', requireInstructor, async (req, res) => {
           studentId, title.trim(), description, priority, category,
           deadline || null, deadline_time || null,
           Number(maxPos.rows[0].m) + 1, req.user.id, channel.id,
+        ],
+      });
+      // Same "instructor did something → student gets a bell + is queued
+      // for the next email/push cron tick" treatment as announcements —
+      // see channel_announcement above and EMAILABLE_TYPES/PUSHABLE_TYPES.
+      await db.execute({
+        sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+               VALUES (?, 'channel_task_assigned', ?, ?, '/tasks', ?, ?)
+               ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
+        args: [
+          studentId, `${channel.name}: new task assigned`, title.trim().slice(0, 200),
+          `channel_task_assigned:task${Number(insert.lastInsertRowid)}`,
+          JSON.stringify({ channelName: channel.name, instructorName: req.user.name }),
         ],
       });
     }
@@ -396,35 +409,68 @@ router.post('/:id/assign-goal', requireInstructor, async (req, res) => {
     if (!targetIds.length) return res.status(400).json({ error: 'This channel has no students to assign to yet' });
 
     for (const studentId of targetIds) {
-      await db.execute({
+      const insert = await db.execute({
         sql:  `INSERT INTO goals (user_id, title, description, category, target_date, assigned_by, channel_id)
                VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [studentId, title.trim(), description, category, target_date || null, req.user.id, channel.id],
+      });
+      await db.execute({
+        sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+               VALUES (?, 'channel_goal_assigned', ?, ?, '/goals', ?, ?)
+               ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
+        args: [
+          studentId, `${channel.name}: new goal assigned`, title.trim().slice(0, 200),
+          `channel_goal_assigned:goal${Number(insert.lastInsertRowid)}`,
+          JSON.stringify({ channelName: channel.name, instructorName: req.user.name }),
+        ],
       });
     }
     res.status(201).json({ assigned: targetIds.length });
   } catch (err) { console.error('POST /channels/:id/assign-goal error:', err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── POST /:id/invite-to-room — notify members about a Flow Room ──
-// Doesn't touch the realtime Focus Room system at all — a student still
-// joins the room the normal way (types the code on /learning). This
-// just puts a notification in front of every channel member with the
-// code already in hand, and drops each of their own rankings on the
-// room's existing leaderboard once they do (no separate "channel
-// rankings" concept needed — the room's own member list already is one).
+// ── POST /:id/invite-to-room — create a Flow Room and invite members ──
+// Haneen's ask: she types a room NAME, the app generates the code (and
+// a password, since focus_rooms.password_hash is NOT NULL — see
+// db/connection.js) rather than her having to first go create a room on
+// /learning by hand and paste its code back in here. The instructor is
+// auto-joined as host (same insert POST /focus/rooms itself does), and
+// every member gets a notification carrying both the code and the
+// plaintext password (never stored anywhere but this one row's `data`
+// and `body` — the room table only ever keeps the hash) — that's the
+// only place a student can get the password from, since there's no
+// "share password" UI anywhere else. Registered in EMAILABLE_TYPES/
+// PUSHABLE_TYPES (see lib/emailReminders.js, lib/pushReminders.js) so
+// this also reaches mail and web push, not just the in-app bell.
 router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
   const channel = await loadOwnedChannel(req, res);
   if (!channel) return;
   try {
-    const roomCode = String(req.body.roomCode || '').trim().toUpperCase();
-    if (!roomCode) return res.status(400).json({ error: 'Flow Room code is required' });
+    const roomName = String(req.body.roomName || '').trim().slice(0, 80);
+    if (!roomName) return res.status(400).json({ error: 'Room name is required' });
+
+    const code     = randomCode(6);
+    const password = randomCode(8);
+    const password_hash = await hashPassword(password);
+    const roomInsert = await db.execute({
+      sql:  `INSERT INTO focus_rooms (name, code, password_hash, host_id) VALUES (?, ?, ?, ?)`,
+      args: [roomName, code, password_hash, req.user.id],
+    });
+    await db.execute({
+      sql:  `INSERT INTO focus_room_members (room_id, user_id, display_name) VALUES (?, ?, ?)
+             ON CONFLICT(room_id, user_id) DO NOTHING`,
+      args: [Number(roomInsert.lastInsertRowid), req.user.id, req.user.name],
+    });
 
     const members = (await db.execute({
       sql: `SELECT student_id FROM channel_members WHERE channel_id = ?`, args: [channel.id],
     })).rows;
-    const link = `/learning?room=${roomCode}`;
-    const dedupeKey = buildDedupeKey('channel_room_invite', link, new Date().toISOString().slice(0, 10));
+    const link = `/learning?room=${code}`;
+    // Keyed on the code, not date+link like the old version — every
+    // invite here creates a brand-new room with a brand-new code, so
+    // there's nothing to dedupe against; this key just has to be unique
+    // per call, which the fresh code already guarantees.
+    const dedupeKey = `channel_room_invite:${code}`;
     for (const { student_id } of members) {
       await db.execute({
         sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
@@ -433,13 +479,13 @@ router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
         args: [
           student_id,
           `${req.user.name} invited you to a Flow Room`,
-          `Join "${channel.name}" for a focus session — room code ${roomCode}`,
+          `Join "${roomName}" for a focus session — code ${code}, password ${password}`,
           link, dedupeKey,
-          JSON.stringify({ channelName: channel.name, roomCode, instructorName: req.user.name }),
+          JSON.stringify({ channelName: channel.name, roomName, code, password, instructorName: req.user.name }),
         ],
       });
     }
-    res.json({ notified: members.length, roomCode });
+    res.json({ notified: members.length, roomName, code, password });
   } catch (err) { console.error('POST /channels/:id/invite-to-room error:', err); res.status(500).json({ error: 'Database error' }); }
 });
 

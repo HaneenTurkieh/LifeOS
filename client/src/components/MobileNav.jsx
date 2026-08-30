@@ -38,6 +38,7 @@ const MORE_ITEMS = [
 const INSTRUCTOR_NAV = [
   { to: '/',         icon: LayoutDashboard, label: 'nav.dashboard' },
   { to: '/channels', icon: Users,           label: 'nav.channels'  },
+  { to: '/rankings', icon: Trophy,          label: 'nav.rankings'  },
   { to: '/ai',       icon: Sparkles,        label: 'nav.lumi'      },
 ];
 
