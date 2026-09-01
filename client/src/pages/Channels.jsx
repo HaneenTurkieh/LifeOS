@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Copy, Mail, Trash2, Send, BarChart3, Download,
   Megaphone, ListChecks, Target, ChevronLeft, LogIn, Sheet, Timer,
-  MessageCircle, Upload, GraduationCap,
+  MessageCircle, Upload, GraduationCap, Trophy, Lock, Unlock, Gift,
 } from 'lucide-react';
 import { api, getToken } from '../api/client.js';
 import { useAuth }     from '../context/AuthContext.jsx';
@@ -219,17 +219,17 @@ export default function Channels() {
 // members and analytics; a student sees the read-only announcement
 // feed plus a note that assigned work shows up in their normal
 // Tasks/Calendar/Goals. ──────────────────────────────────────────
-const TABS_INSTRUCTOR = ['announcements', 'chat', 'tasks', 'flow', 'analytics'];
-const TABS_STUDENT    = ['announcements', 'chat', 'flow'];
+const TABS_INSTRUCTOR = ['announcements', 'chat', 'tasks', 'flow', 'points', 'analytics'];
+const TABS_STUDENT    = ['announcements', 'chat', 'flow', 'points'];
 
 function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRefresh, onDeleted }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('announcements');
   const tabs = isInstructor ? TABS_INSTRUCTOR : TABS_STUDENT;
-  const tabIcons = { announcements: Megaphone, chat: MessageCircle, tasks: ListChecks, flow: Timer, analytics: BarChart3 };
+  const tabIcons = { announcements: Megaphone, chat: MessageCircle, tasks: ListChecks, flow: Timer, points: Trophy, analytics: BarChart3 };
   const tabLabels = {
     announcements: t('channels.announcements'), chat: t('channels.chat'),
-    tasks: t('channels.tasksGoalsTab'), flow: t('channels.flowTab'), analytics: t('channels.analytics'),
+    tasks: t('channels.tasksGoalsTab'), flow: t('channels.flowTab'), points: t('channels.pointsTab'), analytics: t('channels.analytics'),
   };
 
   // ── Chat ──────────────────────────────────────────────────────
@@ -312,6 +312,50 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
   const [copied,     setCopied]     = useState(false);
   const [sheetsStatus, setSheetsStatus] = useState(null); // { connected, configured }
   const [syncing,    setSyncing]    = useState(false);
+
+  // ── Channel points — a per-channel scoreboard, separate from both a
+  // student's global XP and the app-wide Flow/focus rankings. Loaded
+  // lazily (on first visit to the tab), same pattern as chat above. ──
+  const [pointsData,   setPointsData]   = useState(null); // { locked, leaderboard, mine }
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const [awardForm,    setAwardForm]    = useState({ studentId: '', amount: '', reason: '' });
+  const [awarding,     setAwarding]     = useState(false);
+  const [lockToggling, setLockToggling] = useState(false);
+
+  const loadPoints = async () => {
+    setPointsLoading(true);
+    try { setPointsData(await api.get(`/channels/${channel.id}/points`)); }
+    catch (err) { toast.error(err.message); }
+    finally { setPointsLoading(false); }
+  };
+  useEffect(() => { if (tab === 'points') loadPoints(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const awardPoints = async () => {
+    const amount = Number(awardForm.amount);
+    if (!awardForm.studentId || !amount || !awardForm.reason.trim() || awarding) return;
+    setAwarding(true);
+    try {
+      await api.post(`/channels/${channel.id}/points/award`, {
+        studentId: Number(awardForm.studentId), amount, reason: awardForm.reason.trim(),
+      });
+      toast.success(t('channels.pointsAwarded'));
+      setAwardForm({ studentId: '', amount: '', reason: '' });
+      await loadPoints();
+    } catch (err) { toast.error(err.message); }
+    finally { setAwarding(false); }
+  };
+  const toggleLock = async () => {
+    if (lockToggling || !pointsData) return;
+    setLockToggling(true);
+    try {
+      const r = await api.patch(`/channels/${channel.id}/points-lock`, { locked: !pointsData.locked });
+      // Toggling visibility off doesn't erase the leaderboard we already
+      // have loaded (only a student's own fetch gets the trimmed shape),
+      // so the instructor's own view stays populated after locking.
+      setPointsData((d) => ({ ...d, locked: r.locked }));
+    } catch (err) { toast.error(err.message); }
+    finally { setLockToggling(false); }
+  };
 
   useEffect(() => {
     if (!isInstructor) return;
@@ -710,6 +754,85 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
         </GlassCard>
       )}
 
+      {tab === 'points' && (
+        <>
+          <GlassCard className="p-5">
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <h3 className="text-sm font-bold text-ink dark:text-white flex items-center gap-2">
+                <Trophy size={16} /> {t('channels.pointsTab')}
+              </h3>
+              {isInstructor && (
+                <button onClick={toggleLock} disabled={lockToggling || !pointsData}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-ink/5 dark:bg-white/8 text-ink/60 dark:text-white/50 disabled:opacity-50">
+                  {pointsData?.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                  {pointsData?.locked ? t('channels.pointsLocked') : t('channels.pointsVisible')}
+                </button>
+              )}
+            </div>
+
+            {pointsLoading ? (
+              <p className="text-xs text-ink/35 dark:text-white/25">…</p>
+            ) : !isInstructor && pointsData?.locked ? (
+              <div className="text-center py-6">
+                <Lock size={22} className="mx-auto mb-2 text-ink/25 dark:text-white/25" />
+                <p className="text-xs text-ink/45 dark:text-white/40">{t('channels.pointsHiddenByInstructor')}</p>
+                {pointsData.mine && (
+                  <p className="text-sm font-bold text-[rgb(var(--accent-500))] mt-2">
+                    {t('channels.yourPoints', { n: pointsData.mine.points })}
+                  </p>
+                )}
+              </div>
+            ) : (!pointsData?.leaderboard || pointsData.leaderboard.length === 0) ? (
+              <p className="text-xs text-ink/40 dark:text-white/35">{t('channels.noMembers')}</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {pointsData.leaderboard.map((row) => (
+                  <div key={row.id}
+                    className="flex items-center justify-between rounded-xl px-3 py-2 bg-ink/[0.03] dark:bg-white/5"
+                    style={row.id === user?.id ? { background: 'rgb(var(--accent-500) / 0.12)' } : undefined}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-5 shrink-0 text-xs font-bold text-ink/35 dark:text-white/30">{row.rank}</span>
+                      <span className="text-sm font-medium text-ink dark:text-white truncate">{row.name}</span>
+                    </div>
+                    <span className="text-sm font-bold text-[rgb(var(--accent-500))] shrink-0">{row.points}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+
+          {isInstructor && (
+            <GlassCard className="p-5">
+              <h3 className="text-sm font-bold text-ink dark:text-white flex items-center gap-2 mb-3">
+                <Gift size={16} /> {t('channels.awardPoints')}
+              </h3>
+              <div className="flex flex-col gap-2.5">
+                <select value={awardForm.studentId} onChange={(e) => setAwardForm((f) => ({ ...f, studentId: e.target.value }))}
+                  className={inputCls}>
+                  <option value="">{t('channels.selectStudent')}</option>
+                  {(channel.members || []).map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input type="number" value={awardForm.amount} onChange={(e) => setAwardForm((f) => ({ ...f, amount: e.target.value }))}
+                    placeholder={t('channels.pointsAmountPh')} className={`${inputCls} w-32`} />
+                  <input value={awardForm.reason} onChange={(e) => setAwardForm((f) => ({ ...f, reason: e.target.value }))}
+                    placeholder={t('channels.pointsReasonPh')} className={`${inputCls} flex-1`} />
+                </div>
+                <button onClick={awardPoints}
+                  disabled={awarding || !awardForm.studentId || !Number(awardForm.amount) || !awardForm.reason.trim()}
+                  className="rounded-full py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
+                  {t('channels.givePoints')}
+                </button>
+                <p className="text-[11px] text-ink/35 dark:text-white/30">{t('channels.pointsAutoHint')}</p>
+              </div>
+            </GlassCard>
+          )}
+        </>
+      )}
+
       {isInstructor && tab === 'analytics' && (
         <>
           <GlassCard className="p-5">
@@ -727,17 +850,23 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                       <th className="py-1.5 pe-3 font-semibold">{t('channels.memberList')}</th>
                       <th className="py-1.5 pe-3 font-semibold">{t('channels.tasksCol')}</th>
                       <th className="py-1.5 pe-3 font-semibold">{t('channels.goalsCol')}</th>
-                      <th className="py-1.5 font-semibold">{t('channels.points')}</th>
+                      {/* Two distinct numbers, easy to conflate: totalXp is the
+                          student's GLOBAL, all-time XP (same number on every
+                          channel they're in); channelPointsCol is scoped to
+                          just this channel (see the "points" tab above). */}
+                      <th className="py-1.5 pe-3 font-semibold">{t('channels.totalXp')}</th>
+                      <th className="py-1.5 font-semibold">{t('channels.channelPointsCol')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {channel.analytics.slice().sort((a, b) => b.total_xp - a.total_xp).map((a, i) => (
+                    {channel.analytics.slice().sort((a, b) => b.channel_points - a.channel_points).map((a, i) => (
                       <tr key={a.id} className="border-t border-ink/5 dark:border-white/8 text-ink dark:text-white">
                         <td className="py-1.5 pe-2 text-ink/35 dark:text-white/30">{i + 1}</td>
                         <td className="py-1.5 pe-3">{a.name}</td>
                         <td className="py-1.5 pe-3">{a.tasks_done}/{a.tasks_assigned}</td>
                         <td className="py-1.5 pe-3">{a.goals_done}/{a.goals_assigned}</td>
-                        <td className="py-1.5 font-bold text-[rgb(var(--accent-500))]">{a.total_xp}</td>
+                        <td className="py-1.5 pe-3 text-ink/50 dark:text-white/40">{a.total_xp}</td>
+                        <td className="py-1.5 font-bold text-[rgb(var(--accent-500))]">{a.channel_points}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db/connection');
 const { addXp, evaluateAchievements } = require('../lib/gamification');
+const { awardChannelPoints, CHANNEL_GOAL_POINTS } = require('../lib/channelPoints');
 
 async function withMilestones(goal) {
   const result = await db.execute({ sql: `SELECT * FROM milestones WHERE goal_id = ? ORDER BY position ASC`, args: [goal.id] });
@@ -58,6 +59,17 @@ router.put('/:id', async (req, res) => {
     if (!wasCompleted && isNowCompleted && !alreadyEarnedXp) {
       await addXp(req.user.id, 100, `Finished goal: ${updates.title}`); // needs gamification.js migrated
       xpAwarded = 100;
+
+      // Channel points — separate, channel-scoped scoreboard (see
+      // lib/channelPoints.js), only for goals an instructor assigned
+      // through a channel. Same !alreadyEarnedXp gate as XP above.
+      if (existing.channel_id) {
+        try {
+          await awardChannelPoints(existing.channel_id, req.user.id, CHANNEL_GOAL_POINTS, `Finished goal: ${updates.title}`);
+        } catch (e) {
+          console.error('awardChannelPoints failed (non-fatal):', e.message);
+        }
+      }
     }
     const unlocked = await evaluateAchievements(req.user.id);
     const goalResult = await db.execute({ sql: `SELECT * FROM goals WHERE id = ? AND user_id = ?`, args: [req.params.id, req.user.id] });

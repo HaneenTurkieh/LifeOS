@@ -838,6 +838,27 @@ async function initDb() {
     await db.execute(`ALTER TABLE channel_messages ADD COLUMN event_time TEXT DEFAULT NULL`);
   }
 
+  // ── Channel points — separate per-channel scoreboard ──────────
+  // Event-sourced the same way xp_log is (see lib/channelPoints.js);
+  // CREATE TABLE IF NOT EXISTS is itself the "already applied?" guard,
+  // same as app_meta above, so no hasColumn-style check is needed here.
+  await db.execute(`CREATE TABLE IF NOT EXISTS channel_points_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount     INTEGER NOT NULL,
+    reason     TEXT NOT NULL,
+    awarded_by INTEGER DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_channel_points_channel ON channel_points_log(channel_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_channel_points_student ON channel_points_log(channel_id, student_id)`);
+  // Lets an instructor hide the points leaderboard from students on a
+  // per-channel basis (Haneen's spec) without deleting any history.
+  if (!(await hasColumn('channels', 'points_locked'))) {
+    await db.execute(`ALTER TABLE channels ADD COLUMN points_locked INTEGER NOT NULL DEFAULT 0`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

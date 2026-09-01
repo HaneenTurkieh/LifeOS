@@ -29,7 +29,7 @@ const { sendReminderDigestEmail } = require('./email');
 const EMAILABLE_TYPES = new Set([
   'overdue', 'due_soon', 'deadline', 'milestone_due',
   'channel_announcement', 'channel_chat', 'channel_room_invite',
-  'channel_task_assigned', 'channel_goal_assigned',
+  'channel_task_assigned', 'channel_goal_assigned', 'channel_points_awarded',
 ]);
 
 async function sendPendingReminderEmails() {

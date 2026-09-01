@@ -21,6 +21,7 @@ const { db }             = require('../db/connection');
 const { sendChannelInviteEmail } = require('../lib/email');
 const { hashPassword }   = require('../lib/auth');
 const googleSheets = require('../lib/googleSheets');
+const { awardChannelPoints, getChannelPointsForStudent, getChannelLeaderboard } = require('../lib/channelPoints');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -507,7 +508,99 @@ router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
   } catch (err) { console.error('POST /channels/:id/invite-to-room error:', err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── GET /:id/analytics — per-student task/goal/XP summary ────────
+// ── GET /:id/points — this channel's leaderboard (owner OR member) ──
+// Deliberately separate from the global XP/level system and from the
+// Flow/focus rankings at /rankings — this only ever ranks people inside
+// ONE channel, on a total that only ever grows from that channel's own
+// task/goal completions and instructor awards.
+router.get('/:id/points', async (req, res) => {
+  try {
+    const channel = (await db.execute({
+      sql: `SELECT * FROM channels WHERE id = ?`, args: [req.params.id],
+    })).rows[0];
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+    const isOwner = channel.instructor_id === req.user.id;
+    if (!isOwner) {
+      const member = (await db.execute({
+        sql: `SELECT 1 FROM channel_members WHERE channel_id = ? AND student_id = ?`,
+        args: [channel.id, req.user.id],
+      })).rows[0];
+      if (!member) return res.status(403).json({ error: 'Not a member of this channel' });
+    }
+    const locked = Boolean(channel.points_locked);
+    // The instructor always sees the full board, lock or no lock — the
+    // lock only hides it from students. A locked-out student still gets
+    // their own total back (just no leaderboard/rank) so the UI can show
+    // "hidden by your instructor" alongside their own score instead of
+    // going fully blank.
+    if (!isOwner && locked) {
+      const mine = await getChannelPointsForStudent(channel.id, req.user.id);
+      return res.json({ locked: true, leaderboard: [], mine: { points: mine, rank: null } });
+    }
+    const leaderboard = await getChannelLeaderboard(channel.id);
+    const mineRow = leaderboard.find((r) => r.id === req.user.id);
+    res.json({
+      locked,
+      leaderboard,
+      mine: isOwner ? null : { points: mineRow?.points ?? 0, rank: mineRow?.rank ?? null },
+    });
+  } catch (err) { console.error('GET /channels/:id/points error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── POST /:id/points/award — instructor gives/deducts channel points ──
+// amount can be negative (a deduction) — reason is required either way
+// so the leaderboard's history always reads as "why", not just "how much".
+router.post('/:id/points/award', requireInstructor, async (req, res) => {
+  const channel = await loadOwnedChannel(req, res);
+  if (!channel) return;
+  try {
+    const studentId = Number(req.body.studentId);
+    const amount = Math.round(Number(req.body.amount));
+    const reason = String(req.body.reason || '').trim().slice(0, 200);
+    if (!studentId || !Number.isFinite(amount) || amount === 0) {
+      return res.status(400).json({ error: 'studentId and a non-zero amount are required' });
+    }
+    if (!reason) return res.status(400).json({ error: 'A reason is required' });
+    const member = (await db.execute({
+      sql: `SELECT 1 FROM channel_members WHERE channel_id = ? AND student_id = ?`,
+      args: [channel.id, studentId],
+    })).rows[0];
+    if (!member) return res.status(404).json({ error: 'Student is not in this channel' });
+
+    const logId = await awardChannelPoints(channel.id, studentId, amount, reason, req.user.id);
+
+    // Same "instructor did something → bell + queued for email/push"
+    // treatment as every other instructor-initiated notification in this
+    // file (see channel_announcement, channel_task_assigned above).
+    await db.execute({
+      sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+             VALUES (?, 'channel_points_awarded', ?, ?, '/channels', ?, ?)`,
+      args: [
+        studentId,
+        amount > 0 ? `${channel.name}: +${amount} points` : `${channel.name}: ${amount} points`,
+        reason,
+        `channel_points_awarded:log${logId}`,
+        JSON.stringify({ channelName: channel.name, amount, reason }),
+      ],
+    });
+
+    const total = await getChannelPointsForStudent(channel.id, studentId);
+    res.status(201).json({ studentId, awarded: amount, total });
+  } catch (err) { console.error('POST /channels/:id/points/award error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── PATCH /:id/points-lock — instructor hides/shows the leaderboard ──
+router.patch('/:id/points-lock', requireInstructor, async (req, res) => {
+  const channel = await loadOwnedChannel(req, res);
+  if (!channel) return;
+  try {
+    const locked = Boolean(req.body.locked);
+    await db.execute({ sql: `UPDATE channels SET points_locked = ? WHERE id = ?`, args: [locked ? 1 : 0, channel.id] });
+    res.json({ locked });
+  } catch (err) { console.error('PATCH /channels/:id/points-lock error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── GET /:id/analytics — per-student task/goal/XP/channel-points summary ──
 router.get('/:id/analytics', requireInstructor, async (req, res) => {
   const channel = await loadOwnedChannel(req, res);
   if (!channel) return;
@@ -520,12 +613,13 @@ router.get('/:id/analytics', requireInstructor, async (req, res) => {
           (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id AND t.channel_id = ? AND t.status = 'done') AS tasks_done,
           (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ?) AS goals_assigned,
           (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ? AND g.status = 'completed') AS goals_done,
-          (SELECT COALESCE(SUM(amount), 0) FROM xp_log x WHERE x.user_id = u.id) AS total_xp
+          (SELECT COALESCE(SUM(amount), 0) FROM xp_log x WHERE x.user_id = u.id) AS total_xp,
+          (SELECT COALESCE(SUM(amount), 0) FROM channel_points_log cpl WHERE cpl.channel_id = ? AND cpl.student_id = u.id) AS channel_points
         FROM channel_members m
         JOIN users u ON u.id = m.student_id
         WHERE m.channel_id = ?
         ORDER BY u.name COLLATE NOCASE ASC`,
-      args: [channel.id, channel.id, channel.id, channel.id, channel.id],
+      args: [channel.id, channel.id, channel.id, channel.id, channel.id, channel.id],
     })).rows;
     res.json(rows);
   } catch (err) { console.error('GET /channels/:id/analytics error:', err); res.status(500).json({ error: 'Database error' }); }
@@ -556,12 +650,13 @@ router.post('/:id/sheets/sync', requireInstructor, async (req, res) => {
           (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id AND t.channel_id = ? AND t.status = 'done') AS tasks_done,
           (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ?) AS goals_assigned,
           (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ? AND g.status = 'completed') AS goals_done,
-          (SELECT COALESCE(SUM(amount), 0) FROM xp_log x WHERE x.user_id = u.id) AS total_xp
+          (SELECT COALESCE(SUM(amount), 0) FROM xp_log x WHERE x.user_id = u.id) AS total_xp,
+          (SELECT COALESCE(SUM(amount), 0) FROM channel_points_log cpl WHERE cpl.channel_id = ? AND cpl.student_id = u.id) AS channel_points
         FROM channel_members m
         JOIN users u ON u.id = m.student_id
         WHERE m.channel_id = ?
         ORDER BY u.name COLLATE NOCASE ASC`,
-      args: [channel.id, channel.id, channel.id, channel.id, channel.id],
+      args: [channel.id, channel.id, channel.id, channel.id, channel.id, channel.id],
     })).rows;
 
     let spreadsheetId = channel.sheets_spreadsheet_id;
@@ -573,9 +668,9 @@ router.post('/:id/sheets/sync', requireInstructor, async (req, res) => {
       });
     }
 
-    const header = ['Name', 'Email', 'Tasks assigned', 'Tasks done', 'Goals assigned', 'Goals done', 'Total XP', 'Last synced'];
+    const header = ['Name', 'Email', 'Tasks assigned', 'Tasks done', 'Goals assigned', 'Goals done', 'Total XP', 'Channel Points', 'Last synced'];
     const values = [header].concat(rows.map((r) => [
-      r.name, r.email, r.tasks_assigned, r.tasks_done, r.goals_assigned, r.goals_done, r.total_xp,
+      r.name, r.email, r.tasks_assigned, r.tasks_done, r.goals_assigned, r.goals_done, r.total_xp, r.channel_points,
       new Date().toLocaleString(),
     ]));
     await googleSheets.writeValues(accessToken, spreadsheetId, values);
@@ -603,17 +698,18 @@ router.get('/:id/export.csv', requireInstructor, async (req, res) => {
           (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id AND t.channel_id = ?) AS tasks_assigned,
           (SELECT COUNT(*) FROM tasks t WHERE t.user_id = u.id AND t.channel_id = ? AND t.status = 'done') AS tasks_done,
           (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ?) AS goals_assigned,
-          (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ? AND g.status = 'completed') AS goals_done
+          (SELECT COUNT(*) FROM goals g WHERE g.user_id = u.id AND g.channel_id = ? AND g.status = 'completed') AS goals_done,
+          (SELECT COALESCE(SUM(amount), 0) FROM channel_points_log cpl WHERE cpl.channel_id = ? AND cpl.student_id = u.id) AS channel_points
         FROM channel_members m
         JOIN users u ON u.id = m.student_id
         WHERE m.channel_id = ?
         ORDER BY u.name COLLATE NOCASE ASC`,
-      args: [channel.id, channel.id, channel.id, channel.id, channel.id],
+      args: [channel.id, channel.id, channel.id, channel.id, channel.id, channel.id],
     })).rows;
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['Name', 'Email', 'Tasks assigned', 'Tasks done', 'Goals assigned', 'Goals done'];
+    const header = ['Name', 'Email', 'Tasks assigned', 'Tasks done', 'Goals assigned', 'Goals done', 'Channel Points'];
     const lines = [header.join(',')].concat(
-      rows.map((r) => [r.name, r.email, r.tasks_assigned, r.tasks_done, r.goals_assigned, r.goals_done].map(esc).join(','))
+      rows.map((r) => [r.name, r.email, r.tasks_assigned, r.tasks_done, r.goals_assigned, r.goals_done, r.channel_points].map(esc).join(','))
     );
     const safeName = channel.name.replace(/[^a-z0-9]+/gi, '_').slice(0, 40) || 'channel';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
