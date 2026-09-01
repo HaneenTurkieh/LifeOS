@@ -22,6 +22,7 @@ const { sendChannelInviteEmail } = require('../lib/email');
 const { hashPassword }   = require('../lib/auth');
 const googleSheets = require('../lib/googleSheets');
 const { awardChannelPoints, getChannelPointsForStudent, getChannelLeaderboard } = require('../lib/channelPoints');
+const { getWeekStart } = require('./focus');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -506,6 +507,52 @@ router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
     }
     res.json({ notified: members.length, roomName, code, password });
   } catch (err) { console.error('POST /channels/:id/invite-to-room error:', err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── GET /:id/focus-leaderboard — THIS channel's weekly Flow leaderboard ──
+// Distinct from GET /focus/leaderboard (app-wide, every Nuvora user) —
+// this scopes the exact same "weekly focus minutes" idea down to just
+// this channel's members, so the Flow tab shows names the class
+// actually recognizes instead of the whole app's top focusers. Haneen's
+// spec: "the ranking in a channel isnt the same as the normal flow
+// ranking a student have — unlink them."
+router.get('/:id/focus-leaderboard', async (req, res) => {
+  try {
+    const channel = (await db.execute({
+      sql: `SELECT * FROM channels WHERE id = ?`, args: [req.params.id],
+    })).rows[0];
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+    const isOwner = channel.instructor_id === req.user.id;
+    if (!isOwner) {
+      const member = (await db.execute({
+        sql: `SELECT 1 FROM channel_members WHERE channel_id = ? AND student_id = ?`,
+        args: [channel.id, req.user.id],
+      })).rows[0];
+      if (!member) return res.status(403).json({ error: 'Not a member of this channel' });
+    }
+    const weekStart = getWeekStart();
+    // LEFT JOIN (not the app-wide version's HAVING total_minutes > 0) so
+    // a member who hasn't focused yet this week still shows up at 0 —
+    // same "full roster, not just scorers" call made for channel points.
+    const rows = (await db.execute({
+      sql: `
+        SELECT u.id, u.name,
+               COALESCE(SUM(fs.duration_minutes), 0) AS total_minutes,
+               COUNT(fs.id) AS session_count
+        FROM channel_members m
+        JOIN users u ON u.id = m.student_id
+        LEFT JOIN focus_sessions fs ON fs.user_id = u.id AND fs.week_start = ?
+        WHERE m.channel_id = ?
+        GROUP BY u.id, u.name
+        ORDER BY total_minutes DESC, u.name COLLATE NOCASE ASC`,
+      args: [weekStart, channel.id],
+    })).rows;
+    const leaderboard = rows.map((r, i) => ({
+      id: r.id, name: r.name, rank: i + 1,
+      total_minutes: Number(r.total_minutes), session_count: Number(r.session_count),
+    }));
+    res.json({ week_start: weekStart, leaderboard });
+  } catch (err) { console.error('GET /channels/:id/focus-leaderboard error:', err); res.status(500).json({ error: 'Database error' }); }
 });
 
 // ── GET /:id/points — this channel's leaderboard (owner OR member) ──

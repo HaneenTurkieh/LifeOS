@@ -1513,3 +1513,9 @@ module.exports = router;
 // safe, never double-credits, and simply returns undefined if there's
 // nothing new to catch.
 module.exports.reconcileSoloTimer = reconcileSoloTimer;
+// Exported so routes/channels.js can build a channel-scoped Flow
+// leaderboard (GET /channels/:id/focus-leaderboard) on the exact same
+// "week" boundary as the app-wide one (GET /focus/leaderboard) — both
+// need to agree on what "this week" means or the two numbers wouldn't
+// be comparable.
+module.exports.getWeekStart = getWeekStart;

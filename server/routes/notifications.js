@@ -388,15 +388,35 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
 router.get('/', async (req, res) => {
   try {
     const tzOffsetMin = Number(req.query.tz_offset) || 0;
-    await generateNotifications(req.user.id, tzOffsetMin);
-    await ensureBirthdayTask(req.user.id);
-    // Piggyback the browser's own tz_offset (sent on every poll already)
-    // onto the user row — the cron-triggered email job (lib/emailReminders.js)
-    // has no browser to ask, so it reads this instead. Best-effort/fire
-    // and forget: a slightly stale offset just means an email fires a
-    // little early/late, never a correctness issue worth failing the
-    // request over.
-    db.execute({ sql: `UPDATE users SET tz_offset_min=? WHERE id=?`, args: [tzOffsetMin, req.user.id] }).catch(() => {});
+
+    // Instructor accounts don't have Tasks/Calendar/Goals/Habits/Mood/
+    // Focus in their nav at all (see Sidebar.jsx's INSTRUCTOR_NAV_PATHS —
+    // just Dashboard, Channels, Lumi, Settings), but generateNotifications
+    // is entirely built around those pages: overdue tasks, due-soon
+    // reminders, streak-at-risk, mood check-ins, goal/milestone deadlines,
+    // birthday tasks, even the grace-period messaging namechecks exam/
+    // slide generation and Focus trees. None of it points anywhere an
+    // instructor can actually go, so it's pure noise for that role —
+    // skip generating it entirely. The notifications an instructor SHOULD
+    // get (a student's chat reply, etc.) are inserted directly by
+    // routes/channels.js, independent of this function, so they still
+    // show up in the SELECT below either way.
+    const roleRow = (await db.execute({ sql: `SELECT role FROM users WHERE id = ?`, args: [req.user.id] })).rows[0];
+    const isInstructor = roleRow?.role === 'instructor';
+
+    if (!isInstructor) {
+      await generateNotifications(req.user.id, tzOffsetMin);
+      await ensureBirthdayTask(req.user.id);
+      // Piggyback the browser's own tz_offset (sent on every poll already)
+      // onto the user row — the cron-triggered email job (lib/emailReminders.js)
+      // has no browser to ask, so it reads this instead. Best-effort/fire
+      // and forget: a slightly stale offset just means an email fires a
+      // little early/late, never a correctness issue worth failing the
+      // request over. Skipped for instructors along with everything else
+      // above — there's nothing left that reads it for that role.
+      db.execute({ sql: `UPDATE users SET tz_offset_min=? WHERE id=?`, args: [tzOffsetMin, req.user.id] }).catch(() => {});
+    }
+
     const result = await db.execute({
       sql:  `SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30`,
       args: [req.user.id],
