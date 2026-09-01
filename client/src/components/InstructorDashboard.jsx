@@ -54,7 +54,7 @@ export default function InstructorDashboard({ user, t }) {
           {channels.map((ch) => (
             <GlassCard key={ch.id} interactive onClick={() => navigate('/channels')} className="p-5 cursor-pointer">
               <h3 className="font-display font-bold text-ink dark:text-white truncate">{ch.name}</h3>
-              <p className="text-xs text-ink/45 dark:text-white/40 mt-1">{ch.member_count || 0} students</p>
+              <p className="text-xs text-ink/45 dark:text-white/40 mt-1">{t('channels.members', { n: ch.member_count || 0 })}</p>
             </GlassCard>
           ))}
         </div>
