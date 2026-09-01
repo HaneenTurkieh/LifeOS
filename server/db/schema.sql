@@ -277,7 +277,10 @@ CREATE TABLE IF NOT EXISTS channels (
   instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name          TEXT NOT NULL,
   join_code     TEXT NOT NULL UNIQUE,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 0 = students can see the channel's points leaderboard, 1 = instructor
+  -- has hidden it (see GET /channels/:id/points, channel_points_log below).
+  points_locked INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_channels_instructor ON channels(instructor_id);
 
@@ -337,3 +340,25 @@ CREATE TABLE IF NOT EXISTS google_sheets_tokens (
   expires_at    INTEGER NOT NULL,
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Channel points — a scoreboard scoped to ONE channel, entirely separate
+-- from a student's global xp_log (see gamification.js). Event-sourced
+-- the same way xp_log is (a running SUM, no stored total) so awards are
+-- auditable and never need a lock/read-modify-write. Two sources feed
+-- it (see lib/channelPoints.js + routes/channels.js): auto-award when a
+-- channel-assigned task/goal is completed (awarded_by NULL), and manual
+-- instructor awards/deductions with a reason (awarded_by = instructor's
+-- user id). This is deliberately unlinked from the app-wide Flow/focus
+-- rankings (/rankings) — Haneen's spec: "the ranking in a channel isnt
+-- the same as the normal flow ranking a student have."
+CREATE TABLE IF NOT EXISTS channel_points_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount     INTEGER NOT NULL,
+  reason     TEXT NOT NULL,
+  awarded_by INTEGER DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_channel_points_channel ON channel_points_log(channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_points_student ON channel_points_log(channel_id, student_id);

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { addXp, evaluateAchievements, ACHIEVEMENTS } = require('../lib/gamification');
+const { awardChannelPoints, CHANNEL_TASK_POINTS } = require('../lib/channelPoints');
 
 // ── Next recurrence date ───────────────────────────────────────
 function nextRecurrenceDate(recurrence, fromDate) {
@@ -234,6 +235,20 @@ router.put('/:id', async (req, res) => {
           xpAwarded = 20;
         } catch (e) {
           console.error('addXp failed (non-fatal):', e.message);
+        }
+
+        // Channel points — a separate, channel-scoped scoreboard (see
+        // lib/channelPoints.js). Only fires for tasks an instructor
+        // assigned through a channel (existing.channel_id set); a
+        // student's own self-created tasks never touch this table.
+        // Gated behind the same !alreadyEarnedXp flag as XP above so
+        // toggling done/undone/done can't farm channel points either.
+        if (existing.channel_id) {
+          try {
+            await awardChannelPoints(existing.channel_id, req.user.id, CHANNEL_TASK_POINTS, `Completed task: ${updates.title}`);
+          } catch (e) {
+            console.error('awardChannelPoints failed (non-fatal):', e.message);
+          }
         }
       }
 

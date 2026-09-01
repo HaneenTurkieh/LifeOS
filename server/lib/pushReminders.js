@@ -27,7 +27,7 @@ const { sendPush } = require('./push');
 const PUSHABLE_TYPES = new Set([
   'overdue', 'due_soon', 'deadline', 'milestone_due', 'focus_complete',
   'channel_announcement', 'channel_chat', 'channel_room_invite',
-  'channel_task_assigned', 'channel_goal_assigned',
+  'channel_task_assigned', 'channel_goal_assigned', 'channel_points_awarded',
 ]);
 
 async function sendPendingPushNotifications() {
