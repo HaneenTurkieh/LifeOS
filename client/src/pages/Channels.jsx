@@ -32,6 +32,41 @@ function Field({ label, children }) {
 }
 const inputCls = 'w-full rounded-2xl px-4 py-2.5 text-sm bg-ink/5 dark:bg-white/8 border border-ink/10 dark:border-white/12 text-ink dark:text-white outline-none focus:border-[rgb(var(--accent-500))]';
 
+// This channel's own weekly Flow leaderboard (GET /channels/:id/focus-
+// leaderboard) — scoped to just this channel's members, deliberately
+// distinct from the app-wide one at /rankings (every Nuvora user).
+// Shared between the instructor and student Flow-tab views below so
+// the two don't drift out of sync with each other.
+function ChannelFocusBoard({ board, loading, t }) {
+  return (
+    <GlassCard className="p-5">
+      <h3 className="text-sm font-bold text-ink dark:text-white flex items-center gap-2 mb-1">
+        <Trophy size={16} /> {t('channels.flowBoardTitle')}
+      </h3>
+      <p className="text-xs text-ink/45 dark:text-white/40 mb-3">{t('channels.flowBoardHint')}</p>
+      {loading ? (
+        <p className="text-xs text-ink/35 dark:text-white/25">…</p>
+      ) : (!board?.leaderboard || board.leaderboard.length === 0) ? (
+        <p className="text-xs text-ink/40 dark:text-white/35">{t('channels.noMembers')}</p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {board.leaderboard.map((row) => (
+            <div key={row.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-ink/[0.03] dark:bg-white/5">
+              <span className="w-5 shrink-0 text-xs font-bold text-ink/35 dark:text-white/30">{row.rank}</span>
+              <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{row.name}</span>
+              <span className="text-xs text-ink/40 dark:text-white/35">{t('channels.sessionsShort', { n: row.session_count })}</span>
+              <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{row.total_minutes}m</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <Link to="/rankings" className="inline-block mt-3 text-[11px] font-medium text-ink/35 dark:text-white/30 underline underline-offset-2">
+        {t('channels.viewAppWideRankings')}
+      </Link>
+    </GlassCard>
+  );
+}
+
 export default function Channels() {
   const { user } = useAuth();
   const { t }     = useLanguage();
@@ -356,6 +391,19 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
     } catch (err) { toast.error(err.message); }
     finally { setLockToggling(false); }
   };
+
+  // ── Channel-scoped Flow leaderboard — shown in the Flow tab instead
+  // of just linking out to the app-wide /rankings page. ────────────
+  const [focusBoard,   setFocusBoard]   = useState(null);
+  const [focusLoading, setFocusLoading] = useState(false);
+  useEffect(() => {
+    if (tab !== 'flow') return;
+    setFocusLoading(true);
+    api.get(`/channels/${channel.id}/focus-leaderboard`)
+      .then(setFocusBoard)
+      .catch((err) => toast.error(err.message))
+      .finally(() => setFocusLoading(false));
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isInstructor) return;
@@ -725,33 +773,15 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
             )}
           </GlassCard>
 
-          {/* Rankings no longer has its own top-level nav entry — this
-              tab is the one place it lives, for both roles, so it isn't
-              duplicated as a separate destination floating outside
-              Channels. */}
-          <GlassCard className="p-5 flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h3 className="text-sm font-bold text-ink dark:text-white mb-0.5">{t('flow.rankingsTitle')}</h3>
-              <p className="text-xs text-ink/50 dark:text-white/40">{t('channels.flowTabStudentHint')}</p>
-            </div>
-            <Link to="/rankings" className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-white"
-              style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
-              {t('nav.rankings')}
-            </Link>
-          </GlassCard>
+          {/* This channel's own Flow leaderboard — scoped to just its
+              members, unlinked from the app-wide /rankings page (see
+              ChannelFocusBoard's own comment above). */}
+          <ChannelFocusBoard board={focusBoard} loading={focusLoading} t={t} />
         </>
       )}
 
       {!isInstructor && tab === 'flow' && (
-        <GlassCard className="p-6 text-center">
-          <Timer size={28} className="mx-auto mb-3 text-[rgb(var(--accent-500))]" />
-          <h3 className="text-sm font-bold text-ink dark:text-white mb-1">{t('flow.rankingsTitle')}</h3>
-          <p className="text-xs text-ink/50 dark:text-white/40 mb-4">{t('channels.flowTabStudentHint')}</p>
-          <Link to="/rankings" className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-bold text-white"
-            style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
-            {t('nav.rankings')}
-          </Link>
-        </GlassCard>
+        <ChannelFocusBoard board={focusBoard} loading={focusLoading} t={t} />
       )}
 
       {tab === 'points' && (
