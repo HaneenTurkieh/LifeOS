@@ -247,9 +247,23 @@ function AppShell() {
   // event Dashboard fires right after a successful save — so picking a
   // mood updates the corner buddy immediately instead of only after a
   // refresh.
+  //
+  // Real bug this fixes: this used to call GET /mood/today with no date,
+  // which fell back to the server's UTC calendar day. Dashboard's own
+  // mood picker (and everywhere else "today" is computed client-side)
+  // uses the browser's LOCAL day instead — for anyone east of UTC
+  // (Nuvora's actual users), local midnight lands hours before UTC
+  // midnight, so for that stretch of the morning the server's "today"
+  // was still yesterday. The buddy would then pick up yesterday's mood
+  // (say a rough/meh day) and show a sad face while the Dashboard's own
+  // picker correctly showed nothing selected for today — Nova and the
+  // page it's sitting on disagreeing about what day it even is. Passing
+  // the same local-date string Dashboard already sends keeps both in
+  // sync.
   useEffect(() => {
     if (!user?.id) return;
-    api.get('/mood/today').then((m) => setMoodValue(m?.mood ?? null)).catch(() => {});
+    const localDate = new Date().toLocaleDateString('en-CA');
+    api.get(`/mood/today?date=${localDate}`).then((m) => setMoodValue(m?.mood ?? null)).catch(() => {});
   }, [user?.id]);
   useEffect(() => {
     const onMoodUpdate = (e) => setMoodValue(e.detail?.mood ?? null);
