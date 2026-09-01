@@ -549,6 +549,12 @@ export const translations = {
       'settings.perkExamD':    'Keep every generated exam forever',
       'settings.perkWatermark':  'Watermark-free exports',
       'settings.perkWatermarkD': 'No "Made with Nuvora" credit on CV, exam, and slide exports',
+      // Instructor-role variants — see PremiumTab's PERKS filter in
+      // SettingsModal.jsx (streak pause/exam history/watermark exports
+      // are dropped entirely for this role, not just reworded).
+      'settings.perkUnlimitedInstructorD': 'No daily caps on Deep Think or Deep Search in Lumi AI',
+      'settings.freeDescInstructor':       'Unlock unlimited AI usage and custom themes.',
+      'settings.compareBaselineInstructor':'Channels, Lumi AI',
       'settings.trialUnlocked':     'You\'ve unlocked a free trial! 🎁',
       'settings.trialUnlockedDesc': 'Reaching this level earned you {n} days of Premium, on us.',
       'settings.startTrial':        'Start free trial',
@@ -973,6 +979,21 @@ export const translations = {
       'onboarding.doneSubtitle':      'Nuvora is ready. Your dashboard is live, Lumi is waiting, and your first task is already logged.',
       'onboarding.notifHint':         "You'll get reminders for tasks & deadlines — bell, email, and (once you add Nuvora to your phone's Home Screen) push. Turn any of them on in Settings.",
       'onboarding.openApp':           'Open Nuvora ✦',
+      // ── Instructor-only onboarding variants (see Onboarding.jsx —
+      // role-branched: WelcomeStep/LumiStep/DoneStep swap copy, and
+      // QuickSetupStep/FlowStep are replaced/dropped entirely for this
+      // role) ──────────────────────────────────────────────────────
+      'onboarding.instWelcomeSubtitle': "Your classroom hub. Let's get your first channel set up in a minute.",
+      'onboarding.instFeature1':      'Create channels — one per class',
+      'onboarding.instFeature2':      'Assign tasks & goals, post announcements',
+      'onboarding.instFeature3':      'Track progress with Points & Analytics',
+      'onboarding.instFeature4':      'Lumi AI — help drafting and planning',
+      'onboarding.instSetupTitle':    'Create your first channel',
+      'onboarding.instSetupSubtitle': 'Give your class a name — you can invite students right after.',
+      'onboarding.channelPlaceholder':'e.g. Grade 10 Math…',
+      'onboarding.instLumiSubtitle':  'Lumi can help you draft announcements and plan lessons — ask her anything. Navigate instantly with shortcuts.',
+      'onboarding.instDoneSubtitle':  'Nuvora is ready. Head to Channels to invite your students.',
+      'onboarding.instNotifHint':     "You'll be notified when a student messages you — bell, email, and (once you add Nuvora to your phone's Home Screen) push. Turn any of them on in Settings.",
       'settings.imageTooLarge':       'Image must be under 10MB',
 
       // ── Instructor/Student signup + Channels (classroom system) ──
@@ -1646,6 +1667,9 @@ export const translations = {
       'settings.perkExamD':    'احتفظ بكل امتحان مولّد للأبد',
       'settings.perkWatermark':  'تصدير بدون علامة مائية',
       'settings.perkWatermarkD': 'بدون علامة "صُنع بواسطة Nuvora" على تصدير السيرة الذاتية والامتحانات والشرائح',
+      'settings.perkUnlimitedInstructorD': 'لا حدود يومية على Deep Think أو Deep Search داخل لومي',
+      'settings.freeDescInstructor':       'افتح استخدامًا غير محدود للذكاء الاصطناعي وسمات مخصصة.',
+      'settings.compareBaselineInstructor':'القنوات، لومي AI',
       'settings.trialUnlocked':     'لقد فتحت تجربة مجانية! 🎁',
       'settings.trialUnlockedDesc': 'وصولك لهذا المستوى منحك {n} أيام بريميوم مجانًا.',
       'settings.startTrial':        'ابدأ التجربة المجانية',
@@ -2070,6 +2094,17 @@ export const translations = {
       'onboarding.doneSubtitle':      'نوفورا جاهزة. لوحتك تعمل، لومي بانتظارك، وأول مهمة لك مسجّلة بالفعل.',
       'onboarding.notifHint':         'ستصلك تذكيرات بالمهام والمواعيد النهائية — عبر الجرس، البريد الإلكتروني، و(بعد إضافة نوفورا إلى الشاشة الرئيسية لهاتفك) الإشعارات الفورية. فعّل أيًا منها من الإعدادات.',
       'onboarding.openApp':           'افتح نوفورا ✦',
+      'onboarding.instWelcomeSubtitle': 'مركز صفوفك. لنجهّز قناتك الأولى خلال دقيقة.',
+      'onboarding.instFeature1':      'أنشئ قنوات — واحدة لكل صف',
+      'onboarding.instFeature2':      'كلّف مهامًا وأهدافًا، وانشر الإعلانات',
+      'onboarding.instFeature3':      'تابع التقدم عبر النقاط والتحليلات',
+      'onboarding.instFeature4':      'لومي — مساعدة في الصياغة والتخطيط',
+      'onboarding.instSetupTitle':    'أنشئ قناتك الأولى',
+      'onboarding.instSetupSubtitle': 'أعطِ صفك اسمًا — يمكنك دعوة الطلاب بعد ذلك مباشرة.',
+      'onboarding.channelPlaceholder':'مثال: رياضيات الصف العاشر…',
+      'onboarding.instLumiSubtitle':  'يمكن للومي مساعدتك في صياغة الإعلانات والتخطيط للدروس — اسألها أي شيء. تنقّل فورًا باستخدام الاختصارات.',
+      'onboarding.instDoneSubtitle':  'نوفورا جاهزة. اذهب إلى القنوات لدعوة طلابك.',
+      'onboarding.instNotifHint':     'ستصلك إشعارات عند مراسلة أحد الطلاب لك — عبر الجرس، البريد الإلكتروني، و(بعد إضافة نوفورا إلى الشاشة الرئيسية لهاتفك) الإشعارات الفورية. فعّل أيًا منها من الإعدادات.',
       'settings.imageTooLarge':       'يجب أن يكون حجم الصورة أقل من 10 ميغابايت',
 
       // ── نظام المدرّس/الطالب والقنوات ─────────────────────────

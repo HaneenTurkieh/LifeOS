@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift, Bell } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Sparkles, Target, RefreshCw, ListChecks, Gift, Bell, Users, BarChart3 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
@@ -52,8 +52,26 @@ function PrimaryBtn({ onClick, disabled, children }) {
     </motion.button>
   );
 }
-function WelcomeStep({ name, onNext }) {
+function WelcomeStep({ name, isInstructor, onNext }) {
   const { t, isRTL } = useLanguage();
+  // Instructor accounts don't have Tasks/Goals/Habits/Flow in their nav
+  // at all (see Sidebar.jsx's INSTRUCTOR_NAV_PATHS) — pitching those as
+  // "what Nuvora does" in the very first screen they see would just be
+  // advertising pages they can't open. Swapped for what their account
+  // actually does: run channels/classes.
+  const features = isInstructor
+    ? [
+        { icon: <Users size={16} />,      text: t('onboarding.instFeature1') },
+        { icon: <ListChecks size={16} />, text: t('onboarding.instFeature2') },
+        { icon: <BarChart3 size={16} />,  text: t('onboarding.instFeature3') },
+        { icon: <Sparkles size={16} />,   text: t('onboarding.instFeature4') },
+      ]
+    : [
+        { icon: <ListChecks size={16} />, text: t('onboarding.feature1') },
+        { icon: <Target size={16} />,     text: t('onboarding.feature2') },
+        { icon: <RefreshCw size={16} />,  text: t('onboarding.feature3') },
+        { icon: <Sparkles size={16} />,   text: t('onboarding.feature4') },
+      ];
   return (
     <div className="flex flex-col items-center text-center gap-6">
       <motion.div
@@ -68,16 +86,11 @@ function WelcomeStep({ name, onNext }) {
           {t('onboarding.welcomeTitle', { name })}
         </h1>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          {t('onboarding.welcomeSubtitle')}
+          {t(isInstructor ? 'onboarding.instWelcomeSubtitle' : 'onboarding.welcomeSubtitle')}
         </p>
       </div>
       <div className="flex flex-col gap-3 w-full">
-        {[
-          { icon: <ListChecks size={16} />, text: t('onboarding.feature1') },
-          { icon: <Target size={16} />,     text: t('onboarding.feature2') },
-          { icon: <RefreshCw size={16} />,  text: t('onboarding.feature3') },
-          { icon: <Sparkles size={16} />,   text: t('onboarding.feature4') },
-        ].map(({ icon, text }) => (
+        {features.map(({ icon, text }) => (
           <div key={text}
             className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-white/70"
             style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
@@ -198,14 +211,67 @@ function QuickSetupStep({ onNext }) {
   );
 }
 
+// Instructor's version of QuickSetupStep above — task/goal/habit
+// quick-add makes no sense here (an instructor account has no Tasks/
+// Goals/Habits pages to ever see those rows again on — QuickSetupStep
+// used to run for instructor signups too, silently creating orphaned
+// rows nobody could ever open or delete). One real action instead: spin
+// up their first channel, which they land on right after — same "get
+// them to one genuinely useful thing fast" goal, just the thing that's
+// actually theirs to use.
+function ChannelSetupStep({ onNext }) {
+  const { t, isRTL } = useLanguage();
+  const [name, setName] = useState('');
+  const [done, setDone] = useState(false);
+  const createChannel = async () => {
+    if (!name.trim() || done) return;
+    setDone(true); // optimistic, same low-stakes reasoning as QuickSetupStep's rows
+    try { await api.post('/channels', { name: name.trim() }); }
+    catch (_) { setDone(false); }
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="text-center">
+        <div className="text-3xl mb-2">🏫</div>
+        <h2 className="font-display text-xl font-bold text-white">{t('onboarding.instSetupTitle')}</h2>
+        <p className="text-white/50 text-sm mt-1">{t('onboarding.instSetupSubtitle')}</p>
+      </div>
+      <Row icon={<Users size={15} />} placeholder={t('onboarding.channelPlaceholder')} value={name}
+        onChange={(e) => setName(e.target.value)} onSubmit={createChannel} done={done} />
+      <PrimaryBtn onClick={onNext}>
+        {t('onboarding.continue')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
+      </PrimaryBtn>
+    </div>
+  );
+}
+
 // Merges what used to be two separate steps (Lumi intro+shortcuts,
 // then a whole other screen just for XP/levels) into one. Shortcuts
 // stay as the detailed grid since that's reference material worth
 // keeping; XP/levels is condensed to a single line since it's
 // contextual flavor, not something anyone needs to study here.
-function LumiStep({ onNext }) {
+function LumiStep({ onNext, isInstructor }) {
   const { t, isRTL } = useLanguage();
   const isMac = navigator.platform?.includes('Mac');
+  // Only D/L/search/? actually go anywhere for an instructor account —
+  // T (Tasks), F (Flow), and N (New task) all point at pages that
+  // aren't in their nav at all, so listing them here would just be
+  // teaching a shortcut to a dead end.
+  const shortcuts = isInstructor
+    ? [
+        { key: isMac ? '⌘K' : 'Ctrl+K', desc: t('onboarding.shortcutSearch')    },
+        { key: 'D',                      desc: t('onboarding.shortcutDashboard') },
+        { key: 'L',                      desc: t('nav.lumi')                    },
+        { key: '?',                      desc: t('onboarding.shortcutAll')       },
+      ]
+    : [
+        { key: isMac ? '⌘K' : 'Ctrl+K', desc: t('onboarding.shortcutSearch')    },
+        { key: 'D',                      desc: t('onboarding.shortcutDashboard') },
+        { key: 'T',                      desc: t('onboarding.shortcutTasks')     },
+        { key: 'F',                      desc: t('onboarding.shortcutFlow')      },
+        { key: 'N',                      desc: t('onboarding.shortcutNewTask')   },
+        { key: '?',                      desc: t('onboarding.shortcutAll')       },
+      ];
   return (
     <div className="flex flex-col items-center text-center gap-4">
       <motion.div
@@ -218,21 +284,14 @@ function LumiStep({ onNext }) {
       <div>
         <h2 className="font-display text-2xl font-bold text-white mb-2">{t('onboarding.lumiTitle')}</h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          {t('onboarding.lumiSubtitle')}
+          {t(isInstructor ? 'onboarding.instLumiSubtitle' : 'onboarding.lumiSubtitle')}
         </p>
       </div>
       <div className="w-full rounded-2xl p-4"
         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
         <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3">{t('onboarding.shortcutsLabel')}</p>
         <div className="grid grid-cols-2 gap-1.5 text-start">
-          {[
-            { key: isMac ? '⌘K' : 'Ctrl+K', desc: t('onboarding.shortcutSearch')    },
-            { key: 'D',                      desc: t('onboarding.shortcutDashboard') },
-            { key: 'T',                      desc: t('onboarding.shortcutTasks')     },
-            { key: 'F',                      desc: t('onboarding.shortcutFlow')      },
-            { key: 'N',                      desc: t('onboarding.shortcutNewTask')   },
-            { key: '?',                      desc: t('onboarding.shortcutAll')       },
-          ].map(({ key, desc }) => (
+          {shortcuts.map(({ key, desc }) => (
             <div key={key}
               className="flex items-center justify-between px-3 py-1.5 rounded-xl"
               style={{ background: 'rgba(255,255,255,0.05)' }}>
@@ -246,13 +305,19 @@ function LumiStep({ onNext }) {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-start"
-        style={{ background: 'rgba(255,184,77,0.10)', border: '1px solid rgba(255,184,77,0.22)' }}>
-        <span className="text-sun-300 shrink-0"><Gift size={16} /></span>
-        <p className="text-xs text-white/65 leading-snug">
-          {t('onboarding.xpHint')}
-        </p>
-      </div>
+      {/* XP/leveling is earned by completing tasks/goals/habits — none of
+          which an instructor account has — so the "level up to unlock a
+          trial" pitch doesn't hold for this role. Left out entirely
+          rather than shown with a caveat. */}
+      {!isInstructor && (
+        <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-start"
+          style={{ background: 'rgba(255,184,77,0.10)', border: '1px solid rgba(255,184,77,0.22)' }}>
+          <span className="text-sun-300 shrink-0"><Gift size={16} /></span>
+          <p className="text-xs text-white/65 leading-snug">
+            {t('onboarding.xpHint')}
+          </p>
+        </div>
+      )}
       <PrimaryBtn onClick={onNext}>
         {t('onboarding.letsGo')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
       </PrimaryBtn>
@@ -304,7 +369,7 @@ function FlowStep({ onNext }) {
   );
 }
 
-function DoneStep({ name, onFinish }) {
+function DoneStep({ name, isInstructor, onFinish }) {
   const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center text-center gap-6">
@@ -321,18 +386,21 @@ function DoneStep({ name, onFinish }) {
           {t('onboarding.doneTitle', { name })}
         </h2>
         <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
-          {t('onboarding.doneSubtitle')}
+          {t(isInstructor ? 'onboarding.instDoneSubtitle' : 'onboarding.doneSubtitle')}
         </p>
       </div>
       {/* Easy to miss otherwise — the bell only ever shows up once something's
           actually due, and push needs an explicit opt-in in Settings, so
           without a line here most people would never discover either exists
-          until they'd already missed something. */}
+          until they'd already missed something. Instructor variant talks
+          about student activity instead of task/deadline reminders — see
+          GET /notifications, which no longer generates the latter for
+          this role at all (nothing to point at). */}
       <div className="flex items-center gap-3 rounded-xl px-4 py-2.5 w-full text-start"
         style={{ background: 'rgba(124,58,237,0.10)', border: '1px solid rgba(124,58,237,0.22)' }}>
         <span className="text-accent-300 shrink-0"><Bell size={16} /></span>
         <p className="text-xs text-white/65 leading-snug">
-          {t('onboarding.notifHint')}
+          {t(isInstructor ? 'onboarding.instNotifHint' : 'onboarding.notifHint')}
         </p>
       </div>
       <PrimaryBtn onClick={onFinish}>
@@ -346,6 +414,7 @@ export default function Onboarding({ user, onComplete }) {
   const [step, setStep]       = useState(0);
   const [closing, setClosing] = useState(false);
   const name = user?.name?.split(' ')[0] || 'there';
+  const isInstructor = user?.role === 'instructor';
   const next = () => setStep((s) => s + 1);
 
   // "Refold" — instead of dismissing instantly, fold the card back
@@ -357,13 +426,27 @@ export default function Onboarding({ user, onComplete }) {
     setTimeout(onComplete, 620);
   };
 
-  const stepContent = [
-    <WelcomeStep    key="welcome" name={name} onNext={next} />,
-    <QuickSetupStep key="setup"   onNext={next} />,
-    <LumiStep       key="lumi"    onNext={next} />,
-    <FlowStep       key="flow"    onNext={next} />,
-    <DoneStep       key="done"    name={name}   onFinish={finish} />,
-  ];
+  // Instructor accounts skip QuickSetupStep (task/goal/habit — none of
+  // which they have a page to ever see again) in favor of ChannelSetupStep,
+  // and skip FlowStep entirely (no Flow access at all — see Sidebar.jsx's
+  // INSTRUCTOR_NAV_PATHS). Every other step just renders its own
+  // isInstructor-aware copy. totalSteps/showDots below are already
+  // derived from stepContent.length, so a 4-step vs. 5-step flow needs
+  // no other changes anywhere in this component.
+  const stepContent = isInstructor
+    ? [
+        <WelcomeStep      key="welcome" name={name} isInstructor onNext={next} />,
+        <ChannelSetupStep key="setup"   onNext={next} />,
+        <LumiStep         key="lumi"    isInstructor onNext={next} />,
+        <DoneStep         key="done"    name={name} isInstructor onFinish={finish} />,
+      ]
+    : [
+        <WelcomeStep    key="welcome" name={name} onNext={next} />,
+        <QuickSetupStep key="setup"   onNext={next} />,
+        <LumiStep       key="lumi"    onNext={next} />,
+        <FlowStep       key="flow"    onNext={next} />,
+        <DoneStep       key="done"    name={name}   onFinish={finish} />,
+      ];
   const totalSteps = stepContent.length - 2;
   const showDots   = step > 0 && step < stepContent.length - 1 && !closing;
   const isWelcome  = step === 0;

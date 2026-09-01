@@ -516,6 +516,7 @@ function PremiumTab() {
   const toast = useToast();
   const { t, lang } = useLanguage();
   const { user } = useAuth();
+  const isInstructor = user?.role === 'instructor';
   const { accent, setAccent, resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const [status,     setStatus]     = useState(null);
@@ -671,13 +672,27 @@ function PremiumTab() {
   // Badge next to each perk reflects the viewer's own access (is_premium),
   // not just "this feature is built" — otherwise a free user sees "LIVE"
   // on things they can't actually use yet, which reads as a bug.
-  const PERKS = [
-    { icon: '✨', title: t('settings.perkUnlimited'), desc: t('settings.perkUnlimitedD') },
-    { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD') },
-    { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD') },
-    { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD')   },
-    { icon: '💧', title: t('settings.perkWatermark'), desc: t('settings.perkWatermarkD') },
-  ];
+  // Instructor accounts don't have Tasks/Goals/Habits (no streaks to
+  // pause), Exam generation, or CV/exam/slide exports (see Sidebar.jsx's
+  // INSTRUCTOR_NAV_PATHS — none of those pages are in their nav) — so
+  // streak pause, exam history, and watermark-free exports would all be
+  // perks for features this account can't even open. Left with exactly
+  // the two that are real for this role: Lumi AI usage (reworded below
+  // to drop the exam/slide-generation mention, since /exam isn't
+  // reachable either — Deep Think/Deep Search inside Lumi AI still are)
+  // and custom themes (Settings → Appearance, same for every role).
+  const PERKS = isInstructor
+    ? [
+        { icon: '✨', title: t('settings.perkUnlimited'), desc: t('settings.perkUnlimitedInstructorD') },
+        { icon: '🎨', title: t('settings.perkThemes'),    desc: t('settings.perkThemesD') },
+      ]
+    : [
+        { icon: '✨', title: t('settings.perkUnlimited'), desc: t('settings.perkUnlimitedD') },
+        { icon: '❄️', title: t('settings.perkFreeze'), desc: t('settings.perkFreezeD') },
+        { icon: '🎨', title: t('settings.perkThemes'), desc: t('settings.perkThemesD') },
+        { icon: '📚', title: t('settings.perkExam'),   desc: t('settings.perkExamD')   },
+        { icon: '💧', title: t('settings.perkWatermark'), desc: t('settings.perkWatermarkD') },
+      ];
   if (!status) return <p className="text-xs text-ink/35 dark:text-white/30 py-6 text-center">{t('common.loading')}</p>;
   const backToFreeStyle = isDark
     ? { background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', color:'rgba(255,255,255,0.70)' }
@@ -693,7 +708,8 @@ function PremiumTab() {
           {status.is_premium ? t('settings.premiumName') : t('settings.freeName')}
         </p>
         <p className="text-xs text-ink/45 dark:text-white/35 mt-1">
-          {status.is_premium ? t('settings.premiumDesc') : t('settings.freeDesc')}
+          {status.is_premium ? t('settings.premiumDesc')
+            : isInstructor ? t('settings.freeDescInstructor') : t('settings.freeDesc')}
         </p>
         {status.is_premium && status.plan && (
           <p className="text-[11px] font-bold mt-2 text-sun-500">
@@ -783,7 +799,7 @@ function PremiumTab() {
             </div>
             <div className="col-span-3 px-4 py-2 text-xs text-ink/60 dark:text-white/50"
               style={{ background: 'rgb(var(--accent-500) / 0.04)', borderTop: '1px solid rgb(var(--accent-500) / 0.10)', borderBottom: '1px solid rgb(var(--accent-500) / 0.10)' }}>
-              {t('settings.compareBaseline')}
+              {isInstructor ? t('settings.compareBaselineInstructor') : t('settings.compareBaseline')}
             </div>
             <div className="px-4 py-1.5" />
             <div className="px-4 py-1.5 text-center text-sage-500">✓</div>
