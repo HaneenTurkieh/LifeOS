@@ -463,7 +463,10 @@ router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
     });
 
     const members = (await db.execute({
-      sql: `SELECT student_id FROM channel_members WHERE channel_id = ?`, args: [channel.id],
+      sql: `SELECT u.id AS student_id, u.name AS student_name
+            FROM channel_members m JOIN users u ON u.id = m.student_id
+            WHERE m.channel_id = ?`,
+      args: [channel.id],
     })).rows;
     const link = `/learning?room=${code}`;
     // Keyed on the code, not date+link like the old version — every
@@ -471,7 +474,22 @@ router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
     // there's nothing to dedupe against; this key just has to be unique
     // per call, which the fresh code already guarantees.
     const dedupeKey = `channel_room_invite:${code}`;
-    for (const { student_id } of members) {
+    for (const { student_id, student_name } of members) {
+      // Auto-join every invited student the same way the host gets
+      // auto-joined above — otherwise "sends them to your students
+      // automatically" is a lie: they'd have to dig the password back out
+      // of the notification body and manually type it into the join
+      // form, and until they do the room never shows up in their "My
+      // Rooms" list at all (Haneen hit exactly this: "i cant see the
+      // room the instructor created"). The password is still included
+      // in the notification body below for anyone who leaves and wants
+      // to rejoin, or wants to forward the code to someone outside the
+      // channel.
+      await db.execute({
+        sql:  `INSERT INTO focus_room_members (room_id, user_id, display_name) VALUES (?, ?, ?)
+               ON CONFLICT(room_id, user_id) DO NOTHING`,
+        args: [Number(roomInsert.lastInsertRowid), student_id, student_name],
+      });
       await db.execute({
         sql:  `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
                VALUES (?, 'channel_room_invite', ?, ?, ?, ?, ?)
