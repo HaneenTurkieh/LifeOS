@@ -379,6 +379,24 @@ router.post('/timer/sync', async (req, res) => {
         task_id != null ? Number(task_id) : null, Math.round(dots || 0),
       ],
     });
+    // Auto-advance the linked task to "in progress" the instant Flow
+    // actually starts on it — this is the one place that's true for both
+    // a fresh start and a resume, since the client calls this same sync
+    // route either way. Deliberately one-directional (todo → doing only):
+    // pausing the timer later doesn't undo the "in progress" state, so a
+    // task someone's clearly started on doesn't silently slide back to
+    // Not Started just because they took a break. Manually dragging a
+    // card between columns (see Dashboard.jsx's TaskColumn) still works
+    // on top of this via the normal PUT /tasks/:id — this only ever
+    // fires the todo→doing transition automatically.
+    if (running && task_id != null) {
+      try {
+        await db.execute({
+          sql:  `UPDATE tasks SET status = 'doing' WHERE id = ? AND user_id = ? AND status = 'todo'`,
+          args: [Number(task_id), req.user.id],
+        });
+      } catch (e) { console.error('auto status→doing failed (non-fatal):', e.message); }
+    }
     const row = (await db.execute({
       sql: `SELECT version FROM focus_solo_timer WHERE user_id = ?`, args: [req.user.id],
     })).rows[0];

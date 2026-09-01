@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Circle, Calendar, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -26,6 +27,100 @@ const MOOD_OPTIONS = [
   { value:4, emoji:'😊', label:'mood.good'  },
   { value:5, emoji:'🤩', label:'mood.great' },
 ];
+
+// One column of the Dashboard's Today's Tasks kanban board (Not
+// Started / In Progress / Done — see the DragDropContext in Dashboard()
+// below). Kept at module scope, like DeltaBadge, since it has no state
+// of its own — everything it needs comes in as props.
+function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCompletedId }) {
+  return (
+    <Droppable droppableId={id}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.droppableProps}
+          className="flex flex-col gap-2 rounded-2xl p-2.5 min-h-[88px] transition-colors"
+          style={{
+            background: snapshot.isDraggingOver
+              ? 'rgb(var(--accent-500) / 0.08)'
+              : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+          }}>
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-ink/40 dark:text-white/35">{title}</span>
+            <span className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-ink/5 dark:bg-white/8 text-ink/40 dark:text-white/35">
+              {tasks.length}
+            </span>
+          </div>
+          {tasks.length === 0 ? (
+            <p className="text-[11px] text-ink/25 dark:text-white/20 px-1 py-2">—</p>
+          ) : tasks.map((task, index) => {
+            const dl        = daysUntil(task.deadline);
+            const isOverdue = dl !== null && dl < 0;
+            const isToday   = dl !== null && dl === 0;
+            const isSoon    = dl !== null && dl > 0 && dl <= 3;
+            const isDone    = task.status === 'done';
+            return (
+              <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                {(dragProvided, dragSnapshot) => (
+                  <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}
+                    className="rounded-xl px-3 py-2.5 group"
+                    style={{
+                      ...dragProvided.draggableProps.style,
+                      background: dragSnapshot.isDragging
+                        ? isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.95)'
+                        : isDark ? 'rgba(255,255,255,0.028)' : 'rgba(255,255,255,0.55)',
+                      border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.80)',
+                      boxShadow: dragSnapshot.isDragging ? '0 8px 20px rgba(0,0,0,0.18)' : undefined,
+                    }}>
+                    <div className="flex items-start gap-2">
+                      {!isDone && (
+                        <button onClick={() => onComplete(task)} disabled={justCompletedId === task.id}
+                          className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
+                          {justCompletedId === task.id
+                            ? <CheckCircle2 size={15} className="text-sage-500" />
+                            : <Circle size={15} />}
+                        </button>
+                      )}
+                      {isDone && <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-sage-500" />}
+                      <p className={`text-xs font-medium truncate flex-1 min-w-0 ${
+                        isDone ? 'text-ink/40 dark:text-white/35 line-through' : 'text-ink dark:text-white'
+                      }`}>{task.title}</p>
+                      <button onClick={() => onDelete(task)}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                    {(task.deadline || task.priority) && (
+                      <div className="flex items-center gap-1.5 mt-1.5 ps-[21px]">
+                        {task.deadline && (
+                          <span className={`text-[10px] font-medium ${
+                            isOverdue || isToday ? 'text-coral-500' : isSoon ? 'text-sun-600' : 'text-ink/35 dark:text-white/25'
+                          }`}>
+                            {isOverdue ? t('dash.overdue')
+                            : isToday  ? t('dash.dueToday')
+                            : dl === 1 ? t('dash.dueTomorrow')
+                            : isSoon   ? t('dash.dueInDays', { n: dl })
+                            : formatDeadline(task.deadline)}
+                          </span>
+                        )}
+                        {!isDone && (
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                            task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
+                            task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
+                                                         'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
+                          }`}>{t(`tasks.${task.priority}`)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Draggable>
+            );
+          })}
+          {provided.placeholder}
+        </div>
+      )}
+    </Droppable>
+  );
+}
 
 function daysUntil(deadline) {
   if (!deadline) return null;
@@ -157,9 +252,13 @@ export default function Dashboard() {
     const req = api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
     setTimeout(() => {
       setJustCompletedId((cur) => (cur === task.id ? null : cur));
+      // Used to filter the task OUT of todaysTasks entirely — that was
+      // right back when the card was a single flat "still to do" list,
+      // but now a completed task belongs in the Done column instead of
+      // vanishing, so this flips it in place.
       setData((prev) => prev && {
         ...prev,
-        todaysTasks: prev.todaysTasks.filter((t) => t.id !== task.id),
+        todaysTasks: prev.todaysTasks.map((t) => t.id === task.id ? { ...t, status:'done', progress:100 } : t),
         counts: { ...prev.counts, tasksDoneToday: (prev.counts?.tasksDoneToday || 0) + 1 },
       });
     }, 420);
@@ -170,8 +269,39 @@ export default function Dashboard() {
       load(); // reconciles productivity score/streak/tree with real server state
     } catch (e) {
       toast.error(e.message);
-      load(); // roll back the optimistic removal too
+      load(); // roll back the optimistic status flip too
     }
+  };
+  // Cross-column drag that ISN'T a completion (todo↔doing, or dragging a
+  // done card backward to undo it) — completeTask above stays the path
+  // for anything landing in Done, since that's the one that owes an XP
+  // toast/achievement check. This is just a plain status write.
+  const moveTask = async (task, newStatus) => {
+    if (task.status === newStatus) return;
+    const prevStatus = task.status;
+    setData((prev) => prev && {
+      ...prev,
+      todaysTasks: prev.todaysTasks.map((t) => t.id === task.id ? { ...t, status:newStatus } : t),
+    });
+    try {
+      await api.put(`/tasks/${task.id}`, { status:newStatus });
+      if (prevStatus === 'done') load(); // undoing a done task changes tasksDoneToday — reconcile it
+    } catch (e) {
+      toast.error(e.message);
+      setData((prev) => prev && {
+        ...prev,
+        todaysTasks: prev.todaysTasks.map((t) => t.id === task.id ? { ...t, status:prevStatus } : t),
+      });
+    }
+  };
+  const handleDragEnd = (result) => {
+    const { source, destination, draggableId } = result;
+    if (!destination) return; // dropped outside any column
+    if (source.droppableId === destination.droppableId) return; // reordering within a column isn't persisted (yet)
+    const task = data?.todaysTasks?.find((t) => String(t.id) === draggableId);
+    if (!task) return;
+    if (destination.droppableId === 'done') completeTask(task);
+    else moveTask(task, destination.droppableId);
   };
   const deleteTask = async (task) => {
     try {
@@ -201,18 +331,28 @@ export default function Dashboard() {
   const h = new Date().getHours();
   const greetKey = h < 12 ? 'greet.morning' : h < 17 ? 'greet.afternoon' : 'greet.evening';
   const habitsLeft = todaysHabits.filter(hb => !hb.doneToday).length;
+  // todaysTasks now includes today's DONE tasks too (see dashboard.js —
+  // needed so the Done column below isn't always empty), so anything
+  // that means "still to do" has to filter status!=='done' itself rather
+  // than reading todaysTasks.length directly the way this used to.
+  const pendingTasks   = todaysTasks.filter((tk) => tk.status !== 'done');
+  const doneTasksToday = todaysTasks.filter((tk) => tk.status === 'done');
   const subtitle = isRoughDay
     ? t('dash.roughSubtitle')
     : isGreatDay
     ? t('dash.greatSubtitle')
-    : todaysTasks.length === 0 && todaysHabits.length === 0
+    : pendingTasks.length === 0 && todaysHabits.length === 0
     ? t('dash.clearSubtitle')
-    : t('dash.leftSummary', { tasks: todaysTasks.length, habits: habitsLeft });
-  const visibleTasks = isRoughDay ? todaysTasks.slice(0, 2) : todaysTasks;
+    : t('dash.leftSummary', { tasks: pendingTasks.length, habits: habitsLeft });
+  const visiblePending = isRoughDay ? pendingTasks.slice(0, 2) : pendingTasks;
   // "Just these two" only makes sense when there actually are tasks to show —
   // otherwise the title promises 2 tasks while the empty state says "nothing
-  // due today", which read as a bug (it was one).
-  const taskLabel    = isRoughDay && todaysTasks.length > 0 ? t('dash.justTwo') : t('dash.todaysTasks');
+  // due today", which read as a bug (it was one). Doesn't count doneTasksToday
+  // toward that "are there tasks at all" check — a rough day still gets its
+  // pending work capped at 2, regardless of how much is already finished.
+  const taskLabel    = isRoughDay && pendingTasks.length > 0 ? t('dash.justTwo') : t('dash.todaysTasks');
+  const todoCol  = visiblePending.filter((tk) => tk.status !== 'doing');
+  const doingCol = visiblePending.filter((tk) => tk.status === 'doing');
   // totalXp/nextTree (progress toward the next unlockable tree) used to
   // be computed here for the "Your Tree" card, which was removed — that
   // XP-progress bar lives on the Trees/Shop page itself, so it wasn't
@@ -511,7 +651,7 @@ export default function Dashboard() {
                 {t('dash.viewAll')}
               </button>
             </div>
-            {visibleTasks.length === 0 ? (
+            {todoCol.length === 0 && doingCol.length === 0 && doneTasksToday.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <span className="text-4xl mb-3">🎉</span>
                 <p className="font-semibold text-ink dark:text-white text-sm mb-1">{t('dash.nothingDue')}</p>
@@ -520,65 +660,30 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
-                <AnimatePresence initial={false}>
-                {visibleTasks.map((task) => {
-                  const dl        = daysUntil(task.deadline);
-                  const isOverdue = dl !== null && dl < 0;
-                  const isToday   = dl !== null && dl === 0;
-                  const isSoon    = dl !== null && dl > 0 && dl <= 3;
-                  return (
-                    <motion.div key={task.id} layout
-                      exit={{ opacity: 0, x: 24, transition: { duration: 0.25 } }}
-                      className="flex items-center gap-3 rounded-2xl px-4 py-3 group"
-                      style={isDark
-                        ? { background:'rgba(255,255,255,0.028)', border:'1px solid rgba(255,255,255,0.06)', backdropFilter:'blur(12px)' }
-                        : { background:'rgba(255,255,255,0.19)', border:'1px solid rgba(255,255,255,0.80)', backdropFilter:'blur(12px)' }}
-                    >
-                      <button onClick={() => completeTask(task)}
-                        disabled={justCompletedId === task.id}
-                        className="shrink-0 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
-                        {justCompletedId === task.id
-                          ? <CheckCircle2 size={18} className="text-sage-500" />
-                          : <Circle size={18} />}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink dark:text-white truncate">{task.title}</p>
-                        {task.deadline && (
-                          <p className={`text-[11px] flex items-center gap-1 mt-0.5 font-medium ${
-                            isOverdue || isToday ? 'text-coral-500'
-                            : isSoon ? 'text-sun-600'
-                            : 'text-ink/35 dark:text-white/25'
-                          }`}>
-                            <Calendar size={10} />
-                            {isOverdue ? t('dash.overdue')
-                            : isToday  ? t('dash.dueToday')
-                            : dl === 1 ? t('dash.dueTomorrow')
-                            : isSoon   ? t('dash.dueInDays', { n: dl })
-                            : formatDeadline(task.deadline)}
-                          </p>
-                        )}
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-                        task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
-                        task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
-                                                     'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
-                      }`}>{t(`tasks.${task.priority}`)}</span>
-                      <button onClick={() => deleteTask(task)}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400 p-1">
-                        <Trash2 size={14} />
-                      </button>
-                    </motion.div>
-                  );
-                })}
-                </AnimatePresence>
-                {isRoughDay && todaysTasks.length > 2 && (
+              <>
+                {/* Not Started / In Progress / Done — In Progress fills in
+                    on its own the moment a Flow session starts on a task
+                    (see POST /focus/timer/sync), and any card can also be
+                    dragged straight between columns by hand. Done isn't
+                    capped by the rough-day "just 2" limit below — what's
+                    already finished today is never something to hide. */}
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <TaskColumn id="todo"  title={t('dash.colNotStarted')} tasks={todoCol}
+                      isDark={isDark} t={t} onComplete={completeTask} onDelete={deleteTask} justCompletedId={justCompletedId} />
+                    <TaskColumn id="doing" title={t('dash.colInProgress')} tasks={doingCol}
+                      isDark={isDark} t={t} onComplete={completeTask} onDelete={deleteTask} justCompletedId={justCompletedId} />
+                    <TaskColumn id="done"  title={t('dash.colDone')} tasks={doneTasksToday}
+                      isDark={isDark} t={t} onComplete={completeTask} onDelete={deleteTask} justCompletedId={justCompletedId} />
+                  </div>
+                </DragDropContext>
+                {isRoughDay && pendingTasks.length > 2 && (
                   <p className="text-xs text-ink/35 dark:text-white/25 text-center py-2">
-                    {t('dash.moreTasks', { n: todaysTasks.length - 2 })} →{' '}
+                    {t('dash.moreTasks', { n: pendingTasks.length - 2 })} →{' '}
                     <button onClick={() => navigate('/tasks')} className="underline">{t('dash.viewAll')}</button>
                   </p>
                 )}
-              </div>
+              </>
             )}
           </GlassCard>
         </div>

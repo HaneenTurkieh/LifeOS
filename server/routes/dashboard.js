@@ -22,7 +22,26 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       // `ORDER BY priority DESC` sorts alphabetically (medium, low,
       // high), not by actual urgency. The CASE maps it to a real rank so
       // high-priority tasks genuinely show up first in Today's Tasks.
-      db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND source != 'nuvora' AND (deadline = ? OR deadline IS NULL) ORDER BY CASE priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC LIMIT 6`, args: [userId, today] }),
+      // Pending tasks (todo/doing) keep the original filter — due today,
+      // or no deadline at all (an undated "someday" bucket, shown until
+      // done). Done tasks are new here (used to be excluded entirely) —
+      // scoped tightly to "finished today" via completed_at, not the
+      // original deadline, so the Dashboard's Done column shows what was
+      // actually accomplished today without dragging in old completed
+      // work that happened to be due today weeks ago. LIMIT raised from
+      // 6 → 24 now that this feeds a 3-column board (Not Started/In
+      // Progress/Done) instead of one flat list.
+      db.execute({
+        sql: `SELECT * FROM tasks
+              WHERE user_id = ? AND project_id IS NULL AND source != 'nuvora'
+                AND (
+                  (status != 'done' AND (deadline = ? OR deadline IS NULL))
+                  OR (status = 'done' AND date(completed_at) = ?)
+                )
+              ORDER BY CASE priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC
+              LIMIT 24`,
+        args: [userId, today, today],
+      }),
       db.execute({ sql: `SELECT * FROM habits WHERE user_id = ?`, args: [userId] }),
       db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND source != 'nuvora' AND deadline IS NOT NULL AND deadline >= ? ORDER BY deadline ASC LIMIT 5`, args: [userId, today] }),
       db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [userId, today] }),

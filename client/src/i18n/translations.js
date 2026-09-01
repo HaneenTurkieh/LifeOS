@@ -316,6 +316,9 @@ export const translations = {
       // ── Dashboard ──────────────────────────────────────
       'dash.viewAll':         'View all',
       'dash.todaysTasks':     "Today's tasks",
+      'dash.colNotStarted':   'Not Started',
+      'dash.colInProgress':   'In Progress',
+      'dash.colDone':         'Done',
       'dash.justTwo':         'Just these two 💙',
       'dash.nothingDue':      'Nothing due today',
       'dash.enjoyRoom':       "Enjoy the breathing room, or pull in tomorrow's tasks early.",
@@ -1414,6 +1417,9 @@ export const translations = {
       // ── الرئيسية ────────────────────────────────────────────
       'dash.viewAll':         'عرض الكل',
       'dash.todaysTasks':     'مهام اليوم',
+      'dash.colNotStarted':   'لم تبدأ',
+      'dash.colInProgress':   'قيد التنفيذ',
+      'dash.colDone':         'تم',
       'dash.justTwo':         'هاتان فقط 💙',
       'dash.nothingDue':      'لا مهام مستحقة اليوم',
       'dash.enjoyRoom':       'استمتع بالمساحة، أو ابدأ بمهام الغد مبكرًا.',
