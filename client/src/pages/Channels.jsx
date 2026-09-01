@@ -486,10 +486,12 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
           const active = tab === tb;
           return (
             <button key={tb} onClick={() => setTab(tb)}
-              className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold whitespace-nowrap transition"
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold whitespace-nowrap transition ${
+                active ? '' : 'bg-ink/5 dark:bg-white/8 text-ink/50 dark:text-white/40'
+              }`}
               style={active
                 ? { background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)', color: 'white' }
-                : { background: 'rgba(120,120,120,0.08)', color: 'inherit', opacity: 0.6 }}>
+                : undefined}>
               <Icon size={13} /> {tabLabels[tb]}
             </button>
           );
@@ -555,10 +557,12 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
             <div className="w-40 shrink-0 border-e border-ink/5 dark:border-white/8 p-2 flex flex-col gap-1 overflow-y-auto">
               {(channel.members || []).map((m) => (
                 <button key={m.id} onClick={() => setActiveChatId(m.id)}
-                  className="text-start rounded-xl px-2.5 py-2 text-xs font-medium truncate"
+                  className={`text-start rounded-xl px-2.5 py-2 text-xs font-medium truncate ${
+                    activeChatId === m.id ? '' : 'text-ink/50 dark:text-white/40 hover:bg-ink/5 dark:hover:bg-white/8'
+                  }`}
                   style={activeChatId === m.id
                     ? { background: 'rgb(var(--accent-500) / 0.15)', color: 'rgb(var(--accent-600))' }
-                    : { color: 'inherit', opacity: 0.6 }}>
+                    : undefined}>
                   {m.name}
                 </button>
               ))}
@@ -573,14 +577,21 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                 <p className="text-xs text-ink/35 dark:text-white/25">…</p>
               ) : chatMessages.length === 0 ? (
                 <p className="text-xs text-ink/35 dark:text-white/25">{t('channels.noMessagesYet')}</p>
-              ) : chatMessages.map((m) => (
-                <div key={m.id} className="max-w-[75%] rounded-2xl px-3 py-2 text-sm"
-                  style={m.sender_role === (isInstructor ? 'instructor' : 'student')
-                    ? { alignSelf: 'flex-end', background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)', color: 'white' }
-                    : { alignSelf: 'flex-start', background: 'rgba(120,120,120,0.10)' }}>
-                  {m.body}
-                </div>
-              ))}
+              ) : chatMessages.map((m) => {
+                const mine = m.sender_role === (isInstructor ? 'instructor' : 'student');
+                return (
+                  <div key={m.id}
+                    className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                      mine ? 'text-white' : 'bg-ink/5 dark:bg-white/8 text-ink dark:text-white'
+                    }`}
+                    style={{
+                      alignSelf: mine ? 'flex-end' : 'flex-start',
+                      background: mine ? 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' : undefined,
+                    }}>
+                    {m.body}
+                  </div>
+                );
+              })}
             </div>
             <div className="flex gap-2">
               <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
@@ -610,9 +621,9 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                 <div className="flex gap-2">
                   <select value={taskForm.priority} onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value }))}
                     className={inputCls}>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
+                    <option value="high">{t('tasks.high')}</option>
+                    <option value="medium">{t('tasks.medium')}</option>
+                    <option value="low">{t('tasks.low')}</option>
                   </select>
                   <input type="date" value={taskForm.deadline} onChange={(e) => setTaskForm((f) => ({ ...f, deadline: e.target.value }))}
                     className={inputCls} />
@@ -749,7 +760,7 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
               ) : (
                 <button onClick={connectSheets}
                   className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold"
-                  style={{ background: 'rgba(10,102,194,0.10)', border: '1px solid rgba(10,102,194,0.30)', color: '#0A66C2' }}>
+                  style={{ background: 'rgba(26,115,232,0.10)', border: '1px solid rgba(26,115,232,0.30)', color: '#1A73E8' }}>
                   <Sheet size={13} /> {t('channels.connectSheets')}
                 </button>
               )}
