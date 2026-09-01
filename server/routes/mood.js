@@ -12,7 +12,15 @@ router.get('/', async (req, res) => {
 
 router.get('/today', async (req, res) => {
   try {
-    const result = await db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [req.user.id, todayIso()] });
+    // Accepts an optional client-supplied local date (?date=YYYY-MM-DD),
+    // same pattern as GET /dashboard. Without it this fell back to the
+    // server's UTC day, which disagrees with "today" for any user east
+    // of UTC for the first few hours after their local midnight — the
+    // corner buddy would then show yesterday's mood as if it were
+    // today's. Falls back to server UTC date only if the client didn't
+    // send one (e.g. a direct API call).
+    const today = req.query.date || todayIso();
+    const result = await db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [req.user.id, today] });
     res.json(result.rows[0] || null);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
