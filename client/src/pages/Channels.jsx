@@ -377,6 +377,8 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
       });
       toast.success(t('channels.assignSuccess', { n: r.assigned }));
       setTaskForm({ title: '', priority: 'medium', deadline: '' });
+      onRefresh(); // Analytics tab's tasks_assigned count is fetched once on load — without
+                   // this it stays stale until the instructor leaves and re-enters the channel.
     } catch (err) { toast.error(err.message); }
     finally { setAssigningTask(false); }
   };
@@ -387,6 +389,7 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
       const r = await api.post(`/channels/${channel.id}/assign-goal`, { title: goalTitle.trim() });
       toast.success(t('channels.assignSuccess', { n: r.assigned }));
       setGoalTitle('');
+      onRefresh(); // same staleness fix as assignTask above
     } catch (err) { toast.error(err.message); }
     finally { setAssigningGoal(false); }
   };
@@ -722,8 +725,8 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                     <tr className="text-ink/40 dark:text-white/35 text-left">
                       <th className="py-1.5 pe-2 font-semibold">#</th>
                       <th className="py-1.5 pe-3 font-semibold">{t('channels.memberList')}</th>
-                      <th className="py-1.5 pe-3 font-semibold">{t('channels.assignTask')}</th>
-                      <th className="py-1.5 pe-3 font-semibold">{t('channels.assignGoal')}</th>
+                      <th className="py-1.5 pe-3 font-semibold">{t('channels.tasksCol')}</th>
+                      <th className="py-1.5 pe-3 font-semibold">{t('channels.goalsCol')}</th>
                       <th className="py-1.5 font-semibold">{t('channels.points')}</th>
                     </tr>
                   </thead>
