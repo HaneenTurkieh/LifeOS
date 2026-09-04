@@ -119,9 +119,23 @@ async function getShieldedDates(userId) {
   return result.rows.map((r) => r.date);
 }
 
-function walkStreak(dates) {
+// `todayOverride`, when given, replaces the server's own UTC "now" as
+// the walk's starting point. Exists because routes/dashboard.js already
+// resolves a single "what day is it" for its whole response — client's
+// local calendar date if given, UTC otherwise (see mood.js's identical
+// `req.query.date || todayIso()` pattern) — and used to only apply that
+// to the task/mood parts of the payload, never to the streak. Dashboard
+// callers a few hours either side of UTC midnight (e.g. anyone at
+// UTC+2/+3 between local midnight and ~3am) could see "today's tasks"
+// computed on one calendar day while the streak card was silently still
+// computed on the other — the exact kind of thing that looks like the
+// streak "isn't counting" something that was, in fact, counted, just
+// under a date the streak card wasn't checking yet. Every other caller
+// (Lumi's system prompt, achievements, etc.) omits this and keeps
+// today's real UTC behavior, unchanged.
+function walkStreak(dates, todayOverride) {
   let streak = 0;
-  let cursorIso = todayIso();
+  let cursorIso = todayOverride || todayIso();
   if (!dates.has(cursorIso)) cursorIso = shiftIsoDate(cursorIso, -1);
   while (dates.has(cursorIso)) {
     streak++;
@@ -130,7 +144,7 @@ function walkStreak(dates) {
   return streak;
 }
 
-async function getOverallStreak(userId) {
+async function getOverallStreak(userId, todayOverride) {
   const dates = await getRawActivityDates(userId);
 
   // Premium streak freeze — the excused date counts as completed.
@@ -141,7 +155,7 @@ async function getOverallStreak(userId) {
   // manually triggered. See syncStreakShields for how these get added.
   (await getShieldedDates(userId)).forEach((d) => dates.add(d));
 
-  return walkStreak(dates);
+  return walkStreak(dates, todayOverride);
 }
 
 const MAX_STREAK_SHIELDS = 2;
@@ -156,7 +170,7 @@ const SHIELD_EVERY_DAYS  = 7;
 // on every dashboard load, not just once — because the shielded-date
 // INSERT is UNIQUE-guarded and the milestone check only ever moves
 // shield_milestone forward, never re-grants a milestone already paid out.
-async function syncStreakShields(userId) {
+async function syncStreakShields(userId, todayOverride) {
   const userRow = (await db.execute({
     sql:  `SELECT streak_shields, shield_milestone FROM users WHERE id = ?`,
     args: [userId],
@@ -169,8 +183,9 @@ async function syncStreakShields(userId) {
   if (freeze) rawDates.add(freeze);
   (await getShieldedDates(userId)).forEach((d) => rawDates.add(d));
 
-  const yesterday  = shiftIsoDate(todayIso(), -1);
-  const dayBefore  = shiftIsoDate(todayIso(), -2);
+  const referenceToday = todayOverride || todayIso();
+  const yesterday  = shiftIsoDate(referenceToday, -1);
+  const dayBefore  = shiftIsoDate(referenceToday, -2);
   let justShielded = false;
 
   // Only worth spending a shield if there was actually a streak in
@@ -193,7 +208,7 @@ async function syncStreakShields(userId) {
     }
   }
 
-  const streak = walkStreak(rawDates);
+  const streak = walkStreak(rawDates, todayOverride);
   const currentMilestoneStep = Math.floor(streak / SHIELD_EVERY_DAYS);
   let justEarnedShield = false;
   if (currentMilestoneStep > milestone && shields < MAX_STREAK_SHIELDS) {
@@ -242,8 +257,8 @@ async function getHabitStreak(habitId) {
   return streak;
 }
 
-async function getTreeStage(userId) {
-  const streak = await getOverallStreak(userId);
+async function getTreeStage(userId, todayOverride) {
+  const streak = await getOverallStreak(userId, todayOverride);
   if (streak >= 21) return 4;
   if (streak >= 14) return 3;
   if (streak >= 7)  return 2;

@@ -22,24 +22,23 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       // `ORDER BY priority DESC` sorts alphabetically (medium, low,
       // high), not by actual urgency. The CASE maps it to a real rank so
       // high-priority tasks genuinely show up first in Today's Tasks.
-      // Pending tasks (todo/doing): due today, overdue (deadline < today
-      // and still not done — these used to just vanish from the board
-      // the moment their day passed, which read as "some of my tasks
-      // disappeared" since a task you're actively behind on is exactly
-      // the one you'd expect to still see), or no deadline at all (an
-      // undated "someday" bucket, shown until done). Done tasks are new
-      // here (used to be excluded entirely) — scoped tightly to
-      // "finished today" via completed_at, not the original deadline, so
-      // the Dashboard's Done column shows what was actually accomplished
-      // today without dragging in old completed work that happened to be
-      // due today weeks ago. LIMIT raised from 6 → 24 now that this feeds
-      // a 3-column board (Not Started/In Progress/Done) instead of one
-      // flat list, and again → 40 now that overdue tasks can pile up too.
+      // Pending tasks (todo/doing): due today, or no deadline at all (an
+      // undated "someday" bucket, shown until done). Overdue tasks used
+      // to also show here (deadline < today) — pulled back out on
+      // purpose: this board is "today," full stop, and overdue work
+      // belongs on the Tasks tab instead, not mixed into a page meant to
+      // answer "what's on my plate today." (See the daily overdue-digest
+      // notification in routes/notifications.js for how people still get
+      // nudged about it without it cluttering this board.) Done tasks
+      // stay scoped tightly to "finished today" via completed_at, not
+      // the original deadline, so the Dashboard's Done column shows what
+      // was actually accomplished today without dragging in old
+      // completed work that happened to be due today weeks ago.
       db.execute({
         sql: `SELECT * FROM tasks
               WHERE user_id = ? AND project_id IS NULL AND source != 'nuvora'
                 AND (
-                  (status != 'done' AND (deadline <= ? OR deadline IS NULL))
+                  (status != 'done' AND (deadline = ? OR deadline IS NULL))
                   OR (status = 'done' AND date(completed_at) = ?)
                 )
               ORDER BY CASE priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC
@@ -119,7 +118,16 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
     // call) — it also opportunistically spends an available shield to
     // cover a missed day and grants new shields at 7-day milestones,
     // both idempotent so running this on every dashboard load is safe.
-    const shieldState = await syncStreakShields(userId);
+    // `today` (above — client's local date if given, UTC otherwise) is
+    // passed through explicitly so the streak lines up with the exact
+    // same calendar day the rest of this response (tasks, mood, counts)
+    // is built on. Without this, the streak silently fell back to the
+    // server's own real UTC "now" no matter what date the rest of the
+    // page was using — invisible almost all day, but for anyone a few
+    // hours off UTC (this app's whole userbase, effectively), there's a
+    // real window near UTC midnight where "today's tasks" and "the
+    // streak card" disagreed on what day it even was.
+    const shieldState = await syncStreakShields(userId, today);
 
     // ── Weekly recap — a short narrative digest, not another chart.
     // Analytics already has detailed 8-week bar/line charts for this
@@ -157,7 +165,7 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       justShielded:      shieldState.justShielded,
       justEarnedShield:  shieldState.justEarnedShield,
       recap,
-      treeStage: await getTreeStage(userId),
+      treeStage: await getTreeStage(userId, today),
       level:     await getLevelInfo(userId),
       counts: { tasksDoneToday, totalTasksToday, habitsDoneToday, totalHabits: habits.length },
     });
