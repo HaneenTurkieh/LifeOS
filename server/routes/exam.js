@@ -163,16 +163,36 @@ router.post('/generate', async (req, res) => {
     // regardless of document length. A file well under the app's own
     // 8000-word "large doc" warning (confirmed live at 3,789 words)
     // still failed outright, purely from needing more wall-clock time to
-    // generate a big tree, no thinking involved. Only mindmap gets the
-    // longer budget; every other mode keeps the 45s default that's
-    // worked fine for it all along.
-    const timeoutMs = mode === 'mindmap' ? 85000 : undefined; // undefined → callOpenRouter's own 45s default
+    // generate a big tree, no thinking involved. First attempt at this
+    // raised the budget to 85s — confirmed live that a ~2,900-word doc
+    // completes fine in ~70s under that budget, but Haneen's own
+    // 3,789-word file still failed at ~120s even with the 85s bump
+    // (denser/harder-to-summarize source material takes proportionally
+    // longer, not just more words) — so this raises it again to 150s, a
+    // wide enough margin over the ~70s baseline to cover real variance
+    // in generation time rather than just the one data point that
+    // happened to fail. Only mindmap gets the longer budget; every other
+    // mode keeps the 45s default that's worked fine for it all along.
+    const timeoutMs = mode === 'mindmap' ? 150000 : undefined; // undefined → callOpenRouter's own 45s default
+    // Belt-and-suspenders alongside the timeout bump above: even 150s
+    // has to end somewhere, so cap how much source text a mindmap prompt
+    // can actually carry. The client appends the extracted content as
+    // the very last part of the prompt (after all the instructions), so
+    // slicing from the end only ever trims content, never the
+    // instructions telling the model what to do with it. 40,000 chars is
+    // roughly 6,500-7,000 words — comfortably past every real document
+    // this has been tested against (including the 3,789-word file that
+    // needed the timeout bump), so this doesn't change behavior for any
+    // realistic upload; it just stops a truly enormous document from
+    // being a guaranteed timeout no matter how generous the budget is.
+    const MAX_MINDMAP_PROMPT_CHARS = 40000;
+    const boundedPrompt = mode === 'mindmap' ? prompt.slice(0, MAX_MINDMAP_PROMPT_CHARS) : prompt;
     // 8192 headroom (not the old 4096) — was cutting off comprehensive
     // slide decks mid-JSON on longer source docs, since generation stops
     // at the token cap, not at a clean JSON boundary. Slides ask for
     // full-detail, uncapped coverage, so they need the room.
     const data = await callOpenRouter({
-      messages:    [{ role: 'user', content: prompt }],
+      messages:    [{ role: 'user', content: boundedPrompt }],
       max_tokens:  8192,
       // Higher than the (unset→provider-default) value used for plain
       // Lumi chat — exam questions should vary between regenerations off
