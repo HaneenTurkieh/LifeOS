@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain, Sparkles, RotateCcw, Check, X,
-  ChevronLeft, ChevronRight, Upload, FileText,
+  ChevronLeft, ChevronRight, ChevronDown, Upload, FileText,
   Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
-  FileDown, Presentation,
+  FileDown, Presentation, Network,
 } from 'lucide-react';
 import { api, getToken } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -100,7 +100,7 @@ async function exportPdfText(mode, data, t, isPremium) {
 
   const heading = {
     mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
-    flashcards: t('exam.flashcards'), slides: t('exam.slides'),
+    flashcards: t('exam.flashcards'), slides: t('exam.slides'), mindmap: t('exam.mindmap'),
   }[mode] || mode;
 
   const ensureSpace = (lines = 1, lineHeight = 16) => {
@@ -168,6 +168,20 @@ async function exportPdfText(mode, data, t, isPremium) {
       if (s.note) writeWrapped(`Note: ${s.note}`, 9.5, false, 16);
       y += 12;
     });
+  } else if (mode === 'mindmap') {
+    // Recursive — same shape as the on-screen tree, flattened onto the
+    // page as indented headings instead of collapsible rows. Source/quote
+    // are left out of the PDF on purpose: this is meant to work as a
+    // standalone reference away from the app, and "[quoted passage]" with
+    // no way to tap through to it would just read as clutter on paper.
+    const writeNode = (node, depth) => {
+      ensureSpace(2, 16);
+      writeWrapped(node.title, depth === 0 ? 13 : 11, true, depth * 16, depth === 0 ? null : [90, 70, 160]);
+      if (node.summary) writeWrapped(node.summary, 9.5, false, depth * 16 + 14);
+      (node.children || []).forEach((child) => writeNode(child, depth + 1));
+      if (depth === 0) y += 8;
+    };
+    data.forEach((node) => writeNode(node, 0));
   }
 
   // Free-tier watermark — a small credit stamped in the corner of every
@@ -203,7 +217,7 @@ async function exportPdfSnapshot(mode, data, t, isRtl, isPremium) {
 
   const heading = {
     mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
-    flashcards: t('exam.flashcards'), slides: t('exam.slides'),
+    flashcards: t('exam.flashcards'), slides: t('exam.slides'), mindmap: t('exam.mindmap'),
   }[mode] || mode;
 
   const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -248,6 +262,19 @@ async function exportPdfSnapshot(mode, data, t, isRtl, isPremium) {
       ...(s.bullets || []).map((b) => ({ text: `•  ${b}` })),
       ...(s.note ? [{ text: `📝 ${s.note}` }] : []),
     ])));
+  } else if (mode === 'mindmap') {
+    // Same "no source/quote clutter on paper" call as the Latin-text
+    // export path above — indentation alone (via padding-inline-start)
+    // carries the hierarchy here instead of jsPDF's manual x-offset.
+    const nodeRows = (node, depth) => {
+      rows.push(`
+        <div style="margin:${depth === 0 ? '18px 0 6px' : '6px 0'};padding-inline-start:${depth * 22}px;">
+          <p style="font-size:${depth === 0 ? 16 : 13}px;font-weight:${depth === 0 ? 800 : 700};margin:0 0 2px;color:${depth === 0 ? '#1E2233' : '#6B5BD6'};">${esc(node.title)}</p>
+          ${node.summary ? `<p style="font-size:12px;margin:0;color:#555;line-height:1.5;">${esc(node.summary)}</p>` : ''}
+        </div>`);
+      (node.children || []).forEach((child) => nodeRows(child, depth + 1));
+    };
+    data.forEach((node) => nodeRows(node, 0));
   }
 
   const container = document.createElement('div');
@@ -323,7 +350,7 @@ async function exportPptx(mode, data, t, isPremium) {
 
   const heading = {
     mcq: t('exam.mcq'), blanks: t('exam.blanks'), mixed: t('exam.mixed'),
-    flashcards: t('exam.flashcards'), slides: t('exam.slides'),
+    flashcards: t('exam.flashcards'), slides: t('exam.slides'), mindmap: t('exam.mindmap'),
   }[mode] || mode;
 
   const titleSlide = pptx.addSlide();
@@ -450,6 +477,24 @@ async function exportPptx(mode, data, t, isPremium) {
           ...(s.note ? [{ text: `📝 ${s.note}`, fontSize: 12 }] : []),
         ]);
       }
+    });
+  } else if (mode === 'mindmap') {
+    // One slide per top-level topic — addContentSlide's body is a flat
+    // bullet list (no real indent levels in this helper), so hierarchy
+    // below the topic itself is conveyed with a "—" prefix + shrinking
+    // font per depth rather than true nesting, capped at two levels deep
+    // so a slide doesn't get overloaded with grandchildren.
+    data.forEach((topic) => {
+      const lines = [];
+      if (topic.summary) lines.push({ text: topic.summary, bullet: false, fontSize: 13 });
+      (topic.children || []).forEach((sub) => {
+        lines.push({ text: sub.title, bold: true, color: accentHex, fontSize: 13 });
+        if (sub.summary) lines.push({ text: `—  ${sub.summary}`, fontSize: 11 });
+        (sub.children || []).forEach((leaf) => {
+          lines.push({ text: `—  ${leaf.title}${leaf.summary ? ': ' + leaf.summary : ''}`, fontSize: 10, color: '666666' });
+        });
+      });
+      addContentSlide(topic.title, lines);
     });
   }
 
@@ -907,6 +952,122 @@ function SlideDeck({ slides, t }) {
   );
 }
 
+// ── Concept Map — expandable tree instead of a literal node-graph
+// canvas. A real connected-boxes-and-lines flowchart needs a graph
+// library (none installed here) and is genuinely rough to pan/zoom on a
+// phone — an accordion-style tree gets the same "explore topic →
+// subtopic → detail" structure NotebookLM's mind map has, using nothing
+// but what's already in this app, and works cleanly on mobile. ─────
+function MindMapNode({ node, depth, onAskLumi, onViewSource, t }) {
+  const [open, setOpen] = useState(depth === 0);
+  const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+  const hasDetail = !!(node.summary || node.quote || node.source);
+  return (
+    <div className={depth > 0 ? 'ps-4 border-s' : ''} style={depth > 0 ? { borderColor:'rgba(255,255,255,0.10)' } : undefined}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-start transition-all hover:bg-white/5"
+      >
+        {(hasChildren || hasDetail)
+          ? (open ? <ChevronDown size={13} className="shrink-0 text-ink/30 dark:text-white/30"/> : <ChevronRight size={13} className="shrink-0 text-ink/30 dark:text-white/30 rtl:rotate-180"/>)
+          : <span className="w-[13px] shrink-0"/>}
+        <span className={depth === 0
+          ? 'text-sm font-bold text-ink dark:text-white'
+          : 'text-sm font-semibold text-ink/75 dark:text-white/70'}>
+          {node.title}
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (hasChildren || hasDetail) && (
+          <motion.div
+            initial={{ height:0, opacity:0 }} animate={{ height:'auto', opacity:1 }} exit={{ height:0, opacity:0 }}
+            transition={{ duration:0.18 }}
+            className="overflow-hidden"
+          >
+            <div className="ps-9 pe-2 mb-2 mt-0.5 flex flex-col gap-2">
+              {node.summary && (
+                <p className="text-xs text-ink/55 dark:text-white/50 leading-relaxed">{node.summary}</p>
+              )}
+              {(node.source || node.quote) && (
+                <button type="button" onClick={() => onViewSource(node)}
+                  className="self-start flex items-center gap-1 text-[10px] font-semibold text-lavender-500 hover:underline">
+                  <FileText size={10}/> {node.source || t('exam.pastedNotes')}
+                </button>
+              )}
+              <button type="button" onClick={() => onAskLumi(node)}
+                className="self-start flex items-center gap-1 text-[10px] font-semibold text-lavender-500 hover:underline">
+                <Sparkles size={10}/> {t('exam.askLumiMore')}
+              </button>
+              {hasChildren && (
+                <div className="flex flex-col gap-1 mt-1">
+                  {node.children.map((child, i) => (
+                    <MindMapNode key={i} node={child} depth={depth + 1} onAskLumi={onAskLumi} onViewSource={onViewSource} t={t}/>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+function MindMap({ tree, onAskLumi, onViewSource, t }) {
+  return (
+    <div className="rounded-3xl p-3" style={glass}>
+      <div className="flex flex-col gap-1">
+        {tree.map((node, i) => (
+          <MindMapNode key={i} node={node} depth={0} onAskLumi={onAskLumi} onViewSource={onViewSource} t={t}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// "Takes you to where it exists in your files" — honestly scoped to
+// what's actually stored: the original PDF/PPTX/DOCX isn't kept or
+// rendered anywhere, only its extracted text (see /exam/extract), so
+// there's no real page/position to jump to. What this CAN do faithfully
+// is show that exact extracted text with the model's own verbatim quote
+// highlighted in place — the real passage the node was grounded in, not
+// a paraphrase.
+function SourceViewerModal({ node, files, notes, onClose, t }) {
+  const file  = node.source ? files.find(f => f.name === node.source) : null;
+  const text  = file ? file.text : notes;
+  const quote = (node.quote || '').trim();
+  const idx   = quote ? text.indexOf(quote) : -1;
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ background:'rgba(7,11,20,0.75)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}
+      onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[80vh] rounded-3xl p-6 flex flex-col gap-3"
+        style={{ background:'rgba(24,20,40,0.97)', border:'1px solid rgba(255,255,255,0.12)' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2 min-w-0">
+            <FileText size={14} className="shrink-0"/> <span className="truncate">{node.source || t('exam.pastedNotes')}</span>
+          </p>
+          <button onClick={onClose} className="text-white/40 hover:text-white shrink-0"><X size={18}/></button>
+        </div>
+        {!text?.trim() ? (
+          <p className="text-xs text-white/40">{t('exam.sourceNotAvailable')}</p>
+        ) : (
+          <div className="overflow-y-auto text-xs text-white/55 leading-relaxed whitespace-pre-wrap" style={{ maxHeight:'55vh' }}>
+            {idx === -1 ? text : (
+              <>
+                {text.slice(0, idx)}
+                <mark style={{ background:'rgba(168,85,247,0.35)', color:'white', borderRadius:4, padding:'0 2px' }}>{quote}</mark>
+                {text.slice(idx + quote.length)}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ExamAssistant() {
   const toast = useToast();
   const { t, lang } = useLanguage();
@@ -918,6 +1079,7 @@ export default function ExamAssistant() {
     { key:'mixed',      label:t('exam.mixed'),      icon:'🎯', desc:t('exam.mixedDesc')      },
     { key:'flashcards', label:t('exam.flashcards'), icon:'🃏', desc:t('exam.flashDesc')      },
     { key:'slides',     label:t('exam.slides'),     icon:'🖥️', desc:t('exam.slidesDesc')    },
+    { key:'mindmap',    label:t('exam.mindmap'),    icon:'🗺️', desc:t('exam.mindmapDesc')   },
     { key:'chat',       label:t('exam.studyChat'),  icon:'💬', desc:t('exam.studyChatDesc') },
   ];
   const DIFFICULTIES = [
@@ -951,6 +1113,8 @@ export default function ExamAssistant() {
   const [chatMessages,  setChatMessages]  = useState([]);
   const [chatInput,     setChatInput]     = useState('');
   const [chatLoading,   setChatLoading]   = useState(false);
+  // Concept Map — which node's "view in source" modal is open, if any.
+  const [sourceViewNode, setSourceViewNode] = useState(null);
   const fileRef = useRef(null);
   const chatEndRef = useRef(null);
 
@@ -1153,6 +1317,15 @@ Content:\n${content}`;
 Keep bullets concise (short phrases, not paragraphs) so the response fits in one reply.${styleLine}
 Each object: { "title": string, "bullets": [short strings] or [] if using a chart, "note": string or null, "chart": null or { "type": "bar" or "pie", "labels": [string], "values": [number] } }
 Content:\n${content}`;
+    } else if (mode === 'mindmap') {
+      // Doubles as the downloadable reference/"syllabus" export, so this
+      // needs to be genuinely comprehensive, not just the highlights —
+      // same "don't skip anything" bar as the exam modes above.
+      prompt = `${base}Build a concept map of ALL the material below as a nested JSON tree — this is meant to work as a study reference on its own, so don't skip any topic.
+Structure: 4-8 top-level topics that cover the whole content, each with 2-5 subtopic children, and subtopics may have 0-3 of their own children for finer detail. Every node uses this exact shape:
+{ "title": string (short, 2-6 words), "summary": string (2-3 plain sentences explaining this node on its own, understandable without reading anything else), "source": string (the exact filename this came from, copied verbatim from the "[filename]" tag above that part of the content below — or "" if it came from the pasted notes instead of an uploaded file), "quote": string (a short passage copied EXACTLY, word-for-word, from the content below that this node is grounded in — never paraphrased, must be findable via plain string search in the original), "children": [nodes in this same shape] or [] }
+Return a JSON ARRAY of the top-level topic nodes only (their "children" arrays hold the rest).
+Content:\n${content}`;
     }
     try {
       const res = await authedFetch('/api/exam/generate', {
@@ -1198,13 +1371,18 @@ Content:\n${content}`;
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatLoading]);
 
-  const sendChatMessage = async () => {
-    const question = chatInput.trim();
+  // `override` lets a caller (the concept map's "Ask Lumi more" button)
+  // send a specific question straight through, bypassing whatever's
+  // currently sitting in the input box — setChatInput + immediately
+  // reading chatInput wouldn't work here since the set is async and
+  // wouldn't be visible yet on this same call.
+  const sendChatMessage = async (override) => {
+    const question = (override ?? chatInput).trim();
     if (!question || chatLoading) return;
     if (!combinedContent.trim()) { toast.error(t('exam.addFirst')); return; }
     const nextMessages = [...chatMessages, { role: 'user', content: question }];
     setChatMessages(nextMessages);
-    setChatInput('');
+    if (override === undefined) setChatInput('');
     setChatLoading(true);
     try {
       const res = await authedFetch('/api/exam/chat', {
@@ -1225,6 +1403,17 @@ Content:\n${content}`;
     } finally {
       setChatLoading(false);
     }
+  };
+
+  // Concept map node → Study Chat. The node's own `summary` is already a
+  // free, instant explanation shown right in the tree — this is for
+  // going deeper, so it leaves the generated quiz/deck view entirely and
+  // drops into an actual conversation about it (same source material,
+  // still grounded, now able to follow up).
+  const askLumiAboutNode = (node) => {
+    setResult(null);
+    setMode('chat');
+    sendChatMessage(t('exam.explainMore', { topic: node.title }));
   };
 
   const handleExport = async (format) => {
@@ -1289,7 +1478,7 @@ Content:\n${content}`;
                 ))}
               </div>
             </div>
-            {mode !== 'slides' && mode !== 'chat' && (
+            {mode !== 'slides' && mode !== 'chat' && mode !== 'mindmap' && (
               <div className="rounded-3xl p-5" style={glass}>
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">{t('exam.difficulty')}</p>
                 <div className="flex gap-2">
@@ -1305,7 +1494,7 @@ Content:\n${content}`;
                 </div>
               </div>
             )}
-            {mode !== 'chat' && (
+            {mode !== 'chat' && mode !== 'mindmap' && (
             <div className="rounded-3xl p-5" style={glass}>
               <div className="mb-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
@@ -1550,7 +1739,7 @@ Content:\n${content}`;
                     <VoiceInputButton size="sm" onText={(chunk) => setChatInput((v) => appendText(v, chunk))} />
                     <motion.button
                       whileHover={{ scale:1.05 }} whileTap={{ scale:0.95 }}
-                      onClick={sendChatMessage}
+                      onClick={() => sendChatMessage()}
                       disabled={chatLoading || !chatInput.trim()}
                       className="btn-primary px-5 py-3 disabled:opacity-40"
                     >
@@ -1625,7 +1814,14 @@ Content:\n${content}`;
                     ? t('exam.minSlides', { n: result.data.length })
                     : result.mode==='flashcards'
                     ? t('exam.cards', { n: result.data.length })
-                    : t('exam.questions', { n: result.data.length })} · {t(`exam.${difficulty}`)}
+                    : result.mode==='mindmap'
+                    ? t('exam.topics', { n: result.data.length })
+                    : t('exam.questions', { n: result.data.length })}
+                  {/* Difficulty never applied to slides or the concept map
+                      (neither shows the picker — see the sidebar's mode
+                      guards above) — showing it here anyway would just be
+                      a stale/meaningless "· Medium" tacked on. */}
+                  {result.mode!=='slides' && result.mode!=='mindmap' && ` · ${t(`exam.${difficulty}`)}`}
                 </p>
               </div>
             </div>
@@ -1659,7 +1855,13 @@ Content:\n${content}`;
           {result.mode==='mixed'      && <MixedExam  questions={result.data} t={t} durationMin={result.durationMin}/>}
           {result.mode==='flashcards' && <Flashcards cards={result.data} t={t}/>}
           {result.mode==='slides'     && <SlideDeck  slides={result.data} t={t}/>}
+          {result.mode==='mindmap'    && (
+            <MindMap tree={result.data} onAskLumi={askLumiAboutNode} onViewSource={setSourceViewNode} t={t}/>
+          )}
         </div>
+      )}
+      {sourceViewNode && (
+        <SourceViewerModal node={sourceViewNode} files={files} notes={notes} onClose={() => setSourceViewNode(null)} t={t}/>
       )}
     </div>
   );
