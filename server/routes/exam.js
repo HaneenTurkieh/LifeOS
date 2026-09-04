@@ -177,6 +177,67 @@ router.post('/generate', async (req, res) => {
   }
 });
 
+// ── POST /chat ─────────────────────────────────────────────────
+// NotebookLM-style "ask questions about exactly this material" — the
+// quiz/flashcard/slide modes above are one-shot generation, this is a
+// back-and-forth conversation grounded in the same uploaded/pasted
+// content instead of Lumi's general knowledge. No embeddings/vector
+// search involved: the content sizes this app deals with (one file's
+// extracted text, capped below) comfortably fit in a single prompt, so
+// the simplest correct thing is to just resend the full source text
+// each turn and let the model quote/point back into it directly — a
+// real RAG pipeline would only start paying for itself with sources
+// far bigger than anything Exam Assistant currently accepts.
+const MAX_CHAT_SOURCE_CHARS = 20000;
+router.post('/chat', async (req, res) => {
+  const { content, question, history } = req.body;
+  if (!content?.trim())  return res.status(400).json({ error: 'content is required' });
+  if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
+  if (!process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set' });
+
+  const gate = await checkLimit(req.user.id, 'study_chat');
+  if (!gate.allowed) {
+    return res.status(403).json({ error: limitMessage('study_chat', gate.limit), code: 'DAILY_LIMIT', feature: 'study_chat' });
+  }
+
+  // Trimmed, not the client's problem to enforce — a pasted-notes textarea
+  // has no size limit of its own the way file uploads do.
+  const source = content.trim().slice(0, MAX_CHAT_SOURCE_CHARS);
+  const system = `You are a study assistant helping a student understand material they've given you. Answer ONLY using the study material below — never your own outside knowledge, even if you happen to know more about the topic. If the material doesn't actually cover what's being asked, say so plainly instead of guessing or filling the gap yourself. Where it helps, quote or point to the specific part of the material your answer comes from. Keep answers focused and conversational, not a full essay unless asked.
+
+STUDY MATERIAL:
+${source}`;
+  // Only the last few turns — bounds cost on a long-running conversation
+  // (the full source is already being resent every single turn above,
+  // so an unbounded transcript on top of that compounds fast) and old
+  // turns matter far less than the material itself for grounding.
+  const trimmedHistory = Array.isArray(history) ? history.slice(-8) : [];
+  const messages = [
+    ...trimmedHistory
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .map(m => ({ role: m.role, content: m.content.slice(0, 4000) })),
+    { role: 'user', content: question.trim().slice(0, 2000) },
+  ];
+
+  try {
+    const data = await callOpenRouter({
+      system,
+      messages,
+      max_tokens:  1200,
+      temperature: 0.3, // grounded Q&A, not creative variety like /generate
+    });
+    const answer = data.choices?.[0]?.message?.content || '';
+    if (!answer.trim()) {
+      return res.status(502).json({ error: 'No answer generated. Please try again.' });
+    }
+    await recordUsage(req.user.id, 'study_chat');
+    res.json({ answer, remaining: gate.remaining - 1 });
+  } catch (err) {
+    console.error('Exam chat error:', err);
+    res.status(500).json({ error: 'Chat failed. Please try again.' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // Exam sessions — persist generated exams so they survive refresh.
 // Free tier: most recent 15 sessions kept, older ones auto-pruned
