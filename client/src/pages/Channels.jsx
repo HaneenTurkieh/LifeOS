@@ -173,7 +173,7 @@ export default function Channels() {
             <div className="flex items-center gap-2">
               <input id="channels-join-input" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 placeholder={t('channels.joinCodePh')} maxLength={6} dir="ltr"
-                className={`${inputCls} w-44 text-center font-mono tracking-widest`} />
+                className={`${inputCls} !w-44 shrink-0 text-center font-mono tracking-widest`} />
               <button onClick={joinChannel} disabled={joining}
                 className="flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, rgb(var(--accent-400)) 0%, rgb(var(--accent-600)) 100%)' }}>
@@ -611,11 +611,14 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
               </button>
             </div>
             <div className="flex gap-2">
+              {/* Same inputCls-carries-w-full override as the points form
+                  above — !w-XX + shrink-0 forces these to actually stay
+                  narrow instead of each fighting to fill the row. */}
               <input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)}
-                title={t('channels.announcementDate')} className={`${inputCls} w-40`} />
+                title={t('channels.announcementDate')} className={`${inputCls} !w-40 shrink-0`} />
               {postDate && (
                 <input type="time" value={postTime} onChange={(e) => setPostTime(e.target.value)}
-                  title={t('channels.announcementTime')} className={`${inputCls} w-32`} />
+                  title={t('channels.announcementTime')} className={`${inputCls} !w-32 shrink-0`} />
               )}
               <span className="text-[11px] text-ink/35 dark:text-white/30 self-center">{t('channels.announcementDateHint')}</span>
             </div>
@@ -844,11 +847,20 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                     <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
+                {/* Real bug this fixes: inputCls already carries w-full, and in
+                    Tailwind's generated stylesheet that utility's rule sits
+                    after w-32's — same specificity, so w-full always won
+                    regardless of class order in the JSX. The amount field
+                    ended up stretching to fill almost the entire row while
+                    Reason (flex-1) was squeezed down to ~30px, un-typeable.
+                    shrink-0 + !w-32 (Tailwind's important-marker) forces the
+                    override so amount actually stays narrow and Reason gets
+                    the room it needs. */}
                 <div className="flex gap-2">
                   <input type="number" value={awardForm.amount} onChange={(e) => setAwardForm((f) => ({ ...f, amount: e.target.value }))}
-                    placeholder={t('channels.pointsAmountPh')} className={`${inputCls} w-32`} />
+                    placeholder={t('channels.pointsAmountPh')} className={`${inputCls} !w-32 shrink-0`} />
                   <input value={awardForm.reason} onChange={(e) => setAwardForm((f) => ({ ...f, reason: e.target.value }))}
-                    placeholder={t('channels.pointsReasonPh')} className={`${inputCls} flex-1`} />
+                    placeholder={t('channels.pointsReasonPh')} className={`${inputCls} flex-1 min-w-0`} />
                 </div>
                 <button onClick={awardPoints}
                   disabled={awarding || !awardForm.studentId || !Number(awardForm.amount) || !awardForm.reason.trim()}

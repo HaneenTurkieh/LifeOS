@@ -271,6 +271,14 @@ function AppShell() {
     return () => window.removeEventListener('nuvora:mood-updated', onMoodUpdate);
   }, []);
 
+  // AppShell only ever mounts after a real, successful render — clearing
+  // ErrorBoundary's one-shot chunk-reload flag here (rather than never)
+  // means a genuine stale-chunk error later in the SAME tab session (a
+  // second deploy landing while this tab is still open, say) still gets
+  // its one free silent auto-reload instead of being permanently spent
+  // by the first one.
+  useEffect(() => { sessionStorage.removeItem('nuvora_chunk_reload'); }, []);
+
   // ── "How can I help you today?" greeting ───────────────────────
   // Fires on a brand new account's very first login (no "last seen"
   // record at all yet) AND on any later login/return after being away a

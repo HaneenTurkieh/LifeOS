@@ -226,13 +226,44 @@ router.put('/:id', async (req, res) => {
 
     let xpAwarded = 0;
     let nextTask  = null;
+    let late      = false;
 
     if (!wasDone && isNowDone) {
       // Gamification must never break a task save
       if (!alreadyEarnedXp) {
+        // Late = completed on a local calendar day after the deadline
+        // day, mirroring exactly what the "Overdue" badge already means
+        // everywhere else in the app (TaskColumn on the Dashboard,
+        // TaskGroup's "Overdue" section on Tasks.jsx) — a task finished
+        // any time on its own due date still counts as on-time, only the
+        // day after does not. Uses the same real-UTC→local-calendar-day
+        // conversion as focus.js's localDay() (see comment there), fed
+        // by tz_offset_min — the user's own browser offset, refreshed on
+        // every notification-bell poll (routes/notifications.js) — so
+        // this doesn't reintroduce the UTC-vs-local mismatch the mood
+        // endpoint had. A user who has never opened the bell yet (offset
+        // still NULL) just falls back to UTC "today", same as every
+        // other date-sensitive endpoint in this codebase already does.
+        if (updates.deadline) {
+          try {
+            const userRow = (await db.execute({
+              sql:  `SELECT tz_offset_min FROM users WHERE id = ?`,
+              args: [req.user.id],
+            })).rows[0];
+            const tzOffsetMin = Number(userRow?.tz_offset_min) || 0;
+            const localToday  = new Date(Date.now() - tzOffsetMin * 60000).toISOString().slice(0, 10);
+            late = localToday > updates.deadline;
+          } catch (e) {
+            console.error('late-task check failed (non-fatal, treated as on-time):', e.message);
+          }
+        }
+
+        const xpAmount = late ? 10 : 20;
         try {
-          await addXp(req.user.id, 20, `Completed task: ${updates.title}`);
-          xpAwarded = 20;
+          await addXp(req.user.id, xpAmount, late
+            ? `Completed task late: ${updates.title}`
+            : `Completed task: ${updates.title}`);
+          xpAwarded = xpAmount;
         } catch (e) {
           console.error('addXp failed (non-fatal):', e.message);
         }
@@ -243,9 +274,13 @@ router.put('/:id', async (req, res) => {
         // student's own self-created tasks never touch this table.
         // Gated behind the same !alreadyEarnedXp flag as XP above so
         // toggling done/undone/done can't farm channel points either.
+        // Halved on the same late/on-time basis as the XP award above.
         if (existing.channel_id) {
           try {
-            await awardChannelPoints(existing.channel_id, req.user.id, CHANNEL_TASK_POINTS, `Completed task: ${updates.title}`);
+            const channelAmount = late ? Math.round(CHANNEL_TASK_POINTS / 2) : CHANNEL_TASK_POINTS;
+            await awardChannelPoints(existing.channel_id, req.user.id, channelAmount, late
+              ? `Completed task late: ${updates.title}`
+              : `Completed task: ${updates.title}`);
           } catch (e) {
             console.error('awardChannelPoints failed (non-fatal):', e.message);
           }
@@ -315,7 +350,7 @@ router.put('/:id', async (req, res) => {
     // toast feel slow — the toast only fires client-side once this
     // response resolves, so it was waiting on all of that for no reason
     // most of the time.
-    res.json({ task, xpAwarded, nextTask, unlocked: [] });
+    res.json({ task, xpAwarded, nextTask, unlocked: [], late });
 
     // Only evaluate achievements on an actual todo→done transition —
     // that's the only time these counts can move. A rename/reschedule/

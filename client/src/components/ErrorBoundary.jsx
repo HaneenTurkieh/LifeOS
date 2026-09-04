@@ -25,6 +25,28 @@ export default class ErrorBoundary extends React.Component {
     // can happen before auth is even ready, so there's no reliable
     // authenticated place to send it from here yet.
     console.error('Uncaught render error:', error, info?.componentStack);
+
+    // Real bug this fixes: every page is lazy-loaded (see App.jsx), so
+    // its JS chunk is fetched by a content-hashed filename the FIRST
+    // time someone navigates to it. If a new version deploys while a
+    // tab is already open, the browser is still holding the OLD
+    // index.html's chunk map — clicking into any page whose chunk
+    // isn't the one currently loaded (or whose hash no longer exists
+    // post-deploy) throws "Failed to fetch dynamically imported
+    // module" and lands here, on the generic crash screen, for a user
+    // who did nothing wrong. That's a bad thing to hit mid-demo if a
+    // deploy happens to land at the wrong moment. A stale chunk always
+    // fixes itself with one reload (it picks up the new index.html and
+    // its correct chunk map), so auto-reload once instead of making
+    // them read an error message and click a button. The sessionStorage
+    // flag caps it at one silent retry — if reloading doesn't clear it
+    // (a real, non-stale-chunk error), fall through to the normal
+    // recovery screen instead of loop-reloading forever.
+    const isChunkLoadError = /Failed to fetch dynamically imported module|Importing a module script failed/i.test(error?.message || '');
+    if (isChunkLoadError && !sessionStorage.getItem('nuvora_chunk_reload')) {
+      sessionStorage.setItem('nuvora_chunk_reload', '1');
+      window.location.reload();
+    }
   }
 
   render() {

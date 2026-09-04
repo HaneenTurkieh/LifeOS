@@ -758,7 +758,16 @@ function PremiumTab() {
           </div>
         </div>
       )}
-      {!status.is_premium && trial?.eligible && (
+      {/* Real bug this fixes: the earlier instructor Premium-tab pass
+          (perks/pricing/streak) missed this one — a level-gated free
+          trial still showed for instructor accounts even though the
+          same "leveling doesn't apply to this role" reasoning that got
+          the onboarding XP hint dropped entirely applies here too.
+          Instructors don't do the XP-earning actions (tasks/goals/
+          habits/focus) that leveling is built on, so "reach level 5"
+          was permanently-almost-true noise, not a real incentive.
+          Left out entirely below, same treatment as onboarding. */}
+      {!isInstructor && !status.is_premium && trial?.eligible && (
         <div className="rounded-2xl p-4 flex items-center gap-3"
           style={{ background:'linear-gradient(135deg,rgba(255,184,77,0.14),rgb(var(--accent-500) / 0.10))', border:'1px solid rgba(255,184,77,0.35)' }}>
           <Gift size={20} className="text-sun-500 shrink-0" />
@@ -775,7 +784,7 @@ function PremiumTab() {
           </button>
         </div>
       )}
-      {!status.is_premium && trial && !trial.eligible && !trial.trialActive && !trial.trialUsed && trial.level < trial.requiredLevel && (
+      {!isInstructor && !status.is_premium && trial && !trial.eligible && !trial.trialActive && !trial.trialUsed && trial.level < trial.requiredLevel && (
         <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
           style={{ background:'rgb(var(--accent-500) / 0.05)', border:'1px solid rgb(var(--accent-500) / 0.12)' }}>
           <Gift size={15} className="text-ink/30 dark:text-white/25 shrink-0" />
