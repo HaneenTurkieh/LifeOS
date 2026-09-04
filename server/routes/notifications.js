@@ -428,6 +428,25 @@ router.get('/', async (req, res) => {
       // request over. Skipped for instructors along with everything else
       // above — there's nothing left that reads it for that role.
       db.execute({ sql: `UPDATE users SET tz_offset_min=? WHERE id=?`, args: [tzOffsetMin, req.user.id] }).catch(() => {});
+    } else {
+      // Real bug this fixes: the guards above (and inside
+      // generateNotifications) stop NEW student-oriented notifications
+      // from being created for an instructor, but nothing ever cleaned
+      // up rows that already existed — either from before an account was
+      // switched to instructor, or from before this role check existed
+      // at all. Those old "How are you feeling?" / grace-period / streak
+      // rows just sat in the bell forever, unread, no matter how correct
+      // the guard above was going forward. Every legitimate instructor
+      // notification is inserted directly by routes/channels.js with a
+      // 'channel_*' type (announcement, chat, task/goal assigned, room
+      // invite, points) — anything NOT prefixed that way is leftover
+      // noise from the student-oriented generator and safe to clear out
+      // outright for this role. Runs on every poll (cheap, scoped to one
+      // user) so it also self-heals if anything ever leaks through again.
+      await db.execute({
+        sql:  `DELETE FROM notifications WHERE user_id=? AND type NOT LIKE 'channel_%'`,
+        args: [req.user.id],
+      }).catch(() => {});
     }
 
     const result = await db.execute({
