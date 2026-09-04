@@ -156,6 +156,17 @@ router.post('/generate', async (req, res) => {
     // handled gracefully client-side — SourceViewerModal just shows the
     // source file without a highlight if the quote isn't found verbatim.
     const reasoningEffort = mode === 'mindmap' ? null : 'high';
+    // Second real bug, found after the fix above: turning reasoning off
+    // fixed *thinking* time, but a mindmap's output length scales with
+    // how much source material it has to cover ("don't skip any topic")
+    // in a way MCQs/flashcards don't — those just sample N items
+    // regardless of document length. A file well under the app's own
+    // 8000-word "large doc" warning (confirmed live at 3,789 words)
+    // still failed outright, purely from needing more wall-clock time to
+    // generate a big tree, no thinking involved. Only mindmap gets the
+    // longer budget; every other mode keeps the 45s default that's
+    // worked fine for it all along.
+    const timeoutMs = mode === 'mindmap' ? 85000 : undefined; // undefined → callOpenRouter's own 45s default
     // 8192 headroom (not the old 4096) — was cutting off comprehensive
     // slide decks mid-JSON on longer source docs, since generation stops
     // at the token cap, not at a clean JSON boundary. Slides ask for
@@ -170,6 +181,7 @@ router.post('/generate', async (req, res) => {
       temperature: 1.0,
       top_p:       0.95,
       reasoningEffort,
+      timeoutMs,
     });
     const text = data.choices?.[0]?.message?.content || '';
     // Real bug that used to live here: recordUsage ran unconditionally

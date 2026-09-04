@@ -45,6 +45,14 @@ async function callOpenRouter({
   // reserved for Deep Think specifically, since it's slower and pricier
   // per call. Pass reasoningEffort: null to omit thinking entirely.
   reasoningEffort = 'high',
+  // Per-call override for the 45s default below. Exists specifically for
+  // exam.js's mindmap mode: turning reasoning off (see reasoningEffort
+  // above) fixed the *thinking*-driven timeout, but a genuinely long
+  // source document still needs a genuinely long completion to cover
+  // "all of it" in the tree — that's real generation time, not thinking
+  // time, and 45s wasn't always enough headroom for it even with
+  // reasoning off. Every other caller keeps the 45s default.
+  timeoutMs = 45000,
   // Deep Search — OpenRouter's provider-agnostic web plugin (works with
   // any underlying model, not just Gemini). $4 per 1,000 results, so
   // cheap per actual use. See https://openrouter.ai/docs/guides/features/plugins/web-search
@@ -91,7 +99,7 @@ async function callOpenRouter({
   //     retrying those just wastes time on something that won't change.
   async function attempt() {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const r = await fetch(OPENROUTER_URL, {
         method:  'POST',
