@@ -825,7 +825,8 @@ export const translations = {
       'login.wentWrong':    'Something went wrong',
       'login.welcomeXp':    '🎁 Welcome! +{n} XP gifted',
       'login.googleNotConfigured': 'Add VITE_GOOGLE_CLIENT_ID (client) + GOOGLE_CLIENT_ID (server) to enable this',
-  
+      'login.googleNoAccount': "No Nuvora account for that Google email yet — let's get you signed up.",
+
       // ── Notifications ──────────────────────────────────────
       'notif.title':    'Notifications',
       'notif.markAll':  'Mark all read',
@@ -1966,7 +1967,8 @@ export const translations = {
       'login.wentWrong':    'حدث خطأ ما',
       'login.welcomeXp':    '🎁 أهلاً بك! تم إهداؤك {n} نقطة خبرة',
       'login.googleNotConfigured': 'أضف VITE_GOOGLE_CLIENT_ID (العميل) + GOOGLE_CLIENT_ID (الخادم) لتفعيل هذا الخيار',
-  
+      'login.googleNoAccount': 'لا يوجد حساب في Nuvora لهذا البريد من Google بعد — لنكمل إنشاء حساب جديد.',
+
       // ── الإشعارات ────────────────────────────────────────────
       'notif.title':    'الإشعارات',
       'notif.markAll':  'تحديد الكل كمقروء',
