@@ -14,6 +14,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 // data === null and just fall back to their stored English text below.
 const NOTIF_KEYS = {
   overdue:                    { title: 'notif.overdue.title',                   body: 'notif.overdue.body' },
+  overdue_digest:              { title: 'notif.overdue_digest.title',            body: 'notif.overdue_digest.body' },
   procrastination:            { title: 'notif.procrastination.title',           body: 'notif.procrastination.body' },
   streak:                     { title: 'notif.streak.title',                    body: 'notif.streak.body' },
   deadline:                   { title: 'notif.deadline.title',                  body: 'notif.deadline.body' },
@@ -27,6 +28,7 @@ const NOTIF_KEYS = {
 
 const TYPE_COLORS = {
   overdue:  { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)'  },
+  overdue_digest: { dot: '#FF7A63', bg: 'rgba(255,122,99,0.10)' },
   streak:   { dot: '#FFB84D', bg: 'rgba(255,184,77,0.10)'  },
   deadline: { dot: 'rgb(var(--accent-500))', bg: 'rgb(var(--accent-500) / 0.10)' },
   milestone_due: { dot: '#8B5CF6', bg: 'rgba(139,92,246,0.10)' },

@@ -142,12 +142,21 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
   await rollForwardBirthdays(userId, today);
-  const [tasks, habits, goals, streak, mood, dueMilestones] = await Promise.all([
+  const [tasks, overdueCountResult, habits, goals, streak, mood, dueMilestones] = await Promise.all([
     db.execute({
       sql:  `SELECT id, title, deadline FROM tasks
              WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
                AND is_birthday=0
              ORDER BY deadline ASC LIMIT 5`,
+      args: [userId, today],
+    }),
+    // Real total (not capped at 5 like the per-task query above) — feeds
+    // the daily digest below, which needs an accurate count, not just
+    // "at least one."
+    db.execute({
+      sql:  `SELECT COUNT(*) c FROM tasks
+             WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
+               AND is_birthday=0`,
       args: [userId, today],
     }),
     db.execute({
@@ -193,6 +202,25 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
       body:  `"${task.title}" was due on ${task.deadline}`,
       link:  `/tasks?task=${task.id}`,
       data:  { title: task.title, deadline: task.deadline },
+    });
+  }
+
+  // Daily overdue digest — the Dashboard's "Today's tasks" board now
+  // only shows what's actually due today (overdue work lives on the
+  // Tasks tab instead), so this is the replacement for "oh right, I
+  // still have those" now that overdue tasks no longer just sit visible
+  // on the page you open first. One aggregate nudge per day (deduped by
+  // day, see notificationDedupe.js), not per task — the per-task
+  // 'overdue' notifications above already cover "which ones," this just
+  // covers "hey, you still have some."
+  const overdueCount = Number(overdueCountResult.rows[0]?.c || 0);
+  if (overdueCount > 0) {
+    toCreate.push({
+      type:  'overdue_digest',
+      title: '📋 Picking up from before',
+      body:  `You have ${overdueCount} task(s) from before today still open`,
+      link:  '/tasks',
+      data:  { n: overdueCount },
     });
   }
 

@@ -841,6 +841,8 @@ export const translations = {
 
       'notif.overdue.title':                  '⚠️ Task overdue',
       'notif.overdue.body':                   '"{title}" was due on {deadline}',
+      'notif.overdue_digest.title':           '📋 Picking up from before',
+      'notif.overdue_digest.body':            'You have {n} task(s) from before today still open',
       'notif.procrastination.title':           '🌱 Still on your list',
       'notif.procrastination.body':            '"{title}" has been sitting a couple days — want Lumi to help you start small?',
       'notif.streak.title':                    '🔥 Streak at risk',
@@ -1983,6 +1985,8 @@ export const translations = {
 
       'notif.overdue.title':                  '⚠️ مهمة متأخرة',
       'notif.overdue.body':                   '"{title}" كان موعدها {deadline}',
+      'notif.overdue_digest.title':           '📋 أكملي من حيث توقفتِ',
+      'notif.overdue_digest.body':            'لديكِ {n} مهمة من قبل اليوم ما زالت مفتوحة',
       'notif.procrastination.title':           '🌱 لسا على قائمتك',
       'notif.procrastination.body':            '"{title}" قاعدة من كم يوم — بدك لومي يساعدك تبدئي صغير؟',
       'notif.streak.title':                    '🔥 التتابع مهدد',

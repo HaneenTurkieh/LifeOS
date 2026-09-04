@@ -12,8 +12,13 @@ function buildDedupeKey(type, link, day) {
     // stop) keeps the same daily nudge without the pileup.
     // Everything else (overdue, deadline): once per entity, forever,
     // until resolved — link encodes the entity id.
-    if (type === 'streak') return `${type}:${day}`;
-    if (type === 'mood')   return `${type}:${day}`;
+    if (type === 'streak')         return `${type}:${day}`;
+    if (type === 'mood')           return `${type}:${day}`;
+    // Overdue digest: one aggregate "you have N tasks from before" nudge
+    // per day, same idea as streak/mood above — distinct from the
+    // per-task 'overdue' notifications below, which fire once per task
+    // forever rather than daily.
+    if (type === 'overdue_digest') return `${type}:${day}`;
     return `${type}:${link}`;
   }
   module.exports = { buildDedupeKey };
