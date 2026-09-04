@@ -957,24 +957,40 @@ function SlideDeck({ slides, t }) {
 // library (none installed here) and is genuinely rough to pan/zoom on a
 // phone — an accordion-style tree gets the same "explore topic →
 // subtopic → detail" structure NotebookLM's mind map has, using nothing
-// but what's already in this app, and works cleanly on mobile. ─────
-function MindMapNode({ node, depth, onAskLumi, onViewSource, t }) {
+// but what's already in this app, and works cleanly on mobile. What IS
+// borrowed directly from NotebookLM's look: each top-level topic gets
+// its own distinct color that carries down through its whole branch —
+// that color-per-branch identity is the single most recognizable part
+// of its mind map, and translates cleanly to a tree with zero new
+// dependencies (just a color prop threaded through recursion).
+const MINDMAP_BRANCH_COLORS = [
+  { dot: '#7C6AF0', bg: 'rgba(124,106,240,0.10)', border: 'rgba(124,106,240,0.28)' },
+  { dot: '#FF8A42', bg: 'rgba(255,138,66,0.10)',  border: 'rgba(255,138,66,0.28)'  },
+  { dot: '#2DA76E', bg: 'rgba(76,195,138,0.10)',  border: 'rgba(76,195,138,0.28)'  },
+  { dot: '#5C9AFF', bg: 'rgba(92,154,255,0.10)',  border: 'rgba(92,154,255,0.28)'  },
+  { dot: '#F5408F', bg: 'rgba(245,64,143,0.10)',  border: 'rgba(245,64,143,0.28)'  },
+  { dot: '#E0932A', bg: 'rgba(255,184,77,0.10)',  border: 'rgba(255,184,77,0.28)'  },
+];
+function MindMapNode({ node, depth, branchColor, onAskLumi, onViewSource, t }) {
   const [open, setOpen] = useState(depth === 0);
   const hasChildren = Array.isArray(node.children) && node.children.length > 0;
   const hasDetail = !!(node.summary || node.quote || node.source);
   return (
-    <div className={depth > 0 ? 'ps-4 border-s' : ''} style={depth > 0 ? { borderColor:'rgba(255,255,255,0.10)' } : undefined}>
+    <div className={depth > 0 ? 'ps-4' : ''} style={depth > 0 ? { borderInlineStart: `2px solid ${branchColor.border}` } : undefined}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-start transition-all hover:bg-white/5"
       >
         {(hasChildren || hasDetail)
-          ? (open ? <ChevronDown size={13} className="shrink-0 text-ink/30 dark:text-white/30"/> : <ChevronRight size={13} className="shrink-0 text-ink/30 dark:text-white/30 rtl:rotate-180"/>)
-          : <span className="w-[13px] shrink-0"/>}
+          ? (open
+              ? <ChevronDown size={13} className="shrink-0" style={{ color: branchColor.dot }}/>
+              : <ChevronRight size={13} className="shrink-0 rtl:rotate-180" style={{ color: branchColor.dot }}/>)
+          : <span className="h-1.5 w-1.5 rounded-full shrink-0 mx-[3.5px]" style={{ background: branchColor.dot }}/>}
         <span className={depth === 0
-          ? 'text-sm font-bold text-ink dark:text-white'
-          : 'text-sm font-semibold text-ink/75 dark:text-white/70'}>
+          ? 'text-sm font-bold'
+          : 'text-sm font-semibold text-ink/75 dark:text-white/70'}
+          style={depth === 0 ? { color: branchColor.dot } : undefined}>
           {node.title}
         </span>
       </button>
@@ -1002,7 +1018,7 @@ function MindMapNode({ node, depth, onAskLumi, onViewSource, t }) {
               {hasChildren && (
                 <div className="flex flex-col gap-1 mt-1">
                   {node.children.map((child, i) => (
-                    <MindMapNode key={i} node={child} depth={depth + 1} onAskLumi={onAskLumi} onViewSource={onViewSource} t={t}/>
+                    <MindMapNode key={i} node={child} depth={depth + 1} branchColor={branchColor} onAskLumi={onAskLumi} onViewSource={onViewSource} t={t}/>
                   ))}
                 </div>
               )}
@@ -1015,12 +1031,19 @@ function MindMapNode({ node, depth, onAskLumi, onViewSource, t }) {
 }
 function MindMap({ tree, onAskLumi, onViewSource, t }) {
   return (
-    <div className="rounded-3xl p-3" style={glass}>
-      <div className="flex flex-col gap-1">
-        {tree.map((node, i) => (
-          <MindMapNode key={i} node={node} depth={0} onAskLumi={onAskLumi} onViewSource={onViewSource} t={t}/>
-        ))}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 px-1 text-ink/40 dark:text-white/35">
+        <Network size={13}/>
+        <span className="text-[11px] font-semibold uppercase tracking-wide">{t('exam.mindmap')}</span>
       </div>
+      {tree.map((node, i) => {
+        const branchColor = MINDMAP_BRANCH_COLORS[i % MINDMAP_BRANCH_COLORS.length];
+        return (
+          <div key={i} className="rounded-3xl p-3" style={{ background: branchColor.bg, border: `1px solid ${branchColor.border}` }}>
+            <MindMapNode node={node} depth={0} branchColor={branchColor} onAskLumi={onAskLumi} onViewSource={onViewSource} t={t}/>
+          </div>
+        );
+      })}
     </div>
   );
 }
