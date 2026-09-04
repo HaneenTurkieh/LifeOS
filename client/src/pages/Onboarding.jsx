@@ -305,6 +305,12 @@ function LumiStep({ onNext, isInstructor }) {
           ))}
         </div>
       </div>
+      {/* Provider names, not exact model/tier strings — those get swapped
+          under the hood as pricing/availability changes (see comments in
+          server/lib/openrouter.js and server/lib/gemini.js, already
+          revised more than once), so this stays accurate without needing
+          an onboarding-copy update every time that happens. */}
+      <p className="text-[10px] text-white/30">{t('onboarding.poweredBy')}</p>
       {/* XP/leveling is earned by completing tasks/goals/habits — none of
           which an instructor account has — so the "level up to unlock a
           trial" pitch doesn't hold for this role. Left out entirely
@@ -369,6 +375,55 @@ function FlowStep({ onNext }) {
   );
 }
 
+// iOS-only. Android/desktop Chrome fires its own `beforeinstallprompt`
+// banner unprompted, but Safari on iOS never does — there's no native
+// "install this" nudge at all there, so without walking someone through
+// the manual Share-sheet steps here, most iOS users would just never
+// discover Nuvora can live on their home screen full-screen like a real
+// app. Only shown when actually useful: real iOS, and not already
+// running installed (checked in Onboarding below) — showing install
+// instructions to someone who already installed it would just be noise.
+function InstallStep({ onNext }) {
+  const { t, isRTL } = useLanguage();
+  return (
+    <div className="flex flex-col items-center text-center gap-4">
+      <motion.div
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        className="flex h-16 w-16 items-center justify-center rounded-3xl text-3xl"
+        style={{ background: 'linear-gradient(135deg,#60A5FA 0%,#3B82F6 100%)', boxShadow: '0 16px 40px rgba(59,130,246,0.40)' }}>
+        📲
+      </motion.div>
+      <div>
+        <h2 className="font-display text-2xl font-bold text-white mb-2">{t('onboarding.installTitle')}</h2>
+        <p className="text-white/55 text-sm leading-relaxed max-w-xs mx-auto">
+          {t('onboarding.installSubtitle')}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2.5 w-full">
+        {[
+          { n: '1', text: t('onboarding.installStep1') },
+          { n: '2', text: t('onboarding.installStep2') },
+          { n: '3', text: t('onboarding.installStep3') },
+        ].map(({ n, text }) => (
+          <div key={n}
+            className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-start text-sm text-white/70"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              style={{ background: 'rgba(96,165,250,0.45)' }}>
+              {n}
+            </span>
+            {text}
+          </div>
+        ))}
+      </div>
+      <PrimaryBtn onClick={onNext}>
+        {t('onboarding.continue')} <ArrowRight size={16} style={isRTL ? { transform: 'scaleX(-1)' } : undefined} />
+      </PrimaryBtn>
+    </div>
+  );
+}
+
 function DoneStep({ name, isInstructor, onFinish }) {
   const { t } = useLanguage();
   return (
@@ -417,6 +472,20 @@ export default function Onboarding({ user, onComplete }) {
   const isInstructor = user?.role === 'instructor';
   const next = () => setStep((s) => s + 1);
 
+  // Real iOS device, opened in the regular Safari browser tab rather than
+  // already running as the installed home-screen app. `navigator.standalone`
+  // is Safari's own (non-standard, iOS-only) flag for exactly that second
+  // check — `display-mode: standalone` alone isn't reliable on iOS Safari.
+  // Computed once per mount (onboarding only ever runs once per account
+  // anyway) rather than kept reactive — nobody installs the PWA mid-flow.
+  const isIOSInstallable = (() => {
+    if (typeof navigator === 'undefined' || typeof window === 'undefined') return false;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '') && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true
+      || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    return isIOS && !isStandalone;
+  })();
+
   // "Refold" — instead of dismissing instantly, fold the card back
   // shut (mirror of the entrance fold) and only unmount once that
   // animation has actually finished playing.
@@ -438,6 +507,7 @@ export default function Onboarding({ user, onComplete }) {
         <WelcomeStep      key="welcome" name={name} isInstructor onNext={next} />,
         <ChannelSetupStep key="setup"   onNext={next} />,
         <LumiStep         key="lumi"    isInstructor onNext={next} />,
+        ...(isIOSInstallable ? [<InstallStep key="install" onNext={next} />] : []),
         <DoneStep         key="done"    name={name} isInstructor onFinish={finish} />,
       ]
     : [
@@ -445,6 +515,7 @@ export default function Onboarding({ user, onComplete }) {
         <QuickSetupStep key="setup"   onNext={next} />,
         <LumiStep       key="lumi"    onNext={next} />,
         <FlowStep       key="flow"    onNext={next} />,
+        ...(isIOSInstallable ? [<InstallStep key="install" onNext={next} />] : []),
         <DoneStep       key="done"    name={name}   onFinish={finish} />,
       ];
   const totalSteps = stepContent.length - 2;
