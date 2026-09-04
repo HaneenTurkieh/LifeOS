@@ -126,6 +126,19 @@ async function rollForwardBirthdays(userId, today) {
 }
 
 async function generateNotifications(userId, tzOffsetMin = 0) {
+  // Real bug this fixes: the GET /notifications route (below) was
+  // already gated to skip this for instructor accounts, but
+  // emailReminders.js and pushReminders.js both call this function
+  // directly on their own cron ticks, looping over every user with no
+  // role filter of their own — so an instructor kept getting fresh
+  // "How are you feeling?" / streak / procrastination rows inserted
+  // into their bell every tick regardless, since the route-level check
+  // never ran on that path. Checking the role here, at the one shared
+  // source of truth, closes it for every current call site and any
+  // future one instead of needing the same guard copy-pasted three times.
+  const roleRow = (await db.execute({ sql: `SELECT role FROM users WHERE id = ?`, args: [userId] })).rows[0];
+  if (roleRow?.role === 'instructor') return;
+
   const toCreate = [];
   const today    = new Date().toISOString().slice(0, 10);
   await rollForwardBirthdays(userId, today);

@@ -405,8 +405,8 @@ export default function Calendar() {
       // from Calendar silently gave XP with zero on-screen confirmation.
       // Easy to read as "I didn't get points" when really you just
       // weren't told you did.
-      const { xpAwarded, unlocked } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
-      if (xpAwarded) toast.xp(xpAwarded, task.title);
+      const { xpAwarded, unlocked, late } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+      if (xpAwarded) toast.xp(xpAwarded, late ? `${task.title} · ${t('tasks.completedLate')}` : task.title);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
       setSelectedTask(null);
       load();

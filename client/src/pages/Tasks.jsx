@@ -211,8 +211,8 @@ export default function Tasks() {
   const markDone = async (task) => {
     setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status:'done', progress:100 } : tk));
     try {
-      const { xpAwarded, unlocked, nextTask } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
-      if (xpAwarded) toast.xp(xpAwarded, task.title);
+      const { xpAwarded, unlocked, nextTask, late } = await api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+      if (xpAwarded) toast.xp(xpAwarded, late ? `${task.title} · ${t('tasks.completedLate')}` : task.title);
       unlocked?.forEach(k => toast.achievement(k.replace(/_/g,' ')));
       if (nextTask) {
         const norm = { ...nextTask, priority: (nextTask.priority||'medium').toLowerCase() };

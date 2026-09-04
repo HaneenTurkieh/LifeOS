@@ -237,7 +237,7 @@ export default function Dashboard() {
     } catch (e) { toast.error(e.message); }
     finally { setMoodSaving(false); }
   };
-  const completeTask = async (task) => {
+  const completeTask = async (task, { viaDrag = false } = {}) => {
     // Two things used to be wrong here, both read as "the circle isn't
     // even checking": (1) nothing happened on screen until the full PUT
     // round trip resolved — Tasks.jsx's own markDone already updates
@@ -248,10 +248,7 @@ export default function Dashboard() {
     // instant you tap (real, immediate feedback), THEN remove the row a
     // beat later — the API call itself fires immediately in parallel, so
     // this delay is purely the visual confirmation, not added latency.
-    setJustCompletedId(task.id);
-    const req = api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
-    setTimeout(() => {
-      setJustCompletedId((cur) => (cur === task.id ? null : cur));
+    const applyDone = () => {
       // Used to filter the task OUT of todaysTasks entirely — that was
       // right back when the card was a single flat "still to do" list,
       // but now a completed task belongs in the Done column instead of
@@ -261,10 +258,30 @@ export default function Dashboard() {
         todaysTasks: prev.todaysTasks.map((t) => t.id === task.id ? { ...t, status:'done', progress:100 } : t),
         counts: { ...prev.counts, tasksDoneToday: (prev.counts?.tasksDoneToday || 0) + 1 },
       });
-    }, 420);
+    };
+    const req = api.put(`/tasks/${task.id}`, { status:'done', progress:100 });
+    if (viaDrag) {
+      // A drag into the Done column already IS the visual confirmation
+      // — the card physically moved under the cursor. The 420ms flash
+      // delay below is for the click-to-complete path only; applying it
+      // here too used to make @hello-pangea/dnd snap the card back to
+      // its original column the instant you let go (todaysTasks hadn't
+      // changed yet, so as far as the library's controlled list was
+      // concerned nothing moved), then teleport it into Done a beat
+      // later — the "quirky drag and drop" this fixes. Flipping the
+      // status synchronously, in the same tick as the drop, keeps the
+      // card exactly where the drag left it.
+      applyDone();
+    } else {
+      setJustCompletedId(task.id);
+      setTimeout(() => {
+        setJustCompletedId((cur) => (cur === task.id ? null : cur));
+        applyDone();
+      }, 420);
+    }
     try {
-      const { xpAwarded, unlocked } = await req;
-      if (xpAwarded) toast.xp(xpAwarded, task.title);
+      const { xpAwarded, unlocked, late } = await req;
+      if (xpAwarded) toast.xp(xpAwarded, late ? `${task.title} · ${t('tasks.completedLate')}` : task.title);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g,' ')));
       load(); // reconciles productivity score/streak/tree with real server state
     } catch (e) {
@@ -300,7 +317,7 @@ export default function Dashboard() {
     if (source.droppableId === destination.droppableId) return; // reordering within a column isn't persisted (yet)
     const task = data?.todaysTasks?.find((t) => String(t.id) === draggableId);
     if (!task) return;
-    if (destination.droppableId === 'done') completeTask(task);
+    if (destination.droppableId === 'done') completeTask(task, { viaDrag: true });
     else moveTask(task, destination.droppableId);
   };
   const deleteTask = async (task) => {
