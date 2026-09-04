@@ -61,7 +61,20 @@ router.get('/', async (req, res) => {
         const score = Math.round(Math.min(100, Number(rT.rows[0].c) * 15 + (Number(rH.rows[0].c) / totalHabits) * 50));
         return { date: date.slice(5), score };
       })),
-      db.execute({ sql: `SELECT category, COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' GROUP BY category`, args: [userId] }),
+      // Real bug this fixes: category used to be a freeform text box (see
+      // Tasks.jsx's CATEGORY_OPTIONS comment) before it became a fixed
+      // dropdown, so older/legacy rows have whatever casing someone typed
+      // at the time — "Personal" and "personal", "Uni" and "uni", each
+      // counted as its own separate slice here instead of one. Grouping
+      // by the lowercased/trimmed value merges pure case/whitespace
+      // variants of the same word; MIN(category) picks one consistent
+      // display label for the group (deterministic — always the
+      // alphabetically-first spelling — rather than whichever row SQLite
+      // happens to return first). Genuinely different words like "uni"
+      // vs "university" are left as separate slices on purpose — that's
+      // a content call, not a casing bug, and not something to guess at
+      // silently here.
+      db.execute({ sql: `SELECT MIN(category) as category, COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' GROUP BY LOWER(TRIM(category)) ORDER BY c DESC`, args: [userId] }),
       db.execute({ sql: `SELECT priority, COUNT(*) c FROM tasks WHERE user_id = ? GROUP BY priority`, args: [userId] }),
     ]);
 

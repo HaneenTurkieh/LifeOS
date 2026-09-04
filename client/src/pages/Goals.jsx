@@ -544,11 +544,21 @@ No explanation, no markdown fences, just the JSON object.`,
                     button here also lets them turn it on/off later for
                     any goal that has a target date, in case they change
                     their mind after creating it. */}
-                {g.target_date && g.status !== 'completed' && (
+                {/* Real bug this fixes: once a goal's target date is in the
+                    past, daysUntilDate() goes negative and the button used
+                    to read "Plan the next -1 days" (or worse) — and tapping
+                    it opened a day-planner grid with zero days in it, since
+                    dateRangeToTarget's loop never runs backward. There's
+                    nothing left to plan into once the date has passed, so
+                    the invite to turn it on is hidden once overdue. An
+                    already-enabled plan on a goal that's since gone overdue
+                    still gets its "Hide day plan" toggle — turning an
+                    existing one off should always stay available. */}
+                {g.target_date && g.status !== 'completed' && (daysUntilDate(g.target_date) >= 0 || g.day_planner_enabled) && (
                   <div className="mt-3">
                     <button type="button" onClick={() => togglePlanner(g)}
                       className="flex items-center gap-1.5 text-xs font-semibold text-lavender-600 hover:underline">
-                      <CalendarClock size={12}/> {g.day_planner_enabled ? t('goals.hideDayPlan') : t('goals.planDays', { n: daysUntilDate(g.target_date) + 1 })}
+                      <CalendarClock size={12}/> {g.day_planner_enabled ? t('goals.hideDayPlan') : t('goals.planDays', { n: Math.max(0, daysUntilDate(g.target_date)) + 1 })}
                     </button>
                     {/* day_planner_enabled comes back from SQLite as the
                         integer 0/1, not a real boolean — using it bare in
