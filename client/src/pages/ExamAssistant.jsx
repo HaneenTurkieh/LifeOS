@@ -1673,8 +1673,19 @@ Content:\n${content}`;
                     <div className="flex gap-4 flex-wrap">
                       {[
                         { icon:<FileText size={12}/>,  label:t('exam.words', { n: wordCount.toLocaleString() }) },
-                        { icon:<Clock size={12}/>,      label:t('exam.minExam', { n: duration }) },
-                        { icon:<BarChart2 size={12}/>,  label:t(`exam.${difficulty}`) },
+                        // Duration and difficulty are meaningless for Concept
+                        // Map (no timer, no easy/medium/hard) — this row used
+                        // to show them unconditionally for every non-chat
+                        // mode, including mindmap, displaying whatever
+                        // leftover value `duration`/`difficulty` happened to
+                        // still hold from the last exam-style mode used. The
+                        // sidebar already hides the actual duration/difficulty
+                        // controls for mindmap (and difficulty for slides
+                        // too) — this just mirrors those same conditions
+                        // instead of showing stats for settings that don't
+                        // apply to and were never used by the selected mode.
+                        ...(mode !== 'mindmap' ? [{ icon:<Clock size={12}/>, label:t('exam.minExam', { n: duration }) }] : []),
+                        ...(mode !== 'mindmap' && mode !== 'slides' ? [{ icon:<BarChart2 size={12}/>, label:t(`exam.${difficulty}`) }] : []),
                       ].map(({ icon, label }) => (
                         <span key={label} className="flex items-center gap-1.5 text-[11px] text-ink/45 font-medium">
                           {icon} {label}
