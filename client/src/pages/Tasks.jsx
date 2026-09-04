@@ -106,6 +106,8 @@ export default function Tasks() {
   const [editingTask,   setEditingTask]   = useState(null);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [stuckTask,     setStuckTask]     = useState(null);
+  const [quickText,     setQuickText]     = useState('');
+  const [quickLoading,  setQuickLoading]  = useState(false);
   const toast = useToast();
   const { t, lang } = useLanguage();
   const dateLocale = lang === 'ar' ? 'ar' : 'en-US';
@@ -252,6 +254,73 @@ export default function Tasks() {
     });
     setModalOpen(true);
   };
+  // AI quick-add — one sentence (typed or dictated via the mic button in
+  // the input, see VoiceInputButton below) gets sent to Lumi's plain chat
+  // endpoint (no_history: true so it never clutters real Lumi
+  // conversations, mode: 'chat' — deliberately NOT 'review' — since
+  // pulling title/date/priority/category out of one sentence is a
+  // mechanical extraction, not a judgment call like Projects.jsx's
+  // "break into 5-7 tasks", so this stays on the cheap/unlimited chat
+  // tier instead of eating into the daily ai_review cap). The parsed
+  // fields populate the SAME create/edit form and modal used everywhere
+  // else on this page — nothing gets created yet. The person still sees
+  // and can correct every field before hitting "Add task", so a
+  // misheard word or a wrong guess never silently becomes a real task.
+  const runQuickAdd = async () => {
+    const sentence = quickText.trim();
+    if (!sentence || quickLoading) return;
+    setQuickLoading(true);
+    try {
+      const res = await api.post('/chat', {
+        messages: [{
+          role: 'user',
+          content: `Extract a single task from this sentence: "${sentence}"
+
+Today's date is ${localTodayStr()}. Resolve relative dates/times ("tomorrow", "next Friday", "in 3 days", "at 5pm") against today's date.
+
+Return ONLY a JSON object with keys:
+- title: string, required — a short clean task title with the date/time/priority words stripped out
+- deadline: "YYYY-MM-DD" or null if no date was mentioned
+- deadline_time: 24h "HH:MM" or null, only if a specific time was actually mentioned
+- priority: "high", "medium", or "low" — infer from urgency words like "urgent"/"asap"/"important" vs "whenever"/"no rush", default "medium"
+- category: one short lowercase word for the task's area, e.g. "university", "personal", "health", "finance", "general"
+
+No explanation, no markdown fences, just the JSON object.`,
+        }],
+        no_history: true,
+        mode: 'chat',
+        local_date: localTodayStr(),
+      });
+      let parsed = null;
+      try {
+        parsed = JSON.parse(res.text.replace(/```json|```/g, '').trim());
+      } catch (_) {
+        const match = res.text.match(/\{[\s\S]*\}/);
+        if (match) { try { parsed = JSON.parse(match[0]); } catch (_) {} }
+      }
+      if (!parsed?.title) { toast.error(t('tasks.quickAddFailed')); return; }
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      const TIME_RE = /^\d{2}:\d{2}$/;
+      const deadline      = DATE_RE.test(parsed.deadline) ? parsed.deadline : '';
+      const deadline_time = TIME_RE.test(parsed.deadline_time) ? parsed.deadline_time : '';
+      const priority = ['high','medium','low'].includes(parsed.priority) ? parsed.priority : 'medium';
+      const { select: categorySelect, custom: categoryCustom } = categoryToSelect(parsed.category);
+      setEditingTask(null);
+      setForm({
+        ...emptyForm,
+        title: parsed.title,
+        priority, deadline, deadline_time,
+        category: categorySelect === 'other' ? categoryCustom : categorySelect,
+        categorySelect, categoryCustom,
+      });
+      setQuickText('');
+      setModalOpen(true);
+    } catch (err) {
+      toast.error(err.message || t('tasks.quickAddFailed'));
+    } finally {
+      setQuickLoading(false);
+    }
+  };
   const submitForm = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
@@ -292,6 +361,32 @@ export default function Tasks() {
         subtitle={t('tasks.subtitle')}
         action={<button className="btn-primary" onClick={openCreateModal}><Plus size={16}/> {t('tasks.newTask')}</button>}
       />
+      {/* AI quick-add — type OR speak one sentence ("remind me to submit the
+          report by Friday 5pm, it's urgent") and Lumi fills the fields
+          below for you to glance at and confirm, instead of touching the
+          date picker / priority dropdown / category select by hand. The
+          mic button dictates into this same input — same pipeline either
+          way, voice is just speech-to-text feeding the typed path. */}
+      <div className="mb-6 flex items-center gap-2 rounded-2xl border border-white/70 bg-white/70
+                       dark:border-white/10 dark:bg-white/[0.04] p-2 pl-3.5 shadow-sm">
+        <Sparkles size={16} className="shrink-0" style={{ color: 'rgb(var(--accent-500))' }} />
+        <input
+          className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-ink dark:text-white
+                     placeholder:text-ink/35 dark:placeholder:text-white/30"
+          placeholder={t('tasks.quickAddPlaceholder')}
+          value={quickText}
+          onChange={e => setQuickText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !quickLoading) { e.preventDefault(); runQuickAdd(); } }}
+          disabled={quickLoading}
+        />
+        <VoiceInputButton size="sm" onText={(chunk) => setQuickText(v => appendText(v, chunk))} />
+        <button type="button" className="btn-primary shrink-0 px-3.5" onClick={runQuickAdd}
+          disabled={quickLoading || !quickText.trim()}>
+          {quickLoading
+            ? <span className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            : t('tasks.quickAddGo')}
+        </button>
+      </div>
       {isEmpty ? (
         <EmptyState icon={ListChecks} title={t('tasks.emptyTitle')}
           description={t('tasks.emptyDesc')}
