@@ -29,6 +29,13 @@ const { isPremium } = require('./premium');
 //   - anti_proc:     /ai/anti-procrastination — cheap and meant to be
 //     low-volume (one click on one stuck task), but had zero limit at
 //     all, unlike every other real AI-cost route in the app.
+//   - study_chat:    /exam/chat — same cheap DeepSeek model as exam_generate,
+//     but re-sends the full source material (up to ~20k chars) on every
+//     single turn since there's no server-side session to hold it, so a
+//     back-and-forth conversation costs meaningfully more overall than one
+//     exam_generate call. Still meant to be used repeatedly through an
+//     actual study session (that's the point of a chat), so it gets a much
+//     higher daily count than exam_generate rather than the same cap.
 const LIMITS = {
   exam_generate: 5,
   deep_think:    4,
@@ -36,6 +43,7 @@ const LIMITS = {
   ai_review:     6,
   file_extract:  8,
   anti_proc:     15,
+  study_chat:    30,
 };
 
 const FEATURE_LABEL = {
@@ -45,6 +53,7 @@ const FEATURE_LABEL = {
   ai_review:     'AI review',
   file_extract:  'file extraction',
   anti_proc:     "feeling stuck? suggestions",
+  study_chat:    'study chat',
 };
 
 function todayIso() {

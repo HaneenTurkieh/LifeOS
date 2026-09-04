@@ -918,6 +918,7 @@ export default function ExamAssistant() {
     { key:'mixed',      label:t('exam.mixed'),      icon:'🎯', desc:t('exam.mixedDesc')      },
     { key:'flashcards', label:t('exam.flashcards'), icon:'🃏', desc:t('exam.flashDesc')      },
     { key:'slides',     label:t('exam.slides'),     icon:'🖥️', desc:t('exam.slidesDesc')    },
+    { key:'chat',       label:t('exam.studyChat'),  icon:'💬', desc:t('exam.studyChatDesc') },
   ];
   const DIFFICULTIES = [
     { key:'easy',   label:t('exam.easy'),   color:'#4CC38A' },
@@ -944,7 +945,14 @@ export default function ExamAssistant() {
   const [exporting,     setExporting]     = useState(null);
   const [stylePref,     setStylePref]     = useState('');
   const [stylePrefSaved,setStylePrefSaved]= useState('');
+  // Study Chat — separate from the generate-a-quiz flow above, so its own
+  // state instead of reusing `result` (which is shaped for the quiz/
+  // flashcard/slide viewer, not a running conversation).
+  const [chatMessages,  setChatMessages]  = useState([]);
+  const [chatInput,     setChatInput]     = useState('');
+  const [chatLoading,   setChatLoading]   = useState(false);
   const fileRef = useRef(null);
+  const chatEndRef = useRef(null);
 
   const BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:4000'
@@ -1183,6 +1191,42 @@ Content:\n${content}`;
     }
   };
 
+  // Study Chat — grounded Q&A over combinedContent (same source the quiz/
+  // slide modes above use). No `result` involved; it's its own running
+  // transcript instead of a one-shot generation.
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, chatLoading]);
+
+  const sendChatMessage = async () => {
+    const question = chatInput.trim();
+    if (!question || chatLoading) return;
+    if (!combinedContent.trim()) { toast.error(t('exam.addFirst')); return; }
+    const nextMessages = [...chatMessages, { role: 'user', content: question }];
+    setChatMessages(nextMessages);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await authedFetch('/api/exam/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          content:  combinedContent,
+          question,
+          // Everything except the message we just added — the server
+          // appends the new question itself.
+          history: nextMessages.slice(0, -1).slice(-8),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Chat failed');
+      setChatMessages(m => [...m, { role: 'assistant', content: data.answer }]);
+    } catch (err) {
+      toast.error(err.message || 'Something went wrong — try again.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const handleExport = async (format) => {
     if (!result) return;
     setExporting(format);
@@ -1245,7 +1289,7 @@ Content:\n${content}`;
                 ))}
               </div>
             </div>
-            {mode !== 'slides' && (
+            {mode !== 'slides' && mode !== 'chat' && (
               <div className="rounded-3xl p-5" style={glass}>
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-3">{t('exam.difficulty')}</p>
                 <div className="flex gap-2">
@@ -1261,6 +1305,7 @@ Content:\n${content}`;
                 </div>
               </div>
             )}
+            {mode !== 'chat' && (
             <div className="rounded-3xl p-5" style={glass}>
               <div className="mb-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-ink/40 mb-2">
@@ -1303,6 +1348,7 @@ Content:\n${content}`;
                 </div>
               )}
             </div>
+            )}
             <button onClick={() => setShowFileInfo(s=>!s)}
               className="flex items-center gap-2 rounded-2xl px-4 py-3 text-xs font-semibold text-lavender-600 transition-all text-start"
               style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
@@ -1409,44 +1455,112 @@ Content:\n${content}`;
                   onChange={e => setNotes(e.target.value)}
                 />
               </div>
-              {hasContent && (
-                <div className="flex gap-4 flex-wrap">
-                  {[
-                    { icon:<FileText size={12}/>,  label:t('exam.words', { n: wordCount.toLocaleString() }) },
-                    { icon:<Clock size={12}/>,      label:t('exam.minExam', { n: duration }) },
-                    { icon:<BarChart2 size={12}/>,  label:t(`exam.${difficulty}`) },
-                  ].map(({ icon, label }) => (
-                    <span key={label} className="flex items-center gap-1.5 text-[11px] text-ink/45 font-medium">
-                      {icon} {label}
-                    </span>
-                  ))}
-                  {wordCount > 8000 && (
-                    <span className="flex items-center gap-1.5 text-[11px] font-medium text-sun-600">
-                      <AlertCircle size={11}/> {t('exam.largeWarn')}
-                    </span>
+              {mode !== 'chat' ? (
+                <>
+                  {hasContent && (
+                    <div className="flex gap-4 flex-wrap">
+                      {[
+                        { icon:<FileText size={12}/>,  label:t('exam.words', { n: wordCount.toLocaleString() }) },
+                        { icon:<Clock size={12}/>,      label:t('exam.minExam', { n: duration }) },
+                        { icon:<BarChart2 size={12}/>,  label:t(`exam.${difficulty}`) },
+                      ].map(({ icon, label }) => (
+                        <span key={label} className="flex items-center gap-1.5 text-[11px] text-ink/45 font-medium">
+                          {icon} {label}
+                        </span>
+                      ))}
+                      {wordCount > 8000 && (
+                        <span className="flex items-center gap-1.5 text-[11px] font-medium text-sun-600">
+                          <AlertCircle size={11}/> {t('exam.largeWarn')}
+                        </span>
+                      )}
+                    </div>
                   )}
+                  <motion.button
+                    whileHover={{ scale:1.01 }} whileTap={{ scale:0.98 }}
+                    onClick={generate}
+                    disabled={loading || !hasContent}
+                    className="btn-primary justify-center py-3.5 text-base disabled:opacity-40"
+                  >
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <div className="h-5 w-5 rounded-full border-2 border-white/40 border-t-white animate-spin"/>
+                        {genElapsed > 0
+                          ? t('exam.generatingElapsed', { n: genElapsed })
+                          : t('exam.generating')}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Sparkles size={18}/>
+                        {t('exam.generate')} — {MODES.find(m=>m.key===mode)?.label}
+                      </span>
+                    )}
+                  </motion.button>
+                </>
+              ) : (
+                // Study Chat — grounded Q&A over the same upload/notes content
+                // above, instead of a one-shot generate-and-view flow. Its own
+                // scrolling transcript + input row, no `result` involved.
+                <div className="flex flex-col gap-3">
+                  <div
+                    className="flex flex-col gap-3 overflow-y-auto rounded-2xl p-4"
+                    style={{ minHeight: 260, maxHeight: 420, background:'rgba(255,255,255,0.35)', border:'1px solid rgba(255,255,255,0.50)' }}
+                  >
+                    {chatMessages.length === 0 ? (
+                      <div className="flex flex-1 flex-col items-center justify-center text-center py-8 gap-2">
+                        <span className="text-3xl">💬</span>
+                        <p className="text-sm font-semibold text-ink/60 dark:text-white/60">{t('exam.chatEmptyTitle')}</p>
+                        <p className="text-xs text-ink/40 dark:text-white/30 max-w-xs">{t('exam.chatEmptyDesc')}</p>
+                      </div>
+                    ) : (
+                      chatMessages.map((m, i) => (
+                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div
+                            className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                              m.role === 'user' ? 'text-white' : 'text-ink dark:text-white'
+                            }`}
+                            style={m.role === 'user'
+                              ? { background: 'rgb(var(--accent-500))' }
+                              : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.70)' }}
+                          >
+                            {m.content}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs text-ink/40"
+                          style={{ background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.70)' }}>
+                          <div className="h-3 w-3 rounded-full border-2 border-lavender-400 border-t-lavender-600 animate-spin"/>
+                          {t('exam.chatThinking')}
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      rows={1}
+                      className="flex-1 rounded-2xl px-4 py-3 text-sm text-ink dark:text-white bg-white/60 dark:bg-white/[0.05] border border-white/65 outline-none resize-none placeholder:text-ink/30 focus:border-lavender-400 transition"
+                      placeholder={t('exam.chatPlaceholder')}
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                    />
+                    <VoiceInputButton size="sm" onText={(chunk) => setChatInput((v) => appendText(v, chunk))} />
+                    <motion.button
+                      whileHover={{ scale:1.05 }} whileTap={{ scale:0.95 }}
+                      onClick={sendChatMessage}
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="btn-primary px-5 py-3 disabled:opacity-40"
+                    >
+                      {chatLoading
+                        ? <div className="h-5 w-5 rounded-full border-2 border-white/40 border-t-white animate-spin"/>
+                        : <Sparkles size={16}/>}
+                    </motion.button>
+                  </div>
                 </div>
               )}
-              <motion.button
-                whileHover={{ scale:1.01 }} whileTap={{ scale:0.98 }}
-                onClick={generate}
-                disabled={loading || !hasContent}
-                className="btn-primary justify-center py-3.5 text-base disabled:opacity-40"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full border-2 border-white/40 border-t-white animate-spin"/>
-                    {genElapsed > 0
-                      ? t('exam.generatingElapsed', { n: genElapsed })
-                      : t('exam.generating')}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Sparkles size={18}/>
-                    {t('exam.generate')} — {MODES.find(m=>m.key===mode)?.label}
-                  </span>
-                )}
-              </motion.button>
             </div>
           </div>
         </div>
