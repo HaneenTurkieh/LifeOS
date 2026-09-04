@@ -194,6 +194,8 @@ export default function Goals() {
   const [goalForm, setGoalForm]     = useState(emptyGoalForm);
   const [recurForm, setRecurForm]   = useState(emptyRecurForm);
   const [suggesting, setSuggesting] = useState(false);
+  const [quickText,    setQuickText]    = useState('');
+  const [quickLoading, setQuickLoading] = useState(false);
   const toast = useToast();
   const { t, lang } = useLanguage();
   const dates = last30Dates();
@@ -224,6 +226,60 @@ export default function Goals() {
       const { plan } = await api.post('/ai/goal-breakdown', { title: goalForm.title, weeks: 4 });
       setGoalForm({ ...goalForm, milestonesText: plan.map((p) => p.focus).join('\n') });
     } catch (e) { toast.error(e.message); } finally { setSuggesting(false); }
+  };
+  // AI quick-add — same extraction pipeline as Tasks/Calendar's quick-add.
+  // Fills the New Goal modal's own fields in place; milestones are left
+  // to the existing "Suggest AI" button just below rather than guessed
+  // here, since that's already a purpose-built breakdown feature.
+  const runQuickAdd = async () => {
+    const sentence = quickText.trim();
+    if (!sentence || quickLoading) return;
+    setQuickLoading(true);
+    try {
+      const res = await api.post('/chat', {
+        messages: [{
+          role: 'user',
+          content: `Extract a single goal from this sentence: "${sentence}"
+
+Today's date is ${new Date().toLocaleDateString('en-CA')}. Resolve relative dates ("by December", "in 3 months", "next summer") against today.
+
+Return ONLY a JSON object with keys:
+- title: string, required — a short clean goal title with date/category words stripped out
+- description: string — any extra detail beyond the title, or "" if none
+- category: one short lowercase word for the goal's area, e.g. "personal", "university", "health", "finance", "general"
+- target_date: "YYYY-MM-DD" or null if no target date was mentioned
+
+No explanation, no markdown fences, just the JSON object.`,
+        }],
+        no_history: true,
+        mode: 'chat',
+        local_date: new Date().toLocaleDateString('en-CA'),
+      });
+      let parsed = null;
+      try {
+        parsed = JSON.parse(res.text.replace(/```json|```/g, '').trim());
+      } catch (_) {
+        const match = res.text.match(/\{[\s\S]*\}/);
+        if (match) { try { parsed = JSON.parse(match[0]); } catch (_) {} }
+      }
+      if (!parsed?.title) { toast.error(t('tasks.quickAddFailed')); return; }
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      const target_date = DATE_RE.test(parsed.target_date) ? parsed.target_date : '';
+      const { select: categorySelect, custom: categoryCustom } = goalCategoryToSelect(parsed.category);
+      setGoalForm(f => ({
+        ...f,
+        title: parsed.title,
+        description: parsed.description || f.description,
+        target_date,
+        category: categorySelect === 'other' ? categoryCustom : categorySelect,
+        categorySelect, categoryCustom,
+      }));
+      setQuickText('');
+    } catch (err) {
+      toast.error(err.message || t('tasks.quickAddFailed'));
+    } finally {
+      setQuickLoading(false);
+    }
   };
   const createGoal = async (e) => {
     e.preventDefault();
@@ -583,6 +639,29 @@ export default function Goals() {
       )}
       <Modal open={goalModal} onClose={() => setGoalModal(false)} title={t('goals.newGoal')}>
         <form onSubmit={createGoal} className="flex flex-col gap-3.5">
+          {/* AI quick-add — type OR speak one sentence and Lumi fills the
+              fields below (title/description/category/target date) for
+              you to glance over before hitting "Add". */}
+          <div className="flex items-center gap-2 rounded-2xl border border-white/70 bg-white/70
+                           dark:border-white/10 dark:bg-white/[0.04] p-2 pl-3.5 shadow-sm">
+            <Icons.Sparkles size={16} className="shrink-0" style={{ color: 'rgb(var(--accent-500))' }} />
+            <input
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-ink dark:text-white
+                         placeholder:text-ink/35 dark:placeholder:text-white/30"
+              placeholder={t('goals.quickAddPlaceholder')}
+              value={quickText}
+              onChange={e => setQuickText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !quickLoading) { e.preventDefault(); runQuickAdd(); } }}
+              disabled={quickLoading}
+            />
+            <VoiceInputButton size="sm" onText={(chunk) => setQuickText(v => appendText(v, chunk))} />
+            <button type="button" className="btn-primary shrink-0 px-3.5" onClick={runQuickAdd}
+              disabled={quickLoading || !quickText.trim()}>
+              {quickLoading
+                ? <span className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                : t('tasks.quickAddGo')}
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <input className="input-field flex-1" placeholder={t('goals.goalTitlePh')}
               value={goalForm.title} onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })} autoFocus required />
