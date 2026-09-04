@@ -215,12 +215,22 @@ router.post('/login', async (req, res) => {
 // accounts get a random, never-usable password hash (there's no password
 // login path for a Google-only account, but password_hash is NOT NULL)
 // and the same one-time welcome XP as a normal registration.
+//
+// `intent` ('login' | 'signup') comes from which screen the button was
+// clicked on (see Login.jsx). Sign Up keeps the find-or-create behavior
+// above unconditionally — that's the normal "oh you already have an
+// account, logging you in" courtesy. Sign In does NOT create an account:
+// if the email has never signed up, it's rejected with a clear message
+// instead of silently registering someone who only meant to log in.
+// Missing/unrecognized intent falls back to the original find-or-create
+// behavior, so this stays backward-compatible with any caller that
+// doesn't send it.
 router.post('/google', async (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.status(503).json({ error: 'Google sign-in is not configured yet.' });
     }
-    const { credential } = req.body;
+    const { credential, intent } = req.body;
     if (!credential) return res.status(400).json({ error: 'Missing Google credential' });
 
     let payload;
@@ -241,6 +251,10 @@ router.post('/google', async (req, res) => {
       sql:  `SELECT * FROM users WHERE email = ? COLLATE NOCASE`,
       args: [normalizedEmail],
     })).rows[0];
+
+    if (!user && intent === 'login') {
+      return res.status(404).json({ error: 'No Nuvora account found for this Google email yet. Sign up first.', code: 'NO_ACCOUNT' });
+    }
 
     let welcomeXpAwarded = 0;
     if (!user) {

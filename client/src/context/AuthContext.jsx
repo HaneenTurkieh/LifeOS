@@ -76,8 +76,11 @@ export function AuthProvider({ children }) {
   // `credential` is the ID token Google's Identity Services library hands
   // back client-side (see Login.jsx) — the server verifies it and either
   // logs into an existing account with that email or creates a new one.
-  const loginWithGoogle = async (credential) => {
-    const { token, user: u, welcomeXp } = await api.post('/auth/google', { credential });
+  // `intent` ('login' | 'signup') tells the server which screen the
+  // button was on: 'login' rejects unknown emails instead of silently
+  // registering them (see routes/auth.js POST /google).
+  const loginWithGoogle = async (credential, intent) => {
+    const { token, user: u, welcomeXp } = await api.post('/auth/google', { credential, intent });
     setToken(token);
     setUser(u);
     return { ...u, welcomeXp: welcomeXp || 0 };

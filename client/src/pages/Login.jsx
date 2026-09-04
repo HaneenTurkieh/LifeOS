@@ -301,6 +301,14 @@ export default function Login() {
   const contentControls = useAnimationControls();
   const firstRun         = useRef(true);
   const googleBtnRef     = useRef(null);
+  // Google's button is only (re)initialized when stage/isDark/lang change
+  // (see the effect below) — NOT when someone flips between Log in and
+  // Sign up within the form. Without a ref, handleGoogleCredential would
+  // close over whatever `mode` existed at initialize-time and could stay
+  // stale after a Log in ↔ Sign up switch, sending the wrong intent to
+  // the server. A ref always reads the current mode at click time.
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   // Subtle pointer-driven depth — background blobs drift a bit more than
   // the halo/starfield they sit behind, so the page reads as layered
@@ -399,10 +407,17 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     try {
-      const u = await loginWithGoogle(response.credential);
+      const intent = modeRef.current === 'signup' ? 'signup' : 'login';
+      const u = await loginWithGoogle(response.credential, intent);
       if (u?.welcomeXp) toast.success(t('login.welcomeXp', { n: u.welcomeXp }));
       navigate(redirectTo, { replace: true });
-    } catch (err) { setError(err.message || t('login.wentWrong')); }
+    } catch (err) {
+      // No-account case has its own copy nudging toward Sign up, rather
+      // than the server's generic message — same info, phrased as a next
+      // step instead of a dead-end.
+      if (err.code === 'NO_ACCOUNT') { setError(t('login.googleNoAccount')); setMode('signup'); }
+      else { setError(err.message || t('login.wentWrong')); }
+    }
     finally { setSubmitting(false); }
   };
 
