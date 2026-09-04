@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check,
-  Pencil, Trash2, Calendar as CalIcon,
+  Pencil, Trash2, Calendar as CalIcon, Sparkles,
 } from 'lucide-react';
 import { api }      from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -179,6 +179,8 @@ export default function Calendar() {
   const [addModalOpen,  setAddModalOpen]  = useState(null);
   const [addForm,       setAddForm]       = useState(emptyForm);
   const [saving,        setSaving]        = useState(false);
+  const [quickText,     setQuickText]     = useState('');
+  const [quickLoading,  setQuickLoading]  = useState(false);
   const [draggedId,     setDraggedId]     = useState(null);
   const [dragOverDate,  setDragOverDate]  = useState(null);
   const [touchGhost,    setTouchGhost]    = useState(null);
@@ -411,6 +413,65 @@ export default function Calendar() {
       setSelectedTask(null);
       load();
     } catch (err) { toast.error(err.message); }
+  };
+  // AI quick-add — same extraction pipeline as Tasks.jsx's quick-add, but
+  // the day is already fixed here (this modal only opens for a specific
+  // date, shown as the 📅 pill below), so the day is never asked for or
+  // touched — only title/time/priority/category/description. Fills
+  // addForm in place inside this already-open modal instead of a
+  // separate confirm step, so you see it happen and can still fix
+  // anything before hitting the real submit button.
+  const runQuickAdd = async () => {
+    const sentence = quickText.trim();
+    if (!sentence || quickLoading) return;
+    setQuickLoading(true);
+    try {
+      const res = await api.post('/chat', {
+        messages: [{
+          role: 'user',
+          content: `Extract event details from this sentence: "${sentence}"
+
+This is for something happening on ${addModalOpen} — that date is already fixed, do NOT return a date for it.
+
+Return ONLY a JSON object with keys:
+- title: string, required — a short clean title with time/priority words stripped out
+- deadline_time: 24h "HH:MM" or null, only if a specific time was actually mentioned
+- priority: "high", "medium", or "low" — infer from urgency words, default "medium"
+- category: one short lowercase word for the area, e.g. "university", "personal", "health", "finance", "general"
+- description: string — any extra detail beyond the title, or "" if none
+
+No explanation, no markdown fences, just the JSON object.`,
+        }],
+        no_history: true,
+        mode: 'chat',
+        local_date: localToday(),
+      });
+      let parsed = null;
+      try {
+        parsed = JSON.parse(res.text.replace(/```json|```/g, '').trim());
+      } catch (_) {
+        const match = res.text.match(/\{[\s\S]*\}/);
+        if (match) { try { parsed = JSON.parse(match[0]); } catch (_) {} }
+      }
+      if (!parsed?.title) { toast.error(t('tasks.quickAddFailed')); return; }
+      const TIME_RE = /^\d{2}:\d{2}$/;
+      const deadline_time = TIME_RE.test(parsed.deadline_time) ? parsed.deadline_time : '';
+      const priority = ['high','medium','low'].includes(parsed.priority) ? parsed.priority : 'medium';
+      const { select: categorySelect, custom: categoryCustom } = categoryToSelect(parsed.category);
+      setAddForm(f => ({
+        ...f,
+        title: parsed.title,
+        description: parsed.description || f.description,
+        priority, deadline_time,
+        category: categorySelect === 'other' ? categoryCustom : categorySelect,
+        categorySelect, categoryCustom,
+      }));
+      setQuickText('');
+    } catch (err) {
+      toast.error(err.message || t('tasks.quickAddFailed'));
+    } finally {
+      setQuickLoading(false);
+    }
   };
   const submitAdd = async (e) => {
     e.preventDefault();
@@ -946,6 +1007,30 @@ export default function Calendar() {
         title={addModalOpen ? `${t('calendar.addTo')} · ${fmtLabel(addModalOpen)}` : t('calendar.addTo')}
       >
         <form onSubmit={submitAdd} className="flex flex-col gap-3.5">
+          {/* AI quick-add — type OR speak one sentence and Lumi fills the
+              fields below for this same date (title/time/priority/category),
+              so you can still glance them over before hitting the real
+              "Add" button. */}
+          <div className="flex items-center gap-2 rounded-2xl border border-white/70 bg-white/70
+                           dark:border-white/10 dark:bg-white/[0.04] p-2 pl-3.5 shadow-sm">
+            <Sparkles size={16} className="shrink-0" style={{ color: 'rgb(var(--accent-500))' }} />
+            <input
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-ink dark:text-white
+                         placeholder:text-ink/35 dark:placeholder:text-white/30"
+              placeholder={t('calendar.quickAddPlaceholder')}
+              value={quickText}
+              onChange={e => setQuickText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !quickLoading) { e.preventDefault(); runQuickAdd(); } }}
+              disabled={quickLoading}
+            />
+            <VoiceInputButton size="sm" onText={(chunk) => setQuickText(v => appendText(v, chunk))} />
+            <button type="button" className="btn-primary shrink-0 px-3.5" onClick={runQuickAdd}
+              disabled={quickLoading || !quickText.trim()}>
+              {quickLoading
+                ? <span className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                : t('tasks.quickAddGo')}
+            </button>
+          </div>
           {/* This field IS where the birthday person's name goes once the
               toggle below is on — Dashboard's birthday card literally
               displays this title as the sub-line under "Birthday in N

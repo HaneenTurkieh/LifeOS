@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Trash2, Briefcase, Link as LinkIcon } from 'lucide-react';
+import { Trash2, Briefcase, Link as LinkIcon, Sparkles } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -23,6 +23,8 @@ export default function Internships({ openTrigger = 0 }) {
   const [loading, setLoading]   = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm]         = useState(emptyForm);
+  const [quickText,    setQuickText]    = useState('');
+  const [quickLoading, setQuickLoading] = useState(false);
   const toast = useToast();
   const { t } = useLanguage();
 
@@ -37,6 +39,60 @@ export default function Internships({ openTrigger = 0 }) {
     if (openTrigger > 0) { setForm(emptyForm); setModalOpen(true); }
   }, [openTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // AI quick-add — same extraction pipeline as Tasks/Calendar/Goals'
+  // quick-add. Fills this modal's own fields in place.
+  const runQuickAdd = async () => {
+    const sentence = quickText.trim();
+    if (!sentence || quickLoading) return;
+    setQuickLoading(true);
+    try {
+      const res = await api.post('/chat', {
+        messages: [{
+          role: 'user',
+          content: `Extract a job/internship application from this sentence: "${sentence}"
+
+Today's date is ${new Date().toLocaleDateString('en-CA')}. Resolve relative dates ("today", "yesterday", "last Monday") against today.
+
+Return ONLY a JSON object with keys:
+- company: string, required
+- role: string, required — the job/internship title
+- status: "applied", "interview", "accepted", or "rejected" — default "applied" unless the sentence says otherwise (e.g. "got an interview" → "interview", "got rejected" → "rejected", "got the offer" → "accepted")
+- applied_date: "YYYY-MM-DD" or null if no date was mentioned
+- link: string — a URL if one was actually said/included, else ""
+- notes: string — any extra detail beyond company/role, or ""
+
+No explanation, no markdown fences, just the JSON object.`,
+        }],
+        no_history: true,
+        mode: 'chat',
+        local_date: new Date().toLocaleDateString('en-CA'),
+      });
+      let parsed = null;
+      try {
+        parsed = JSON.parse(res.text.replace(/```json|```/g, '').trim());
+      } catch (_) {
+        const match = res.text.match(/\{[\s\S]*\}/);
+        if (match) { try { parsed = JSON.parse(match[0]); } catch (_) {} }
+      }
+      if (!parsed?.company || !parsed?.role) { toast.error(t('tasks.quickAddFailed')); return; }
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      const STATUS_VALUES = ['applied','interview','accepted','rejected'];
+      setForm(f => ({
+        ...f,
+        company: parsed.company,
+        role: parsed.role,
+        status: STATUS_VALUES.includes(parsed.status) ? parsed.status : 'applied',
+        applied_date: DATE_RE.test(parsed.applied_date) ? parsed.applied_date : '',
+        link: parsed.link || f.link,
+        notes: parsed.notes || f.notes,
+      }));
+      setQuickText('');
+    } catch (err) {
+      toast.error(err.message || t('tasks.quickAddFailed'));
+    } finally {
+      setQuickLoading(false);
+    }
+  };
   const createItem = async (e) => {
     e.preventDefault();
     if (!form.company.trim() || !form.role.trim()) return;
@@ -115,6 +171,29 @@ export default function Internships({ openTrigger = 0 }) {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add application">
         <form onSubmit={createItem} className="flex flex-col gap-3.5">
+          {/* AI quick-add — type OR speak one sentence and Lumi fills the
+              fields below (company/role/status/date/link/notes) for you
+              to glance over before hitting "Add application". */}
+          <div className="flex items-center gap-2 rounded-2xl border border-white/70 bg-white/70
+                           dark:border-white/10 dark:bg-white/[0.04] p-2 pl-3.5 shadow-sm">
+            <Sparkles size={16} className="shrink-0" style={{ color: 'rgb(var(--accent-500))' }} />
+            <input
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm text-ink dark:text-white
+                         placeholder:text-ink/35 dark:placeholder:text-white/30"
+              placeholder={t('internships.quickAddPlaceholder')}
+              value={quickText}
+              onChange={e => setQuickText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !quickLoading) { e.preventDefault(); runQuickAdd(); } }}
+              disabled={quickLoading}
+            />
+            <VoiceInputButton size="sm" onText={(chunk) => setQuickText(v => appendText(v, chunk))} />
+            <button type="button" className="btn-primary shrink-0 px-3.5" onClick={runQuickAdd}
+              disabled={quickLoading || !quickText.trim()}>
+              {quickLoading
+                ? <span className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                : t('tasks.quickAddGo')}
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <input className="input-field flex-1" placeholder={t('internships.companyPh')} value={form.company}
               onChange={(e) => setForm({ ...form, company: e.target.value })} autoFocus required />
