@@ -1322,15 +1322,15 @@ Content:\n${content}`;
       // needs to be genuinely comprehensive, not just the highlights —
       // same "don't skip anything" bar as the exam modes above.
       prompt = `${base}Build a concept map of ALL the material below as a nested JSON tree — this is meant to work as a study reference on its own, so don't skip any topic.
-Structure: 4-8 top-level topics that cover the whole content, each with 2-5 subtopic children, and subtopics may have 0-3 of their own children for finer detail. Every node uses this exact shape:
-{ "title": string (short, 2-6 words), "summary": string (2-3 plain sentences explaining this node on its own, understandable without reading anything else), "source": string (the exact filename this came from, copied verbatim from the "[filename]" tag above that part of the content below — or "" if it came from the pasted notes instead of an uploaded file), "quote": string (a short passage copied EXACTLY, word-for-word, from the content below that this node is grounded in — never paraphrased, must be findable via plain string search in the original), "children": [nodes in this same shape] or [] }
+Structure: 4-6 top-level topics that cover the whole content, each with 2-4 subtopic children, and subtopics may have 0-2 of their own children for finer detail. Keep it efficient — this needs to come back fast, so don't overthink individual nodes. Every node uses this exact shape:
+{ "title": string (short, 2-6 words), "summary": string (1-2 plain sentences explaining this node on its own, understandable without reading anything else), "source": string (the exact filename this came from, copied verbatim from the "[filename]" tag above that part of the content below — or "" if it came from the pasted notes instead of an uploaded file), "quote": string (a short phrase lifted from the content below near where this node's idea appears — close is fine, doesn't need to be a perfect character-for-character match), "children": [nodes in this same shape] or [] }
 Return a JSON ARRAY of the top-level topic nodes only (their "children" arrays hold the rest).
 Content:\n${content}`;
     }
     try {
       const res = await authedFetch('/api/exam/generate', {
         method: 'POST',
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, mode }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Generation failed');

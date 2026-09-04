@@ -133,7 +133,7 @@ router.put('/style-pref', async (req, res) => {
 // Claude, since this is the single highest-volume AI call in the app
 // and DeepSeek is both far cheaper and benchmark-competitive here.
 router.post('/generate', async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, mode } = req.body;
   if (!prompt) return res.status(400).json({ error: 'prompt required' });
   if (!process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set' });
 
@@ -143,6 +143,19 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    // Real bug this fixes: this route always ran at callOpenRouter's
+    // default reasoningEffort:'high', same as every other mode here —
+    // fine for a flat array of MCQs/flashcards, but the concept map's
+    // recursive tree (each node needing a title+summary+source+an exact
+    // verbatim quote, nested 2-3 levels deep) made the model "think"
+    // heavily before answering, reliably pushing total time past
+    // callOpenRouter's 45s timeout + one retry (~90s) and failing
+    // outright — confirmed live, not a one-off. Skipping the thinking
+    // budget entirely for this mode keeps it well under that ceiling;
+    // the tradeoff (occasionally a less exact quote match) is already
+    // handled gracefully client-side — SourceViewerModal just shows the
+    // source file without a highlight if the quote isn't found verbatim.
+    const reasoningEffort = mode === 'mindmap' ? null : 'high';
     // 8192 headroom (not the old 4096) — was cutting off comprehensive
     // slide decks mid-JSON on longer source docs, since generation stops
     // at the token cap, not at a clean JSON boundary. Slides ask for
@@ -156,6 +169,7 @@ router.post('/generate', async (req, res) => {
       // "obvious" first-pass questions every time.
       temperature: 1.0,
       top_p:       0.95,
+      reasoningEffort,
     });
     const text = data.choices?.[0]?.message?.content || '';
     // Real bug that used to live here: recordUsage ran unconditionally
