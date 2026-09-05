@@ -4,7 +4,7 @@ import {
   Brain, Sparkles, RotateCcw, Check, X,
   ChevronLeft, ChevronRight, ChevronDown, Upload, FileText,
   Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
-  FileDown, Presentation, Network,
+  FileDown, Presentation, Network, Globe,
 } from 'lucide-react';
 import { api, getToken } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -1137,6 +1137,13 @@ export default function ExamAssistant() {
   const [chatMessages,  setChatMessages]  = useState([]);
   const [chatInput,     setChatInput]     = useState('');
   const [chatLoading,   setChatLoading]   = useState(false);
+  // Deep Search — when on, Study Chat is allowed to answer beyond the
+  // uploaded material using real web search + the model's own knowledge,
+  // instead of the default strictly-grounded-only behavior. Gated
+  // server-side on the same 'deep_search' daily limit Lumi's main chat
+  // uses (tight for free accounts, unlimited premium) — off by default
+  // since exam prep usually wants strictly-grounded answers, not the web.
+  const [deepSearchOn,  setDeepSearchOn]  = useState(false);
   // Which saved exam_sessions row (if any) the current view is linked to —
   // null means "nothing saved yet" (a chat not sent a first message yet,
   // or content not yet generated). Set after a fresh save/generate, or on
@@ -1454,11 +1461,12 @@ Content:\n${content}`;
           // Everything except the message we just added — the server
           // appends the new question itself.
           history: nextMessages.slice(0, -1).slice(-8),
+          deepSearch: deepSearchOn,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Chat failed');
-      const finalMessages = [...nextMessages, { role: 'assistant', content: data.answer }];
+      const finalMessages = [...nextMessages, { role: 'assistant', content: data.answer, deepSearch: !!data.deepSearch }];
       setChatMessages(finalMessages);
       persistChat(finalMessages);
     } catch (err) {
@@ -1844,6 +1852,11 @@ Content:\n${content}`;
                                 instead of living only in one page. User's
                                 own typed messages stay plain — there's no
                                 reason to markdown-parse what she typed. */}
+                            {m.role === 'assistant' && m.deepSearch && (
+                              <div className="flex items-center gap-1 mb-1.5 text-[10px] font-semibold text-lavender-500">
+                                <Globe size={11}/> {t('lumi.deepSearch')}
+                              </div>
+                            )}
                             {m.role === 'assistant' ? renderMarkdown(m.content) : m.content}
                           </div>
                         </div>
@@ -1859,6 +1872,21 @@ Content:\n${content}`;
                       </div>
                     )}
                     <div ref={chatEndRef} />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <button
+                      onClick={() => setDeepSearchOn(v => !v)}
+                      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all"
+                      style={deepSearchOn
+                        ? { background:'rgb(var(--accent-500) / 0.14)', border:'1px solid rgb(var(--accent-500) / 0.35)', color:'rgb(var(--accent-500))' }
+                        : { background:'rgba(255,255,255,0.40)', border:'1px solid rgba(255,255,255,0.55)', color:'rgba(30,34,51,0.45)' }}
+                      title={t('exam.deepSearchHint')}
+                    >
+                      <Globe size={13}/> {t('lumi.deepSearch')}
+                    </button>
+                    {deepSearchOn && (
+                      <span className="text-[11px] text-lavender-500 font-medium">{t('exam.deepSearchOn')}</span>
+                    )}
                   </div>
                   <div className="flex items-end gap-2">
                     <textarea

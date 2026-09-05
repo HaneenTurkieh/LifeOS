@@ -251,20 +251,38 @@ router.post('/generate', async (req, res) => {
 // far bigger than anything Exam Assistant currently accepts.
 const MAX_CHAT_SOURCE_CHARS = 20000;
 router.post('/chat', async (req, res) => {
-  const { content, question, history } = req.body;
+  const { content, question, history, deepSearch } = req.body;
   if (!content?.trim())  return res.status(400).json({ error: 'content is required' });
   if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
   if (!process.env.OPENROUTER_API_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set' });
 
-  const gate = await checkLimit(req.user.id, 'study_chat');
+  // A Deep Search turn leaves the uploaded material and hits the real web
+  // (OpenRouter's web plugin, its own per-search fee on top of tokens) —
+  // same priciest-action gate Lumi's main chat uses for its own Deep
+  // Search mode, and deliberately separate from study_chat's own limit.
+  // A plain grounded turn stays cheap and keeps counting against
+  // study_chat's generous 30/day; only turns that actually ask to go
+  // beyond the material count against deep_search's much tighter cap.
+  const gateFeature = deepSearch ? 'deep_search' : 'study_chat';
+  const gate = await checkLimit(req.user.id, gateFeature);
   if (!gate.allowed) {
-    return res.status(403).json({ error: limitMessage('study_chat', gate.limit), code: 'DAILY_LIMIT', feature: 'study_chat' });
+    return res.status(403).json({ error: limitMessage(gateFeature, gate.limit), code: 'DAILY_LIMIT', feature: gateFeature });
   }
 
   // Trimmed, not the client's problem to enforce — a pasted-notes textarea
   // has no size limit of its own the way file uploads do.
   const source = content.trim().slice(0, MAX_CHAT_SOURCE_CHARS);
-  const system = `You are a study assistant helping a student understand material they've given you. Answer ONLY using the study material below — never your own outside knowledge, even if you happen to know more about the topic. If the material doesn't actually cover what's being asked, say so plainly instead of guessing or filling the gap yourself. Where it helps, quote or point to the specific part of the material your answer comes from. Keep answers focused and conversational, not a full essay unless asked.
+  // Two different contracts depending on deepSearch: the default is
+  // strictly grounded (never guess beyond the material, exam-prep safe),
+  // Deep Search explicitly permits going outside it but must say so each
+  // time, so the student always knows what's from their notes vs. the
+  // web/the model's own knowledge.
+  const system = deepSearch
+    ? `You are a study assistant helping a student understand material they've given you. Prefer the study material below when it actually covers the question — quote or point to the specific part your answer comes from. When the question goes beyond what the material covers, you may use your own knowledge and real-time web search to answer it — but always say plainly when you're doing that (e.g. "this isn't in your material, but based on a web search / general knowledge..."), so the student always knows what's grounded in their own notes versus outside information. Keep answers focused and conversational, not a full essay unless asked.
+
+STUDY MATERIAL:
+${source}`
+    : `You are a study assistant helping a student understand material they've given you. Answer ONLY using the study material below — never your own outside knowledge, even if you happen to know more about the topic. If the material doesn't actually cover what's being asked, say so plainly instead of guessing or filling the gap yourself. Where it helps, quote or point to the specific part of the material your answer comes from. Keep answers focused and conversational, not a full essay unless asked.
 
 STUDY MATERIAL:
 ${source}`;
@@ -284,15 +302,16 @@ ${source}`;
     const data = await callOpenRouter({
       system,
       messages,
-      max_tokens:  1200,
+      max_tokens:  deepSearch ? 2000 : 1200,
       temperature: 0.3, // grounded Q&A, not creative variety like /generate
+      webSearch:   !!deepSearch,
     });
     const answer = data.choices?.[0]?.message?.content || '';
     if (!answer.trim()) {
       return res.status(502).json({ error: 'No answer generated. Please try again.' });
     }
-    await recordUsage(req.user.id, 'study_chat');
-    res.json({ answer, remaining: gate.remaining - 1 });
+    await recordUsage(req.user.id, gateFeature);
+    res.json({ answer, remaining: gate.remaining - 1, deepSearch: !!deepSearch });
   } catch (err) {
     console.error('Exam chat error:', err);
     res.status(500).json({ error: 'Chat failed. Please try again.' });
