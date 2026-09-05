@@ -909,6 +909,17 @@ function PremiumTab() {
                   <p className="text-2xl font-display font-bold text-ink dark:text-white text-center mt-1">
                     ${plan.price} <span className="text-xs font-semibold text-ink/40 dark:text-white/35">{plan.currency}</span>
                   </p>
+                  {/* NIS figure is a local-intuition reference only (see
+                      priceNis in server/routes/focus.js) — the real
+                      charge is always the USD amount above, so this
+                      drifts with the exchange rate rather than being a
+                      fixed shekel price. Deliberately smaller/muted so
+                      it doesn't compete with the actual price. */}
+                  {plan.priceNis != null && (
+                    <p className="text-[10px] text-ink/30 dark:text-white/25 text-center -mt-0.5">
+                      ≈{plan.priceNis} {t('settings.nis')}
+                    </p>
+                  )}
                   <p className="text-[11px] text-ink/40 dark:text-white/30 text-center">{periodLabel(plan.months, lang)}</p>
                   <p className="text-[10px] font-semibold text-ink/35 dark:text-white/25 text-center mt-0.5">
                     {t('settings.durationMonths', { n: plan.months })}

@@ -10,9 +10,9 @@ import LegalLayout, { Section } from './LegalLayout.jsx';
 // off NIS Sept 2026 alongside the switch to bank transfer as the primary
 // payment method — see Pricing section below).
 const PLANS = [
-  { name: 'Monthly',  price: 3.99,  period: '/ month',                 note: null },
-  { name: 'Semester', price: 12.99, period: '/ semester (4 months)',   note: 'Most popular · ≈$3.25/mo' },
-  { name: 'Annual',   price: 34.99, period: '/ year (12 months)',      note: 'Save 27% · ≈$2.92/mo' },
+  { name: 'Monthly',  price: 4.99,  priceNis: 15,  period: '/ month',                 note: null },
+  { name: 'Semester', price: 13.99, priceNis: 42,  period: '/ semester (4 months)',   note: 'Most popular · ≈$3.50/mo' },
+  { name: 'Annual',   price: 39.99, priceNis: 120, period: '/ year (12 months)',      note: 'Save 33% · ≈$3.33/mo' },
 ];
 
 const PERKS = [
@@ -44,6 +44,7 @@ export default function Pricing() {
               <p className="text-2xl font-display font-bold mt-1">
                 ${p.price} <span className="text-xs font-semibold opacity-60">USD</span>
               </p>
+              <p className="text-[10px] opacity-40 -mt-1">≈{p.priceNis} NIS</p>
               <p className="text-xs opacity-60">{p.period}</p>
               {p.note && <p className="text-[11px] opacity-50 mt-1">{p.note}</p>}
             </div>
