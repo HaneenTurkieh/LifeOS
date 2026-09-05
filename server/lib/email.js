@@ -72,6 +72,30 @@ function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel })
   </div>`;
 }
 
+// ── Bank transfer request — someone submitted a "I sent the money"
+// note via POST /focus/premium/bank-transfer. Nothing is granted yet;
+// this just tells Haneen to go check her Reflect/Arab Bank account for
+// a matching transfer, then approve or reject from the Stats tab.
+function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote }) {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#2DA76E,#7C6AF0);color:#fff;font-size:22px;line-height:48px;text-align:center;">🏦</div>
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">New bank transfer request</h2>
+    <p style="color:#5A5F73;font-size:13px;text-align:center;margin:0 0 20px;">
+      From: <strong>${esc(userName) || 'A user'}</strong> (${esc(userEmail) || 'not provided'})
+    </p>
+    <div style="background:#F0FBF5;border:1px solid #DCF5E7;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:1.6;text-align:center;">
+      Says they sent <strong>${esc(amountLabel)}</strong> for the <strong>${esc(planLabel)}</strong> plan.
+      ${referenceNote ? `<br/><br/><span style="color:#5A5F73;font-size:13px;">Their note: "${esc(referenceNote)}"</span>` : ''}
+    </div>
+    <p style="color:#5A5F73;font-size:12px;text-align:center;margin:16px 0 0;">
+      Check your bank app for a matching transfer, then approve or reject from Settings → Stats → Bank transfers.
+    </p>
+  </div>`;
+}
+
 // One email per user per cron run, listing everything pending — not
 // one email per item. Five things due in the same 10-minute window is
 // one email with five rows, not five separate emails.
@@ -275,6 +299,16 @@ async function sendPremiumRequestEmail({ userEmail, userName, planLabel, priceLa
   });
 }
 
+// ── Public: bank transfer request — see POST /focus/premium/bank-transfer.
+async function sendBankTransferRequestEmail({ userEmail, userName, planLabel, amountLabel, referenceNote }) {
+  await dispatch({
+    to: 'haneenturkieh@hotmail.com',
+    label: 'bank transfer request',
+    subject: `Bank transfer request: ${planLabel} (${amountLabel})`,
+    html: bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote }),
+  });
+}
+
 // ── Public: reminder digest — the "you don't always have the app open"
 // gap. Fired from the cron-triggered job in lib/emailReminders.js, one
 // email per user per run bundling everything pending (never one email
@@ -312,5 +346,5 @@ async function sendChannelInviteEmail({ to, channelName, joinCode, instructorNam
 
 module.exports = {
   sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail,
-  sendInstructorCredentialsEmail, sendChannelInviteEmail,
+  sendInstructorCredentialsEmail, sendChannelInviteEmail, sendBankTransferRequestEmail,
 };

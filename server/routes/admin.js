@@ -160,4 +160,75 @@ router.post('/users/:id/premium', requireOwner, async (req, res) => {
   }
 });
 
+// ── Bank transfer requests — owner-only review queue ───────────────
+// Backs the Stats tab's "Bank transfers" section. Paddle isn't a
+// reliable path right now (see routes/focus.js PLANS comment), so this
+// manual-transfer honor-system queue (POST /focus/premium/bank-transfer)
+// is the primary way someone actually pays. Haneen checks her own bank
+// app for a matching transfer, then approves or rejects here — approving
+// is the only thing that ever grants Premium from this flow.
+router.get('/bank-transfers', requireOwner, async (req, res) => {
+  try {
+    const rows = (await db.execute(`
+      SELECT b.id, b.user_id, b.plan_key, b.amount_usd, b.reference_note, b.status,
+             b.created_at, b.reviewed_at, u.name, u.email
+      FROM bank_transfer_requests b
+      JOIN users u ON u.id = b.user_id
+      ORDER BY (b.status = 'pending') DESC, b.created_at DESC
+      LIMIT 100
+    `)).rows;
+    res.json({
+      requests: rows.map((r) => ({
+        id: r.id, user_id: r.user_id, plan_key: r.plan_key,
+        amount_usd: Number(r.amount_usd), reference_note: r.reference_note,
+        status: r.status, created_at: r.created_at, reviewed_at: r.reviewed_at,
+        name: r.name, email: r.email,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /admin/bank-transfers error:', err);
+    res.status(500).json({ error: 'Could not load bank transfer requests' });
+  }
+});
+
+async function reviewBankTransfer(req, res, { approve }) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
+
+    const row = (await db.execute({
+      sql: `SELECT id, user_id, plan_key, status FROM bank_transfer_requests WHERE id = ?`,
+      args: [id],
+    })).rows[0];
+    if (!row) return res.status(404).json({ error: 'Request not found' });
+    if (row.status !== 'pending') {
+      return res.status(400).json({ error: `Already ${row.status}` });
+    }
+
+    await db.execute({
+      sql: `UPDATE bank_transfer_requests SET status = ?, reviewed_at = datetime('now') WHERE id = ?`,
+      args: [approve ? 'approved' : 'rejected', id],
+    });
+
+    if (approve) {
+      // Same grant mechanism as the manual /users/:id/premium route
+      // above, except plan is the real plan the person paid for
+      // (monthly/semester/annual) instead of the generic 'manual' label
+      // — so their Premium tab shows the actual plan they're on.
+      await db.execute({
+        sql: `INSERT INTO user_premium (user_id, is_premium, plan) VALUES (?, 1, ?)
+              ON CONFLICT(user_id) DO UPDATE SET is_premium = 1, plan = excluded.plan`,
+        args: [row.user_id, row.plan_key],
+      });
+    }
+
+    res.json({ ok: true, id, status: approve ? 'approved' : 'rejected' });
+  } catch (err) {
+    console.error('POST /admin/bank-transfers/:id review error:', err);
+    res.status(500).json({ error: 'Could not update request' });
+  }
+}
+router.post('/bank-transfers/:id/approve', requireOwner, (req, res) => reviewBankTransfer(req, res, { approve: true }));
+router.post('/bank-transfers/:id/reject',  requireOwner, (req, res) => reviewBankTransfer(req, res, { approve: false }));
+
 module.exports = router;

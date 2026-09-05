@@ -1211,12 +1211,36 @@ router.delete('/rooms/:code/leave', async (req, res) => {
 // arbitrary. priceId maps to the real Paddle Price for real checkout via
 // Paddle.js on the client — actual granting happens in routes/paddle.js
 // once the subscription webhook confirms payment, not here.
+//
+// Switched from NIS to USD (Sept 2026) — Paddle support has gone
+// unresponsive and isn't a reliable path for a Palestine-based seller in
+// practice, so bank transfer (below) is now the primary payment method,
+// and USD is the one currency that makes sense for a manual transfer
+// someone anywhere might send. Converted at ~1 NIS = $0.332 (10/34/96
+// NIS) then rounded up to cover: Paddle/wire conversion friction, ~$400
+// already sunk into building Nuvora, and ongoing AI token + domain
+// costs — Haneen's explicit call, not just a straight conversion.
 const PLANS = [
-  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 10, currency: 'NIS', discountPct: 0,  badge: null,      priceId: 'pri_01kzrz0epxcy9v8qhe5md6qmbd' },
-  { key: 'semester', name: 'Semester', months: 4,  price: 34, currency: 'NIS', discountPct: 15, badge: 'popular', priceId: 'pri_01kzrz863vxsrjcjnkrnk1pzya' },
-  { key: 'annual',   name: 'Annual',   months: 12, price: 96, currency: 'NIS', discountPct: 20, badge: 'value',   priceId: 'pri_01kzrz9dxpyt5pwyb4kkb26gb6' },
+  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 3.99,  currency: 'USD', discountPct: 0,  badge: null,      priceId: 'pri_01kzrz0epxcy9v8qhe5md6qmbd' },
+  { key: 'semester', name: 'Semester', months: 4,  price: 12.99, currency: 'USD', discountPct: 19, badge: 'popular', priceId: 'pri_01kzrz863vxsrjcjnkrnk1pzya' },
+  { key: 'annual',   name: 'Annual',   months: 12, price: 34.99, currency: 'USD', discountPct: 27, badge: 'value',   priceId: 'pri_01kzrz9dxpyt5pwyb4kkb26gb6' },
 ];
 router.get('/premium/plans', (req, res) => res.json({ plans: PLANS }));
+
+// ── Bank transfer details — single source of truth for the client's
+// "Pay by bank transfer" panel, so the IBAN/bank name only ever lives in
+// one place server-side rather than being hardcoded into the frontend
+// bundle too. Reflect is a real Bank of Palestine-partnered USD account
+// tied to Arab Bank per Haneen — genuinely local for now, can move to a
+// SWIFT-capable account later if Nuvora ever needs real international
+// transfers.
+const BANK_TRANSFER_DETAILS = {
+  iban:          'PS29ARAB900030022523400072701',
+  bankName:      'Arab Bank (Reflect account)',
+  accountName:   'Haneen Turkieh',
+  currency:      'USD',
+};
+router.get('/premium/bank-transfer/details', (req, res) => res.json(BANK_TRANSFER_DETAILS));
 
 // ── Level-milestone free trial — reaching TRIAL_LEVEL unlocks a
 // one-time free trial of Premium, no payment involved. Framed as a
@@ -1394,6 +1418,74 @@ router.post('/premium/request', async (req, res) => {
     res.json(await getPremium(req.user.id));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
+
+// ── Bank transfer — primary payment path now that Paddle isn't
+// reliably workable (see PLANS comment above). No auto-charging is
+// possible with a plain transfer, so this is an honor-system queue:
+// the user submits a note (when they sent it / sender name / anything
+// that helps Haneen match it in her bank app) once money is actually
+// sent, which creates a 'pending' row and emails her — she checks her
+// bank app herself and approves or rejects from the owner-only Stats
+// tab (routes/admin.js). Approving is the ONLY thing that ever flips
+// is_premium here; submitting a request never does.
+router.post('/premium/bank-transfer', async (req, res) => {
+  const { plan_key, reference_note } = req.body;
+  const plan = PLANS.find(p => p.key === plan_key);
+  if (!plan) return res.status(400).json({ error: 'Unknown plan' });
+
+  try {
+    const existing = (await db.execute({
+      sql: `SELECT id FROM bank_transfer_requests WHERE user_id = ? AND status = 'pending'`,
+      args: [req.user.id],
+    })).rows[0];
+    if (existing) {
+      return res.status(400).json({ error: 'You already have a bank transfer request pending review.' });
+    }
+
+    const note = String(reference_note || '').trim().slice(0, 500) || null;
+    const result = await db.execute({
+      sql: `INSERT INTO bank_transfer_requests (user_id, plan_key, amount_usd, reference_note)
+            VALUES (?, ?, ?, ?)`,
+      args: [req.user.id, plan.key, plan.price, note],
+    });
+
+    try {
+      const { sendBankTransferRequestEmail } = require('../lib/email');
+      await sendBankTransferRequestEmail({
+        userEmail:  req.user.email,
+        userName:   req.user.name,
+        planLabel:  plan.name,
+        amountLabel: `$${plan.price.toFixed(2)}`,
+        referenceNote: note,
+      });
+    } catch (e) {
+      console.error('sendBankTransferRequestEmail failed (non-fatal):', e.message);
+    }
+
+    res.json({
+      id: Number(result.lastInsertRowid),
+      status: 'pending',
+      plan_key: plan.key,
+      amount_usd: plan.price,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// Lets the Premium tab show "your transfer is under review" (or was
+// approved/rejected) without the user needing to remember or be told —
+// only ever returns THIS user's own most recent request.
+router.get('/premium/bank-transfer/mine', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT id, plan_key, amount_usd, status, created_at, reviewed_at
+            FROM bank_transfer_requests WHERE user_id = ?
+            ORDER BY created_at DESC LIMIT 1`,
+      args: [req.user.id],
+    })).rows[0];
+    res.json({ request: row || null });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 router.post('/premium/pause', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);

@@ -882,6 +882,33 @@ async function initDb() {
     await db.execute(`ALTER TABLE exam_sessions ADD COLUMN chat_messages TEXT DEFAULT NULL`);
   }
 
+  // ── Bank-transfer Premium requests ────────────────────────────
+  // Paddle isn't a workable Merchant of Record for a Palestine-based
+  // business in practice (support unresponsive, see routes/paddle.js's
+  // own webhook still wired up for whoever it does work for) — Haneen's
+  // decision was to add manual bank transfer to her Reflect/Arab Bank
+  // IBAN as the primary path instead. No auto-charging is possible with
+  // a plain transfer, so this is an honor-system queue: a user submits a
+  // note once they've sent the money, Haneen (owner-only, see
+  // routes/admin.js requireOwner) checks her bank app for a matching
+  // transfer and approves or rejects — approving is what actually flips
+  // is_premium, via the exact same user_premium upsert
+  // POST /admin/users/:id/premium already used for manual grants, just
+  // now also stamping which plan was actually paid for instead of the
+  // generic 'manual' label.
+  await db.execute(`CREATE TABLE IF NOT EXISTS bank_transfer_requests (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_key       TEXT NOT NULL,
+    amount_usd     REAL NOT NULL,
+    reference_note TEXT DEFAULT NULL,
+    status         TEXT NOT NULL DEFAULT 'pending',
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at    TEXT DEFAULT NULL
+  )`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_bank_transfer_status ON bank_transfer_requests(status, created_at)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_bank_transfer_user ON bank_transfer_requests(user_id, created_at)`);
+
   console.log('✅ Database connected and migrations applied.');
 }
 
