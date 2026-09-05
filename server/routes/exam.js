@@ -304,18 +304,27 @@ ${source}`;
 // Free tier: most recent 15 sessions kept, older ones auto-pruned
 // on save. Premium: unlimited (actual "Unlimited exam history" perk).
 // ═══════════════════════════════════════════════════════════════
+// MAX_MINDMAP_PROMPT_CHARS-sized ceiling on what gets stored, same
+// reasoning as that cap: this is a safety net against pathological
+// input, not a limit anyone realistic hits. Storing the full source
+// alongside every session (not just mindmap) is what makes "Ask Lumi
+// more" keep working after a session is reopened later — that's the
+// actual bug this whole feature exists to fix (see askLumiAboutNode's
+// comment in ExamAssistant.jsx).
+const MAX_STORED_SOURCE_CHARS = 40000;
 router.post('/sessions', async (req, res) => {
   try {
-    const { mode, difficulty, sourceName = '', items } = req.body;
+    const { mode, difficulty, sourceName = '', items, sourceContent = '' } = req.body;
     if (!mode || !Array.isArray(items) || !items.length)
       return res.status(400).json({ error: 'mode and items are required' });
     const insert = await db.execute({
-      sql:  `INSERT INTO exam_sessions (user_id, mode, difficulty, source_name, item_count, payload)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+      sql:  `INSERT INTO exam_sessions (user_id, mode, difficulty, source_name, item_count, payload, source_content)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [
         req.user.id, mode, difficulty || 'medium',
         String(sourceName).slice(0, 120),
         items.length, JSON.stringify(items),
+        String(sourceContent).slice(0, MAX_STORED_SOURCE_CHARS) || null,
       ],
     });
     const newId = Number(insert.lastInsertRowid);
@@ -367,14 +376,90 @@ router.get('/sessions/:id', async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Session not found' });
     let items = [];
     try { items = JSON.parse(row.payload); } catch (_) {}
+    let chatMessages = null;
+    if (row.chat_messages) {
+      try { chatMessages = JSON.parse(row.chat_messages); } catch (_) {}
+    }
     res.json({
       id: row.id, mode: row.mode, difficulty: row.difficulty,
       source_name: row.source_name, item_count: row.item_count,
       created_at: row.created_at, items,
+      // Both null when this session predates this feature or never had
+      // a linked chat — client treats either the same way (no source to
+      // ground a chat in, same as before this existed at all).
+      source_content: row.source_content || null,
+      chat_messages:  chatMessages,
     });
   } catch (err) {
     console.error('GET /exam/sessions/:id error:', err);
     res.status(500).json({ error: 'Could not load session' });
+  }
+});
+
+// Attaches/updates a chat transcript on an EXISTING session row — used
+// both to keep a Concept Map's "Ask Lumi more" conversation saved on the
+// exact same row as the map it branched from (Haneen's explicit request:
+// not a separate, unrelated Past Sessions entry), and to save follow-up
+// turns onto a standalone Study Chat session already created via
+// POST /sessions/chat below. Overwrites the whole transcript each call
+// rather than appending server-side — the client already holds the full
+// running conversation in memory, so it's simplest for it to just be the
+// one source of truth sent up each time, same as how items/payload above
+// are always the complete set, never a partial patch.
+router.patch('/sessions/:id/chat', async (req, res) => {
+  try {
+    const { chatMessages } = req.body;
+    if (!Array.isArray(chatMessages)) return res.status(400).json({ error: 'chatMessages array required' });
+    const result = await db.execute({
+      sql:  `UPDATE exam_sessions SET chat_messages = ? WHERE id = ? AND user_id = ?`,
+      args: [JSON.stringify(chatMessages), req.params.id, req.user.id],
+    });
+    if (result.rowsAffected === 0) return res.status(404).json({ error: 'Session not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('PATCH /exam/sessions/:id/chat error:', err);
+    res.status(500).json({ error: 'Could not save chat' });
+  }
+});
+
+// Creates a brand-new session for a Study Chat started from scratch —
+// i.e. NOT branched off an existing Concept Map (that case reuses the
+// map's own session row via the PATCH above instead). Mirrors POST
+// /sessions above but keyed on a chat transcript instead of generated
+// items — item_count tracks message count instead of question count so
+// Past Sessions' existing "N items" label still reads sensibly for a
+// chat entry, and payload stores an empty array since there's no
+// separate "generated content" distinct from the conversation itself.
+router.post('/sessions/chat', async (req, res) => {
+  try {
+    const { sourceName = '', sourceContent = '', chatMessages } = req.body;
+    if (!Array.isArray(chatMessages) || !chatMessages.length)
+      return res.status(400).json({ error: 'chatMessages are required' });
+    const insert = await db.execute({
+      sql:  `INSERT INTO exam_sessions (user_id, mode, difficulty, source_name, item_count, payload, source_content, chat_messages)
+             VALUES (?, 'chat', 'medium', ?, ?, '[]', ?, ?)`,
+      args: [
+        req.user.id, String(sourceName).slice(0, 120), chatMessages.length,
+        String(sourceContent).slice(0, MAX_STORED_SOURCE_CHARS) || null,
+        JSON.stringify(chatMessages),
+      ],
+    });
+    const newId = Number(insert.lastInsertRowid);
+    const premium = await isPremium(req.user.id);
+    if (!premium) {
+      await db.execute({
+        sql: `DELETE FROM exam_sessions
+              WHERE user_id = ? AND id NOT IN (
+                SELECT id FROM exam_sessions WHERE user_id = ?
+                ORDER BY created_at DESC LIMIT ?
+              )`,
+        args: [req.user.id, req.user.id, FREE_SESSION_LIMIT],
+      });
+    }
+    res.status(201).json({ id: newId });
+  } catch (err) {
+    console.error('POST /exam/sessions/chat error:', err);
+    res.status(500).json({ error: 'Could not save chat session' });
   }
 });
 

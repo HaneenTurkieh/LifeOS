@@ -205,6 +205,8 @@ CREATE TABLE IF NOT EXISTS exam_sessions (
   source_name TEXT DEFAULT '',                     -- filename or note snippet
   item_count  INTEGER NOT NULL DEFAULT 0,
   payload     TEXT NOT NULL,                       -- questions/cards/slides as JSON
+  source_content TEXT DEFAULT NULL,                -- original notes+file text, for Study Chat grounding
+  chat_messages  TEXT DEFAULT NULL,                -- JSON transcript — own session (mode='chat') or attached to the mindmap it branched from
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_exam_sessions_user ON exam_sessions(user_id);
