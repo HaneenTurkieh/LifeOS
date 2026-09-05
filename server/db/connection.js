@@ -859,6 +859,29 @@ async function initDb() {
     await db.execute(`ALTER TABLE channels ADD COLUMN points_locked INTEGER NOT NULL DEFAULT 0`);
   }
 
+  // Study Chat persistence — previously the only Exam Assistant mode
+  // with no save-to-history at all (see routes/exam.js POST /sessions).
+  // Two new columns, both nullable so every existing row (mcq/blanks/
+  // mixed/flashcards/slides/mindmap) is unaffected:
+  //   - source_content: the combinedContent (notes + extracted file
+  //     text) a session was generated from. Sessions never stored this
+  //     before — only the generated `payload` — which is exactly what
+  //     made "Ask Lumi more" from a reopened Concept Map break (no
+  //     source material left to ground a chat in). Needed now so a
+  //     concept map's linked chat still works after being reopened.
+  //   - chat_messages: the chat transcript, as JSON, for a mode='chat'
+  //     session OR attached to a mode='mindmap' session that a Study
+  //     Chat was branched off of via "Ask Lumi more" (see routes/exam.js
+  //     PATCH /sessions/:id/chat) — kept on the SAME row as the concept
+  //     map it came from, by Haneen's request, rather than becoming an
+  //     unrelated separate entry in Past Sessions.
+  if (!(await hasColumn('exam_sessions', 'source_content'))) {
+    await db.execute(`ALTER TABLE exam_sessions ADD COLUMN source_content TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('exam_sessions', 'chat_messages'))) {
+    await db.execute(`ALTER TABLE exam_sessions ADD COLUMN chat_messages TEXT DEFAULT NULL`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 

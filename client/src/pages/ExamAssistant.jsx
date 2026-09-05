@@ -12,6 +12,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
+import { renderMarkdown } from '../utils/markdown.jsx';
 
 const FILE_TYPES = [
   { ext:'PDF',  icon:'📄', accept:'.pdf'              },
@@ -1136,6 +1137,14 @@ export default function ExamAssistant() {
   const [chatMessages,  setChatMessages]  = useState([]);
   const [chatInput,     setChatInput]     = useState('');
   const [chatLoading,   setChatLoading]   = useState(false);
+  // Which saved exam_sessions row (if any) the current view is linked to —
+  // null means "nothing saved yet" (a chat not sent a first message yet,
+  // or content not yet generated). Set after a fresh save/generate, or on
+  // reopening a Past Session. Chat messages get PATCHed onto this same id
+  // instead of creating a new session each turn, which is what keeps a
+  // Concept Map's "Ask Lumi more" conversation attached to that map's own
+  // history entry rather than spawning an unrelated one.
+  const [currentSessionId, setCurrentSessionId] = useState(null);
   // Concept Map — which node's "view in source" modal is open, if any.
   const [sourceViewNode, setSourceViewNode] = useState(null);
   const fileRef = useRef(null);
@@ -1205,14 +1214,18 @@ export default function ExamAssistant() {
   }, [authedFetch]);
   useEffect(() => { loadSessions(); }, [loadSessions]);
 
-  const saveSession = async (sessionMode, sessionDifficulty, items, sourceName) => {
+  // Returns the new session's id (or null on failure) so callers can link
+  // follow-up chat messages to this exact row via currentSessionId.
+  const saveSession = async (sessionMode, sessionDifficulty, items, sourceName, sourceContent) => {
     try {
       const res = await authedFetch('/api/exam/sessions', {
         method: 'POST',
-        body: JSON.stringify({ mode:sessionMode, difficulty:sessionDifficulty, items, sourceName }),
+        body: JSON.stringify({ mode:sessionMode, difficulty:sessionDifficulty, items, sourceName, sourceContent }),
       });
-      if (res.ok) loadSessions();
+      const data = await res.json().catch(() => null);
+      if (res.ok) { loadSessions(); return data?.id ?? null; }
     } catch (_) {}
+    return null;
   };
   const openSession = async (session) => {
     setSessionBusy(session.id);
@@ -1221,7 +1234,25 @@ export default function ExamAssistant() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not open session');
       setDifficulty(data.difficulty || 'medium');
-      setResult({ mode: data.mode, data: data.items });
+      setCurrentSessionId(data.id);
+      // Restore the original source material when this session has it
+      // saved, so Study Chat / "Ask Lumi more" can ground answers in it
+      // again — sessions saved before this feature (or with no source,
+      // e.g. very old rows) simply won't have this, same limitation as
+      // before, just narrower.
+      if (data.source_content) {
+        setFiles([]);
+        setNotes(data.source_content);
+      }
+      setChatMessages(Array.isArray(data.chat_messages) ? data.chat_messages : []);
+      if (data.mode === 'chat') {
+        // A standalone Study Chat session — there's no generated
+        // "result" to show, just the restored conversation itself.
+        setResult(null);
+        setMode('chat');
+      } else {
+        setResult({ mode: data.mode, data: data.items });
+      }
     } catch (err) { toast.error(err.message); }
     finally { setSessionBusy(null); }
   };
@@ -1285,6 +1316,12 @@ export default function ExamAssistant() {
     if (!content.trim()) { toast.error(t('exam.addFirst')); return; }
     setLoading(true);
     setResult(null);
+    // A fresh generation always becomes its own new session once saved
+    // below — clear any id/chat left over from whatever was open before,
+    // so a stray "Ask Lumi more" mid-generation can't attach to the wrong
+    // (old) session.
+    setCurrentSessionId(null);
+    setChatMessages([]);
     let prompt = '';
     // Concrete criteria per level — "hard" was previously just a bare
     // adjective the model got zero guidance on, so it defaulted to
@@ -1377,9 +1414,10 @@ Content:\n${content}`;
         ? t('exam.cards', { n: parsed.length })
         : t('exam.questions', { n: parsed.length });
       toast.success(`${label} ✓`);
-      saveSession(mode, difficulty, parsed, files.length
+      const newId = await saveSession(mode, difficulty, parsed, files.length
         ? files.map(f => f.name).join(', ')
-        : notes.slice(0, 60));
+        : notes.slice(0, 60), content);
+      if (newId) setCurrentSessionId(newId);
     } catch (err) {
       toast.error(err.message || 'Generation failed. Try again.');
     } finally {
@@ -1420,12 +1458,46 @@ Content:\n${content}`;
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Chat failed');
-      setChatMessages(m => [...m, { role: 'assistant', content: data.answer }]);
+      const finalMessages = [...nextMessages, { role: 'assistant', content: data.answer }];
+      setChatMessages(finalMessages);
+      persistChat(finalMessages);
     } catch (err) {
       toast.error(err.message || 'Something went wrong — try again.');
     } finally {
       setChatLoading(false);
     }
+  };
+
+  // Saves the running chat transcript against whatever session it belongs
+  // to. If `currentSessionId` is already set — a concept map (or any other
+  // generated result) this chat branched off of via "Ask Lumi more", or a
+  // standalone chat already saved once before — this PATCHes that exact
+  // row, which is what keeps the conversation attached to the map it was
+  // built for instead of scattering into a new, unrelated Past Sessions
+  // entry. Only when there's no session yet (a brand-new standalone Study
+  // Chat, first message) does this create one, via POST /sessions/chat.
+  // Fire-and-forget like saveSession above — a failed save here shouldn't
+  // interrupt the conversation the person is actually having.
+  const persistChat = async (messages) => {
+    try {
+      if (currentSessionId) {
+        await authedFetch(`/api/exam/sessions/${currentSessionId}/chat`, {
+          method: 'PATCH',
+          body: JSON.stringify({ chatMessages: messages }),
+        });
+      } else {
+        const res = await authedFetch('/api/exam/sessions/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            sourceName: files.length ? files.map(f => f.name).join(', ') : notes.slice(0, 60),
+            sourceContent: combinedContent,
+            chatMessages: messages,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.id) { setCurrentSessionId(data.id); loadSessions(); }
+      }
+    } catch (_) {}
   };
 
   // Concept map node → Study Chat. The node's own `summary` is already a
@@ -1760,7 +1832,19 @@ Content:\n${content}`;
                               ? { background: 'rgb(var(--accent-500))' }
                               : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.70)' }}
                           >
-                            {m.content}
+                            {/* Real bug this fixes: the model's replies
+                                often use **bold**/lists (see the "Why
+                                Arduino Uno?" example that prompted this),
+                                but this bubble rendered raw text, so
+                                `**Sufficient I/O Pins**` showed up as
+                                literal asterisks instead of bold. Reuses
+                                the same renderer AITools.jsx's main Lumi
+                                chat already relies on for this exact
+                                thing, now shared from utils/markdown.jsx
+                                instead of living only in one page. User's
+                                own typed messages stay plain — there's no
+                                reason to markdown-parse what she typed. */}
+                            {m.role === 'assistant' ? renderMarkdown(m.content) : m.content}
                           </div>
                         </div>
                       ))
@@ -1818,6 +1902,8 @@ Content:\n${content}`;
                   ? t('exam.minSlides', { n: s.item_count })
                   : s.mode==='flashcards'
                   ? t('exam.cards', { n: s.item_count })
+                  : s.mode==='chat'
+                  ? t('exam.messages', { n: s.item_count })
                   : t('exam.questions', { n: s.item_count });
                 return (
                   <button key={s.id} onClick={() => openSession(s)} disabled={busy}
@@ -1830,7 +1916,7 @@ Content:\n${content}`;
                         {s.source_name ? ` · ${s.source_name}` : ''}
                       </p>
                       <p className="text-[11px] text-ink/40 dark:text-white/30">
-                        {countLabel}{s.mode !== 'slides' ? ` · ${t(`exam.${s.difficulty}`)}` : ''} · {fmtSessionDate(s.created_at, lang)}
+                        {countLabel}{s.mode !== 'slides' && s.mode !== 'chat' ? ` · ${t(`exam.${s.difficulty}`)}` : ''} · {fmtSessionDate(s.created_at, lang)}
                       </p>
                     </div>
                     <span
@@ -1893,7 +1979,7 @@ Content:\n${content}`;
                   : <Presentation size={14}/>}
                 PPTX
               </button>
-              <button onClick={() => { setResult(null); loadSessions(); }}
+              <button onClick={() => { setResult(null); setCurrentSessionId(null); setChatMessages([]); loadSessions(); }}
                 className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-ink/55 transition" style={glass}>
                 <RotateCcw size={14}/> {t('exam.newSession')}
               </button>
