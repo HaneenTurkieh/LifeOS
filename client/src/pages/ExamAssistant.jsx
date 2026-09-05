@@ -1433,7 +1433,22 @@ Content:\n${content}`;
   // going deeper, so it leaves the generated quiz/deck view entirely and
   // drops into an actual conversation about it (same source material,
   // still grounded, now able to follow up).
+  //
+  // Real bug this fixes: a concept map reopened from History (see
+  // openSession above) only restores `result` — the saved sessions table
+  // never stored the original files/notes, just the generated tree — so
+  // `combinedContent` is empty for any map opened that way. Clicking
+  // "Ask Lumi more" used to switch to chat mode and fire off a question
+  // anyway, landing on the empty Study Chat screen with a generic "Add
+  // notes or upload a file first" toast that gave no hint this was a
+  // history/reopened-session thing rather than something the person
+  // forgot to do. Checking up front, before ever leaving the concept
+  // map, keeps the person right where their material still exists.
   const askLumiAboutNode = (node) => {
+    if (!combinedContent.trim()) {
+      toast.error(t('exam.historyNoSource'));
+      return;
+    }
     setResult(null);
     setMode('chat');
     sendChatMessage(t('exam.explainMore', { topic: node.title }));
