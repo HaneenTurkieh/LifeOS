@@ -1841,17 +1841,17 @@ Content:\n${content}`;
                               : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.70)' }}
                           >
                             {/* Real bug this fixes: the model's replies
-                                often use **bold**/lists (see the "Why
+                                often use bold text and lists (see the "Why
                                 Arduino Uno?" example that prompted this),
-                                but this bubble rendered raw text, so
-                                `**Sufficient I/O Pins**` showed up as
-                                literal asterisks instead of bold. Reuses
-                                the same renderer AITools.jsx's main Lumi
-                                chat already relies on for this exact
-                                thing, now shared from utils/markdown.jsx
-                                instead of living only in one page. User's
-                                own typed messages stay plain — there's no
-                                reason to markdown-parse what she typed. */}
+                                but this bubble rendered raw text, so a
+                                bolded phrase showed up as literal
+                                asterisks instead of bold. Reuses the same
+                                renderer AITools.jsx's main Lumi chat
+                                already relies on for this exact thing, now
+                                shared from utils/markdown.jsx instead of
+                                living only in one page. User's own typed
+                                messages stay plain — there's no reason to
+                                markdown-parse what she typed. */}
                             {m.role === 'assistant' && m.deepSearch && (
                               <div className="flex items-center gap-1 mb-1.5 text-[10px] font-semibold text-lavender-500">
                                 <Globe size={11}/> {t('lumi.deepSearch')}
