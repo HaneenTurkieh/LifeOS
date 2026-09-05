@@ -4,7 +4,7 @@ import {
   User, Lock, Palette, MessageSquare, Trash2,
   AlertTriangle, LogOut, Mail, Camera, Check,
   Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift, Sparkles,
-  BarChart3, Users, TrendingUp, GraduationCap,
+  BarChart3, Users, TrendingUp, GraduationCap, Landmark, Copy, Clock, XCircle,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -528,6 +528,17 @@ function PremiumTab() {
   const [trial,      setTrial]      = useState(null);
   const [trialBusy,  setTrialBusy]  = useState(false);
   const [gracePasses, setGracePasses] = useState(null);
+  // ── Bank transfer — primary payment path now that Paddle support has
+  // gone unresponsive (see server/routes/focus.js PLANS comment).
+  // bankPlan is which plan card currently has the transfer panel open
+  // (null = none); myRequest is this user's own most recent request, so
+  // a "pending review" / "rejected, try again" state survives a reopen
+  // of Settings without them needing to remember they already sent it.
+  const [bankDetails,  setBankDetails]  = useState(null);
+  const [myRequest,    setMyRequest]    = useState(null);
+  const [bankPlan,     setBankPlan]     = useState(null);
+  const [transferNote, setTransferNote] = useState('');
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
   const load = useCallback(() => {
     api.get('/focus/premium/status')
       .then((d) => {
@@ -538,8 +549,29 @@ function PremiumTab() {
     api.get('/focus/premium/plans').then((d) => setPlans(d.plans || [])).catch(() => setPlans([]));
     api.get('/focus/premium/trial-eligibility').then(setTrial).catch(() => setTrial(null));
     api.get('/focus/grace-passes').then(setGracePasses).catch(() => setGracePasses(null));
+    api.get('/focus/premium/bank-transfer/details').then(setBankDetails).catch(() => setBankDetails(null));
+    api.get('/focus/premium/bank-transfer/mine').then((d) => setMyRequest(d.request)).catch(() => setMyRequest(null));
   }, [setAccent]);
   useEffect(() => { load(); }, [load]);
+
+  const submitBankTransfer = async (planKey) => {
+    setSubmittingTransfer(true);
+    try {
+      const next = await api.post('/focus/premium/bank-transfer', { plan_key: planKey, reference_note: transferNote });
+      setMyRequest({ ...next });
+      setBankPlan(null);
+      setTransferNote('');
+      toast.success(t('settings.bankTransferSubmitted'));
+    } catch (err) { toast.error(err.message); }
+    finally { setSubmittingTransfer(false); }
+  };
+  const copyIban = () => {
+    if (!bankDetails?.iban) return;
+    navigator.clipboard?.writeText(bankDetails.iban).then(
+      () => toast.success(t('settings.copied')),
+      () => {}
+    );
+  };
 
   // Paddle fires 'checkout.completed' the instant payment succeeds, but
   // our own is_premium flip only happens once the Paddle webhook reaches
@@ -784,6 +816,31 @@ function PremiumTab() {
           </button>
         </div>
       )}
+      {/* Bank transfer status banner — shows once a request exists so
+          reopening Settings doesn't make it look like nothing happened.
+          'pending' hides the plan grid entirely below (one active
+          request at a time, enforced server-side too); 'rejected' shows
+          a dismissable-by-resubmitting note instead. */}
+      {!status.is_premium && myRequest?.status === 'pending' && (
+        <div className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ background:'rgba(45,167,110,0.08)', border:'1px solid rgba(45,167,110,0.25)' }}>
+          <Clock size={20} className="text-sage-500 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-ink dark:text-white">{t('settings.bankTransferPending')}</p>
+            <p className="text-[11px] text-ink/50 dark:text-white/40 mt-0.5">{t('settings.bankTransferPendingDesc')}</p>
+          </div>
+        </div>
+      )}
+      {!status.is_premium && myRequest?.status === 'rejected' && (
+        <div className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.22)' }}>
+          <XCircle size={20} className="text-coral-500 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-ink dark:text-white">{t('settings.bankTransferRejected')}</p>
+            <p className="text-[11px] text-ink/50 dark:text-white/40 mt-0.5">{t('settings.bankTransferRejectedDesc')}</p>
+          </div>
+        </div>
+      )}
       {!isInstructor && !status.is_premium && trial && !trial.eligible && !trial.trialActive && !trial.trialUsed && trial.level < trial.requiredLevel && (
         <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
           style={{ background:'rgb(var(--accent-500) / 0.05)', border:'1px solid rgb(var(--accent-500) / 0.12)' }}>
@@ -828,7 +885,7 @@ function PremiumTab() {
           </div>
         </div>
       )}
-      {!status.is_premium && plans.length > 0 && (
+      {!status.is_premium && plans.length > 0 && myRequest?.status !== 'pending' && (
         <div className="flex flex-col gap-2.5">
           <p className="text-sm font-semibold text-ink dark:text-white px-1">👑 {t('settings.choosePlan')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -836,6 +893,7 @@ function PremiumTab() {
               const badgeLabel = plan.badge === 'popular' ? t('settings.mostPopular')
                                 : plan.badge === 'value'   ? t('settings.bestValue')
                                 : null;
+              const transferOpen = bankPlan === plan.key;
               return (
                 <div key={plan.key} className="relative rounded-2xl p-4 flex flex-col"
                   style={plan.badge
@@ -849,7 +907,7 @@ function PremiumTab() {
                   )}
                   <p className="text-xs font-bold text-ink/60 dark:text-white/50 text-center mt-1">{plan.name}</p>
                   <p className="text-2xl font-display font-bold text-ink dark:text-white text-center mt-1">
-                    {plan.price} <span className="text-xs font-semibold text-ink/40 dark:text-white/35">{plan.currency}</span>
+                    ${plan.price} <span className="text-xs font-semibold text-ink/40 dark:text-white/35">{plan.currency}</span>
                   </p>
                   <p className="text-[11px] text-ink/40 dark:text-white/30 text-center">{periodLabel(plan.months, lang)}</p>
                   <p className="text-[10px] font-semibold text-ink/35 dark:text-white/25 text-center mt-0.5">
@@ -860,11 +918,57 @@ function PremiumTab() {
                       {t('settings.perMonthEq', { n: monthlyEq(plan) })}
                     </p>
                   )}
-                  <button onClick={() => checkoutPlan(plan)} disabled={checkingOut !== null}
-                    className="mt-3 w-full rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-40"
+                  {/* Bank transfer is now the primary, reliable path
+                      (Paddle support has gone unresponsive — see
+                      server/routes/focus.js). Left as the prominent
+                      button; card checkout via Paddle stays available as
+                      a smaller secondary link below in case it does work
+                      for someone. */}
+                  <button onClick={() => setBankPlan(transferOpen ? null : plan.key)}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-white transition"
                     style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
-                    {checkingOut === plan.key ? t('settings.activating') : t('settings.subscribe')}
+                    <Landmark size={13}/> {t('settings.payByBankTransfer')}
                   </button>
+                  <button onClick={() => checkoutPlan(plan)} disabled={checkingOut !== null}
+                    className="mt-1.5 w-full rounded-xl py-1.5 text-[10px] font-semibold text-ink/40 dark:text-white/35 underline decoration-dotted underline-offset-2 transition disabled:opacity-40">
+                    {checkingOut === plan.key ? t('settings.activating') : t('settings.payByCard')}
+                  </button>
+
+                  {transferOpen && bankDetails && (
+                    <div className="mt-3 rounded-xl p-3 flex flex-col gap-2 text-start"
+                      style={{ background:'rgba(0,0,0,0.03)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-ink/40 dark:text-white/30">
+                        {t('settings.bankTransferAmount')}
+                      </p>
+                      <p className="text-sm font-bold text-ink dark:text-white">${plan.price} USD</p>
+
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-ink/40 dark:text-white/30 mt-1">
+                        {t('settings.bankTransferIban')}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <code className="text-[11px] font-mono text-ink/80 dark:text-white/70 break-all">{bankDetails.iban}</code>
+                        <button onClick={copyIban} title={t('settings.copy')} className="shrink-0 text-ink/40 dark:text-white/35 hover:text-ink dark:hover:text-white">
+                          <Copy size={13}/>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-ink/50 dark:text-white/40">{bankDetails.bankName} — {bankDetails.accountName}</p>
+
+                      <textarea
+                        value={transferNote}
+                        onChange={(e) => setTransferNote(e.target.value)}
+                        placeholder={t('settings.bankTransferNotePh')}
+                        rows={2}
+                        maxLength={500}
+                        className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs resize-none"
+                        style={{ background:'rgba(255,255,255,0.6)', border:'1px solid rgb(var(--accent-500) / 0.18)', color:'inherit' }}
+                      />
+                      <button onClick={() => submitBankTransfer(plan.key)} disabled={submittingTransfer}
+                        className="mt-1 w-full rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-40"
+                        style={{ background:'linear-gradient(135deg,#2DA76E,#1E8A57)' }}>
+                        {submittingTransfer ? t('settings.sending') : t('settings.bankTransferSubmit')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1102,6 +1206,13 @@ function StatCard({ icon: Icon, label, value, isDark }) {
 function StatsTab() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  // Was missing before (grantPremium below called toast.success/error
+  // with nothing ever imported into this function's scope — a silent
+  // ReferenceError swallowed by the surrounding try/catch, so Grant/
+  // Revoke actually worked but never showed the confirmation toast).
+  // Fixed here since bank-transfer approve/reject below needs the same
+  // toast anyway.
+  const toast = useToast();
   const [stats,   setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
@@ -1113,6 +1224,11 @@ function StatsTab() {
   const [showErrors,    setShowErrors]    = useState(false);
   const [cronHealth,    setCronHealth]    = useState(null);
   const [grantingId,    setGrantingId]    = useState(null);
+  // ── Bank transfer requests (owner-only review queue) ────────────
+  const [transfers,        setTransfers]        = useState(null);
+  const [transfersLoading, setTransfersLoading] = useState(true);
+  const [reviewingId,      setReviewingId]      = useState(null);
+  const [showAllTransfers, setShowAllTransfers] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1157,6 +1273,33 @@ function StatsTab() {
       .finally(() => { if (active) setUsersLoading(false); });
     return () => { active = false; };
   }, []);
+
+  const loadTransfers = useCallback(() => {
+    setTransfersLoading(true);
+    api.get('/admin/bank-transfers')
+      .then((d) => setTransfers(d.requests || []))
+      .catch(() => setTransfers([]))
+      .finally(() => setTransfersLoading(false));
+  }, []);
+  useEffect(() => { loadTransfers(); }, [loadTransfers]);
+
+  async function reviewTransfer(id, approve) {
+    setReviewingId(id);
+    try {
+      await api.post(`/admin/bank-transfers/${id}/${approve ? 'approve' : 'reject'}`, {});
+      setTransfers((list) => list.map((r) => (r.id === id ? { ...r, status: approve ? 'approved' : 'rejected' } : r)));
+      // A user's Premium tab reads is_premium from /focus/premium/status,
+      // which this approval just changed server-side — the users list
+      // here is a separate snapshot from GET /admin/users, so refresh it
+      // too rather than leaving it stale until next tab open.
+      if (approve) setUsers((list) => list?.map((u) => (u.id === transfers.find(r => r.id === id)?.user_id ? { ...u, is_premium: true } : u)) || list);
+      toast.success(approve ? 'Premium granted' : 'Request rejected');
+    } catch (e) {
+      toast.error(e.message || 'Could not update request');
+    } finally {
+      setReviewingId(null);
+    }
+  }
 
   // "Recent failures" — actual visibility into how often Lumi/anti-
   // procrastination calls fail for real users, instead of only finding
@@ -1280,6 +1423,90 @@ function StatsTab() {
           </div>
         )}
       </div>
+
+      <div>
+        <h3 className="font-display font-bold text-ink dark:text-white mb-1">Bank transfers</h3>
+        <p className={`text-xs ${isDark?'text-white/40':'text-ink/45'}`}>
+          Primary payment path now — Paddle support has gone unresponsive. Check your bank app for
+          a matching transfer before approving.
+        </p>
+      </div>
+      {(() => {
+        const pending = transfers?.filter((r) => r.status === 'pending') || [];
+        const rest    = transfers?.filter((r) => r.status !== 'pending') || [];
+        const rowStyle = { borderTop: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(30,34,51,0.05)' };
+        const renderRow = (r) => (
+          <div key={r.id} className="flex items-center justify-between gap-3 py-2" style={rowStyle}>
+            <div className="min-w-0">
+              <p className={`text-xs font-semibold truncate ${isDark?'text-white':'text-ink'}`}>
+                {r.name || '—'} <span className={isDark?'text-white/35':'text-ink/40'}>· {r.plan_key}</span>
+              </p>
+              <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{r.email} — ${r.amount_usd.toFixed(2)}</p>
+              {r.reference_note && (
+                <p className={`text-[11px] italic truncate mt-0.5 ${isDark?'text-white/35':'text-ink/40'}`}>"{r.reference_note}"</p>
+              )}
+              <p className={`text-[10px] mt-0.5 ${isDark?'text-white/25':'text-ink/30'}`}>
+                {r.created_at ? String(r.created_at).slice(0, 16).replace('T', ' ') : ''}
+              </p>
+            </div>
+            {r.status === 'pending' ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button disabled={reviewingId === r.id} onClick={() => reviewTransfer(r.id, true)}
+                  className="text-[10px] font-semibold px-2 py-1 rounded-lg disabled:opacity-40"
+                  style={{ background:'rgba(45,167,110,0.14)', color:'#1E8A57' }}>
+                  {reviewingId === r.id ? '…' : 'Approve'}
+                </button>
+                <button disabled={reviewingId === r.id} onClick={() => reviewTransfer(r.id, false)}
+                  className="text-[10px] font-semibold px-2 py-1 rounded-lg disabled:opacity-40"
+                  style={{ background:'rgba(239,68,68,0.10)', color:'#EF4444' }}>
+                  Reject
+                </button>
+              </div>
+            ) : (
+              <span className="text-[10px] font-semibold shrink-0 capitalize"
+                style={{ color: r.status === 'approved' ? '#1E8A57' : '#EF4444' }}>
+                {r.status}
+              </span>
+            )}
+          </div>
+        );
+        return (
+          <div className="rounded-2xl overflow-hidden"
+            style={isDark
+              ? { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)' }
+              : { background:'rgba(30,34,51,0.03)', border:'1px solid rgba(30,34,51,0.06)' }}>
+            <div className="px-4 py-3.5 flex items-center justify-between">
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark?'text-white/35':'text-ink/35'}`}>
+                Pending {pending.length > 0 ? `(${pending.length})` : ''}
+              </span>
+            </div>
+            <div className="px-4 pb-3.5 flex flex-col gap-1">
+              {transfersLoading ? (
+                <p className={`text-xs text-center py-4 ${isDark?'text-white/35':'text-ink/35'}`}>Loading…</p>
+              ) : pending.length === 0 ? (
+                <p className={`text-xs text-center py-4 ${isDark?'text-white/35':'text-ink/35'}`}>Nothing waiting on you.</p>
+              ) : pending.map(renderRow)}
+            </div>
+            {rest.length > 0 && (
+              <>
+                <button onClick={() => setShowAllTransfers((s) => !s)}
+                  className="w-full flex items-center justify-between px-4 py-3"
+                  style={{ borderTop: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(30,34,51,0.06)' }}>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark?'text-white/35':'text-ink/35'}`}>
+                    History ({rest.length})
+                  </span>
+                  <ChevronRight size={14} className={`transition-transform ${isDark?'text-white/35':'text-ink/35'} ${showAllTransfers ? 'rotate-90' : ''}`} />
+                </button>
+                {showAllTransfers && (
+                  <div className="px-4 pb-3.5 flex flex-col gap-1 max-h-64 overflow-y-auto">
+                    {rest.map(renderRow)}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       <div>
         <h3 className="font-display font-bold text-ink dark:text-white mb-1">Recent failures</h3>

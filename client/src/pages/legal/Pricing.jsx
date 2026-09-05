@@ -3,13 +3,16 @@ import LegalLayout, { Section } from './LegalLayout.jsx';
 
 // Static, logged-out-friendly pricing page. Deliberately hardcoded rather
 // than pulled from GET /focus/premium/plans — that route sits behind
-// `authenticate`, but Paddle's domain review needs pricing visible without
-// logging in. Keep these numbers in sync with PLANS in server/routes/focus.js
-// if prices ever change.
+// `authenticate`, but pricing still needs to be visible without logging
+// in (originally for Paddle's domain review; still true now that bank
+// transfer is the primary path). Keep these numbers in sync with PLANS
+// in server/routes/focus.js if prices ever change. Priced in USD (moved
+// off NIS Sept 2026 alongside the switch to bank transfer as the primary
+// payment method — see Pricing section below).
 const PLANS = [
-  { name: 'Monthly',  price: 10, period: '/ month',                 note: null },
-  { name: 'Semester', price: 34, period: '/ semester (4 months)',   note: 'Most popular · ≈8.5 NIS/mo' },
-  { name: 'Annual',   price: 96, period: '/ year (12 months)',      note: 'Save 20% · ≈8 NIS/mo' },
+  { name: 'Monthly',  price: 3.99,  period: '/ month',                 note: null },
+  { name: 'Semester', price: 12.99, period: '/ semester (4 months)',   note: 'Most popular · ≈$3.25/mo' },
+  { name: 'Annual',   price: 34.99, period: '/ year (12 months)',      note: 'Save 27% · ≈$2.92/mo' },
 ];
 
 const PERKS = [
@@ -26,9 +29,9 @@ export default function Pricing() {
       <Section>
         <p>
           Nuvora is free to use. <strong>Premium</strong> unlocks unlimited AI usage and a few
-          extra perks, billed in New Israeli Shekels (NIS) through our payment processor,{' '}
-          <strong>Paddle</strong>, which converts to your local currency automatically at
-          checkout.
+          extra perks, priced in US Dollars. The primary way to pay is a direct bank transfer to
+          our USD account — see below — since our card processor, Paddle, has been unresponsive
+          for a Palestine-based seller in practice.
         </p>
       </Section>
 
@@ -39,13 +42,23 @@ export default function Pricing() {
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
               <p className="text-xs font-bold opacity-70">{p.name}</p>
               <p className="text-2xl font-display font-bold mt-1">
-                {p.price} <span className="text-xs font-semibold opacity-60">NIS</span>
+                ${p.price} <span className="text-xs font-semibold opacity-60">USD</span>
               </p>
               <p className="text-xs opacity-60">{p.period}</p>
               {p.note && <p className="text-[11px] opacity-50 mt-1">{p.note}</p>}
             </div>
           ))}
         </div>
+      </Section>
+
+      <Section heading="How to pay">
+        <p>
+          After signing in, go to Settings → Premium and choose "Pay by bank transfer" on any
+          plan. You'll see our IBAN and account details there — send the amount shown, add a short
+          note (your name or the transfer time helps us match it), and submit. We manually confirm
+          the transfer against our bank statement and activate Premium on your account, usually
+          within a day.
+        </p>
       </Section>
 
       <Section heading="What Premium includes">
