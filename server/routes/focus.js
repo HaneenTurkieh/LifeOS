@@ -1216,16 +1216,31 @@ router.delete('/rooms/:code/leave', async (req, res) => {
 // unresponsive and isn't a reliable path for a Palestine-based seller in
 // practice, so bank transfer (below) is now the primary payment method,
 // and USD is the one currency that makes sense for a manual transfer
-// someone anywhere might send. Converted at ~1 NIS = $0.332 (10/34/96
-// NIS) then rounded up to cover: Paddle/wire conversion friction, ~$400
-// already sunk into building Nuvora, and ongoing AI token + domain
-// costs — Haneen's explicit call, not just a straight conversion.
+// someone anywhere might send. Raised again from an initial 3.99/12.99/
+// 34.99 (already a ~20% bump over the raw 10/34/96 NIS conversion) to
+// these numbers per Haneen's explicit call — deliberately keeping
+// Monthly (the first number anyone sees) modest to avoid scaring off a
+// first-time subscriber, while pushing the real margin into Semester/
+// Annual (30%/33% effective discount vs Monthly) since someone already
+// committing to a longer plan is far less price-sensitive at the
+// margin. Covers: Paddle/wire conversion friction, ~$400 already sunk
+// into building Nuvora, and ongoing AI token + domain costs.
 const PLANS = [
-  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 3.99,  currency: 'USD', discountPct: 0,  badge: null,      priceId: 'pri_01kzrz0epxcy9v8qhe5md6qmbd' },
-  { key: 'semester', name: 'Semester', months: 4,  price: 12.99, currency: 'USD', discountPct: 19, badge: 'popular', priceId: 'pri_01kzrz863vxsrjcjnkrnk1pzya' },
-  { key: 'annual',   name: 'Annual',   months: 12, price: 34.99, currency: 'USD', discountPct: 27, badge: 'value',   priceId: 'pri_01kzrz9dxpyt5pwyb4kkb26gb6' },
+  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 4.99,  currency: 'USD', discountPct: 0,  badge: null,      priceId: 'pri_01kzrz0epxcy9v8qhe5md6qmbd' },
+  { key: 'semester', name: 'Semester', months: 4,  price: 13.99, currency: 'USD', discountPct: 30, badge: 'popular', priceId: 'pri_01kzrz863vxsrjcjnkrnk1pzya' },
+  { key: 'annual',   name: 'Annual',   months: 12, price: 39.99, currency: 'USD', discountPct: 33, badge: 'value',   priceId: 'pri_01kzrz9dxpyt5pwyb4kkb26gb6' },
 ];
-router.get('/premium/plans', (req, res) => res.json({ plans: PLANS }));
+
+// A NIS reference figure under the USD price is purely for local
+// intuition (Haneen's request) — the actual charge is always the USD
+// amount above, so this drifts with the real exchange rate rather than
+// being a fixed shekel price. Not fetched live (one more external API
+// call that could fail and take pricing down with it, for a number
+// that's explicitly "approximate" anyway) — just a constant to update
+// by hand occasionally. ~3.01 NIS/$1 as of Sept 2026.
+const USD_TO_NIS_RATE = 3.01;
+const PLANS_WITH_NIS = PLANS.map((p) => ({ ...p, priceNis: Math.round(p.price * USD_TO_NIS_RATE) }));
+router.get('/premium/plans', (req, res) => res.json({ plans: PLANS_WITH_NIS }));
 
 // ── Bank transfer details — single source of truth for the client's
 // "Pay by bank transfer" panel, so the IBAN/bank name only ever lives in
