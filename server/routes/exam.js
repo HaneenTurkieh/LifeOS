@@ -191,9 +191,24 @@ router.post('/generate', async (req, res) => {
     // slide decks mid-JSON on longer source docs, since generation stops
     // at the token cap, not at a clean JSON boundary. Slides ask for
     // full-detail, uncapped coverage, so they need the room.
+    //
+    // Real bug found after both timeout bumps above didn't fix Haneen's
+    // failure: it was never a timeout at all. A concept map's JSON tree
+    // (title+summary+source+quote per node, up to 6 top-level topics ×
+    // 4 children × 2 grandchildren = 70+ verbose nodes for a genuinely
+    // comprehensive tree) can overflow 8192 tokens on a content-rich
+    // document — the exact same "cut off mid-JSON at the token cap, not
+    // a clean boundary" failure the comment above already documents for
+    // slides, just not yet fixed for mindmap. The generation *finishes*
+    // well inside any timeout — the response is just truncated, invalid
+    // JSON, which fails to parse client-side and surfaces as a generic
+    // "Generation failed," easy to mistake for the same timeout this
+    // route already spent two rounds fixing. Mindmap gets its own higher
+    // ceiling instead of sharing exam/flashcard/slide's 8192.
+    const maxTokens = mode === 'mindmap' ? 16000 : 8192;
     const data = await callOpenRouter({
       messages:    [{ role: 'user', content: boundedPrompt }],
-      max_tokens:  8192,
+      max_tokens:  maxTokens,
       // Higher than the (unset→provider-default) value used for plain
       // Lumi chat — exam questions should vary between regenerations off
       // the same source material instead of converging on the same
