@@ -77,6 +77,29 @@ async function callOpenRouter({
   if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
   if (webSearch) body.plugins = [{ id: 'web', max_results: 5 }];
   if (jsonMode) body.response_format = { type: 'json_object' };
+  // Compliance requirement, not a preference: Google's Workspace API user
+  // data policy (Limited Use) prohibits letting any downstream model
+  // provider store/train on data that ever touches a Workspace scope
+  // (relevant here because this same OpenRouter call path is shared by
+  // every AI feature in the app, even though Sheets-scope data itself is
+  // never actually routed through it — see googleSheets.js, which only
+  // ever calls the Sheets API directly). data_collection: 'deny' restricts
+  // OpenRouter's routing to providers that neither log nor train on
+  // request content — enforced per-request here rather than relying
+  // solely on the account-wide dashboard toggle, so it can't be silently
+  // reverted by an account setting change.
+  //
+  // NOT also setting zdr: true here — that requires a true zero-data-
+  // retention *endpoint* to exist for the model, and if deepseek-v4-pro
+  // has no ZDR-compliant provider on OpenRouter, the request fails
+  // outright with a routing error instead of falling back (no fallback
+  // model is configured here). That would take down every AI feature in
+  // the app, not just this compliance edge case. Confirm ZDR endpoint
+  // availability for this model in the OpenRouter dashboard first, then
+  // add zdr: true here once verified safe. See:
+  // https://openrouter.ai/docs/guides/privacy/provider-logging
+  // https://openrouter.ai/docs/guides/features/zdr
+  body.provider = { data_collection: 'deny' };
   // Optional — callers doing plain chat leave these unset (the model's
   // own default is fine there). Exam generation passes an explicit
   // higher temperature so regenerating from the same source material
