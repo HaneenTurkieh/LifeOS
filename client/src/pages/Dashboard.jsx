@@ -191,11 +191,11 @@ export default function Dashboard() {
   // so it still only changes at a fixed cadence rather than re-rolling
   // per page load, just more often than once a day now.
   const fiveHourIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 5));
-  const roughQuoteIndex = (fiveHourIndex % 18) + 1;
+  const roughQuoteIndex = (fiveHourIndex % 24) + 1;
   // Offset from roughQuoteIndex so a rough period and a great period
   // landing in the same 5-hour bucket don't coincidentally pick the
   // "same numbered" quote out of each pool.
-  const greatQuoteIndex = ((fiveHourIndex + 9) % 18) + 1;
+  const greatQuoteIndex = ((fiveHourIndex + 12) % 24) + 1;
   const statsRef = useRef(null);
   useEffect(() => {
     if (!openHint) return;
