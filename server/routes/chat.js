@@ -285,6 +285,16 @@ const TOOLS = [
       required: ['title'],
     },
   },
+  {
+    name: 'get_weather',
+    description: 'Get the current weather AND the next-24-hour precipitation forecast for the user\'s location — use this for ANY weather question, including "is it going to rain today", "do I need an umbrella", "is there precipitation", or "can I go for a run/walk today". Answer from the returned data (rain_expected_next_24h, next_24h_precipitation_chance_pct, hourly_preview) instead of guessing from the current condition alone — a clear sky right now doesn\'t mean it stays dry the rest of the day. Defaults to the user\'s device location automatically; only pass "location" if the user names a different city.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location: { type: 'string', description: 'Optional. Only set this if the user asks about a specific named city other than where they currently are.' },
+      },
+    },
+  },
 ];
 // Shared by complete_task / reopen_task / delete_task — a LIKE search that
 // silently picks the first match (the old behavior) is how a real bug
@@ -300,11 +310,61 @@ async function findTaskByTitle(userId, titleFragment, { excludeDone = false } = 
   return res.rows;
 }
 
-async function executeTool(name, input, userId, todayLocal) {
+async function executeTool(name, input, userId, todayLocal, clientLoc) {
   // Fallback only matters if a caller forgets to pass it — the real
   // request path above always supplies the client's local date.
   const today = todayLocal || new Date().toISOString().slice(0, 10);
   switch (name) {
+    case 'get_weather': {
+      const key = process.env.OPENWEATHER_KEY;
+      if (!key) return { error: 'Weather lookup isn\'t configured on the server yet — tell the user Nuvora\'s weather isn\'t wired up server-side and to check the weather widget on their Dashboard instead.' };
+      try {
+        let lat, lon, resolvedCity = null;
+        if (input?.location) {
+          const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(input.location)}&limit=1&appid=${key}`);
+          const geo = await geoRes.json();
+          if (!Array.isArray(geo) || !geo[0]) return { error: `Couldn't find a location called "${input.location}". Ask the user to clarify the city name.` };
+          lat = geo[0].lat; lon = geo[0].lon; resolvedCity = geo[0].name;
+        } else if (clientLoc?.lat != null && clientLoc?.lon != null) {
+          lat = clientLoc.lat; lon = clientLoc.lon;
+        } else {
+          return { error: 'No location available — the user hasn\'t granted device location. Ask them which city they mean, or to allow location access for the Dashboard weather widget.' };
+        }
+        const [curRes, foreRes] = await Promise.all([
+          fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${key}&units=metric`),
+          fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${key}&units=metric`),
+        ]);
+        const cur = await curRes.json();
+        const forecast = await foreRes.json();
+        if (!cur?.weather || !forecast?.list) return { error: 'Weather service returned no data for that location.' };
+        // 3-hour interval buckets — 8 of them covers the next 24h.
+        const next24h = forecast.list.slice(0, 8);
+        const maxPop = Math.round(Math.max(0, ...next24h.map((f) => f.pop || 0)) * 100);
+        const rainSoon = next24h.find((f) => (f.pop || 0) >= 0.4);
+        return {
+          city: resolvedCity || cur.name || null,
+          current: {
+            temp_c:       Math.round(cur.main.temp),
+            feels_like_c: Math.round(cur.main.feels_like),
+            condition:    cur.weather[0]?.main,
+            description:  cur.weather[0]?.description,
+            humidity_pct: cur.main.humidity,
+            wind_speed_ms: Math.round(cur.wind?.speed ?? 0),
+          },
+          next_24h_precipitation_chance_pct: maxPop,
+          rain_expected_next_24h: maxPop >= 40,
+          rain_expected_around: rainSoon ? new Date(rainSoon.dt * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
+          hourly_preview: next24h.map((f) => ({
+            time_local:  new Date(f.dt * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            temp_c:      Math.round(f.main.temp),
+            precipitation_chance_pct: Math.round((f.pop || 0) * 100),
+            condition:   f.weather?.[0]?.main,
+          })),
+        };
+      } catch (err) {
+        return { error: 'Weather lookup failed: ' + err.message };
+      }
+    }
     case 'create_task': {
       // Every date-filtered view in the app (Dashboard's "today" list,
       // daysUntil() on the Tasks page, etc.) expects deadline to be a
@@ -1256,7 +1316,12 @@ router.post('/', async (req, res) => {
   // lumi_conversations row every time, cluttering the visible chat
   // history with raw internal prompts. Everything still runs exactly
   // the same; only the DB writes at the bottom get skipped.
-  const { messages, conversation_id, mode = 'chat', attachments = [], no_history = false, local_date } = req.body;
+  const { messages, conversation_id, mode = 'chat', attachments = [], no_history = false, local_date, client_lat, client_lon } = req.body;
+  // Optional — only present when the client had a recent cached device
+  // location (see AITools.jsx's nuvora_weather cache reuse). Lets
+  // get_weather default to "here" without asking every time; missing this
+  // just means the tool asks the user for a city instead of guessing.
+  const clientLoc = (typeof client_lat === 'number' && typeof client_lon === 'number') ? { lat: client_lat, lon: client_lon } : null;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
 
   // Every other "today" in this app (Dashboard, Mood, Habits) is computed
@@ -1375,7 +1440,7 @@ router.post('/', async (req, res) => {
       for (const tc of toolCalls) {
         let input = {};
         try { input = JSON.parse(tc.function.arguments || '{}'); } catch (_) {}
-        const result = await executeTool(tc.function.name, input, req.user.id, todayLocal);
+        const result = await executeTool(tc.function.name, input, req.user.id, todayLocal, clientLoc);
         actions.push({ tool: tc.function.name, input, result });
         toolResults.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
       }

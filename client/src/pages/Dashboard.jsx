@@ -178,18 +178,24 @@ export default function Dashboard() {
   const [justCompletedId, setJustCompletedId] = useState(null);
   // Real bug that used to live here: the rough/meh-mood quote was a
   // single hardcoded string (t('dash.roughQuote')), so it looked
-  // identical literally every time someone had a low mood day. Now a
-  // pool of 6 (see translations.js) — and, like the neutral daily quote
-  // in server/lib/ai.js, picked deterministically from the calendar day
-  // rather than randomly per page load, so it's true "one per day"
-  // rotation instead of re-rolling (and possibly repeating) every time
-  // the dashboard happens to remount.
-  const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-  const roughQuoteIndex = (dayIndex % 6) + 1;
-  // Offset from roughQuoteIndex so a rough day and a great day landing
-  // on the same calendar day don't coincidentally pick the "same numbered"
-  // quote out of each pool.
-  const greatQuoteIndex = ((dayIndex + 3) % 6) + 1;
+  // identical literally every time someone had a low mood day. Fixed
+  // once already with a pool of 6, daily rotation — Haneen's follow-up
+  // feedback on THAT fix was that daily rotation still felt stale
+  // (widen it further, every ~5 hours) and, more importantly, that the
+  // pool itself leaned on app-engagement language ("rest is part of
+  // the process", "the streak exists") instead of actually being about
+  // life — so the pool (see translations.js) is now 18 REAL, attributed
+  // quotes per mood (Rumi, Viktor Frankl, Maya Angelou, etc.), not
+  // written-for-this-app pep talk, with zero task/streak/productivity
+  // framing. Deterministic on a 5-hour bucket (not the calendar day)
+  // so it still only changes at a fixed cadence rather than re-rolling
+  // per page load, just more often than once a day now.
+  const fiveHourIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 5));
+  const roughQuoteIndex = (fiveHourIndex % 18) + 1;
+  // Offset from roughQuoteIndex so a rough period and a great period
+  // landing in the same 5-hour bucket don't coincidentally pick the
+  // "same numbered" quote out of each pool.
+  const greatQuoteIndex = ((fiveHourIndex + 9) % 18) + 1;
   const statsRef = useRef(null);
   useEffect(() => {
     if (!openHint) return;

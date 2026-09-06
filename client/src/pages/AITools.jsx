@@ -564,6 +564,20 @@ export default function AITools() {
     setMessages([...base, userMsg]);
     setLoading(true);
     const history = [...base, userMsg].map(({ role, content }) => ({ role, content }));
+    // Reuse the Dashboard weather widget's own cache (useWeather.js) instead
+    // of asking the browser for location again here — if the widget has
+    // already gotten permission and fetched once, Lumi's get_weather tool
+    // can answer "is it going to rain today" using the same coordinates
+    // with no extra permission prompt. Fine if it's missing/stale: the
+    // tool just falls back to asking the user which city they mean.
+    let clientLat, clientLon;
+    try {
+      const cachedWeather = JSON.parse(localStorage.getItem('nuvora_weather') || 'null');
+      if (cachedWeather?.data?.lat != null && cachedWeather?.data?.lon != null) {
+        clientLat = cachedWeather.data.lat;
+        clientLon = cachedWeather.data.lon;
+      }
+    } catch (_) {}
     try {
       const res = await api.post('/chat', {
         messages:        history,
@@ -577,6 +591,8 @@ export default function AITools() {
         // so moods Lumi logged could land on the wrong day and never show
         // up. Same format Dashboard.jsx already uses for its own /mood calls.
         local_date:      new Date().toLocaleDateString('en-CA'),
+        client_lat:      clientLat,
+        client_lon:      clientLon,
       });
       setMessages((prev) => {
         const next = [...prev];

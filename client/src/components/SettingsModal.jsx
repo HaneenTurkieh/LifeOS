@@ -989,6 +989,15 @@ function PremiumTab() {
                         style={{ background:'linear-gradient(135deg,#2DA76E,#1E8A57)' }}>
                         {submittingTransfer ? t('settings.sending') : t('settings.bankTransferSubmit')}
                       </button>
+                      {/* Reassurance for the "will renewing early waste my
+                          days" question — matches the actual server
+                          behavior in routes/admin.js's approve action
+                          (new period stacks on top of remaining time,
+                          not a hard reset), so this is accurate, not
+                          just marketing copy. */}
+                      <p className="text-[10px] text-ink/35 dark:text-white/25 text-center -mt-0.5">
+                        {t('settings.renewEarlyNote')}
+                      </p>
                     </div>
                   )}
                 </div>

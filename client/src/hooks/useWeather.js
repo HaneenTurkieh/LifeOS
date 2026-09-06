@@ -41,6 +41,12 @@ export function useWeather() {
             city:      data.name,
             humidity:  data.main.humidity,
             wind:      Math.round(data.wind.speed),
+            // Kept alongside the display data (not just used to fetch it)
+            // so Lumi's get_weather tool can reuse this same cache — see
+            // AITools.jsx's chat POST — instead of asking the browser for
+            // location again on every single message.
+            lat:       coords.latitude,
+            lon:       coords.longitude,
           };
 
           localStorage.setItem(CACHE_KEY, JSON.stringify({ data: weather, timestamp: Date.now() }));
