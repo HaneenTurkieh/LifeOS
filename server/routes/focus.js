@@ -1644,3 +1644,10 @@ module.exports.reconcileSoloTimer = reconcileSoloTimer;
 // need to agree on what "this week" means or the two numbers wouldn't
 // be comparable.
 module.exports.getWeekStart = getWeekStart;
+// Exported so routes/admin.js can look up a plan's `months` when
+// approving a bank transfer request (POST /admin/bank-transfers/:id/
+// approve) — that's the one place outside this file that needs to turn
+// a plan_key back into a real expiry date, and duplicating the
+// months-per-plan mapping there would just be another thing to keep in
+// sync by hand every time a plan changes.
+module.exports.PLANS = PLANS;

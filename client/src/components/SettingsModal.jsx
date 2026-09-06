@@ -748,6 +748,17 @@ function PremiumTab() {
             {t('settings.yourPlan')}: {plans.find(p => p.key === status.plan)?.name || status.plan}
           </p>
         )}
+        {/* Only ever set for a bank-transfer-paid period (see
+            server/lib/premium.js) — a Paddle subscriber's renewal is
+            Paddle's job to communicate, and an admin 'manual' comp has
+            no expiry at all. Without this line, someone who paid by
+            bank transfer had no way to know when they'd need to pay
+            again until the day it just silently reverted them to Free. */}
+        {status.is_premium && status.premium_expires_at && (
+          <p className="text-[11px] text-ink/40 dark:text-white/30 mt-1">
+            {t('settings.renewsBy', { date: String(status.premium_expires_at).slice(0, 10) })}
+          </p>
+        )}
         {status.is_premium && status.has_paddle_subscription && (
           <button onClick={openPortal} disabled={busy}
             className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40"

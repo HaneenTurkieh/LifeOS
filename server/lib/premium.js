@@ -10,21 +10,39 @@ const { db } = require('../db/connection');
 // passes — this runs as a lazy check right before any read, same pattern
 // used elsewhere in this app for weekly resets: no cron job needed, the
 // next person who touches the row corrects it.
+//
+// Extended (Sept 2026) to cover premium_expires_at the same way — a
+// bank-transfer purchase (routes/admin.js's approve action) is a
+// one-time payment with nothing that bills again automatically, so
+// without this a $4.99 Monthly transfer left someone Premium forever.
+// Both checks run every time; they're mutually exclusive in practice
+// (trial_expires_at only ever gets set alongside plan='trial',
+// premium_expires_at only by a bank-transfer approval) but there's no
+// harm running both unconditionally.
 async function expireTrialIfNeeded(userId) {
+  const nowIso = new Date().toISOString();
   await db.execute({
     sql: `UPDATE user_premium
           SET is_premium = 0
           WHERE user_id = ? AND is_premium = 1
             AND trial_expires_at IS NOT NULL
             AND trial_expires_at < ?`,
-    args: [userId, new Date().toISOString()],
+    args: [userId, nowIso],
+  });
+  await db.execute({
+    sql: `UPDATE user_premium
+          SET is_premium = 0
+          WHERE user_id = ? AND is_premium = 1
+            AND premium_expires_at IS NOT NULL
+            AND premium_expires_at < ?`,
+    args: [userId, nowIso],
   });
 }
 
 async function getPremium(userId) {
   await expireTrialIfNeeded(userId);
   const row = (await db.execute({
-    sql: `SELECT is_premium, freeze_date, theme_preset, plan, requested_at, trial_used, trial_expires_at, paddle_subscription_id
+    sql: `SELECT is_premium, freeze_date, theme_preset, plan, requested_at, trial_used, trial_expires_at, paddle_subscription_id, premium_expires_at
           FROM user_premium WHERE user_id = ?`,
     args: [userId],
   })).rows[0];
@@ -36,6 +54,12 @@ async function getPremium(userId) {
     requested_at:      row?.requested_at || null,
     trial_used:        Boolean(row?.trial_used),
     trial_expires_at:  row?.trial_expires_at || null,
+    // Only ever set for a bank-transfer-paid period (see routes/admin.js)
+    // — null for Paddle subscribers (Paddle's own status is the source
+    // of truth there) and for indefinite admin 'manual' comps. Lets the
+    // Premium tab show "renews by <date>" instead of leaving a
+    // bank-transfer user with no idea when they'll need to pay again.
+    premium_expires_at: row?.premium_expires_at || null,
     // Lets the client tell a real Paddle subscription (needs the actual
     // Paddle customer portal to cancel — see POST /premium/portal) apart
     // from a trial or an admin-manual grant (neither has anything to

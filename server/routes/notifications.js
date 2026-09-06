@@ -401,6 +401,43 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
     }
   }
 
+  // Bank-transfer Premium expiry warning — a bank transfer (see
+  // routes/admin.js's approve action) is a one-time payment with
+  // nothing that bills again automatically, so without a heads-up
+  // someone just silently drops back to Free the day premium_expires_at
+  // passes (lib/premium.js's lazy expiry check). Fires once per expiry
+  // cycle: the dedupe key is the default `${type}:${link}` (see
+  // notificationDedupe.js), and the link encodes the actual expiry
+  // date, so it naturally fires again if a later renewal pushes the
+  // date forward, but never repeats for the same cycle. Paddle
+  // subscribers and admin 'manual' comps never have premium_expires_at
+  // set at all, so this is a no-op for them.
+  const premiumRow = (await db.execute({
+    sql: `SELECT plan, premium_expires_at FROM user_premium
+          WHERE user_id=? AND is_premium=1 AND premium_expires_at IS NOT NULL
+            AND date(premium_expires_at) BETWEEN ? AND date(?, '+3 days')`,
+    args: [userId, today, today],
+  })).rows[0];
+  if (premiumRow) {
+    const expiresDate = String(premiumRow.premium_expires_at).slice(0, 10);
+    toCreate.push({
+      type:  'premium_expiring',
+      title: '👑 Premium ending soon',
+      body:  `Your Premium (${premiumRow.plan}) ends on ${expiresDate}. Open Settings → Premium and pay by bank transfer again to keep it going.`,
+      // Settings is a modal, not a real route (there's no /settings
+      // page to deep-link into), so this points at Dashboard — a real
+      // page everyone can reach the Settings gear icon from — rather
+      // than a link that 404s. The query param does no navigation work;
+      // it only exists so this notification's dedupe key (the default
+      // `${type}:${link}`, see notificationDedupe.js) is unique per
+      // expiry cycle, so a later renewal that pushes the date forward
+      // fires a fresh notification instead of being suppressed forever
+      // by the first cycle's entry.
+      link:  `/dashboard?premium_expires=${expiresDate}`,
+      data:  { plan: premiumRow.plan, expires: expiresDate },
+    });
+  }
+
   // One-time announcement for the new grace-passes perk (added right
   // after it shipped) — deduped forever by its static link, same trick
   // as grace_welcome/grace_ending above, so it fires exactly once per

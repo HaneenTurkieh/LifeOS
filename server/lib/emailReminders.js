@@ -26,10 +26,18 @@ const { sendReminderDigestEmail } = require('./email');
 // message, a Flow Room invite, or an assigned task/goal all come from a
 // real person a student is expecting to hear from, not a background
 // nudge, so they ride the same digest pipeline as the urgent stuff.
+// 'premium_expiring' (Sept 2026) joins this list too — Haneen's explicit
+// spec for the bank-transfer expiry warning was "notify the user ...
+// through notifications AND email", so unlike most in-app-only nudges
+// (mood/streak/announcements) this one deliberately rides the same
+// digest pipeline as the urgent stuff below: losing paid access without
+// warning is worth an email, not just a bell badge someone might not see
+// in time.
 const EMAILABLE_TYPES = new Set([
   'overdue', 'due_soon', 'deadline', 'milestone_due',
   'channel_announcement', 'channel_chat', 'channel_room_invite',
   'channel_task_assigned', 'channel_goal_assigned', 'channel_points_awarded',
+  'premium_expiring',
 ]);
 
 async function sendPendingReminderEmails() {

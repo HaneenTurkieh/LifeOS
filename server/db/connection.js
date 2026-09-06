@@ -909,6 +909,22 @@ async function initDb() {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_bank_transfer_status ON bank_transfer_requests(status, created_at)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_bank_transfer_user ON bank_transfer_requests(user_id, created_at)`);
 
+  // Real gap this fixes: approving a bank transfer (routes/admin.js)
+  // granted is_premium=1 with no expiry at all — a $4.99 ONE-TIME
+  // transfer for the Monthly plan left someone Premium forever unless
+  // Haneen manually revoked them, since nothing here auto-bills like a
+  // real subscription would. premium_expires_at is set on approval to
+  // (approval date + plan.months) and checked the same lazy way
+  // trial_expires_at already is (see lib/premium.js) — the next time
+  // anything touches this user's premium status after that date, it
+  // quietly reverts to Free. NULL for Paddle subscribers (Paddle's own
+  // webhook is the source of truth there) and for indefinite admin
+  // 'manual' comps — this column only ever gets set by a bank-transfer
+  // approval.
+  if (!(await hasColumn('user_premium', 'premium_expires_at'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN premium_expires_at TEXT DEFAULT NULL`);
+  }
+
   console.log('✅ Database connected and migrations applied.');
 }
 
