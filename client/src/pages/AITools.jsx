@@ -579,6 +579,16 @@ export default function AITools() {
       }
     } catch (_) {}
     try {
+      // Real bug this fixes: "Sorry, I couldn't connect" kept firing on
+      // ordinary queries (e.g. "what tasks do I have today") because the
+      // API client's default 20s timeout was tuned for simple CRUD calls,
+      // not a chat turn — the server can run up to 6 sequential tool-
+      // calling round-trips per message (see routes/chat.js), and Deep
+      // Think's xhigh reasoning pass genuinely needs more headroom still.
+      // Nothing ever showed up in the admin "Recent failures" log either,
+      // because the server wasn't actually throwing — the client was just
+      // giving up first, before the server had a chance to finish.
+      const chatTimeoutMs = mode === 'think' ? 120000 : 75000;
       const res = await api.post('/chat', {
         messages:        history,
         conversation_id: activeConvId,
@@ -593,7 +603,7 @@ export default function AITools() {
         local_date:      new Date().toLocaleDateString('en-CA'),
         client_lat:      clientLat,
         client_lon:      clientLon,
-      });
+      }, { timeoutMs: chatTimeoutMs });
       setMessages((prev) => {
         const next = [...prev];
         for (let i = next.length - 1; i >= 0; i--) {
@@ -607,10 +617,23 @@ export default function AITools() {
         loadConvos();
       }
     } catch (err) {
-      // A daily-cap hit (Deep Think / Deep Search) has a real, specific
-      // message from the server — show that instead of the generic
-      // "couldn't connect" text, which would be actively misleading here.
-      const content = err?.code === 'DAILY_LIMIT' ? err.message : t('lumi.errorConnect');
+      // Real bug this fixes: every non-DAILY_LIMIT failure — a genuine
+      // timeout, a real server error, a plain network drop — all showed
+      // the exact same generic "couldn't connect" text, discarding
+      // whatever the actual message was. That made every failure look
+      // identical and impossible to diagnose from a screenshot, which is
+      // exactly what happened when this kept failing for real: the true
+      // cause (the client giving up before the server finished — see
+      // chatTimeoutMs above) was invisible either in the UI or in the
+      // admin "Recent failures" log. Now a timeout gets its own honest
+      // copy (the most likely real cause), and any other real message is
+      // shown as-is instead of being thrown away; only a genuinely blank
+      // message falls back to the generic text.
+      const isTimeout = /taking longer than usual/i.test(err?.message || '');
+      let content;
+      if (err?.code === 'DAILY_LIMIT') content = err.message;
+      else if (isTimeout) content = t('lumi.errorTimeout');
+      else content = err?.message || t('lumi.errorConnect');
       setMessages((prev) => [...prev, { role: 'assistant', content, actions: [], isLimitNotice: err?.code === 'DAILY_LIMIT' }]);
     } finally {
       setLoading(false);

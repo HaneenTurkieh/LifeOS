@@ -44,6 +44,20 @@ function fetchWithTimeout(url, options, ms) {
 
 async function request(path, options = {}) {
   const token   = getToken();
+  // Real bug this fixes: every request shared the same flat 20s ceiling,
+  // which is plenty for ordinary CRUD calls but not for POST /chat — Lumi
+  // can run up to 6 sequential tool-calling round-trips per turn (see
+  // routes/chat.js), and real-world OpenRouter/DeepSeek latency can push
+  // even a single one of those past 20s on a slow day. When that happened
+  // the client gave up and showed a generic error while the server was
+  // often still legitimately working — and since nothing on the server
+  // side ever actually threw, it never showed up in the admin "Recent
+  // failures" log either, which is what made this so hard to diagnose
+  // from a screenshot alone. `timeoutMs` lets a specific caller (see
+  // AITools.jsx's chatTimeoutMs) opt into a longer ceiling without
+  // loosening the default for everything else, which should still fail
+  // fast.
+  const { timeoutMs = 20000, ...fetchOptions } = options;
   const doFetch = () => fetchWithTimeout(`${BASE}${path}`, {
     // Safari is more aggressive than Chrome about heuristically caching
     // GET JSON responses when the server doesn't send explicit
@@ -54,8 +68,8 @@ async function request(path, options = {}) {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    ...options,
-  }, 20000);
+    ...fetchOptions,
+  }, timeoutMs);
 
   let res;
   try {
@@ -104,9 +118,9 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  get:   (path)       => request(path),
-  post:  (path, body) => request(path, { method: 'POST',   body: JSON.stringify(body) }),
-  put:   (path, body) => request(path, { method: 'PUT',    body: JSON.stringify(body) }),
-  patch: (path, body) => request(path, { method: 'PATCH',  body: JSON.stringify(body) }),
-  del:   (path)       => request(path, { method: 'DELETE' }),
+  get:   (path, opts)       => request(path, opts),
+  post:  (path, body, opts) => request(path, { method: 'POST',   body: JSON.stringify(body), ...opts }),
+  put:   (path, body, opts) => request(path, { method: 'PUT',    body: JSON.stringify(body), ...opts }),
+  patch: (path, body, opts) => request(path, { method: 'PATCH',  body: JSON.stringify(body), ...opts }),
+  del:   (path, opts)       => request(path, { method: 'DELETE', ...opts }),
 };
