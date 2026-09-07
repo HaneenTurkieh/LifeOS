@@ -225,12 +225,16 @@ router.post('/login', async (req, res) => {
 // Missing/unrecognized intent falls back to the original find-or-create
 // behavior, so this stays backward-compatible with any caller that
 // doesn't send it.
+//
+// `role` ('student' | 'instructor', optional) mirrors Login.jsx's signup
+// role picker and only matters for brand-new accounts created with
+// intent 'signup' — see the wantsInstructor check below.
 router.post('/google', async (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.status(503).json({ error: 'Google sign-in is not configured yet.' });
     }
-    const { credential, intent } = req.body;
+    const { credential, intent, role } = req.body;
     if (!credential) return res.status(400).json({ error: 'Missing Google credential' });
 
     let payload;
@@ -260,8 +264,23 @@ router.post('/google', async (req, res) => {
     if (!user) {
       const trimmedName   = (payload.name || normalizedEmail.split('@')[0]).trim();
       const password_hash = await hashPassword(crypto.randomBytes(32).toString('hex'));
+      // Real bug this fixes: Login.jsx's role picker (student/instructor,
+      // shown on the signup screen) was never actually wired to the
+      // Google button — every brand-new Google account was created as a
+      // plain student no matter which one was selected, silently
+      // discarding the choice. Only trusted on 'signup' (an existing
+      // account found above keeps whatever role it already has — signing
+      // back in can never change it), and only 'instructor' is a
+      // meaningful value here; anything else falls back to the normal
+      // student default. This isn't a new privilege — POST
+      // /register-instructor already lets anyone self-serve an instructor
+      // account with just a name + email, no approval step; this just
+      // lets the same free choice happen through the Google button too.
+      const wantsInstructor = intent === 'signup' && role === 'instructor';
       const insert = await db.execute({
-        sql:  `INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)`,
+        sql: wantsInstructor
+          ? `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'instructor')`
+          : `INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)`,
         args: [trimmedName, normalizedEmail, password_hash],
       });
       user = (await db.execute({

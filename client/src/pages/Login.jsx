@@ -309,6 +309,18 @@ export default function Login() {
   // the server. A ref always reads the current mode at click time.
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
+  // Same staleness problem as modeRef above, for the same reason: the
+  // Google button's callback is wired up once (see the init effect below,
+  // which only re-runs on stage/isDark/lang) and would otherwise always
+  // see whatever signupRole was selected at that init moment — not
+  // whatever the person actually has picked (student/instructor) at the
+  // moment they click the button. Real bug this fixes: picking
+  // "Instructor" in the role picker and then clicking "Continue with
+  // Google" silently created/logged into a student account instead,
+  // because the role was never read at click time (or sent to the server
+  // at all — see handleGoogleCredential below).
+  const signupRoleRef = useRef(signupRole);
+  useEffect(() => { signupRoleRef.current = signupRole; }, [signupRole]);
 
   // Subtle pointer-driven depth — background blobs drift a bit more than
   // the halo/starfield they sit behind, so the page reads as layered
@@ -408,7 +420,13 @@ export default function Login() {
     setSubmitting(true);
     try {
       const intent = modeRef.current === 'signup' ? 'signup' : 'login';
-      const u = await loginWithGoogle(response.credential, intent);
+      // Only meaningful (and only ever sent) on signup — carries the role
+      // picker's current choice through to the server, which is the piece
+      // that was missing before: Login.jsx already asks student vs.
+      // instructor above the Full Name field, but the Google button never
+      // told the server which one was picked.
+      const role = intent === 'signup' ? signupRoleRef.current : undefined;
+      const u = await loginWithGoogle(response.credential, intent, role);
       if (u?.welcomeXp) toast.success(t('login.welcomeXp', { n: u.welcomeXp }));
       navigate(redirectTo, { replace: true });
     } catch (err) {

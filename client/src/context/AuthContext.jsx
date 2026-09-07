@@ -78,9 +78,12 @@ export function AuthProvider({ children }) {
   // logs into an existing account with that email or creates a new one.
   // `intent` ('login' | 'signup') tells the server which screen the
   // button was on: 'login' rejects unknown emails instead of silently
-  // registering them (see routes/auth.js POST /google).
-  const loginWithGoogle = async (credential, intent) => {
-    const { token, user: u, welcomeXp } = await api.post('/auth/google', { credential, intent });
+  // registering them (see routes/auth.js POST /google). `role`
+  // ('student' | 'instructor') carries Login.jsx's role picker through on
+  // signup only — the server ignores it for 'login' (an existing
+  // account's role never changes just because someone signed back in).
+  const loginWithGoogle = async (credential, intent, role) => {
+    const { token, user: u, welcomeXp } = await api.post('/auth/google', { credential, intent, role });
     setToken(token);
     setUser(u);
     return { ...u, welcomeXp: welcomeXp || 0 };
