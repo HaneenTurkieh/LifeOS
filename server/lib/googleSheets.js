@@ -15,7 +15,18 @@ const CLIENT_URL = process.env.CLIENT_URL || 'https://nuvora.ps';
 // Must exactly match an "Authorized redirect URI" on the OAuth client in
 // Google Cloud Console, or every consent will fail with redirect_uri_mismatch.
 const REDIRECT_URI = `${CLIENT_URL}/auth/google-sheets/callback`;
-const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+// Narrowed from the sensitive 'spreadsheets' scope (full access to every
+// spreadsheet in a user's Drive) per Google's OAuth verification feedback,
+// Sept 2026 — this feature only ever creates a brand-new spreadsheet
+// (createSpreadsheet, below) and writes into that one file it just made
+// (writeValues, below); it never opens or reads a spreadsheet it didn't
+// create itself. 'drive.file' covers exactly that: access limited to
+// files this app creates (or files a user explicitly picks via a Google
+// Picker, which this app doesn't use). No functional change — same
+// createSpreadsheet + writeValues calls work identically under this
+// scope. Non-sensitive, so no CASA security assessment/recertification
+// required, unlike 'spreadsheets'.
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 function configured() {
   return !!(process.env.GOOGLE_SHEETS_CLIENT_ID && process.env.GOOGLE_SHEETS_CLIENT_SECRET);

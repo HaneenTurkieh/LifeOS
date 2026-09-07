@@ -34,6 +34,7 @@ const Terms          = lazy(() => import('./pages/legal/Terms.jsx'));
 const Privacy        = lazy(() => import('./pages/legal/Privacy.jsx'));
 const Refund         = lazy(() => import('./pages/legal/Refund.jsx'));
 const Pricing        = lazy(() => import('./pages/legal/Pricing.jsx'));
+const Landing        = lazy(() => import('./pages/Landing.jsx'));
 const Dashboard      = lazy(() => import('./pages/Dashboard.jsx'));
 const Tasks          = lazy(() => import('./pages/Tasks.jsx'));
 const Goals          = lazy(() => import('./pages/Goals.jsx'));
@@ -203,6 +204,14 @@ export default function App() {
           <Route path="/privacy"         element={<Privacy />} />
           <Route path="/refund-policy"   element={<Refund />} />
           <Route path="/pricing"         element={<Pricing />} />
+          {/* Public marketing homepage — logged-out-friendly on purpose.
+              "/" itself stays the authenticated Dashboard below (unchanged,
+              zero regression risk for existing users); this is a separate,
+              additive route. Point Google Cloud Console's OAuth consent
+              screen "Application home page" link here, since the bare
+              domain root requires login and Google's verification review
+              (and any first-time visitor) needs a page it can actually see. */}
+          <Route path="/welcome"         element={<Landing />} />
           <Route path="/*" element={
             <ProtectedRoute>
               <FocusProvider>
