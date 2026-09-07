@@ -20,8 +20,11 @@ export default function Privacy() {
           browser type and timestamps, used only to keep the Service working and to fix bugs.
         </p>
         <p>
-          We do not collect or store your payment card details. Those go directly to Paddle (see
-          below).
+          <strong>Payment data:</strong> for the primary payment method (direct bank transfer),
+          we store the reference note and amount you submit so we can match your transfer and
+          activate Premium — we never see your bank login or full account details, only what you
+          choose to enter in that note. We do not collect or store your payment card details for
+          card checkout either — those go directly to Paddle (see below).
         </p>
       </Section>
 
@@ -46,10 +49,12 @@ export default function Privacy() {
           their infrastructure beyond the configuration we send and what they publish themselves.
         </p>
         <p>
-          <strong>Payments:</strong> if you subscribe to Premium, your payment is handled entirely
-          by <strong>Paddle.com Market Ltd</strong>, our Merchant of Record. Paddle collects your
-          billing details (name, email, payment method, billing address for tax purposes) directly
-          — we only receive confirmation that a subscription is active, not your card details. See{' '}
+          <strong>Payments:</strong> most Premium subscriptions are paid by direct bank transfer,
+          reviewed manually on our end — no third party is involved in that flow. Card checkout is
+          also available through <strong>Paddle.com Market Ltd</strong>, our Merchant of Record for
+          any order placed that way; if you use it, Paddle collects your billing details (name,
+          email, payment method, billing address for tax purposes) directly — we only receive
+          confirmation that a subscription is active, not your card details. See{' '}
           <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>
             Paddle's Privacy Policy
           </a>{' '}

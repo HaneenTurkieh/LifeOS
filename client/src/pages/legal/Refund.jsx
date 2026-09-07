@@ -6,19 +6,20 @@ export default function Refund() {
     <LegalLayout title="Refund Policy" updated="September 2026">
       <Section>
         <p>
-          Most Nuvora Premium purchases are paid by direct bank transfer to our account, reviewed
-          and activated manually — see "Bank transfer refunds" below for how that's handled. A
-          smaller number of older purchases went through <strong>Paddle.com Market Ltd</strong>,
-          our card-payment Merchant of Record; those refunds are issued by Paddle on our behalf,
-          in line with the policy below.
+          Nuvora Premium is paid by direct bank transfer to our account, reviewed and activated
+          manually — see "Bank transfer refunds" below for how that's handled. Card checkout
+          through <strong>Paddle.com Market Ltd</strong>, our card-payment Merchant of Record, is
+          also available in the app; if you do pay that way, that refund is issued by Paddle on
+          our behalf, in line with the policy below.
         </p>
       </Section>
 
       <Section heading="14-day money-back guarantee">
         <p>
           If you're not happy with Nuvora Premium, email us within <strong>14 days</strong> of
-          your first payment on any plan (monthly, semester, or annual) and we'll request a full
-          refund from Paddle — no questions asked.
+          your first payment on any plan (monthly, semester, or annual) and we'll send a full
+          refund — no questions asked. See "Bank transfer refunds" below if you paid by bank
+          transfer (the common case), or the next section if you paid by card through Paddle.
         </p>
       </Section>
 
