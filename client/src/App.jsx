@@ -6,7 +6,7 @@ import GlobalBackground  from './components/GlobalBackground.jsx';
 import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
 import FocusBar          from './components/FocusBar.jsx';
-import ProtectedRoute    from './components/ProtectedRoute.jsx';
+import HomeGate          from './components/HomeGate.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import NotificationBell  from './components/NotificationBell.jsx';
 import NuvoraBuddy       from './components/NuvoraBuddy.jsx';
@@ -205,19 +205,26 @@ export default function App() {
           <Route path="/refund-policy"   element={<Refund />} />
           <Route path="/pricing"         element={<Pricing />} />
           {/* Public marketing homepage — logged-out-friendly on purpose.
-              "/" itself stays the authenticated Dashboard below (unchanged,
-              zero regression risk for existing users); this is a separate,
-              additive route. Point Google Cloud Console's OAuth consent
-              screen "Application home page" link here, since the bare
-              domain root requires login and Google's verification review
-              (and any first-time visitor) needs a page it can actually see. */}
+              Kept as its own stable URL (registered as Google Cloud
+              Console's OAuth consent screen "Application home page" link)
+              even though the bare root below now shows the same page to a
+              logged-out visitor — a fixed link like this shouldn't quietly
+              move just because "/" also renders it now. */}
           <Route path="/welcome"         element={<Landing />} />
+          {/* "/" itself: HomeGate shows this same Landing page to a
+              logged-out visitor instead of bouncing them to /login (a
+              first-time visitor typing nuvora.ps used to land straight on
+              a login form with no idea what the product even is) — and
+              still renders the normal authenticated app for anyone
+              actually logged in, completely unchanged from before. Every
+              other path keeps ProtectedRoute's plain redirect-to-/login
+              behavior via HomeGate's own fallback (see its own comment). */}
           <Route path="/*" element={
-            <ProtectedRoute>
+            <HomeGate landing={<Landing />}>
               <FocusProvider>
                 <AppShell />
               </FocusProvider>
-            </ProtectedRoute>
+            </HomeGate>
           } />
         </Routes>
       </Suspense>

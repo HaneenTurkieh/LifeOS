@@ -36,6 +36,17 @@ const STRINGS = {
     ],
     footerBy: 'Nuvora is operated by Haneen Turkieh, an individual seller based in Nablus, Palestine.',
     footerLinks: { pricing: 'Pricing', terms: 'Terms', privacy: 'Privacy', refund: 'Refund Policy' },
+    // Real numbers, pulled from legal/Pricing.jsx's own PLANS — keep these
+    // two in sync if pricing ever changes there. Shown directly on the
+    // homepage (not just linked) because a domain reviewer (Paddle,
+    // Google) scanning this page needs to see an actual price without
+    // clicking through — a footer link alone wasn't enough to pass
+    // Paddle's "product and pricing visible" check.
+    pricingTeaser: {
+      heading: 'Free to start',
+      body: 'Nuvora is free to use, no card required. Premium unlocks unlimited AI usage from $4.99/month.',
+      cta: 'See full pricing',
+    },
   },
   ar: {
     tagline: 'حياتك الدراسية، بنظام واحد.',
@@ -53,6 +64,11 @@ const STRINGS = {
     ],
     footerBy: 'نيفورا يديرها حنين تركية، بائعة فردية من نابلس، فلسطين.',
     footerLinks: { pricing: 'الأسعار', terms: 'الشروط', privacy: 'الخصوصية', refund: 'سياسة الاسترداد' },
+    pricingTeaser: {
+      heading: 'مجاني للبدء',
+      body: 'نيفورا مجاني للاستخدام، بدون أي بطاقة. Premium بيفتح استخدام غير محدود للذكاء الاصطناعي بدءًا من 4.99$ بالشهر.',
+      cta: 'شوف كل الأسعار',
+    },
   },
 };
 
@@ -78,6 +94,21 @@ export default function Landing() {
         transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-4xl mx-auto"
       >
+        {/* ── Top nav ──────────────────────────────────────────
+            Pricing, front and center, above the fold — not just a footer
+            link. A domain reviewer skimming the page for a few seconds
+            (Paddle explicitly checks for "product and pricing visible")
+            needs to see this without scrolling or hunting for it. */}
+        <div className="flex items-center justify-between mb-10">
+          <span className="font-display font-bold text-sm tracking-wide" style={{ color: titleClr }}>
+            NUVORA
+          </span>
+          <div className="flex items-center gap-4 text-xs font-semibold" style={{ color: linkClr }}>
+            <Link to="/pricing" className="hover:underline">{s.footerLinks.pricing}</Link>
+            <Link to="/login" className="hover:underline">{s.login}</Link>
+          </div>
+        </div>
+
         {/* ── Hero ─────────────────────────────────────────── */}
         <div className="flex flex-col items-center text-center gap-5 mb-14">
           <span className="text-4xl" style={{ color: 'rgb(var(--accent-500))' }}>&#10022;</span>
@@ -113,6 +144,18 @@ export default function Landing() {
               </div>
             );
           })}
+        </div>
+
+        {/* ── Pricing teaser ───────────────────────────────────
+            An actual price, visible on the page itself — not just a link
+            to click through to. See the STRINGS comment above for why. */}
+        <div className="rounded-2xl p-6 text-center mb-14"
+          style={{ background: cardBg, backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', border: cardBorder }}>
+          <p className="font-display font-bold text-base mb-1.5" style={{ color: titleClr }}>{s.pricingTeaser.heading}</p>
+          <p className="text-xs sm:text-sm max-w-md mx-auto mb-3" style={{ color: bodyClr }}>{s.pricingTeaser.body}</p>
+          <Link to="/pricing" className="text-xs font-semibold hover:underline" style={{ color: 'rgb(var(--accent-500))' }}>
+            {s.pricingTeaser.cta} →
+          </Link>
         </div>
 
         {/* ── Footer ───────────────────────────────────────── */}

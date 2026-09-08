@@ -155,7 +155,17 @@ router.post('/generate', async (req, res) => {
     // the tradeoff (occasionally a less exact quote match) is already
     // handled gracefully client-side — SourceViewerModal just shows the
     // source file without a highlight if the quote isn't found verbatim.
-    const reasoningEffort = mode === 'mindmap' ? null : 'high';
+    //
+    // Third real bug, found while chasing a similar "reasoning won't turn
+    // off" report in Lumi chat: `null` here doesn't actually skip the
+    // thinking budget — it omits the `reasoning` field entirely, which
+    // openrouter.js's own comment now correctly documents as inheriting
+    // this model's 'high' baseline by default, not disabling it. This
+    // mode's whole fix above only worked as well as it did because
+    // skipping the JSON field still happened to help somewhat, not
+    // because reasoning was actually off. Explicit 'none' is the value
+    // that actually disables it.
+    const reasoningEffort = mode === 'mindmap' ? 'none' : 'high';
     // Second real bug, found after the fix above: turning reasoning off
     // fixed *thinking* time, but a mindmap's output length scales with
     // how much source material it has to cover ("don't skip any topic")

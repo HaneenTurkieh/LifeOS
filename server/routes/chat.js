@@ -1415,8 +1415,19 @@ router.post('/', async (req, res) => {
     // call (what's actually weak on this CV, what tasks actually make
     // sense next) rather than a quick reply, so they keep real reasoning
     // on instead of inheriting plain chat's fast/no-reasoning default.
+    //
+    // Real bug this fixes: plain chat used `null` here believing that
+    // omitting the `reasoning` field entirely was the same as turning it
+    // off. It isn't — per openrouter.js's own comment, "high" is this
+    // model's normal/baseline tier, and that comment's claim that only
+    // high/xhigh are valid for this model turned out to be stale: OpenRouter
+    // documents this model as also accepting low/minimal/none. Omitting the
+    // field left every "hey" and "what tasks do I have today" silently
+    // running the provider's default (baseline/high) reasoning pass
+    // instead of skipping it — explicit 'none' actually does what the
+    // comment above always intended.
     const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 4000 : 2048;
-    const reasoningEffort = mode === 'think' ? 'xhigh' : mode === 'review' ? 'high' : null;
+    const reasoningEffort = mode === 'think' ? 'xhigh' : mode === 'review' ? 'high' : 'none';
     const toolsForCall = mode === 'search' ? undefined : TOOLS;
     for (let i = 0; i < 6; i++) {
       const data = await callOpenRouter({

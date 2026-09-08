@@ -39,11 +39,18 @@ function toolsToOpenAiFormat(tools) {
 
 async function callOpenRouter({
   system, messages, tools, max_tokens = 1024, temperature, top_p,
-  // 'high' is V4 Pro's normal/baseline reasoning tier (not an expensive
-  // outlier — OpenRouter documents only high/xhigh as supported effort
-  // levels for this model). 'xhigh' maps to its actual max-effort mode —
-  // reserved for Deep Think specifically, since it's slower and pricier
-  // per call. Pass reasoningEffort: null to omit thinking entirely.
+  // 'high' is V4 Pro's normal/baseline reasoning tier — the default
+  // OpenRouter falls back to for this model whenever no explicit effort
+  // is sent. 'xhigh' maps to its actual max-effort mode, reserved for
+  // Deep Think specifically since it's slower and pricier per call.
+  //
+  // Correction to an earlier version of this comment: this model's valid
+  // reasoning_effort values are xhigh/high/medium/low/minimal/none, not
+  // just high/xhigh as previously believed here — that wrong assumption
+  // is exactly why callers used to pass reasoningEffort: null (omit the
+  // field) meaning to turn thinking off, when omitting it actually just
+  // inherits the 'high' default above. Pass the literal string 'none' to
+  // actually disable the reasoning pass.
   reasoningEffort = 'high',
   // Per-call override for the 45s default below. Exists specifically for
   // exam.js's mindmap mode: turning reasoning off (see reasoningEffort
