@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -59,59 +60,80 @@ function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCom
             const isDone    = task.status === 'done';
             return (
               <Draggable key={task.id} draggableId={String(task.id)} index={index}>
-                {(dragProvided, dragSnapshot) => (
-                  <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}
-                    className="rounded-xl px-3 py-2.5 group"
-                    style={{
-                      ...dragProvided.draggableProps.style,
-                      background: dragSnapshot.isDragging
-                        ? isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.95)'
-                        : isDark ? 'rgba(255,255,255,0.028)' : 'rgba(255,255,255,0.55)',
-                      border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.80)',
-                      boxShadow: dragSnapshot.isDragging ? '0 8px 20px rgba(0,0,0,0.18)' : undefined,
-                    }}>
-                    <div className="flex items-start gap-2">
-                      {!isDone && (
-                        <button onClick={() => onComplete(task)} disabled={justCompletedId === task.id}
-                          className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
-                          {justCompletedId === task.id
-                            ? <CheckCircle2 size={15} className="text-sage-500" />
-                            : <Circle size={15} />}
-                        </button>
-                      )}
-                      {isDone && <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-sage-500" />}
-                      <p className={`text-xs font-medium truncate flex-1 min-w-0 ${
-                        isDone ? 'text-ink/40 dark:text-white/35 line-through' : 'text-ink dark:text-white'
-                      }`}>{task.title}</p>
-                      <button onClick={() => onDelete(task)}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                    {(task.deadline || task.priority) && (
-                      <div className="flex items-center gap-1.5 mt-1.5 ps-[21px]">
-                        {task.deadline && (
-                          <span className={`text-[10px] font-medium ${
-                            isOverdue || isToday ? 'text-coral-500' : isSoon ? 'text-sun-600' : 'text-ink/35 dark:text-white/25'
-                          }`}>
-                            {isOverdue ? t('dash.overdue')
-                            : isToday  ? t('dash.dueToday')
-                            : dl === 1 ? t('dash.dueTomorrow')
-                            : isSoon   ? t('dash.dueInDays', { n: dl })
-                            : formatDeadline(task.deadline)}
-                          </span>
-                        )}
+                {(dragProvided, dragSnapshot) => {
+                  const card = (
+                    <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}
+                      className="rounded-xl px-3 py-2.5 group"
+                      style={{
+                        ...dragProvided.draggableProps.style,
+                        background: dragSnapshot.isDragging
+                          ? isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.95)'
+                          : isDark ? 'rgba(255,255,255,0.028)' : 'rgba(255,255,255,0.55)',
+                        border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.80)',
+                        boxShadow: dragSnapshot.isDragging ? '0 8px 20px rgba(0,0,0,0.18)' : undefined,
+                      }}>
+                      <div className="flex items-start gap-2">
                         {!isDone && (
-                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-                            task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
-                            task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
-                                                         'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
-                          }`}>{t(`tasks.${task.priority}`)}</span>
+                          <button onClick={() => onComplete(task)} disabled={justCompletedId === task.id}
+                            className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
+                            {justCompletedId === task.id
+                              ? <CheckCircle2 size={15} className="text-sage-500" />
+                              : <Circle size={15} />}
+                          </button>
                         )}
+                        {isDone && <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-sage-500" />}
+                        <p className={`text-xs font-medium truncate flex-1 min-w-0 ${
+                          isDone ? 'text-ink/40 dark:text-white/35 line-through' : 'text-ink dark:text-white'
+                        }`}>{task.title}</p>
+                        <button onClick={() => onDelete(task)}
+                          className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400">
+                          <Trash2 size={12} />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {(task.deadline || task.priority) && (
+                        <div className="flex items-center gap-1.5 mt-1.5 ps-[21px]">
+                          {task.deadline && (
+                            <span className={`text-[10px] font-medium ${
+                              isOverdue || isToday ? 'text-coral-500' : isSoon ? 'text-sun-600' : 'text-ink/35 dark:text-white/25'
+                            }`}>
+                              {isOverdue ? t('dash.overdue')
+                              : isToday  ? t('dash.dueToday')
+                              : dl === 1 ? t('dash.dueTomorrow')
+                              : isSoon   ? t('dash.dueInDays', { n: dl })
+                              : formatDeadline(task.deadline)}
+                            </span>
+                          )}
+                          {!isDone && (
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                              task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
+                              task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
+                                                           'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
+                            }`}>{t(`tasks.${task.priority}`)}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                  // Real bug this fixes (the "task lands in the wrong spot
+                  // mid-drag" report): this whole board sits inside a
+                  // GlassCard that uses `backdrop-filter: blur(...)` for the
+                  // frosted-glass look. Per the CSS spec, backdrop-filter
+                  // (like filter/transform/perspective) creates a new
+                  // containing block for any descendant with `position:
+                  // fixed` — and @hello-pangea/dnd positions the card
+                  // you're actively dragging with `position: fixed`,
+                  // assuming that's relative to the browser viewport. With
+                  // the blurred GlassCard in the way, "fixed" ends up
+                  // relative to THAT card instead, so the dragged item
+                  // renders at some offset position straddling columns
+                  // instead of tracking the cursor. Portaling just the
+                  // actively-dragged item straight to document.body sidesteps
+                  // the blurred ancestor entirely — the fix @hello-pangea/dnd's
+                  // own docs recommend for exactly this situation. Only the
+                  // one card being dragged is portaled; everything else stays
+                  // exactly where it was.
+                  return dragSnapshot.isDragging ? createPortal(card, document.body) : card;
+                }}
               </Draggable>
             );
           })}
