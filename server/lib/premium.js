@@ -42,7 +42,7 @@ async function expireTrialIfNeeded(userId) {
 async function getPremium(userId) {
   await expireTrialIfNeeded(userId);
   const row = (await db.execute({
-    sql: `SELECT is_premium, freeze_date, theme_preset, plan, requested_at, trial_used, trial_expires_at, paddle_subscription_id, premium_expires_at
+    sql: `SELECT is_premium, freeze_date, theme_preset, background_style, plan, requested_at, trial_used, trial_expires_at, paddle_subscription_id, premium_expires_at
           FROM user_premium WHERE user_id = ?`,
     args: [userId],
   })).rows[0];
@@ -50,6 +50,10 @@ async function getPremium(userId) {
     is_premium:       Boolean(row?.is_premium),
     freeze_date:       row?.freeze_date || null,
     theme_preset:      row?.theme_preset || 'purple',
+    // Second personalization axis, alongside theme_preset — which
+    // background mood (see GlobalBackground.jsx) the app uses. Same
+    // shape/defaulting as theme_preset.
+    background_style: row?.background_style || 'aurora',
     plan:              row?.plan || null,
     requested_at:      row?.requested_at || null,
     trial_used:        Boolean(row?.trial_used),

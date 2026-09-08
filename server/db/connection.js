@@ -936,6 +936,14 @@ async function initDb() {
   if (!(await hasColumn('user_premium', 'premium_expires_at'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN premium_expires_at TEXT DEFAULT NULL`);
   }
+  // "Themes" — a second personalization axis alongside theme_preset
+  // (accent color): which background mood the animated glow/orbs behind
+  // every page use. Same premium-gated pattern as theme_preset, kept in
+  // its own column so it composes freely with any accent color instead
+  // of needing a hardcoded preset per color combo.
+  if (!(await hasColumn('user_premium', 'background_style'))) {
+    await db.execute(`ALTER TABLE user_premium ADD COLUMN background_style TEXT DEFAULT 'aurora'`);
+  }
 
   console.log('✅ Database connected and migrations applied.');
 }

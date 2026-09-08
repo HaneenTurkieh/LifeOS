@@ -517,7 +517,7 @@ function PremiumTab() {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
   const isInstructor = user?.role === 'instructor';
-  const { accent, setAccent, resolvedTheme } = useTheme();
+  const { accent, setAccent, backgroundStyle, setBackgroundStyle, resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const [status,     setStatus]     = useState(null);
   const [plans,      setPlans]      = useState([]);
@@ -525,6 +525,7 @@ function PremiumTab() {
   const [requesting, setRequesting] = useState(null); // plan key currently being requested
   const [checkingOut, setCheckingOut] = useState(null); // plan key currently in Paddle checkout
   const [themeBusy,  setThemeBusy]  = useState(false);
+  const [bgBusy,     setBgBusy]     = useState(false);
   const [trial,      setTrial]      = useState(null);
   const [trialBusy,  setTrialBusy]  = useState(false);
   const [gracePasses, setGracePasses] = useState(null);
@@ -544,14 +545,15 @@ function PremiumTab() {
       .then((d) => {
         setStatus(d);
         if (d.theme_preset) setAccent(d.theme_preset);
+        if (d.background_style) setBackgroundStyle(d.background_style);
       })
-      .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple', plan:null }));
+      .catch(() => setStatus({ is_premium:false, freeze_date:null, theme_preset:'purple', background_style:'aurora', plan:null }));
     api.get('/focus/premium/plans').then((d) => setPlans(d.plans || [])).catch(() => setPlans([]));
     api.get('/focus/premium/trial-eligibility').then(setTrial).catch(() => setTrial(null));
     api.get('/focus/grace-passes').then(setGracePasses).catch(() => setGracePasses(null));
     api.get('/focus/premium/bank-transfer/details').then(setBankDetails).catch(() => setBankDetails(null));
     api.get('/focus/premium/bank-transfer/mine').then((d) => setMyRequest(d.request)).catch(() => setMyRequest(null));
-  }, [setAccent]);
+  }, [setAccent, setBackgroundStyle]);
   useEffect(() => { load(); }, [load]);
 
   const submitBankTransfer = async (planKey) => {
@@ -590,6 +592,7 @@ function PremiumTab() {
             .then((d) => {
               setStatus(d);
               if (d.theme_preset) setAccent(d.theme_preset);
+              if (d.background_style) setBackgroundStyle(d.background_style);
               if (d.is_premium || tries >= 6) clearInterval(poll);
             })
             .catch(() => {});
@@ -621,6 +624,7 @@ function PremiumTab() {
       const next = await api.post('/focus/premium/start-trial', {});
       setStatus(next);
       if (next.theme_preset) setAccent(next.theme_preset);
+      if (next.background_style) setBackgroundStyle(next.background_style);
       toast.success(t('settings.trialStarted', { n: trial?.trialDays || 7 }));
       load();
     } catch (err) { toast.error(err.message); }
@@ -635,6 +639,7 @@ function PremiumTab() {
       const next = await api.post('/focus/premium/toggle', {});
       setStatus(next);
       if (next.theme_preset) setAccent(next.theme_preset);
+      if (next.background_style) setBackgroundStyle(next.background_style);
       toast.success(next.is_premium ? '👑' : t('settings.freeName'));
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
@@ -659,6 +664,7 @@ function PremiumTab() {
       const next = await api.post('/focus/premium/request', { plan_key: planKey });
       setStatus(next);
       if (next.theme_preset) setAccent(next.theme_preset);
+      if (next.background_style) setBackgroundStyle(next.background_style);
       toast.success(t('settings.planRequested'));
     } catch (err) { toast.error(err.message); }
     finally { setRequesting(null); }
@@ -683,6 +689,13 @@ function PremiumTab() {
     { key: 'orange', label: lang === 'ar' ? 'برتقالي' : 'Orange', swatch: 'linear-gradient(135deg,#FF8A42,#E85D04)' },
     { key: 'pink',   label: lang === 'ar' ? 'وردي'    : 'Pink',   swatch: 'linear-gradient(135deg,#FF6BA6,#D6247A)' },
     { key: 'blue',   label: lang === 'ar' ? 'أزرق'    : 'Blue',   swatch: 'linear-gradient(135deg,#5C9AFF,#2563EB)' },
+    // Three newer options — swatches deliberately reuse the exact sage/
+    // coral/sun hex already in tailwind.config.js (priority tags, streak
+    // flame) rather than inventing new hues, so they read as more of
+    // this app's own palette instead of three random additions.
+    { key: 'green',  label: lang === 'ar' ? 'أخضر'    : 'Green',  swatch: 'linear-gradient(135deg,#6EE7B7,#2DA76E)' },
+    { key: 'coral',  label: lang === 'ar' ? 'مرجاني'  : 'Coral',  swatch: 'linear-gradient(135deg,#FF9C8A,#E85A42)' },
+    { key: 'gold',   label: lang === 'ar' ? 'ذهبي'    : 'Gold',   swatch: 'linear-gradient(135deg,#FFC773,#F59E0B)' },
   ];
   const themeSectionTitle = lang === 'ar' ? 'لون التطبيق' : 'App color';
   const themeLockedNote   = lang === 'ar' ? 'ميزة بريميوم' : 'Premium feature';
@@ -698,6 +711,37 @@ function PremiumTab() {
       setAccent(prev);
       toast.error(err.message);
     } finally { setThemeBusy(false); }
+  };
+  // "Themes" — a second personalization axis, independent of accent
+  // color: which mood the animated background behind every page uses
+  // (see GlobalBackground.jsx). Previews below read the same
+  // --accent-* CSS vars as the real thing, so they preview correctly
+  // whatever accent color is currently active — no combo needs its own
+  // hardcoded swatch.
+  const BACKGROUND_PRESETS = [
+    { key: 'aurora',  label: lang === 'ar' ? 'أورورا'  : 'Aurora',
+      desc: lang === 'ar' ? 'الشكل الأصلي — كرات ضوء متحركة' : 'The original look — drifting glow orbs',
+      swatch: 'radial-gradient(circle at 35% 35%, rgb(var(--accent-300)), rgb(var(--accent-600)))' },
+    { key: 'minimal', label: lang === 'ar' ? 'بسيط'    : 'Minimal',
+      desc: lang === 'ar' ? 'خلفية هادئة بلا حركة — أقل تشتيتًا للمذاكرة' : 'A calm, still wash — less distracting while studying',
+      swatch: 'rgb(var(--accent-200))' },
+    { key: 'vivid',   label: lang === 'ar' ? 'حيوي'    : 'Vivid',
+      desc: lang === 'ar' ? 'نفس الكرات لكن أكبر وأكثر تشبعًا' : 'The same orbs, bigger and more saturated',
+      swatch: 'radial-gradient(circle at 35% 35%, rgb(var(--accent-400)), rgb(var(--accent-700)))' },
+  ];
+  const bgSectionTitle = lang === 'ar' ? 'الخلفية' : 'Background';
+  const changeBackground = async (preset) => {
+    if (!status?.is_premium || bgBusy || preset === backgroundStyle) return;
+    setBgBusy(true);
+    const prev = backgroundStyle;
+    setBackgroundStyle(preset);
+    try {
+      await api.post('/focus/premium/background', { background_style: preset });
+      setStatus((s) => ({ ...s, background_style: preset }));
+    } catch (err) {
+      setBackgroundStyle(prev);
+      toast.error(err.message);
+    } finally { setBgBusy(false); }
   };
   const today       = new Date().toISOString().slice(0, 10);
   const frozenToday = status?.freeze_date === today;
@@ -1047,6 +1091,52 @@ function PremiumTab() {
             );
           })}
         </div>
+      </div>
+      {/* Second personalization axis, right under App color — same
+          premium gate, same "locked" badge/disabled treatment, previews
+          read live off the currently-active accent so any of the 7
+          colors × 3 background styles combo previews correctly without
+          21 hardcoded swatches. */}
+      <div className="rounded-2xl p-4"
+        style={{ background:'rgb(var(--accent-500) / 0.06)', border:'1px solid rgb(var(--accent-500) / 0.15)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-ink dark:text-white">🌌 {bgSectionTitle}</p>
+          {!status.is_premium && (
+            <span className="text-[10px] font-bold rounded-full px-2 py-1"
+              style={isDark
+                ? { background:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.45)' }
+                : { background:'rgba(30,34,51,0.05)', color:'rgba(30,34,51,0.35)' }}>
+              {themeLockedNote}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-2.5">
+          {BACKGROUND_PRESETS.map((p) => {
+            const active = backgroundStyle === p.key;
+            const locked = !status.is_premium;
+            return (
+              <button
+                key={p.key}
+                onClick={() => changeBackground(p.key)}
+                disabled={locked || bgBusy}
+                title={locked ? themeLockedNote : p.desc}
+                className="flex flex-col items-center gap-1.5 rounded-2xl py-2.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                style={active ? { background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.30)' } : { border:'1px solid transparent' }}
+              >
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-full"
+                  style={{ background: p.swatch, boxShadow: active ? '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgb(var(--accent-500) / 0.4)' : '0 2px 6px rgba(0,0,0,0.15)' }}
+                >
+                  {active && <Check size={13} className="text-white" strokeWidth={3} />}
+                </span>
+                <span className="text-[10px] font-semibold text-ink/60 dark:text-white/50">{p.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-ink/35 dark:text-white/25 mt-2.5 text-center">
+          {BACKGROUND_PRESETS.find((p) => p.key === backgroundStyle)?.desc}
+        </p>
       </div>
       <div className="rounded-2xl p-4"
         style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.18)' }}>

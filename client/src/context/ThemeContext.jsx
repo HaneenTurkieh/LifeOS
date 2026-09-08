@@ -6,11 +6,18 @@ const ThemeContext = createContext(null);
 const STORAGE_KEY        = 'nuvora_theme';
 const ACCENT_STORAGE_KEY = 'nuvora_accent';
 const FONT_STORAGE_KEY   = 'nuvora_font_scale';
+const BG_STYLE_STORAGE_KEY = 'nuvora_background_style';
 migrateStorageKey(localStorage, 'aurora_theme',       STORAGE_KEY);
 migrateStorageKey(localStorage, 'aurora_accent',      ACCENT_STORAGE_KEY);
 migrateStorageKey(localStorage, 'aurora_font_scale',  FONT_STORAGE_KEY);
 const MODES   = ['light', 'dark', 'system'];
-export const ACCENTS = ['purple', 'orange', 'pink', 'blue'];
+export const ACCENTS = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'gold'];
+// Second personalization axis ("Themes"), independent of accent color —
+// which mood the animated glow/orbs behind every page use (see
+// GlobalBackground.jsx, which reads this straight off context — unlike
+// accent/font-scale it doesn't need a pre-paint DOM attribute, since
+// only that one component ever looks at it).
+export const BACKGROUND_STYLES = ['aurora', 'minimal', 'vivid'];
 // Percentages applied to the root font-size — every rem-based size in
 // the app (which is nearly all of Tailwind's defaults) scales together
 // proportionally, same mechanism iOS Text Size uses.
@@ -91,6 +98,12 @@ export function ThemeProvider({ children }) {
       return FONT_SCALES[stored] ? stored : 'default';
     } catch (_) { return 'default'; }
   });
+  const [backgroundStyle, setBackgroundStyleState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(BG_STYLE_STORAGE_KEY);
+      return BACKGROUND_STYLES.includes(stored) ? stored : 'aurora';
+    } catch (_) { return 'aurora'; }
+  });
   // Exposed so any page can gate a premium-only perk (e.g. watermark-free
   // exports) without each one re-fetching /focus/premium/status itself —
   // piggybacks on the poll below, which was already hitting that route.
@@ -128,6 +141,10 @@ export function ThemeProvider({ children }) {
   }, [fontScale]);
 
   useEffect(() => {
+    try { localStorage.setItem(BG_STYLE_STORAGE_KEY, backgroundStyle); } catch (_) {}
+  }, [backgroundStyle]);
+
+  useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
       if (mode !== 'system') return;
@@ -138,12 +155,14 @@ export function ThemeProvider({ children }) {
     return () => mql.removeEventListener('change', handleChange);
   }, [mode]);
 
-  const modeRef      = useRef(mode);
-  const accentRef     = useRef(accent);
-  const fontScaleRef  = useRef(fontScale);
+  const modeRef            = useRef(mode);
+  const accentRef           = useRef(accent);
+  const fontScaleRef        = useRef(fontScale);
+  const backgroundStyleRef  = useRef(backgroundStyle);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { accentRef.current = accent; }, [accent]);
   useEffect(() => { fontScaleRef.current = fontScale; }, [fontScale]);
+  useEffect(() => { backgroundStyleRef.current = backgroundStyle; }, [backgroundStyle]);
 
   useEffect(() => {
     let active = true;
@@ -175,6 +194,9 @@ export function ThemeProvider({ children }) {
         if (active && p?.theme_preset && ACCENTS.includes(p.theme_preset) && p.theme_preset !== accentRef.current) {
           setAccentState(p.theme_preset);
         }
+        if (active && p?.background_style && BACKGROUND_STYLES.includes(p.background_style) && p.background_style !== backgroundStyleRef.current) {
+          setBackgroundStyleState(p.background_style);
+        }
         if (active) setIsPremium(Boolean(p?.is_premium));
       } catch (_) {}
       try {
@@ -201,6 +223,14 @@ export function ThemeProvider({ children }) {
     if (ACCENTS.includes(next)) setAccentState(next);
   }, []);
 
+  // Local-only setter, same shape as setAccent — the actual POST +
+  // optimistic-update/rollback lives in SettingsModal.jsx's
+  // changeBackground, which calls this after the request succeeds (or
+  // to revert it if the request fails), same pattern as changeTheme.
+  const setBackgroundStyle = useCallback((next) => {
+    if (BACKGROUND_STYLES.includes(next)) setBackgroundStyleState(next);
+  }, []);
+
   const setFontScale = useCallback((next) => {
     if (!FONT_SCALES[next]) return;
     setFontScaleState(next);
@@ -219,6 +249,7 @@ export function ThemeProvider({ children }) {
       // should render with, so it matches the rest of the app today.
       accent, setAccent, displayAccent: birthdayOverride || accent, setBirthdayOverride,
       fontScale, setFontScale, isPremium,
+      backgroundStyle, setBackgroundStyle,
     }}>
       {children}
     </ThemeContext.Provider>

@@ -1390,8 +1390,8 @@ router.post('/premium/toggle', async (req, res) => {
       return res.status(403).json({ error: 'Premium can only be granted through a real purchase.' });
     }
     await db.execute({
-      sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, plan) VALUES (?, 0, 'purple', NULL)
-            ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple', plan = NULL`,
+      sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, background_style, plan) VALUES (?, 0, 'purple', 'aurora', NULL)
+            ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple', background_style = 'aurora', plan = NULL`,
       args: [req.user.id],
     });
     res.json(await getPremium(req.user.id));
@@ -1584,7 +1584,7 @@ router.post('/grace-passes/use', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue'];
+const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'gold'];
 router.post('/premium/theme', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);
@@ -1599,6 +1599,30 @@ router.post('/premium/theme', async (req, res) => {
       args: [req.user.id, theme_preset],
     });
     res.json({ ok: true, theme_preset });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── POST /premium/background — the second personalization axis
+//    ("Themes"): which background mood the animated glow/orbs behind
+//    every page use (see GlobalBackground.jsx). Independent of
+//    theme_preset (accent color) so any of the 7 colors can be paired
+//    with any of these — same premium gate, same shape as /premium/theme
+//    above. ──────────────────────────────────────────────────────────
+const ALLOWED_BACKGROUNDS = ['aurora', 'minimal', 'vivid'];
+router.post('/premium/background', async (req, res) => {
+  try {
+    const current = await getPremium(req.user.id);
+    if (!current.is_premium)
+      return res.status(403).json({ error: 'Custom themes are a Premium feature' });
+    const { background_style } = req.body;
+    if (!ALLOWED_BACKGROUNDS.includes(background_style))
+      return res.status(400).json({ error: 'Invalid background style' });
+    await db.execute({
+      sql: `INSERT INTO user_premium (user_id, is_premium, background_style) VALUES (?, 1, ?)
+            ON CONFLICT(user_id) DO UPDATE SET background_style = excluded.background_style`,
+      args: [req.user.id, background_style],
+    });
+    res.json({ ok: true, background_style });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 

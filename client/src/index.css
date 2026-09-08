@@ -48,6 +48,42 @@
   --accent-600: 37 99 235;
   --accent-700: 29 78 216;
 }
+/* Three more presets added alongside the original four — 400/500/600
+   on each reuse the exact hex already living in tailwind.config.js as
+   sage/coral/sun (priority tags, streak flame, XP accents), so these
+   read as more of the app's own palette rather than three colors
+   invented on the spot. 50/100/200/300/700 fill in the rest of the
+   ramp around those anchors, same approach as the original four. */
+[data-accent="green"] {
+  --accent-50:  236 253 245;
+  --accent-100: 209 250 229;
+  --accent-200: 167 243 208;
+  --accent-300: 110 231 183;
+  --accent-400: 52 211 153;
+  --accent-500: 61 190 122;
+  --accent-600: 45 167 110;
+  --accent-700: 21 128 61;
+}
+[data-accent="coral"] {
+  --accent-50:  255 243 238;
+  --accent-100: 255 229 220;
+  --accent-200: 255 209 196;
+  --accent-300: 255 184 168;
+  --accent-400: 255 156 138;
+  --accent-500: 255 122 99;
+  --accent-600: 232 90 66;
+  --accent-700: 194 69 47;
+}
+[data-accent="gold"] {
+  --accent-50:  255 250 235;
+  --accent-100: 255 243 214;
+  --accent-200: 255 230 173;
+  --accent-300: 255 210 120;
+  --accent-400: 255 199 115;
+  --accent-500: 255 184 77;
+  --accent-600: 245 158 11;
+  --accent-700: 180 116 8;
+}
 /* Festive mode — set on <html data-festive="birthday|ramadan|eid"> by
    FestiveDecoration.jsx (BirthdayCelebration.jsx for the birthday
    case) for as long as the occasion lasts.
