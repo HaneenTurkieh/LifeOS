@@ -407,7 +407,11 @@ export default function Calendar() {
         priority:      editForm.priority,
         category:      editForm.category || 'General',
         deadline:      editForm.deadline || null,
-        end_date:      editForm.deadline ? (editForm.end_date || null) : null,
+        // Mutually exclusive with recurrence — hidden and cleared the
+        // moment Repeat is picked, but this is the actual enforcement so
+        // a stale value can never ride along even if state somehow got
+        // out of sync with what's visible.
+        end_date:      (editForm.deadline && !recurrence) ? (editForm.end_date || null) : null,
         deadline_time: editForm.deadline_time || null,
         remind_offsets_min: editForm.deadline_time ? editForm.remindOffsets : null,
         recurrence,
@@ -523,7 +527,11 @@ No explanation, no markdown fences, just the JSON object.`,
       await api.post('/tasks', {
         ...addForm,
         deadline: addModalOpen,
-        end_date: addForm.isBirthday ? null : (addForm.end_date || null),
+        // Mutually exclusive with recurrence — hidden and cleared the
+        // moment Repeat is picked, but this is the actual enforcement so
+        // a stale value can never ride along even if state somehow got
+        // out of sync with what's visible.
+        end_date: (addForm.isBirthday || recurrence) ? null : (addForm.end_date || null),
         recurrence,
         recurrence_until: recurrence ? (addForm.recurrenceUntil || null) : null,
         remind_offsets_min: addForm.deadline_time ? addForm.remindOffsets : null,
@@ -797,8 +805,11 @@ No explanation, no markdown fences, just the JSON object.`,
                       (unchanged behavior). Set it to make the task span
                       multiple days: it then shows on the Calendar grid
                       for every day in between, on Tasks/Dashboard too,
-                      and gets its own daily reminder each active day. */}
-                  {editForm.deadline && !editForm.isBirthday && (
+                      and gets its own daily reminder each active day.
+                      Hidden once Repeat is on — a repeating task has its
+                      own "Ends on" below (Repeat until) already; showing
+                      both at once is confusing, not two real options. */}
+                  {editForm.deadline && !editForm.isBirthday && !editForm.recurrenceType && (
                     <div>
                       <label className={`text-[10px] font-bold uppercase tracking-widest mb-1 block ${textSub}`}>
                         {t('tasks.endDateLabel')}
@@ -829,7 +840,14 @@ No explanation, no markdown fences, just the JSON object.`,
                         <div className="flex flex-wrap gap-1.5">
                           {RECURRENCE_OPTIONS.map(opt => (
                             <button key={opt.value} type="button"
-                              onClick={() => setEditForm(f => ({ ...f, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[] }))}
+                              onClick={() => setEditForm(f => ({
+                                ...f, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[],
+                                // Turning Repeat on hides the multi-day
+                                // "Ends on" field above — clear its value
+                                // too, not just hide it, so a stale span
+                                // doesn't silently ride along next save.
+                                end_date: opt.value ? '' : f.end_date,
+                              }))}
                               className="rounded-xl px-3 py-1 text-[11px] font-semibold transition-all"
                               style={editForm.recurrenceType === opt.value ? {
                                 background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',
@@ -1174,8 +1192,11 @@ No explanation, no markdown fences, just the JSON object.`,
           {/* Optional — leave blank and this is a plain single-day task
               on {addModalOpen}. Set it to span multiple days: the task
               then shows on every day in between (here, on Tasks, and on
-              the Dashboard) and reminds once per active day. */}
-          {!addForm.isBirthday && (
+              the Dashboard) and reminds once per active day. Hidden once
+              Repeat is on — a repeating task has its own "Ends on" below
+              (Repeat until) already; showing both at once is confusing,
+              not two real options. */}
+          {!addForm.isBirthday && !addForm.recurrenceType && (
             <div>
               <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.endDateLabel')}</label>
               <input type="date" className="input-field" value={addForm.end_date}
@@ -1216,7 +1237,13 @@ No explanation, no markdown fences, just the JSON object.`,
             <div className="flex flex-wrap gap-2">
               {RECURRENCE_OPTIONS.map(opt => (
                 <button key={opt.value} type="button"
-                  onClick={() => setAddForm(f => ({ ...f, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[] }))}
+                  onClick={() => setAddForm(f => ({
+                    ...f, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[],
+                    // Turning Repeat on hides the multi-day "Ends on"
+                    // field above — clear its value too, not just hide
+                    // it, so a stale span doesn't silently ride along.
+                    end_date: opt.value ? '' : f.end_date,
+                  }))}
                   className="rounded-2xl px-4 py-2 text-xs font-semibold transition-all"
                   style={addForm.recurrenceType === opt.value ? {
                     background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',

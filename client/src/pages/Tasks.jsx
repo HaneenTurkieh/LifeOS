@@ -357,9 +357,13 @@ No explanation, no markdown fences, just the JSON object.`,
         // task uncategorized.
         priority: form.priority, category: form.category.trim() || 'general',
         deadline: form.deadline||null, deadline_time: form.deadline_time||null,
-        // Only meaningful alongside an actual deadline — same reasoning
-        // as recurrence_until/remind_offsets_min just below.
-        end_date: form.deadline ? (form.end_date || null) : null,
+        // Mutually exclusive with recurrence — the field is hidden the
+        // moment Repeat is on and cleared when it's picked (see the
+        // Repeat buttons above), but this is the actual enforcement:
+        // recurrence always wins, so a stale end_date can never ride
+        // along into a repeating task's payload even if state somehow
+        // got out of sync with what's visible.
+        end_date: (form.deadline && !recurrence) ? (form.end_date || null) : null,
         recurrence,
         // No recurrence means there's no chain for an end date to cut
         // off — same reasoning as remind_offsets_min just below not
@@ -553,9 +557,12 @@ No explanation, no markdown fences, just the JSON object.`,
               into a span: it then shows up every day from the start
               date through this one, in Tasks/Dashboard/Calendar, and
               gets its own daily reminder for each active day. Only
-              shown once a start date is picked, since an end date needs
-              something to be "after." */}
-          {form.deadline && (
+              shown once a start date is picked (needs something to be
+              "after"), and hidden once Repeat is on — a repeating task
+              already has its own "Ends on" below (Repeat until), and
+              showing two differently-scoped "ends on" fields at once is
+              genuinely confusing, not two real options. */}
+          {form.deadline && !form.recurrenceType && (
             <div>
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.endDateLabel')}</label>
               <input type="date" className="input-field" value={form.end_date}
@@ -576,7 +583,14 @@ No explanation, no markdown fences, just the JSON object.`,
             <div className="flex flex-wrap gap-2">
               {RECURRENCE_OPTIONS.map(opt => (
                 <button key={opt.value} type="button"
-                  onClick={() => setForm({...form, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[]})}
+                  onClick={() => setForm({
+                    ...form, recurrenceType:opt.value, customDays: opt.value==='custom'?[1,2,3,4,5]:[],
+                    // Turning Repeat on hides the multi-day "Ends on"
+                    // field above — clear its value too, not just hide
+                    // it, so a stale span from before doesn't silently
+                    // ride along in the next save.
+                    end_date: opt.value ? '' : form.end_date,
+                  })}
                   className="rounded-2xl px-4 py-2 text-xs font-semibold transition-all"
                   style={form.recurrenceType === opt.value ? {
                     background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', color:'white',

@@ -1348,14 +1348,31 @@ export default function ExamAssistant() {
     // instruction line fixes both: it breaks any exact-prompt caching and
     // gives the model an explicit reason to vary its choices.
     const varietyTag = `VARIETY: This may be a repeat generation from the same material (variation token: ${Math.random().toString(36).slice(2, 8)}) — choose different specific facts, angles, and phrasing than an obvious first pass would, and don't default to only the first-appearing concepts.`;
+    // Two separate "don't read as AI" problems, fixed in different places:
+    // (1) writing STYLE — every generated field (questions, explanations,
+    // hints, flashcard backs) tends to come out in the same recognizable
+    // AI voice: uniform sentence length inside a paragraph, stock
+    // transition words, everything padded to sound equally thorough. (2)
+    // MCQ option LENGTH specifically — without being told otherwise, a
+    // model reliably writes the correct option with more precise/complete
+    // wording than the three distractors, so it ends up visibly longer.
+    // Students learn that pattern fast and start picking "whichever
+    // answer is longest" without reading any of them — the quiz stops
+    // testing the material at all. NO_AI_VOICE goes in `base` (every
+    // mode's output gets read by a student); the option-length rule only
+    // goes into the two prompts that actually have MCQ options.
+    const NO_AI_VOICE = `- Write like a real instructor wrote this by hand, not like an AI: vary sentence length instead of settling into one rhythm, skip stock transition phrases ("Furthermore," "It's important to note," "In conclusion"), and don't pad a sentence just to make it sound more complete.`;
+    const MCQ_LENGTH_RULE = `- Never let the correct option be a giveaway. Specifically: do NOT systematically make the correct option longer or more detailed than the three wrong ones — that's the single most common tell, and students learn to just pick "the longest answer" without reading the question. All four options for a given question should land in a similar length and level of detail; across the exam, the correct answer's position in length-ranking should vary question to question (sometimes shortest, sometimes longest, mostly in between), not always the fullest-sounding one.`;
     const base = `CRITICAL RULES:
 - Return ONLY a valid JSON array. No markdown, no explanation, no text before or after.
 - Cover ALL topics in the content. Do not skip any concept.
 - The content to study is at the end of this message.
+${NO_AI_VOICE}
 ${varietyTag}
 `;
     if (mode === 'mcq') {
       prompt = `${base}${difficultyLine}
+${MCQ_LENGTH_RULE}
 Generate a ${difficulty} multiple choice exam with exactly ${count} questions.
 Each object: { "question": string, "options": [4 strings], "correct": 0-indexed number, "explanation": string }
 Content:\n${content}`;
@@ -1367,6 +1384,7 @@ Content:\n${content}`;
     } else if (mode === 'mixed') {
       const half = Math.ceil(count/2);
       prompt = `${base}${difficultyLine}
+${MCQ_LENGTH_RULE}
 Generate a ${difficulty} mixed exam: ${half} MCQ and ${count-half} fill-in-the-blank questions. Interleave them.
 MCQ object:   { "type": "mcq",   "question": string, "options": [4 strings], "correct": number, "explanation": string }
 Blank object: { "type": "blank", "sentence": "text with ___", "answer": string, "hint": string }
