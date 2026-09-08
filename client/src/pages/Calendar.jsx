@@ -39,9 +39,17 @@ function localToday() {
 }
 const emptyForm = {
   title:'', priority:'medium', category:'general', categorySelect:'general', categoryCustom:'',
-  deadline_time:'', description:'',
+  deadline_time:'', description:'', end_date:'',
   remindOffsets:[60], recurrenceType:'', customDays:[], isBirthday:false, recurrenceUntil:'',
 };
+// Whether `day` falls anywhere within a task's active span — its
+// deadline (the start) through end_date (inclusive) when set, or just
+// the single deadline day otherwise. Mirrors the same helper in
+// Tasks.jsx so a multi-day task lands on every day cell it's actually
+// active for, not just its start day.
+function activeOn(task, day) {
+  return Boolean(task.deadline) && task.deadline <= day && (task.end_date || task.deadline) >= day;
+}
 // Same category vocabulary as Tasks.jsx — a proper dropdown instead of a
 // freeform text box, so a task added from Calendar lands in the same
 // known buckets ('general', 'university', ...) that Tasks/Analytics
@@ -167,6 +175,13 @@ export default function Calendar() {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m-1, d).toLocaleDateString(dateLocale, { weekday:'long' });
   };
+  // Short "7 Sep" form — used for the multi-day range badge below, not
+  // the full weekday label fmtLabel/fmtDayShort already provide.
+  const fmtDayNum = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m-1, d).toLocaleDateString(dateLocale, { month:'short', day:'numeric' });
+  };
   const DAYS = Array.from({ length: 7 }, (_, i) =>
     new Date(2023, 0, 1 + i).toLocaleDateString(dateLocale, { weekday: 'short' }));
 
@@ -240,20 +255,30 @@ export default function Calendar() {
     // grouping by done-status on top preserves that priority order inside
     // each group without needing a compound comparator.
     return tasks
-      .filter(tk => tk.deadline === ds)
+      .filter(tk => activeOn(tk, ds))
       .sort(byPriorityThenNothing)
       .sort((a, b) => (a.status === 'done') - (b.status === 'done'));
   };
 
   const moveTask = async (task, dateStr) => {
     if (!task || !dateStr || task.deadline === dateStr) return;
-    setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, deadline:dateStr } : tk));
+    // Dragging a multi-day task moves its whole span, keeping the same
+    // length — without this, dragging just the start forward past the
+    // existing end_date would leave the range inverted (end before
+    // start), and dragging it back would silently shrink the span.
+    const spanDays = task.end_date
+      ? Math.round((new Date(`${task.end_date}T00:00:00`) - new Date(`${task.deadline}T00:00:00`)) / 86400000)
+      : 0;
+    const newEndDate = spanDays
+      ? new Date(new Date(`${dateStr}T00:00:00`).getTime() + spanDays * 86400000).toLocaleDateString('en-CA')
+      : task.end_date;
+    setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, deadline:dateStr, end_date:newEndDate } : tk));
     if (selectedTask?.id === task.id) {
-      setSelectedTask(tk => ({ ...tk, deadline:dateStr }));
-      setEditForm(f => f ? { ...f, deadline:dateStr } : f);
+      setSelectedTask(tk => ({ ...tk, deadline:dateStr, end_date:newEndDate }));
+      setEditForm(f => f ? { ...f, deadline:dateStr, end_date:newEndDate || '' } : f);
     }
     try {
-      await api.put(`/tasks/${task.id}`, { deadline: dateStr });
+      await api.put(`/tasks/${task.id}`, { deadline: dateStr, end_date: newEndDate || null });
       toast.success(t('calendar.movedTo', { day: fmtDayShort(dateStr) }));
     } catch (err) { toast.error(err.message); load(); }
   };
@@ -355,6 +380,7 @@ export default function Calendar() {
       description:   task.description || '',
       priority:      task.priority || 'medium',
       deadline:      task.deadline,
+      end_date:      task.end_date || '',
       deadline_time: task.deadline_time || '',
       category:      task.category || 'General',
       remindOffsets,
@@ -368,6 +394,10 @@ export default function Calendar() {
   const saveTask = async () => {
     if (!selectedTask || !editForm) return;
     if (!editForm.title.trim()) { toast.error(t('calendar.titleEmpty')); return; }
+    if (editForm.end_date && editForm.deadline && editForm.end_date < editForm.deadline) {
+      toast.error(t('tasks.endDateBeforeStart'));
+      return;
+    }
     setSaving(true);
     try {
       const recurrence = formToRecurrence(editForm);
@@ -377,6 +407,7 @@ export default function Calendar() {
         priority:      editForm.priority,
         category:      editForm.category || 'General',
         deadline:      editForm.deadline || null,
+        end_date:      editForm.deadline ? (editForm.end_date || null) : null,
         deadline_time: editForm.deadline_time || null,
         remind_offsets_min: editForm.deadline_time ? editForm.remindOffsets : null,
         recurrence,
@@ -431,10 +462,11 @@ export default function Calendar() {
           role: 'user',
           content: `Extract event details from this sentence: "${sentence}"
 
-This is for something happening on ${addModalOpen} — that date is already fixed, do NOT return a date for it.
+This is for something starting on ${addModalOpen} — that start date is already fixed, do NOT return a date for it.
 
 Return ONLY a JSON object with keys:
-- title: string, required — a short clean title with time/priority words stripped out
+- title: string, required — a short clean title with time/priority/date words stripped out
+- end_date: "YYYY-MM-DD" or null — ONLY if the sentence describes it running for MULTIPLE days ("until Friday", "through next week", "for 3 days") — resolve it relative to the fixed start date above; leave null for anything happening on just the one day
 - deadline_time: 24h "HH:MM" or null, only if a specific time was actually mentioned
 - priority: "high", "medium", or "low" — infer from urgency words, default "medium"
 - category: one short lowercase word for the area, e.g. "university", "personal", "health", "finance", "general"
@@ -454,7 +486,12 @@ No explanation, no markdown fences, just the JSON object.`,
         if (match) { try { parsed = JSON.parse(match[0]); } catch (_) {} }
       }
       if (!parsed?.title) { toast.error(t('tasks.quickAddFailed')); return; }
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
       const TIME_RE = /^\d{2}:\d{2}$/;
+      // Only keep end_date if it's on/after the already-fixed start —
+      // anything else is meaningless and the modal's own validation
+      // would reject it anyway.
+      const end_date = DATE_RE.test(parsed.end_date) && parsed.end_date >= addModalOpen ? parsed.end_date : '';
       const deadline_time = TIME_RE.test(parsed.deadline_time) ? parsed.deadline_time : '';
       const priority = ['high','medium','low'].includes(parsed.priority) ? parsed.priority : 'medium';
       const { select: categorySelect, custom: categoryCustom } = categoryToSelect(parsed.category);
@@ -462,7 +499,7 @@ No explanation, no markdown fences, just the JSON object.`,
         ...f,
         title: parsed.title,
         description: parsed.description || f.description,
-        priority, deadline_time,
+        priority, end_date, deadline_time,
         category: categorySelect === 'other' ? categoryCustom : categorySelect,
         categorySelect, categoryCustom,
       }));
@@ -476,12 +513,17 @@ No explanation, no markdown fences, just the JSON object.`,
   const submitAdd = async (e) => {
     e.preventDefault();
     if (!addForm.title.trim()) return;
+    if (addForm.end_date && addForm.end_date < addModalOpen) {
+      toast.error(t('tasks.endDateBeforeStart'));
+      return;
+    }
     setSaving(true);
     try {
       const recurrence = formToRecurrence(addForm);
       await api.post('/tasks', {
         ...addForm,
         deadline: addModalOpen,
+        end_date: addForm.isBirthday ? null : (addForm.end_date || null),
         recurrence,
         recurrence_until: recurrence ? (addForm.recurrenceUntil || null) : null,
         remind_offsets_min: addForm.deadline_time ? addForm.remindOffsets : null,
@@ -751,6 +793,21 @@ No explanation, no markdown fences, just the JSON object.`,
                     <input type="date" className="input-field text-sm" value={editForm.deadline || ''}
                       onChange={e => setEditForm({...editForm, deadline:e.target.value})}/>
                   </div>
+                  {/* Optional — leave blank for a single-day task
+                      (unchanged behavior). Set it to make the task span
+                      multiple days: it then shows on the Calendar grid
+                      for every day in between, on Tasks/Dashboard too,
+                      and gets its own daily reminder each active day. */}
+                  {editForm.deadline && !editForm.isBirthday && (
+                    <div>
+                      <label className={`text-[10px] font-bold uppercase tracking-widest mb-1 block ${textSub}`}>
+                        {t('tasks.endDateLabel')}
+                      </label>
+                      <input type="date" className="input-field text-sm" value={editForm.end_date || ''}
+                        min={editForm.deadline}
+                        onChange={e => setEditForm({...editForm, end_date:e.target.value})}/>
+                    </div>
+                  )}
                   {editForm.isBirthday ? (
                     <p className={`text-[11px] ${isDark?'text-white/25':'text-ink/35'}`}>{t('calendar.birthdayHint')}</p>
                   ) : (
@@ -825,7 +882,10 @@ No explanation, no markdown fences, just the JSON object.`,
                   </button>
                 </div>
                 {editForm.deadline && (() => {
-                  const dl = daysUntil(editForm.deadline);
+                  // A ranged task's real "due" day is its end_date, not
+                  // the start — matches the server's late-check and the
+                  // same countdown basis used in Tasks.jsx's TaskCard.
+                  const dl = daysUntil(editForm.end_date || editForm.deadline);
                   if (dl === null) return null;
                   return (
                     <div className="mt-3 flex items-center gap-1.5 text-xs"
@@ -841,7 +901,7 @@ No explanation, no markdown fences, just the JSON object.`,
               </motion.div>
             )}
             {!selectedTask && selected && (() => {
-              const dayTasksAll = tasks.filter(tk => tk.deadline === selected);
+              const dayTasksAll = tasks.filter(tk => activeOn(tk, selected));
               // High → low priority first; layoutTimedTasks then sorts by
               // start time on top of this (JS array sort is stable), so
               // same-time tasks keep this priority order instead of
@@ -900,6 +960,15 @@ No explanation, no markdown fences, just the JSON object.`,
                             >
                               {isDone && <Check size={11} className="text-sage-500 shrink-0"/>}
                               <p className={`text-xs font-semibold truncate flex-1 ${isDone?'line-through':''}`} style={{ color:colors.text }}>{task.title}</p>
+                              {/* Multi-day task showing on a day that isn't
+                                  its start — the badge is what tells you
+                                  it's part of a longer span, not a
+                                  duplicate or a mistake. */}
+                              {task.end_date && task.end_date !== task.deadline && (
+                                <span className="text-[10px] font-medium shrink-0 opacity-70" style={{ color:colors.text }}>
+                                  {fmtDayNum(task.deadline)}–{fmtDayNum(task.end_date)}
+                                </span>
+                              )}
                               <Pencil size={11} style={{ color:colors.text, opacity:0.5 }}/>
                             </div>
                           );
@@ -1102,6 +1171,19 @@ No explanation, no markdown fences, just the JSON object.`,
             style={{ background:'rgb(var(--accent-500) / 0.08)', border:'1px solid rgb(var(--accent-500) / 0.15)', color:'rgb(var(--accent-500))' }}>
             📅 {addModalOpen && fmtLabel(addModalOpen)}
           </div>
+          {/* Optional — leave blank and this is a plain single-day task
+              on {addModalOpen}. Set it to span multiple days: the task
+              then shows on every day in between (here, on Tasks, and on
+              the Dashboard) and reminds once per active day. */}
+          {!addForm.isBirthday && (
+            <div>
+              <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.endDateLabel')}</label>
+              <input type="date" className="input-field" value={addForm.end_date}
+                min={addModalOpen || undefined}
+                onChange={e => setAddForm({...addForm, end_date:e.target.value})}
+                onClick={e => e.currentTarget.showPicker?.()} />
+            </div>
+          )}
           {!addForm.isBirthday && (
             <div>
               <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>

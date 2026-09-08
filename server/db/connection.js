@@ -775,6 +775,18 @@ async function initDb() {
     await db.execute(`ALTER TABLE tasks ADD COLUMN recurrence_until TEXT DEFAULT NULL`);
   }
 
+  // Optional end date turning a single-day task into a multi-day span —
+  // "study for finals" from the 7th through the 10th, say. NULL (the
+  // default) leaves every existing task exactly as before: a single-day
+  // deadline. When set, the task is considered active on every day from
+  // `deadline` (the start) through `end_date` (inclusive) — see the range
+  // checks in routes/tasks.js (validation + recurrence span carry-over),
+  // routes/dashboard.js (Today's Tasks), routes/notifications.js (daily
+  // due-soon reminders), and the Tasks/Calendar pages client-side.
+  if (!(await hasColumn('tasks', 'end_date'))) {
+    await db.execute(`ALTER TABLE tasks ADD COLUMN end_date TEXT DEFAULT NULL`);
+  }
+
   // Paddle webhook events aren't guaranteed to arrive in the order they
   // happened (e.g. a retried subscription.updated could land after a
   // later subscription.canceled) — without tracking which event was

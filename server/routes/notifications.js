@@ -143,9 +143,12 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   const today    = new Date().toISOString().slice(0, 10);
   await rollForwardBirthdays(userId, today);
   const [tasks, overdueCountResult, habits, goals, streak, mood, dueMilestones] = await Promise.all([
+    // A multi-day task (deadline..end_date) is only "overdue" once its
+    // WHOLE range has passed — COALESCE(end_date, deadline) is that real
+    // due day, same range basis used everywhere else below.
     db.execute({
       sql:  `SELECT id, title, deadline FROM tasks
-             WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
+             WHERE user_id=? AND status!='done' AND COALESCE(end_date, deadline) < ? AND deadline IS NOT NULL
                AND is_birthday=0
              ORDER BY deadline ASC LIMIT 5`,
       args: [userId, today],
@@ -155,7 +158,7 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
     // "at least one."
     db.execute({
       sql:  `SELECT COUNT(*) c FROM tasks
-             WHERE user_id=? AND status!='done' AND deadline < ? AND deadline IS NOT NULL
+             WHERE user_id=? AND status!='done' AND COALESCE(end_date, deadline) < ? AND deadline IS NOT NULL
                AND is_birthday=0`,
       args: [userId, today],
     }),
@@ -234,9 +237,9 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   // dedupe key (the link carries it), so a task with 3 offsets can fire
   // 3 separate reminders as each window is reached, not just one.
   const dueSoonResult = await db.execute({
-    sql:  `SELECT id, title, deadline, deadline_time, remind_offsets_min FROM tasks
+    sql:  `SELECT id, title, deadline, deadline_time, remind_offsets_min, end_date FROM tasks
            WHERE user_id=? AND status!='done' AND deadline IS NOT NULL
-             AND deadline >= ? AND deadline <= date(?, '+1 day')
+             AND deadline <= date(?, '+1 day') AND COALESCE(end_date, deadline) >= ?
              AND is_birthday=0`,
     args: [userId, today, today],
   });
@@ -245,13 +248,23 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
     if (!task.deadline_time) {
       // Date-only deadline — no time-of-day to count "N minutes before"
       // from, so custom offsets don't apply here; just the existing
-      // "due today" morning-of nudge.
-      if (task.deadline !== today) continue;
+      // "due today" morning-of nudge. For a multi-day task (end_date
+      // set), "today" needs to fall anywhere in [deadline, end_date],
+      // not just equal the start day, so the nudge repeats on every
+      // active day instead of firing once and going silent for the rest
+      // of the range.
+      if (!(task.deadline <= today && (task.end_date || task.deadline) >= today)) continue;
       toCreate.push({
         type:  'due_soon',
         title: '⏰ Task due soon',
         body:  `"${task.title}" is due today`,
-        link:  `/tasks?task=${task.id}`,
+        // Dedupe is `${type}:${link}` (see notificationDedupe.js) — fires
+        // once per link, forever. A single-day task keeps the original
+        // link (unchanged dedupe behavior for the common case); a ranged
+        // task's link carries today's date so each day of the range gets
+        // its own fresh notification instead of only ever firing once on
+        // whichever day happened to poll first.
+        link:  task.end_date ? `/tasks?task=${task.id}&d=${today}` : `/tasks?task=${task.id}`,
         data:  { title: task.title, deadline: task.deadline },
       });
       continue;

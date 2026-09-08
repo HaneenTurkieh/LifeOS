@@ -31,8 +31,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   description   TEXT DEFAULT '',
   priority      TEXT NOT NULL DEFAULT 'medium',   -- low | medium | high
   category      TEXT NOT NULL DEFAULT 'general',
-  deadline      TEXT,                             -- ISO date, nullable
+  deadline      TEXT,                             -- ISO date, nullable — the start day
   deadline_time TEXT,                             -- "HH:MM" 24h format, nullable
+  end_date      TEXT,                             -- ISO date, nullable — set only for a multi-day
+                                                    -- task; active on every day from deadline
+                                                    -- through end_date inclusive
   status        TEXT NOT NULL DEFAULT 'todo',     -- todo | doing | done
   progress      INTEGER NOT NULL DEFAULT 0,
   position      INTEGER NOT NULL DEFAULT 0,       -- order within a column

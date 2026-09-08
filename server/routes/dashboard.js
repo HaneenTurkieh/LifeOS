@@ -34,26 +34,38 @@ const today = req.query.date || new Date().toISOString().slice(0, 10);
       // the original deadline, so the Dashboard's Done column shows what
       // was actually accomplished today without dragging in old
       // completed work that happened to be due today weeks ago.
+      // A multi-day task (deadline..end_date) counts as "today's" on
+      // every day of that range, not just its start day — same
+      // COALESCE(end_date, deadline) >= today AND deadline <= today range
+      // check used in routes/notifications.js and the client pages, so a
+      // task added ending tomorrow (or later) shows on this board every
+      // day it's actually active, not just once.
       db.execute({
         sql: `SELECT * FROM tasks
               WHERE user_id = ? AND project_id IS NULL AND source != 'nuvora'
                 AND (
-                  (status != 'done' AND (deadline = ? OR deadline IS NULL))
+                  (status != 'done' AND (
+                    (deadline <= ? AND COALESCE(end_date, deadline) >= ?) OR deadline IS NULL
+                  ))
                   OR (status = 'done' AND date(completed_at) = ?)
                 )
               ORDER BY CASE priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC
               LIMIT 40`,
-        args: [userId, today, today],
+        args: [userId, today, today, today],
       }),
       db.execute({ sql: `SELECT * FROM habits WHERE user_id = ?`, args: [userId] }),
+      // "Coming up" means tasks that haven't started yet — an
+      // already-active multi-day task (deadline in the past, still
+      // running) belongs on the Today's Tasks board above instead, not
+      // here too, so this keeps the original deadline-only comparison.
       db.execute({ sql: `SELECT * FROM tasks WHERE user_id = ? AND status != 'done' AND project_id IS NULL AND source != 'nuvora' AND deadline IS NOT NULL AND deadline >= ? ORDER BY deadline ASC LIMIT 5`, args: [userId, today] }),
       db.execute({ sql: `SELECT * FROM moods WHERE user_id = ? AND date = ?`, args: [userId, today] }),
       // "done" here has to mean the same thing as the denominator below
-      // (deadline = today) — matching on completed_at date instead made a
+      // (active today) — matching on completed_at date instead made a
       // task done yesterday but due today count toward the total without
       // ever counting as done, showing e.g. "0/1" for an already-finished task.
-      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND project_id IS NULL AND source != 'nuvora' AND deadline = ?`, args: [userId, today] }),
-      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND project_id IS NULL AND source != 'nuvora' AND deadline = ?`, args: [userId, today] }),
+      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status='done' AND project_id IS NULL AND source != 'nuvora' AND deadline <= ? AND COALESCE(end_date, deadline) >= ?`, args: [userId, today, today] }),
+      db.execute({ sql: `SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND project_id IS NULL AND source != 'nuvora' AND deadline <= ? AND COALESCE(end_date, deadline) >= ?`, args: [userId, today, today] }),
       db.execute({ sql: `SELECT title, deadline FROM tasks WHERE user_id = ? AND source = 'nuvora' AND category = 'Birthday' LIMIT 1`, args: [userId] }),
       // Next concrete step per active goal — the lowest-position
       // not-done milestone in each goal, not just "all incomplete

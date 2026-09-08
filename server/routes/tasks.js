@@ -45,6 +45,30 @@ function nextRecurrenceDate(recurrence, fromDate) {
   return base.toISOString().slice(0, 10);
 }
 
+// ── Multi-day task span helpers ──────────────────────────────────
+// A task's `end_date` (nullable) turns a single-day `deadline` into a
+// range — the task is active every day from deadline through end_date
+// inclusive. spanDays() captures how long that range is (in whole days)
+// so a recurring multi-day task (e.g. "review session" every week, each
+// one running 7th-9th) can carry the SAME span forward onto every
+// generated/spawned occurrence below, rather than every occurrence
+// after the first silently collapsing back to a single day.
+function spanDays(deadline, endDate) {
+  if (!endDate || !deadline) return 0;
+  const [sy, sm, sd] = deadline.split('-').map(Number);
+  const [ey, em, ed] = endDate.split('-').map(Number);
+  const start = Date.UTC(sy, sm - 1, sd);
+  const end   = Date.UTC(ey, em - 1, ed);
+  return Math.max(0, Math.round((end - start) / 86400000));
+}
+function addDaysStr(dateStr, days) {
+  if (!days) return dateStr;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 // ── Generate all occurrence dates for a bounded recurring task ──
 // Used by both create and update: when a task has BOTH a recurrence
 // AND a recurrence_until cutoff, every date in the series gets
@@ -118,9 +142,15 @@ router.post('/', async (req, res) => {
       deadline_time = null, recurrence = null,
       project_id = null, remind_offsets_min = null,
       is_birthday = false, recurrence_until = null,
+      end_date = null,
     } = req.body;
 
     if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
+    // end_date only means something relative to a start (deadline) — and
+    // must not land before it, or the task would be "active" on no day
+    // at all.
+    if (end_date && !deadline) return res.status(400).json({ error: 'Add a start date before setting an end date' });
+    if (end_date && deadline && end_date < deadline) return res.status(400).json({ error: "End date can't be before the start date" });
 
     const maxPos = await db.execute({
       sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
@@ -138,8 +168,8 @@ router.post('/', async (req, res) => {
     const insert = await db.execute({
       sql:  `INSERT INTO tasks
                (user_id, title, description, priority, category,
-                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min, is_birthday, recurrence_until)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?, ?)`,
+                deadline, deadline_time, recurrence, status, progress, position, project_id, remind_offsets_min, is_birthday, recurrence_until, end_date)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?, ?, ?)`,
       args: [
         req.user.id, title.trim(), description, priority, category,
         deadline || null, deadline_time || null, recurrence || null,
@@ -149,6 +179,11 @@ router.post('/', async (req, res) => {
         // task ignoring a stray recurrence_until in the body is safer
         // than accidentally storing one that nothing ever reads.
         recurrence ? (recurrence_until || null) : null,
+        // Same "only meaningful with a real deadline" reasoning as
+        // recurrence_until above — already validated end_date>=deadline
+        // when both are present, but a stray end_date with no deadline
+        // at all shouldn't be persisted either.
+        deadline ? (end_date || null) : null,
       ],
     });
 
@@ -162,18 +197,24 @@ router.post('/', async (req, res) => {
     // completed first. See generateOccurrenceDates() above.
     if (task.recurrence && task.recurrence_until && task.deadline) {
       const occurrenceDates = generateOccurrenceDates(task.recurrence, task.deadline, task.recurrence_until);
+      // Carry the same span forward onto every pre-created occurrence —
+      // otherwise a bounded recurring multi-day task (e.g. a review
+      // session every week, each running 3 days) would collapse back to
+      // a single day on every occurrence after the first.
+      const span = spanDays(task.deadline, task.end_date);
       if (occurrenceDates.length) {
         let nextPos = Number(maxPos.rows[0].m) + 2; // +1 already used by the first row above
         await db.batch(
           occurrenceDates.map((d) => ({
             sql:  `INSERT INTO tasks
                      (user_id, title, description, priority, category,
-                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position, project_id, is_birthday)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?)`,
+                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position, project_id, is_birthday, end_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?)`,
             args: [
               req.user.id, task.title, task.description, task.priority, task.category,
               d, task.deadline_time || null, task.recurrence, task.recurrence_until,
               nextPos++, task.project_id || null, task.is_birthday ? 1 : 0,
+              span ? addDaysStr(d, span) : null,
             ],
           })),
           'write'
@@ -195,9 +236,9 @@ router.post('/', async (req, res) => {
 const UPDATABLE = [
   'title', 'description', 'priority', 'category',
   'deadline', 'deadline_time', 'recurrence', 'recurrence_until',
-  'status', 'progress', 'position',
+  'status', 'progress', 'position', 'end_date',
 ];
-const NULLABLE = new Set(['deadline', 'deadline_time', 'recurrence', 'recurrence_until']);
+const NULLABLE = new Set(['deadline', 'deadline_time', 'recurrence', 'recurrence_until', 'end_date']);
 
 router.put('/:id', async (req, res) => {
   try {
@@ -224,6 +265,16 @@ router.put('/:id', async (req, res) => {
     }
 
     const updates   = { ...existing, ...patch };
+
+    // end_date only means something relative to a start (deadline) — and
+    // must not land before it, or the task would be "active" on no day
+    // at all. Checked against the MERGED state, so e.g. shortening
+    // deadline forward past an already-set end_date on the same save
+    // still gets caught.
+    if (updates.end_date && !updates.deadline)
+      return res.status(400).json({ error: 'Add a start date before setting an end date' });
+    if (updates.end_date && updates.deadline && updates.end_date < updates.deadline)
+      return res.status(400).json({ error: "End date can't be before the start date" });
     const wasDone   = existing.status === 'done';
     const isNowDone = updates.status  === 'done';
 
@@ -261,7 +312,7 @@ router.put('/:id', async (req, res) => {
              SET title=?, description=?, priority=?, category=?,
                  deadline=?, deadline_time=?, recurrence=?, recurrence_until=?,
                  status=?, progress=?, position=?, completed_at=?, first_completed_at=?,
-                 remind_offsets_min=?
+                 remind_offsets_min=?, end_date=?
              WHERE id = ? AND user_id = ?`,
       args: [
         updates.title, updates.description ?? '', updates.priority, updates.category,
@@ -269,6 +320,7 @@ router.put('/:id', async (req, res) => {
         updates.recurrence ? (updates.recurrence_until ?? null) : null,
         updates.status, updates.progress, updates.position, updates.completed_at, updates.first_completed_at,
         remindOffsetsMin,
+        updates.deadline ? (updates.end_date ?? null) : null,
         req.params.id, req.user.id,
       ],
     });
@@ -291,6 +343,10 @@ router.put('/:id', async (req, res) => {
       && (existing.recurrence !== updates.recurrence || existing.recurrence_until !== updates.recurrence_until);
     if (recurrenceJustSet) {
       const occurrenceDates = generateOccurrenceDates(updates.recurrence, updates.deadline, updates.recurrence_until);
+      // See the same span carry-over in POST above — a bounded recurring
+      // multi-day task must keep its span on every pre-created occurrence,
+      // not just the one row that was just edited.
+      const span = spanDays(updates.deadline, updates.end_date);
       if (occurrenceDates.length) {
         const maxPos = await db.execute({
           sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
@@ -301,12 +357,13 @@ router.put('/:id', async (req, res) => {
           occurrenceDates.map((d) => ({
             sql:  `INSERT INTO tasks
                      (user_id, title, description, priority, category,
-                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position, project_id, is_birthday)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?)`,
+                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position, project_id, is_birthday, end_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?)`,
             args: [
               req.user.id, updates.title, updates.description ?? '', updates.priority, updates.category,
               d, updates.deadline_time || null, updates.recurrence, updates.recurrence_until,
               nextPos++, updates.project_id || null, updates.is_birthday ? 1 : 0,
+              span ? addDaysStr(d, span) : null,
             ],
           })),
           'write'
@@ -339,7 +396,10 @@ router.put('/:id', async (req, res) => {
             })).rows[0];
             const tzOffsetMin = Number(userRow?.tz_offset_min) || 0;
             const localToday  = new Date(Date.now() - tzOffsetMin * 60000).toISOString().slice(0, 10);
-            late = localToday > updates.deadline;
+            // A multi-day task's real "due day" is its end_date, not the
+            // start (deadline) — finishing anywhere within the active
+            // range, including its last day, still counts as on-time.
+            late = localToday > (updates.end_date || updates.deadline);
           } catch (e) {
             console.error('late-task check failed (non-fatal, treated as on-time):', e.message);
           }
@@ -408,16 +468,21 @@ router.put('/:id', async (req, res) => {
             args: [req.user.id],
           });
 
+          // Same span carry-over as the bounded-recurrence paths above —
+          // an open-ended recurring multi-day task keeps its length on
+          // the next auto-spawned occurrence too.
+          const span = spanDays(updates.deadline, updates.end_date);
           const nextInsert = await db.execute({
             sql:  `INSERT INTO tasks
                      (user_id, title, description, priority, category,
-                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?)`,
+                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position, end_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?)`,
             args: [
               req.user.id,
               updates.title, updates.description ?? '', updates.priority, updates.category,
               nextDeadline, updates.deadline_time ?? null, updates.recurrence, updates.recurrence_until ?? null,
               Number(maxPos.rows[0].m) + 1,
+              span ? addDaysStr(nextDeadline, span) : null,
             ],
           });
 

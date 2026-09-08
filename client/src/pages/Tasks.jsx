@@ -78,9 +78,17 @@ function categoryToSelect(cat) {
 const emptyForm = {
   title:'', description:'', priority:'medium',
   category:'general', categorySelect:'general', categoryCustom:'',
-  deadline:'', deadline_time:'',
+  deadline:'', deadline_time:'', end_date:'',
   recurrenceType:'', customDays:[], remindOffsets:[60], recurrenceUntil:'',
 };
+// Whether `day` falls anywhere within a task's active span — its
+// deadline (the start) through end_date (inclusive) when set, or just
+// the single deadline day otherwise. This is what lets a multi-day task
+// show up under every day it's actually active (Today, Tomorrow, the
+// Calendar's day cells, ...) instead of only its start day.
+function activeOn(task, day) {
+  return Boolean(task.deadline) && task.deadline <= day && (task.end_date || task.deadline) >= day;
+}
 function formToRecurrence(form) {
   if (!form.recurrenceType) return null;
   if (form.recurrenceType === 'custom') {
@@ -177,9 +185,16 @@ export default function Tasks() {
     // but it took reading every card's pill to tell "genuinely late"
     // apart from "due today," especially once there were more than a
     // couple. Its own section makes that obvious at a glance instead.
-    overdue:  sortByPriority(active.filter(tk => tk.deadline && tk.deadline < today)),
-    today:    sortByPriority(active.filter(tk => !tk.deadline || tk.deadline === today)),
-    tomorrow: sortByPriority(active.filter(tk => tk.deadline === tomorrow)),
+    // A multi-day task (end_date set) is only truly "overdue" once its
+    // whole range has passed — same COALESCE(end_date, deadline) basis
+    // the server uses. "Today"/"Tomorrow" now check whether that day
+    // falls anywhere in the task's active span, not just an exact
+    // deadline match, so a task running today through Friday shows up
+    // under BOTH Today and Tomorrow (and every day between, on the
+    // Calendar) instead of only its start day.
+    overdue:  sortByPriority(active.filter(tk => tk.deadline && (tk.end_date || tk.deadline) < today)),
+    today:    sortByPriority(active.filter(tk => !tk.deadline || activeOn(tk, today))),
+    tomorrow: sortByPriority(active.filter(tk => activeOn(tk, tomorrow))),
     week:     sortByPriority(active.filter(tk => tk.deadline && tk.deadline > tomorrow && tk.deadline <= in7Days)),
     later:    sortByPriority(active.filter(tk => tk.deadline && tk.deadline > in7Days)),
   };
@@ -248,7 +263,7 @@ export default function Tasks() {
       title: task.title, description: task.description||'',
       priority: (task.priority||'medium').toLowerCase(),
       category: task.category, categorySelect, categoryCustom,
-      deadline: task.deadline||'',
+      deadline: task.deadline||'', end_date: task.end_date||'',
       deadline_time: task.deadline_time||'', recurrenceType, customDays,
       remindOffsets, recurrenceUntil: task.recurrence_until || '',
     });
@@ -280,7 +295,8 @@ Today's date is ${localTodayStr()}. Resolve relative dates/times ("tomorrow", "n
 
 Return ONLY a JSON object with keys:
 - title: string, required — a short clean task title with the date/time/priority words stripped out
-- deadline: "YYYY-MM-DD" or null if no date was mentioned
+- deadline: "YYYY-MM-DD" or null if no date was mentioned — the START date if a range was mentioned
+- end_date: "YYYY-MM-DD" or null — ONLY set this if the sentence describes a multi-day span ("from Monday to Friday", "until the 20th", "through next week") — a single date/deadline is NOT a range, leave this null
 - deadline_time: 24h "HH:MM" or null, only if a specific time was actually mentioned
 - priority: "high", "medium", or "low" — infer from urgency words like "urgent"/"asap"/"important" vs "whenever"/"no rush", default "medium"
 - category: one short lowercase word for the task's area, e.g. "university", "personal", "health", "finance", "general"
@@ -302,6 +318,10 @@ No explanation, no markdown fences, just the JSON object.`,
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
       const TIME_RE = /^\d{2}:\d{2}$/;
       const deadline      = DATE_RE.test(parsed.deadline) ? parsed.deadline : '';
+      // Only keep end_date if it's a real date on/after the start —
+      // an end_date without a deadline, or before it, is meaningless
+      // and the modal's own validation would reject it anyway.
+      const end_date      = DATE_RE.test(parsed.end_date) && deadline && parsed.end_date >= deadline ? parsed.end_date : '';
       const deadline_time = TIME_RE.test(parsed.deadline_time) ? parsed.deadline_time : '';
       const priority = ['high','medium','low'].includes(parsed.priority) ? parsed.priority : 'medium';
       const { select: categorySelect, custom: categoryCustom } = categoryToSelect(parsed.category);
@@ -309,7 +329,7 @@ No explanation, no markdown fences, just the JSON object.`,
       setForm({
         ...emptyForm,
         title: parsed.title,
-        priority, deadline, deadline_time,
+        priority, deadline, end_date, deadline_time,
         category: categorySelect === 'other' ? categoryCustom : categorySelect,
         categorySelect, categoryCustom,
       });
@@ -324,6 +344,10 @@ No explanation, no markdown fences, just the JSON object.`,
   const submitForm = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
+    if (form.end_date && form.deadline && form.end_date < form.deadline) {
+      toast.error(t('tasks.endDateBeforeStart'));
+      return;
+    }
     try {
       const recurrence = formToRecurrence(form);
       const payload = {
@@ -333,6 +357,9 @@ No explanation, no markdown fences, just the JSON object.`,
         // task uncategorized.
         priority: form.priority, category: form.category.trim() || 'general',
         deadline: form.deadline||null, deadline_time: form.deadline_time||null,
+        // Only meaningful alongside an actual deadline — same reasoning
+        // as recurrence_until/remind_offsets_min just below.
+        end_date: form.deadline ? (form.end_date || null) : null,
         recurrence,
         // No recurrence means there's no chain for an end date to cut
         // off — same reasoning as remind_offsets_min just below not
@@ -521,6 +548,22 @@ No explanation, no markdown fences, just the JSON object.`,
               </div>
             </div>
           </div>
+          {/* Optional — leave blank and the task behaves exactly as
+              before (a single-day deadline). Set it to turn the task
+              into a span: it then shows up every day from the start
+              date through this one, in Tasks/Dashboard/Calendar, and
+              gets its own daily reminder for each active day. Only
+              shown once a start date is picked, since an end date needs
+              something to be "after." */}
+          {form.deadline && (
+            <div>
+              <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.endDateLabel')}</label>
+              <input type="date" className="input-field" value={form.end_date}
+                min={form.deadline}
+                onChange={e => setForm({...form, end_date:e.target.value})}
+                onClick={e => e.currentTarget.showPicker?.()} />
+            </div>
+          )}
           {form.deadline_time && (
             <ReminderPicker
               value={form.remindOffsets}
@@ -707,8 +750,16 @@ function TaskCard({ task, onEdit, onDelete, onMarkDone, onMarkUndone, onAskLumi,
   }
 
   const time  = formatTime(task.deadline_time);
-  const date  = formatDate(task.deadline);
-  const dl    = daysUntil(task.deadline);
+  // A ranged task's real "due" day is its end_date, not the start — the
+  // countdown/urgency pills below (Overdue/Due today/Due in N days) key
+  // off that, same as the server's late-check. The visible date shows
+  // the whole span ("7 Sep → 9 Sep") only when it actually differs from
+  // the start day, so a plain single-day task's label is unchanged.
+  const dueDay = task.end_date || task.deadline;
+  const date  = task.end_date && task.end_date !== task.deadline
+    ? `${formatDate(task.deadline)} → ${formatDate(task.end_date)}`
+    : formatDate(task.deadline);
+  const dl    = daysUntil(dueDay);
   const label = recurrenceLabel(task.recurrence);
   const isOverdue = dl !== null && dl < 0;
   const isToday   = dl !== null && dl === 0;

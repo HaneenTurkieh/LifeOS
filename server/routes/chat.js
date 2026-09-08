@@ -58,14 +58,15 @@ by name, and clearly separate facts from your own suggestions. Never invent sear
 const TOOLS = [
   {
     name: 'create_task',
-    description: 'Create a new task for the user in Nuvora. Tasks support a due date, an optional time of day, and optional push/email/bell reminders that fire a set number of minutes before the deadline — Nuvora has a real notification system (in-app bell, email, and browser/phone push once the user opts in), so if the user asks for a reminder, actually set remind_offsets_min rather than just writing the time into the description.',
+    description: 'Create a new task for the user in Nuvora. Tasks support a due date, an optional time of day, an optional end date for a multi-day task, and optional push/email/bell reminders that fire a set number of minutes before the deadline — Nuvora has a real notification system (in-app bell, email, and browser/phone push once the user opts in), so if the user asks for a reminder, actually set remind_offsets_min rather than just writing the time into the description.',
     input_schema: {
       type: 'object',
       properties: {
         title:               { type: 'string' },
         description:         { type: 'string' },
         priority:            { type: 'string', enum: ['low','medium','high'] },
-        deadline:            { type: 'string', description: 'Date only, strictly YYYY-MM-DD.' },
+        deadline:            { type: 'string', description: 'Date only, strictly YYYY-MM-DD. The start date if the user describes a multi-day task.' },
+        end_date:            { type: 'string', description: 'Optional, strictly YYYY-MM-DD. Only set this if the user describes something spanning MULTIPLE days ("study for finals from the 7th to the 9th", "review sessions until Friday") — the task then shows up and reminds every day from deadline through end_date. Leave unset for anything due on a single day.' },
         deadline_time:       { type: 'string', description: 'Optional time of day, strictly 24h HH:MM (e.g. "17:00" for 5pm). Only include this if the user actually gave a time.' },
         remind_offsets_min:  { type: 'array', items: { type: 'number' }, description: 'Optional list of how many minutes before the deadline to send a reminder (bell + email + push, if the user has push enabled). E.g. [15] for "remind me 15 minutes before". Requires both deadline and deadline_time to be set — a reminder offset with no time of day has nothing to count down from.' },
         category:            { type: 'string' },
@@ -391,6 +392,15 @@ async function executeTool(name, input, userId, todayLocal, clientLoc) {
         const match = String(deadlineTime).match(/\d{2}:\d{2}/);
         deadlineTime = match ? match[0] : null;
       }
+      // Same strip-anything-malformed treatment as deadline above, plus
+      // it only ever means something alongside a real start date, and
+      // never before it — same rule POST/PUT /tasks enforces.
+      let endDate = input.end_date || null;
+      if (endDate && !DATE_RE.test(endDate)) {
+        const match = String(endDate).match(/\d{4}-\d{2}-\d{2}/);
+        endDate = match ? match[0] : null;
+      }
+      if (endDate && (!deadline || endDate < deadline)) endDate = null;
       // A reminder offset counts down from deadline+deadline_time — with
       // no time of day there's nothing for "15 minutes before" to mean,
       // so drop the offsets rather than silently attach them to
@@ -407,14 +417,15 @@ async function executeTool(name, input, userId, todayLocal, clientLoc) {
         args: [userId],
       });
       const res = await db.execute({
-        sql:  `INSERT INTO tasks (user_id,title,description,priority,category,deadline,deadline_time,remind_offsets_min,status,progress,position)
-               VALUES (?,?,?,?,?,?,?,?,'todo',0,?)`,
+        sql:  `INSERT INTO tasks (user_id,title,description,priority,category,deadline,deadline_time,remind_offsets_min,status,progress,position,end_date)
+               VALUES (?,?,?,?,?,?,?,?,'todo',0,?,?)`,
         args: [userId, input.title, input.description||'', input.priority||'medium',
-               input.category||'General', deadline, deadlineTime, remindOffsetsJson, Number(maxPos.rows[0].m)+1],
+               input.category||'General', deadline, deadlineTime, remindOffsetsJson, Number(maxPos.rows[0].m)+1,
+               endDate],
       });
       return {
         success: true, task_id: Number(res.lastInsertRowid), title: input.title,
-        priority: input.priority||'medium', deadline, deadline_time: deadlineTime,
+        priority: input.priority||'medium', deadline, deadline_time: deadlineTime, end_date: endDate,
         remind_offsets_min: remindOffsetsMin,
       };
     }
