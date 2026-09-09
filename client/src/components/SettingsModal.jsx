@@ -657,14 +657,11 @@ function PremiumTab() {
   // hardcoded swatch.
   const BACKGROUND_PRESETS = [
     { key: 'aurora',  label: lang === 'ar' ? 'أورورا'  : 'Aurora',
-      desc: lang === 'ar' ? 'الشكل الأصلي — كرات ضوء متحركة' : 'The original look — drifting glow orbs',
-      swatch: 'radial-gradient(circle at 35% 35%, rgb(var(--accent-300)), rgb(var(--accent-600)))' },
+      desc: lang === 'ar' ? 'الشكل الأصلي — كرات ضوء متحركة' : 'The original look — drifting glow orbs' },
     { key: 'minimal', label: lang === 'ar' ? 'بسيط'    : 'Minimal',
-      desc: lang === 'ar' ? 'خلفية هادئة بلا حركة — أقل تشتيتًا للمذاكرة' : 'A calm, still wash — less distracting while studying',
-      swatch: 'rgb(var(--accent-200))' },
+      desc: lang === 'ar' ? 'توهج هادئ ونابض ببطء — أقل تشتيتًا للمذاكرة' : 'One slow, soft breathing glow — calm and less distracting while studying' },
     { key: 'vivid',   label: lang === 'ar' ? 'حيوي'    : 'Vivid',
-      desc: lang === 'ar' ? 'نفس الكرات لكن أكبر وأكثر تشبعًا' : 'The same orbs, bigger and more saturated',
-      swatch: 'radial-gradient(circle at 35% 35%, rgb(var(--accent-400)), rgb(var(--accent-700)))' },
+      desc: lang === 'ar' ? 'نفس الكرات لكن أكبر وأكثر تشبعًا' : 'The same orbs, bigger and more saturated' },
   ];
   const bgSectionTitle = lang === 'ar' ? 'الخلفية' : 'Background';
   const changeBackground = async (preset) => {
@@ -1035,20 +1032,58 @@ function PremiumTab() {
           {BACKGROUND_PRESETS.map((p) => {
             const active = backgroundStyle === p.key;
             const locked = !status.is_premium;
+            const isVivid = p.key === 'vivid';
             return (
               <button
                 key={p.key}
                 onClick={() => changeBackground(p.key)}
                 disabled={locked || bgBusy}
                 title={locked ? themeLockedNote : p.desc}
-                className="flex flex-col items-center gap-1.5 rounded-2xl py-2.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex flex-col items-center gap-1.5 rounded-2xl p-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 style={active ? { background:'rgb(var(--accent-500) / 0.10)', border:'1px solid rgb(var(--accent-500) / 0.30)' } : { border:'1px solid transparent' }}
               >
+                {/* Little animated preview "screen" instead of a flat
+                    swatch chip — Aurora/Vivid show two small drifting
+                    blurred dots (Vivid's bigger and more opaque), Minimal
+                    shows one slow breathing glow, matching what
+                    GlobalBackground.jsx actually renders for each style
+                    so the picker isn't lying about what you'll get. */}
                 <span
-                  className="flex h-8 w-8 items-center justify-center rounded-full"
-                  style={{ background: p.swatch, boxShadow: active ? '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgb(var(--accent-500) / 0.4)' : '0 2px 6px rgba(0,0,0,0.15)' }}
+                  className="relative block h-14 w-full overflow-hidden rounded-xl"
+                  style={{
+                    boxShadow: active ? '0 0 0 2px rgb(var(--accent-500) / 0.5)' : '0 0 0 1px rgb(var(--accent-500) / 0.12)',
+                  }}
                 >
-                  {active && <Check size={13} className="text-white" strokeWidth={3} />}
+                  <span className="absolute inset-0" style={{ background: `rgb(var(--accent-100) / ${isDark ? 0.14 : 0.4})` }} />
+                  {p.key === 'minimal' ? (
+                    <span className="absolute bg-preview-breathe" style={{
+                      width: 30, height: 30, top: '50%', left: '50%',
+                      borderRadius: '50%',
+                      background: `radial-gradient(circle, rgb(var(--accent-400) / 0.6) 0%, transparent 70%)`,
+                      filter: 'blur(3px)',
+                    }} />
+                  ) : (
+                    <>
+                      <span className="absolute rounded-full bg-preview-drift-a" style={{
+                        width: isVivid ? 26 : 18, height: isVivid ? 26 : 18,
+                        top: 4, left: 8,
+                        background: `radial-gradient(circle, rgb(var(--accent-300)) 0%, rgb(var(--accent-600)) 100%)`,
+                        filter: 'blur(3px)', opacity: isVivid ? 0.95 : 0.65,
+                      }} />
+                      <span className="absolute rounded-full bg-preview-drift-b" style={{
+                        width: isVivid ? 20 : 13, height: isVivid ? 20 : 13,
+                        bottom: 3, right: 10,
+                        background: `radial-gradient(circle, rgb(var(--accent-200)) 0%, rgb(var(--accent-500)) 100%)`,
+                        filter: 'blur(2px)', opacity: isVivid ? 0.85 : 0.5,
+                      }} />
+                    </>
+                  )}
+                  {active && (
+                    <span className="absolute top-1 flex h-4 w-4 items-center justify-center rounded-full end-1"
+                      style={{ background: 'rgb(var(--accent-500))', boxShadow: '0 0 0 2px rgba(255,255,255,0.9)' }}>
+                      <Check size={10} className="text-white" strokeWidth={3.5} />
+                    </span>
+                  )}
                 </span>
                 <span className="text-[10px] font-semibold text-ink/60 dark:text-white/50">{p.label}</span>
               </button>

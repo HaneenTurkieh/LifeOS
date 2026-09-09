@@ -5,18 +5,25 @@ export default function GlobalBackground() {
   const { resolvedTheme, backgroundStyle } = useTheme();
   const isDark = resolvedTheme === 'dark';
   // 'aurora' is the original look below, unchanged (multiplier 1).
-  // 'minimal' skips the orbs entirely — just the flat accent-tinted
-  // wash, for anyone who wants a calmer, distraction-free screen while
-  // studying. 'vivid' keeps the exact same orb layout but scales
-  // opacity/size up for a bolder, more saturated feel. Composes with
-  // any of the 7 accent colors "for free" since every orb below still
-  // reads its color from the same --accent-* variables — this only
-  // ever touches how much of that color shows, never which color.
+  // 'minimal' fades the drifting orbs out to a single slow, soft
+  // "breathing" glow instead of cutting straight to a flat wash — zero
+  // motion read as "nothing happened" rather than an intentional calm
+  // choice, so this keeps just enough life in it to feel deliberate
+  // while still being the calmest, least-distracting option. 'vivid'
+  // keeps the exact same orb layout but scales opacity/size up for a
+  // bolder, more saturated feel. Composes with any of the 7 accent
+  // colors "for free" since every orb below still reads its color from
+  // the same --accent-* variables — this only ever touches how much of
+  // that color shows, never which color.
   const style       = backgroundStyle || 'aurora';
-  const showOrbs     = style !== 'minimal';
+  const isMinimal   = style === 'minimal';
   const opacityMult = style === 'vivid' ? 1.35 : 1;
   const sizeMult     = style === 'vivid' ? 1.12 : 1;
-  const op  = (v) => Math.min(v * opacityMult, 0.92);
+  // Orbs stay mounted across every style switch now (rather than being
+  // conditionally rendered) — only their opacity changes, and the CSS
+  // transition on .orb below is what turns that into a smooth cross-fade
+  // instead of an instant snap when someone taps a different style.
+  const op  = (v) => (isMinimal ? 0 : Math.min(v * opacityMult, 0.92));
   const sz  = (v) => Math.round(v * sizeMult);
 
   // Every orb and the base wash now pull from the --accent-* CSS
@@ -43,7 +50,8 @@ export default function GlobalBackground() {
         .orb {
           position: absolute;
           border-radius: 50%;
-          will-change: transform;
+          will-change: transform, opacity, width, height;
+          transition: opacity 900ms ease, width 900ms ease, height 900ms ease, filter 900ms ease;
         }
         .orb-1 { animation: drift1 18s ease-in-out infinite; }
         .orb-2 { animation: drift2 24s ease-in-out infinite; }
@@ -68,8 +76,34 @@ export default function GlobalBackground() {
           0%,100% { transform: translate(0,0) scale(1); }
           50%      { transform: translate(-20px,-18px) scale(1.08); }
         }
+        .minimal-glow {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          border-radius: 50%;
+          will-change: opacity, transform;
+          transition: opacity 900ms ease;
+          animation: breathe 9s ease-in-out infinite;
+        }
+        @keyframes breathe {
+          0%,100%  { transform: translate(-50%,-50%) scale(1); }
+          50%       { transform: translate(-50%,-50%) scale(1.12); }
+        }
       `}</style>
-      {showOrbs && (isDark ? (
+      {/* Minimal's "still alive" glow — always mounted (like the orbs
+          below) so switching in/out of Minimal cross-fades via the
+          transition on opacity instead of popping in/out. Deliberately
+          much calmer than the orb set: one soft shape, slow breathing,
+          no drifting position. */}
+      <div className="minimal-glow" style={{
+        width: 520, height: 520,
+        background: isDark
+          ? `radial-gradient(circle, rgb(var(--accent-400) / 0.32) 0%, transparent 70%)`
+          : `radial-gradient(circle, rgb(var(--accent-300) / 0.30) 0%, transparent 70%)`,
+        filter: 'blur(40px)',
+        opacity: isMinimal ? 1 : 0,
+      }} />
+      {isDark ? (
         <>
           <div className="orb orb-1" style={{
             width: sz(480), height: sz(480),
@@ -145,7 +179,7 @@ export default function GlobalBackground() {
             opacity: op(0.32),
           }} />
         </>
-      ))}
+      )}
     </div>
   );
 }
