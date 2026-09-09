@@ -7,10 +7,7 @@ export default function Refund() {
       <Section>
         <p>
           Nuvora Premium is paid by direct bank transfer to our account, reviewed and activated
-          manually — see "Bank transfer refunds" below for how that's handled. Card checkout
-          through <strong>Paddle.com Market Ltd</strong>, our card-payment Merchant of Record, is
-          also available in the app; if you do pay that way, that refund is issued by Paddle on
-          our behalf, in line with the policy below.
+          manually — see "Bank transfer refunds" below for how that's handled.
         </p>
       </Section>
 
@@ -18,8 +15,7 @@ export default function Refund() {
         <p>
           If you're not happy with Nuvora Premium, email us within <strong>14 days</strong> of
           your first payment on any plan (monthly, semester, or annual) and we'll send a full
-          refund — no questions asked. See "Bank transfer refunds" below if you paid by bank
-          transfer (the common case), or the next section if you paid by card through Paddle.
+          refund — no questions asked. See "Bank transfer refunds" below for how that's handled.
         </p>
       </Section>
 
@@ -38,11 +34,8 @@ export default function Refund() {
           <a href="mailto:haneenturkieh@hotmail.com" style={{ textDecoration: 'underline' }}>
             haneenturkieh@hotmail.com
           </a>{' '}
-          with the email address you used to subscribe. You can also request a refund directly
-          through Paddle using the receipt emailed to you at checkout — see{' '}
-          <a href="https://paddle.net" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>
-            paddle.net
-          </a>. Refunds typically take a few business days to appear on your statement, and your
+          with the email address you used to subscribe, and the reference note from your bank
+          transfer. Refunds typically take a few business days to appear on your account, and your
           Premium access is removed once the refund is processed.
         </p>
       </Section>

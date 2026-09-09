@@ -34,18 +34,12 @@ export default function Terms() {
       <Section heading="3. Subscriptions and billing">
         <p>
           Nuvora offers a free tier and a paid "Premium" subscription (monthly, semester, or
-          annual), priced in USD. The primary way to pay is a direct bank transfer to our account,
+          annual), priced in USD. Premium is paid by direct bank transfer to our account,
           reviewed and activated manually — see our{' '}
           <a href="/pricing" style={{ textDecoration: 'underline' }}>Pricing</a> page for details.
-          Card checkout through our order processor, <strong>Paddle.com Market Ltd</strong>
-          ("Paddle"), who would act as Merchant of Record for any order placed that way, is also
-          available in the app, though in practice it has not reliably supported a Palestine-based
-          seller — bank transfer is the option we actually recommend. If you do complete a
-          purchase through Paddle, that order is subject to{' '}
-          <a href="https://www.paddle.com/legal/checkout-buyer-terms" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>
-            Paddle's Buyer Terms and Conditions
-          </a>{' '}
-          in addition to these Terms.
+          We evaluated card checkout through a third-party order processor but it did not
+          reliably support a Palestine-based seller in practice, so it is not currently offered —
+          bank transfer is the only way to pay for Premium.
         </p>
         <p>
           Subscriptions renew automatically at the end of each billing period unless cancelled
@@ -105,9 +99,7 @@ export default function Terms() {
         <p>
           These Terms are governed by the laws applicable in the seller's jurisdiction (State of
           Palestine), without regard to conflict-of-law principles, except where mandatory
-          consumer-protection laws in your country of residence apply — particularly for any
-          purchase made through Paddle, in relation to its role as Merchant of Record for that
-          order.
+          consumer-protection laws in your country of residence apply.
         </p>
       </Section>
 
