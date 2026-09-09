@@ -1,6 +1,14 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 
+// Note (Sept 2026): nuvora.ps's Vercel edge cache served a ~50min-stale
+// copy of index.html after the sparkle-field deploy went out, pointing
+// browsers at the old (blob-rotation) JS bundle regardless of hard
+// refresh or browser — confirmed via response headers (x-vercel-cache:
+// HIT, high age, even on a cache:'no-store' fetch), not a browser-side
+// caching issue. This comment exists solely to force a fresh build/asset
+// hash and re-trigger Vercel's cache invalidation for the domain.
+
 // Vivid's particle field — computed once at module load (not per-render,
 // and not with Math.random(), which would make the layout jump around on
 // every re-render/theme change). Coprime-ish multipliers on the index
