@@ -257,4 +257,28 @@ html:not(.dark) .glass-spline {
 .dark .text-ink\/80, .dark .text-ink\/70 { color: rgba(255,255,255,0.75) !important; }
 .dark .text-ink\/60, .dark .text-ink\/55, .dark .text-ink\/50 { color: rgba(255,255,255,0.55) !important; }
 .dark .text-ink\/45, .dark .text-ink\/40, .dark .text-ink\/35 { color: rgba(255,255,255,0.4) !important; }
+
+/* Background-style ("Themes") mini previews in SettingsModal — Aurora/
+   Vivid get two small drifting blurred dots so the swatch actually reads
+   as "moving orbs" rather than a static gradient chip; Minimal gets one
+   slow breathing glow so it reads as an intentional calm choice instead
+   of "nothing happened". Kept separate from GlobalBackground.jsx's own
+   <style> block since these run inside the small preview chips, not
+   full-screen. */
+@keyframes bg-preview-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1);    opacity: 0.55; }
+  50%      { transform: translate(-50%, -50%) scale(1.18); opacity: 0.9;  }
+}
+.bg-preview-breathe { animation: bg-preview-breathe 4.5s ease-in-out infinite; }
+
+@keyframes bg-preview-drift-a {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(3px, -3px); }
+}
+@keyframes bg-preview-drift-b {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(-3px, 3px); }
+}
+.bg-preview-drift-a { animation: bg-preview-drift-a 3.2s ease-in-out infinite; }
+.bg-preview-drift-b { animation: bg-preview-drift-b 3.6s ease-in-out infinite; }
 .dark .text-ink\/30, .dark .text-ink\/25 { color: rgba(255,255,255,0.3) !important; }

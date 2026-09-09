@@ -23,8 +23,8 @@ const WELCOME_XP              = 100;
 
 // Only actually verifies tokens if GOOGLE_CLIENT_ID is set — same
 // "off until configured" approach as everything else that depends on an
-// optional env var in this app (Resend emails, Paddle, etc.). audience is
-// left undefined below when unset, but the route itself checks first and
+// optional env var in this app (Resend emails, etc.). audience is left
+// undefined below when unset, but the route itself checks first and
 // refuses before ever reaching that point.
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || undefined);
 

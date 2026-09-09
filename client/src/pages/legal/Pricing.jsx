@@ -4,11 +4,10 @@ import LegalLayout, { Section } from './LegalLayout.jsx';
 // Static, logged-out-friendly pricing page. Deliberately hardcoded rather
 // than pulled from GET /focus/premium/plans — that route sits behind
 // `authenticate`, but pricing still needs to be visible without logging
-// in (originally for Paddle's domain review; still true now that bank
-// transfer is the primary path). Keep these numbers in sync with PLANS
-// in server/routes/focus.js if prices ever change. Priced in USD (moved
-// off NIS Sept 2026 alongside the switch to bank transfer as the primary
-// payment method — see Pricing section below).
+// in (a domain reviewer needs to see it without clicking through). Keep
+// these numbers in sync with PLANS in server/routes/focus.js if prices
+// ever change. Priced in USD (moved off NIS Sept 2026 alongside the
+// switch to bank transfer — see Pricing section below).
 const PLANS = [
   { name: 'Monthly',  price: 4.99,  priceNis: 15,  period: '/ month',                 note: null },
   { name: 'Semester', price: 13.99, priceNis: 42,  period: '/ semester (4 months)',   note: 'Most popular · ≈$3.50/mo' },
@@ -29,9 +28,8 @@ export default function Pricing() {
       <Section>
         <p>
           Nuvora is free to use. <strong>Premium</strong> unlocks unlimited AI usage and a few
-          extra perks, priced in US Dollars. The primary way to pay is a direct bank transfer to
-          our USD account — see below — since our card processor, Paddle, has been unresponsive
-          for a Palestine-based seller in practice.
+          extra perks, priced in US Dollars. The way to pay is a direct bank transfer to our
+          USD account — see below.
         </p>
       </Section>
 

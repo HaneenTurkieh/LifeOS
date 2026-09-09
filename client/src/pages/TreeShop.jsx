@@ -5,7 +5,6 @@ import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { ensurePaddleInitialized, setPaddleEventHandler } from '../lib/paddle.js';
 import PageHeader from '../components/PageHeader.jsx';
 import PageLoader from '../components/Loader.jsx';
 import MysticSvg  from '../components/MysticTreeIcon.jsx';
@@ -637,48 +636,17 @@ export default function TreeShop() {
     finally { setLoading(false); }
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
-  // Same Paddle.js singleton + checkout.completed pattern as the Premium
-  // subscription flow in SettingsModal.jsx (see client/src/lib/paddle.js)
-  // — re-registers this page's own handler whenever it's mounted, since
-  // only one listener is active at a time and Settings' handler shouldn't
-  // still be the one firing while someone's buying a tree.
-  useEffect(() => {
-    setPaddleEventHandler((event) => {
-      if (event?.name === 'checkout.completed') {
-        setBuying(false);
-        toast.success(t('shop.purchaseActivating'));
-        let tries = 0;
-        const poll = setInterval(() => {
-          tries += 1;
-          load().then(() => { if (tries >= 6) clearInterval(poll); });
-        }, 2000);
-      } else if (event?.name === 'checkout.closed') {
-        setBuying(false);
-      }
-    });
-    ensurePaddleInitialized();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const buyPremiumTree = (tree) => {
-    if (!tree.priceId) { toast.error(t('shop.notAvailableYet')); return; }
-    if (!ensurePaddleInitialized()) { toast.error(t('settings.paymentLoading')); return; }
-    setBuying(true);
-    window.Paddle.Checkout.open({
-      items: [{ priceId: tree.priceId, quantity: 1 }],
-      customer: user?.email ? { email: user.email } : undefined,
-      customData: { user_id: String(user?.id || '') },
-    });
-  };
-  const buyCollection = (collection) => {
-    if (!collection.priceId) { toast.error(t('shop.notAvailableYet')); return; }
-    if (!ensurePaddleInitialized()) { toast.error(t('settings.paymentLoading')); return; }
-    setBuying(true);
-    window.Paddle.Checkout.open({
-      items: [{ priceId: collection.priceId, quantity: 1 }],
-      customer: user?.email ? { email: user.email } : undefined,
-      customData: { user_id: String(user?.id || '') },
-    });
-  };
+  // Real-money purchases for individual trees/collections were never
+  // actually wired up to a live price (every entry in server/routes/
+  // trees.js's TREES/COLLECTIONS has priceId: null — this was scaffolding
+  // for a checkout that hadn't launched yet), and the Paddle checkout
+  // that would have powered it was removed Sept 2026 along with the rest
+  // of the Paddle integration. Both buy buttons below just surface the
+  // existing "not available yet" state — same UI, no dead checkout call
+  // behind it. `buying`/setBuying are unused now but left in place since
+  // other code below still reads `buying` for button-disabled states.
+  const buyPremiumTree = () => { toast.error(t('shop.notAvailableYet')); };
+  const buyCollection = () => { toast.error(t('shop.notAvailableYet')); };
   // First time this account's zodiac actually resolves (birthday set,
   // sign derived), explain the mechanic once — same
   // "nuvora_onboarded_<id>" localStorage pattern used by Onboarding.jsx,

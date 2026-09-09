@@ -7,7 +7,7 @@
 // application OAuth client created in Google Cloud Console, separate from
 // any client used for sign-in). Every function here no-ops/throws a clear
 // "not configured" error if those aren't set, same "off until configured"
-// pattern as Resend/Paddle/Google Sign-In elsewhere in this app.
+// pattern as Resend/Google Sign-In elsewhere in this app.
 const { OAuth2Client } = require('google-auth-library');
 const { db } = require('../db/connection');
 

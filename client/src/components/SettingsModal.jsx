@@ -17,7 +17,6 @@ import AvatarCropper from './AvatarCropper.jsx';
 import { isTodayBirthday, getAge } from '../utils/birthday.js';
 import VoiceInputButton, { appendText } from './VoiceInputButton.jsx';
 import { enablePush, disablePush, getCurrentSubscription, pushSupported, isIos, isStandalone } from '../utils/pushNotifications.js';
-import { ensurePaddleInitialized, setPaddleEventHandler } from '../lib/paddle.js';
 
 // getCurrentSubscription() is a real (if usually fast) async browser
 // call — navigator.serviceWorker.getRegistration() then
@@ -507,10 +506,6 @@ function AppearanceTab() {
   );
 }
 
-// Paddle.js singleton init now lives in lib/paddle.js — shared with
-// TreeShop.jsx's premium tree/collection checkout, so Paddle.Initialize()
-// still only ever runs once no matter which checkout flow mounts first.
-
 // ── Premium tab ───────────────────────────────────────────────
 function PremiumTab() {
   const toast = useToast();
@@ -523,14 +518,13 @@ function PremiumTab() {
   const [plans,      setPlans]      = useState([]);
   const [busy,       setBusy]       = useState(false);
   const [requesting, setRequesting] = useState(null); // plan key currently being requested
-  const [checkingOut, setCheckingOut] = useState(null); // plan key currently in Paddle checkout
   const [themeBusy,  setThemeBusy]  = useState(false);
   const [bgBusy,     setBgBusy]     = useState(false);
   const [trial,      setTrial]      = useState(null);
   const [trialBusy,  setTrialBusy]  = useState(false);
   const [gracePasses, setGracePasses] = useState(null);
-  // ── Bank transfer — primary payment path now that Paddle support has
-  // gone unresponsive (see server/routes/focus.js PLANS comment).
+  // ── Bank transfer — the only payment path (Paddle was removed Sept
+  // 2026 — see server/routes/focus.js PLANS comment).
   // bankPlan is which plan card currently has the transfer panel open
   // (null = none); myRequest is this user's own most recent request, so
   // a "pending review" / "rejected, try again" state survives a reopen
@@ -575,49 +569,6 @@ function PremiumTab() {
     );
   };
 
-  // Paddle fires 'checkout.completed' the instant payment succeeds, but
-  // our own is_premium flip only happens once the Paddle webhook reaches
-  // our server (usually near-instant, but not guaranteed to beat the
-  // client). So: show an "activating" state and poll status a few times
-  // rather than assuming it's already flipped.
-  useEffect(() => {
-    setPaddleEventHandler((event) => {
-      if (event?.name === 'checkout.completed') {
-        setCheckingOut(null);
-        toast.success(t('settings.paymentActivating'));
-        let tries = 0;
-        const poll = setInterval(() => {
-          tries += 1;
-          api.get('/focus/premium/status')
-            .then((d) => {
-              setStatus(d);
-              if (d.theme_preset) setAccent(d.theme_preset);
-              if (d.background_style) setBackgroundStyle(d.background_style);
-              if (d.is_premium || tries >= 6) clearInterval(poll);
-            })
-            .catch(() => {});
-        }, 2500);
-      } else if (event?.name === 'checkout.closed') {
-        setCheckingOut(null);
-      }
-    });
-    ensurePaddleInitialized();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const checkoutPlan = (plan) => {
-    if (!ensurePaddleInitialized()) {
-      toast.error(t('settings.paymentLoading'));
-      return;
-    }
-    setCheckingOut(plan.key);
-    window.Paddle.Checkout.open({
-      items: [{ priceId: plan.priceId, quantity: 1 }],
-      customer: user?.email ? { email: user.email } : undefined,
-      customData: { user_id: String(user?.id || '') },
-      settings: { theme: isDark ? 'dark' : 'light', displayMode: 'overlay' },
-    });
-  };
   const startTrial = async () => {
     setTrialBusy(true);
     try {
@@ -641,20 +592,6 @@ function PremiumTab() {
       if (next.theme_preset) setAccent(next.theme_preset);
       if (next.background_style) setBackgroundStyle(next.background_style);
       toast.success(next.is_premium ? '👑' : t('settings.freeName'));
-    } catch (err) { toast.error(err.message); }
-    finally { setBusy(false); }
-  };
-  // For a real Paddle subscription, the old toggle() above only ever hid
-  // Premium locally — Paddle kept billing since nothing told it to
-  // actually cancel. This opens Paddle's own hosted portal, scoped
-  // straight to that subscription's cancel screen; the existing webhook
-  // is what flips is_premium off once Paddle confirms the cancellation,
-  // same as any other Paddle-driven change.
-  const openPortal = async () => {
-    setBusy(true);
-    try {
-      const { url } = await api.post('/focus/premium/portal', {});
-      window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) { toast.error(err.message); }
     finally { setBusy(false); }
   };
@@ -793,24 +730,16 @@ function PremiumTab() {
           </p>
         )}
         {/* Only ever set for a bank-transfer-paid period (see
-            server/lib/premium.js) — a Paddle subscriber's renewal is
-            Paddle's job to communicate, and an admin 'manual' comp has
-            no expiry at all. Without this line, someone who paid by
-            bank transfer had no way to know when they'd need to pay
-            again until the day it just silently reverted them to Free. */}
+            server/lib/premium.js) — an admin 'manual' comp has no expiry
+            at all. Without this line, someone who paid by bank transfer
+            had no way to know when they'd need to pay again until the
+            day it just silently reverted them to Free. */}
         {status.is_premium && status.premium_expires_at && (
           <p className="text-[11px] text-ink/40 dark:text-white/30 mt-1">
             {t('settings.renewsBy', { date: String(status.premium_expires_at).slice(0, 10) })}
           </p>
         )}
-        {status.is_premium && status.has_paddle_subscription && (
-          <button onClick={openPortal} disabled={busy}
-            className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40"
-            style={backToFreeStyle}>
-            {busy ? '…' : t('settings.manageSubscription')}
-          </button>
-        )}
-        {status.is_premium && !status.has_paddle_subscription && (
+        {status.is_premium && (
           <button onClick={toggle} disabled={busy}
             className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold transition disabled:opacity-40"
             style={backToFreeStyle}>
@@ -984,20 +913,12 @@ function PremiumTab() {
                       {t('settings.perMonthEq', { n: monthlyEq(plan) })}
                     </p>
                   )}
-                  {/* Bank transfer is now the primary, reliable path
-                      (Paddle support has gone unresponsive — see
-                      server/routes/focus.js). Left as the prominent
-                      button; card checkout via Paddle stays available as
-                      a smaller secondary link below in case it does work
-                      for someone. */}
+                  {/* Bank transfer is the only payment path (Paddle was
+                      removed Sept 2026 — see server/routes/focus.js). */}
                   <button onClick={() => setBankPlan(transferOpen ? null : plan.key)}
                     className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-white transition"
                     style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
                     <Landmark size={13}/> {t('settings.payByBankTransfer')}
-                  </button>
-                  <button onClick={() => checkoutPlan(plan)} disabled={checkingOut !== null}
-                    className="mt-1.5 w-full rounded-xl py-1.5 text-[10px] font-semibold text-ink/40 dark:text-white/35 underline decoration-dotted underline-offset-2 transition disabled:opacity-40">
-                    {checkingOut === plan.key ? t('settings.activating') : t('settings.payByCard')}
                   </button>
 
                   {transferOpen && bankDetails && (
@@ -1548,8 +1469,7 @@ function StatsTab() {
       <div>
         <h3 className="font-display font-bold text-ink dark:text-white mb-1">Bank transfers</h3>
         <p className={`text-xs ${isDark?'text-white/40':'text-ink/45'}`}>
-          Primary payment path now — Paddle support has gone unresponsive. Check your bank app for
-          a matching transfer before approving.
+          The only payment path — check your bank app for a matching transfer before approving.
         </p>
       </div>
       {(() => {

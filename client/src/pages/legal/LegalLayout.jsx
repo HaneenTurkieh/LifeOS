@@ -5,10 +5,10 @@ import { ArrowLeft } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
 
 // Shared shell for the public legal pages (Terms, Privacy, Refund Policy,
-// Pricing). These must be reachable WITHOUT logging in — Paddle's domain
-// review explicitly checks for a clearly-navigable Terms & Conditions,
-// Refund Policy, Privacy Policy, and pricing page — so this layout is
-// deliberately kept outside <ProtectedRoute> in App.jsx.
+// Pricing). These must be reachable WITHOUT logging in — a domain/OAuth
+// reviewer needs a clearly-navigable Terms & Conditions, Refund Policy,
+// Privacy Policy, and pricing page — so this layout is deliberately kept
+// outside <ProtectedRoute> in App.jsx.
 //
 // Content is English-only on purpose: legal text needs to be precise, and
 // duplicating it through the app's EN/AR i18n system risks translation

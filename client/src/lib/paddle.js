@@ -1,33 +1,16 @@
 // client/src/lib/paddle.js
 //
-// Shared Paddle.js singleton init — extracted out of SettingsModal.jsx so
-// TreeShop.jsx (premium tree/collection checkout) can reuse the exact same
-// initialized instance instead of each caller trying to Paddle.Initialize()
-// independently. Paddle.Initialize() must only ever be called once for the
-// whole page, no matter how many different checkout flows the app has.
+// DEPRECATED — Paddle was removed as Nuvora's payment processor in Sept
+// 2026 (account verification was rejected with no reason given, and
+// bank transfer is now the only way to pay). Nothing imports this file
+// anymore — the Paddle.js <script> tag was also removed from index.html,
+// and both call sites (SettingsModal.jsx's PremiumTab, TreeShop.jsx) now
+// go straight to the bank-transfer flow / a "not available yet" toast.
 //
-// Paddle.js itself is loaded via a <script> tag in index.html, so
-// window.Paddle may not exist yet the instant any caller mounts.
+// Left in place as an inert stub rather than deleted, because this
+// session has no way to delete files on disk — Haneen, feel free to
+// delete this file entirely (client/src/lib/paddle.js) next time you're
+// in the repo.
 
-let paddleInitialized = false;
-let paddleEventHandler = null;
-
-function paddleEventDispatch(event) { paddleEventHandler?.(event); }
-
-// Whoever is currently listening for checkout events (a mounted
-// PremiumTab, or the tree shop) registers here. Only one listener at a
-// time is expected — same single-checkout-flow-open-at-once assumption
-// the rest of this Paddle integration already makes.
-export function setPaddleEventHandler(fn) {
-  paddleEventHandler = fn;
-}
-
-export function ensurePaddleInitialized() {
-  if (paddleInitialized) return true;
-  if (!window.Paddle) return false;
-  const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
-  if (!token) return false; // not configured yet — checkout button will no-op with a toast
-  window.Paddle.Initialize({ token, eventCallback: paddleEventDispatch });
-  paddleInitialized = true;
-  return true;
-}
+export function setPaddleEventHandler() {}
+export function ensurePaddleInitialized() { return false; }

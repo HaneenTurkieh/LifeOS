@@ -25,17 +25,14 @@ const TREES = [
 // The XP catalogue above has a ceiling (Crystal Tree tops it out at
 // 5000 XP) — these three sit above that ceiling entirely and can only be
 // bought, never earned, same pattern as an "extraordinary" cosmetic tier
-// in a live-service game. priceId is a Paddle one-time Price — set to
-// null until a real one exists. `checkoutPlan`-style graceful no-op:
-// TreeShop's buy button shows a "not available yet" toast instead of a
-// broken/fake purchase when priceId is null, exactly like the existing
-// Premium subscription flow already does when VITE_PADDLE_CLIENT_TOKEN
-// is unset (see client/src/lib/paddle.js).
-//
-// TO ACTIVATE: create these as one-time (not recurring) Products/Prices
-// in Paddle → Catalog → Products, then paste the real price IDs in below
-// AND in the matching TREE_PRICE_MAP in routes/paddle.js (kept in sync
-// manually, same convention as PRICE_TO_PLAN there).
+// in a live-service game. priceId was meant to hold a Paddle one-time
+// Price ID — left null here since this never actually got wired up to a
+// real checkout before Paddle was removed entirely (Sept 2026, account
+// verification rejected). TreeShop's buy button always shows a "not
+// available yet" toast now (see client/src/pages/TreeShop.jsx) rather
+// than attempting any checkout — priceId stays here as a marker for
+// whichever payment processor eventually replaces Paddle, not because
+// anything currently reads it.
 const PREMIUM_TREES = [
   { key: 'aurora',  name: 'Aurora Tree',  emoji: '🌌', priceUsd: 2.99, priceId: null, description: 'Lights up like the northern sky, every night.' },
   { key: 'phoenix', name: 'Phoenix Tree', emoji: '🔥', priceUsd: 2.99, priceId: null, description: 'Rises brighter every time you restart.' },
@@ -49,9 +46,10 @@ const PREMIUM_TREES = [
 // Two collections now instead of one — the original sky-themed three,
 // and a second pack for the newer additions. Buying either bundle costs
 // less than buying its three trees individually ($6.99 vs $8.97) — the
-// "buy the whole collection" option your instructor described. Each is
-// its own separate Paddle Price, not a discount code, so it grants all
-// three trees at once from one webhook.
+// "buy the whole collection" option your instructor described. Each
+// would need its own separate one-time price (not a discount code) so
+// it grants all three trees at once — same "not available yet" status
+// as the individual trees above until a real checkout exists.
 const TREE_COLLECTIONS = [
   { key: 'celestial', name: 'Celestial Collection', treeKeys: ['aurora', 'phoenix', 'galaxy'], priceUsd: 6.99, priceId: null,
     description: 'All three sky trees, together — Aurora, Phoenix, and Galaxy.' },
@@ -115,10 +113,10 @@ router.get('/', async (req, res) => {
     }));
 
     // Same `user_trees` ownership table as the XP catalogue above — a
-    // premium tree grant (from the Paddle webhook) and an XP unlock both
-    // just end up as a row there, so nothing needed to change downstream
-    // (equip, dashboard tree render, etc. don't care how a tree was
-    // acquired).
+    // real-money grant (however that eventually gets wired up) and an XP
+    // unlock both just end up as a row there, so nothing needs to change
+    // downstream (equip, dashboard tree render, etc. don't care how a
+    // tree was acquired).
     const premiumTrees = PREMIUM_TREES.map(t => ({
       ...t,
       owned:    owned.has(t.key),
@@ -296,9 +294,10 @@ router.post('/equip', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// Exported so routes/paddle.js's webhook handler can grant the right
-// tree(s) for a completed one-time purchase without re-hardcoding the
-// catalogue a second time.
+// Exported so a future payment processor's webhook/checkout handler can
+// grant the right tree(s) for a completed one-time purchase without
+// re-hardcoding the catalogue a second time (routes/paddle.js used to be
+// that consumer — removed Sept 2026, see routes/paddle.js for details).
 module.exports = router;
 module.exports.PREMIUM_TREES = PREMIUM_TREES;
 module.exports.TREE_COLLECTIONS = TREE_COLLECTIONS;

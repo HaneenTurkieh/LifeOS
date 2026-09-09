@@ -42,7 +42,7 @@ async function expireTrialIfNeeded(userId) {
 async function getPremium(userId) {
   await expireTrialIfNeeded(userId);
   const row = (await db.execute({
-    sql: `SELECT is_premium, freeze_date, theme_preset, background_style, plan, requested_at, trial_used, trial_expires_at, paddle_subscription_id, premium_expires_at
+    sql: `SELECT is_premium, freeze_date, theme_preset, background_style, plan, requested_at, trial_used, trial_expires_at, premium_expires_at
           FROM user_premium WHERE user_id = ?`,
     args: [userId],
   })).rows[0];
@@ -59,18 +59,10 @@ async function getPremium(userId) {
     trial_used:        Boolean(row?.trial_used),
     trial_expires_at:  row?.trial_expires_at || null,
     // Only ever set for a bank-transfer-paid period (see routes/admin.js)
-    // — null for Paddle subscribers (Paddle's own status is the source
-    // of truth there) and for indefinite admin 'manual' comps. Lets the
-    // Premium tab show "renews by <date>" instead of leaving a
-    // bank-transfer user with no idea when they'll need to pay again.
+    // — null for indefinite admin 'manual' comps. Lets the Premium tab
+    // show "renews by <date>" instead of leaving a bank-transfer user
+    // with no idea when they'll need to pay again.
     premium_expires_at: row?.premium_expires_at || null,
-    // Lets the client tell a real Paddle subscription (needs the actual
-    // Paddle customer portal to cancel — see POST /premium/portal) apart
-    // from a trial or an admin-manual grant (neither has anything to
-    // cancel with Paddle, so those still use the plain local "back to
-    // free" toggle). Only a boolean — the real IDs never need to leave
-    // the server.
-    has_paddle_subscription: Boolean(row?.paddle_subscription_id),
   };
 }
 

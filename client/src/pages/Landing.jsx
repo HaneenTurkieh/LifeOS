@@ -38,10 +38,10 @@ const STRINGS = {
     footerLinks: { pricing: 'Pricing', terms: 'Terms', privacy: 'Privacy', refund: 'Refund Policy' },
     // Real numbers, pulled from legal/Pricing.jsx's own PLANS — keep these
     // two in sync if pricing ever changes there. Shown directly on the
-    // homepage (not just linked) because a domain reviewer (Paddle,
-    // Google) scanning this page needs to see an actual price without
-    // clicking through — a footer link alone wasn't enough to pass
-    // Paddle's "product and pricing visible" check.
+    // homepage (not just linked) because a domain/OAuth reviewer scanning
+    // this page needs to see an actual price without clicking through —
+    // a footer link alone isn't always enough to pass a "product and
+    // pricing visible" check.
     pricingTeaser: {
       heading: 'Free to start',
       body: 'Nuvora is free to use, no card required. Premium unlocks unlimited AI usage from $4.99/month.',
@@ -96,9 +96,8 @@ export default function Landing() {
       >
         {/* ── Top nav ──────────────────────────────────────────
             Pricing, front and center, above the fold — not just a footer
-            link. A domain reviewer skimming the page for a few seconds
-            (Paddle explicitly checks for "product and pricing visible")
-            needs to see this without scrolling or hunting for it. */}
+            link. A domain/OAuth reviewer skimming the page for a few
+            seconds needs to see this without scrolling or hunting for it. */}
         <div className="flex items-center justify-between mb-10">
           <span className="font-display font-bold text-sm tracking-wide" style={{ color: titleClr }}>
             NUVORA

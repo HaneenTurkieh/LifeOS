@@ -166,12 +166,12 @@ router.post('/users/:id/premium', requireOwner, async (req, res) => {
 });
 
 // ── Bank transfer requests — owner-only review queue ───────────────
-// Backs the Stats tab's "Bank transfers" section. Paddle isn't a
-// reliable path right now (see routes/focus.js PLANS comment), so this
-// manual-transfer honor-system queue (POST /focus/premium/bank-transfer)
-// is the primary way someone actually pays. Haneen checks her own bank
-// app for a matching transfer, then approves or rejects here — approving
-// is the only thing that ever grants Premium from this flow.
+// Backs the Stats tab's "Bank transfers" section. This manual-transfer
+// honor-system queue (POST /focus/premium/bank-transfer) is the only way
+// someone actually pays for Premium (Paddle was removed Sept 2026 — see
+// routes/focus.js PLANS comment). Haneen checks her own bank app for a
+// matching transfer, then approves or rejects here — approving is the
+// only thing that ever grants Premium from this flow.
 router.get('/bank-transfers', requireOwner, async (req, res) => {
   try {
     const rows = (await db.execute(`

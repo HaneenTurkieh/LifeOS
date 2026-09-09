@@ -422,9 +422,9 @@ async function generateNotifications(userId, tzOffsetMin = 0) {
   // cycle: the dedupe key is the default `${type}:${link}` (see
   // notificationDedupe.js), and the link encodes the actual expiry
   // date, so it naturally fires again if a later renewal pushes the
-  // date forward, but never repeats for the same cycle. Paddle
-  // subscribers and admin 'manual' comps never have premium_expires_at
-  // set at all, so this is a no-op for them.
+  // date forward, but never repeats for the same cycle. Admin 'manual'
+  // comps never have premium_expires_at set at all, so this is a no-op
+  // for them.
   const premiumRow = (await db.execute({
     sql: `SELECT plan, premium_expires_at FROM user_premium
           WHERE user_id=? AND is_premium=1 AND premium_expires_at IS NOT NULL

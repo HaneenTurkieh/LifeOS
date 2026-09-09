@@ -603,10 +603,13 @@ async function initDb() {
     );
   }
 
-  // ── Paddle payment integration ──────────────────────────────
-  // Tracks the Paddle-side identifiers for a user's subscription so the
-  // webhook handler can look up/update the right row, and so we can call
-  // the Paddle API later (e.g. to cancel) without re-deriving these IDs.
+  // ── Paddle payment integration (REMOVED Sept 2026 — see routes/focus.js
+  // and admin.js; bank transfer is now the only payment path) ─────────
+  // These columns are left in place as inert history rather than dropped
+  // — nothing reads or writes them anymore, and nothing above depends on
+  // them existing. Kept only so a legacy Paddle-paid row from before the
+  // removal still has its old data sitting there rather than silently
+  // losing it. Safe to actually drop later once that's confirmed unused.
   if (!(await hasColumn('user_premium', 'paddle_customer_id'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_customer_id TEXT DEFAULT NULL`);
   }
@@ -787,12 +790,9 @@ async function initDb() {
     await db.execute(`ALTER TABLE tasks ADD COLUMN end_date TEXT DEFAULT NULL`);
   }
 
-  // Paddle webhook events aren't guaranteed to arrive in the order they
-  // happened (e.g. a retried subscription.updated could land after a
-  // later subscription.canceled) — without tracking which event was
-  // actually most recent, an out-of-order "still active" event could
-  // silently resurrect Premium right after a real cancellation. See
-  // routes/paddle.js's ordering guard.
+  // Also part of the removed Paddle integration (see the block above) —
+  // used to guard against out-of-order webhook events. Left inert for
+  // the same reason.
   if (!(await hasColumn('user_premium', 'paddle_last_event_at'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN paddle_last_event_at TEXT DEFAULT NULL`);
   }
@@ -895,15 +895,13 @@ async function initDb() {
   }
 
   // ── Bank-transfer Premium requests ────────────────────────────
-  // Paddle isn't a workable Merchant of Record for a Palestine-based
-  // business in practice (support unresponsive, see routes/paddle.js's
-  // own webhook still wired up for whoever it does work for) — Haneen's
-  // decision was to add manual bank transfer to her Reflect/Arab Bank
-  // IBAN as the primary path instead. No auto-charging is possible with
-  // a plain transfer, so this is an honor-system queue: a user submits a
-  // note once they've sent the money, Haneen (owner-only, see
-  // routes/admin.js requireOwner) checks her bank app for a matching
-  // transfer and approves or rejects — approving is what actually flips
+  // Manual bank transfer to Haneen's Reflect/Arab Bank IBAN is the only
+  // payment path (Paddle was removed Sept 2026 — see routes/focus.js and
+  // admin.js). No auto-charging is possible with a plain transfer, so
+  // this is an honor-system queue: a user submits a note once they've
+  // sent the money, Haneen (owner-only, see routes/admin.js requireOwner)
+  // checks her bank app for a matching transfer and approves or
+  // rejects — approving is what actually flips
   // is_premium, via the exact same user_premium upsert
   // POST /admin/users/:id/premium already used for manual grants, just
   // now also stamping which plan was actually paid for instead of the
@@ -929,10 +927,8 @@ async function initDb() {
   // (approval date + plan.months) and checked the same lazy way
   // trial_expires_at already is (see lib/premium.js) — the next time
   // anything touches this user's premium status after that date, it
-  // quietly reverts to Free. NULL for Paddle subscribers (Paddle's own
-  // webhook is the source of truth there) and for indefinite admin
-  // 'manual' comps — this column only ever gets set by a bank-transfer
-  // approval.
+  // quietly reverts to Free. NULL for indefinite admin 'manual' comps —
+  // this column only ever gets set by a bank-transfer approval.
   if (!(await hasColumn('user_premium', 'premium_expires_at'))) {
     await db.execute(`ALTER TABLE user_premium ADD COLUMN premium_expires_at TEXT DEFAULT NULL`);
   }

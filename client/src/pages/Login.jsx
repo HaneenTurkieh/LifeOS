@@ -828,8 +828,8 @@ export default function Login() {
         )}
       </AnimatePresence>
 
-      {/* Legal footer — needs to be reachable without logging in (Paddle's
-          domain review checks for this), and is a normal thing to have
+      {/* Legal footer — needs to be reachable without logging in (domain/
+          OAuth reviewers check for this), and is a normal thing to have
           regardless. */}
       <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-3 text-[11px] flex-wrap px-4"
         style={{ color: linkClr }} dir="ltr">

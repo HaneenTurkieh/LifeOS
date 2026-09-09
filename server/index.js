@@ -30,17 +30,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Paddle webhooks must be verified against the exact raw request body
-// (HMAC signature), so this route gets express.raw() BEFORE the global
-// express.json() below — otherwise the body would already be parsed
-// into an object and re-serializing it would break the signature check.
-app.use('/api/paddle/webhook', express.raw({ type: 'application/json' }));
-
 app.use(express.json());
 
 // Public routes
+// Paddle (webhook + checkout) was removed Sept 2026 — Paddle rejected
+// Nuvora's account verification and the primary payment path had
+// already moved to manual bank transfer (see routes/focus.js's
+// /premium/bank-transfer/* routes and legal/Pricing.jsx). If a real
+// card processor ever comes back, mount its webhook with express.raw()
+// BEFORE express.json() above, same as this used to — a signature check
+// needs the exact raw body, and express.json() would have already
+// parsed it into an object by the time a route below saw it.
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/paddle', require('./routes/paddle')); // webhook is unauthenticated; verified via Paddle-Signature instead
 app.use('/api/cron', require('./routes/cron')); // no JWT — protected by CRON_SECRET header instead, checked inside
 
 // Protected routes

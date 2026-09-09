@@ -198,7 +198,7 @@ export default function App() {
           <Route path="/login"           element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
-          {/* Public — no login required. Paddle's domain review needs these
+          {/* Public — no login required. A domain/OAuth reviewer needs these
               reachable without an account. */}
           <Route path="/terms"           element={<Terms />} />
           <Route path="/privacy"         element={<Privacy />} />

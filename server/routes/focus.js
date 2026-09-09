@@ -1208,27 +1208,27 @@ router.delete('/rooms/:code/leave', async (req, res) => {
 // years), with monthly as a low-commitment entry point and annual
 // as the max-savings option — each tier's discount grows with the
 // length of commitment so the pricing reads as consistent, not
-// arbitrary. priceId maps to the real Paddle Price for real checkout via
-// Paddle.js on the client — actual granting happens in routes/paddle.js
-// once the subscription webhook confirms payment, not here.
+// arbitrary. Bank transfer (below) is the only payment path — Paddle
+// was removed Sept 2026 after Paddle rejected Nuvora's account
+// verification, so there's no card-checkout / webhook path anymore;
+// granting Premium now only ever happens through admin.js's bank-
+// transfer approval or an owner admin action.
 //
-// Switched from NIS to USD (Sept 2026) — Paddle support has gone
-// unresponsive and isn't a reliable path for a Palestine-based seller in
-// practice, so bank transfer (below) is now the primary payment method,
-// and USD is the one currency that makes sense for a manual transfer
-// someone anywhere might send. Raised again from an initial 3.99/12.99/
-// 34.99 (already a ~20% bump over the raw 10/34/96 NIS conversion) to
-// these numbers per Haneen's explicit call — deliberately keeping
-// Monthly (the first number anyone sees) modest to avoid scaring off a
-// first-time subscriber, while pushing the real margin into Semester/
-// Annual (30%/33% effective discount vs Monthly) since someone already
-// committing to a longer plan is far less price-sensitive at the
-// margin. Covers: Paddle/wire conversion friction, ~$400 already sunk
-// into building Nuvora, and ongoing AI token + domain costs.
+// Priced in USD (moved off NIS Sept 2026) since that's the one currency
+// that makes sense for a manual transfer someone anywhere might send.
+// Raised again from an initial 3.99/12.99/34.99 (already a ~20% bump
+// over the raw 10/34/96 NIS conversion) to these numbers per Haneen's
+// explicit call — deliberately keeping Monthly (the first number anyone
+// sees) modest to avoid scaring off a first-time subscriber, while
+// pushing the real margin into Semester/Annual (30%/33% effective
+// discount vs Monthly) since someone already committing to a longer
+// plan is far less price-sensitive at the margin. Covers: wire/transfer
+// conversion friction, ~$400 already sunk into building Nuvora, and
+// ongoing AI token + domain costs.
 const PLANS = [
-  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 4.99,  currency: 'USD', discountPct: 0,  badge: null,      priceId: 'pri_01kzrz0epxcy9v8qhe5md6qmbd' },
-  { key: 'semester', name: 'Semester', months: 4,  price: 13.99, currency: 'USD', discountPct: 30, badge: 'popular', priceId: 'pri_01kzrz863vxsrjcjnkrnk1pzya' },
-  { key: 'annual',   name: 'Annual',   months: 12, price: 39.99, currency: 'USD', discountPct: 33, badge: 'value',   priceId: 'pri_01kzrz9dxpyt5pwyb4kkb26gb6' },
+  { key: 'monthly',  name: 'Monthly',  months: 1,  price: 4.99,  currency: 'USD', discountPct: 0,  badge: null },
+  { key: 'semester', name: 'Semester', months: 4,  price: 13.99, currency: 'USD', discountPct: 30, badge: 'popular' },
+  { key: 'annual',   name: 'Annual',   months: 12, price: 39.99, currency: 'USD', discountPct: 33, badge: 'value' },
 ];
 
 // A NIS reference figure under the USD price is purely for local
@@ -1325,52 +1325,6 @@ router.get('/premium/status', async (req, res) => {
   catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── POST /premium/portal — real Paddle-subscription cancellation ──────
-// The old /premium/toggle only ever flipped is_premium locally — for
-// someone on a REAL Paddle subscription that meant "Back to Free" made
-// the app stop showing Premium while Paddle kept billing their card
-// every cycle, since nothing ever told Paddle to actually cancel. This
-// generates a one-time link to Paddle's own hosted Customer Portal,
-// scoped straight to the "cancel this subscription" screen — Paddle
-// handles the real cancellation there, and the existing webhook
-// (routes/paddle.js, subscription.canceled) is what actually flips
-// is_premium off once that happens, same as any other Paddle-driven
-// change.
-router.post('/premium/portal', async (req, res) => {
-  try {
-    const apiKey = process.env.PADDLE_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({ error: 'Subscription management is not configured yet. Contact support to cancel.' });
-    }
-    const row = (await db.execute({
-      sql: `SELECT paddle_customer_id, paddle_subscription_id FROM user_premium WHERE user_id = ?`,
-      args: [req.user.id],
-    })).rows[0];
-    if (!row?.paddle_customer_id) {
-      return res.status(400).json({ error: 'No active subscription found for this account.' });
-    }
-
-    const paddleRes = await fetch(`https://api.paddle.com/customers/${row.paddle_customer_id}/portal-sessions`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(row.paddle_subscription_id ? { subscription_ids: [row.paddle_subscription_id] } : {}),
-    });
-    if (!paddleRes.ok) {
-      const errBody = await paddleRes.text();
-      console.error('Paddle portal-session error:', paddleRes.status, errBody);
-      return res.status(502).json({ error: 'Could not reach Paddle. Try again in a moment.' });
-    }
-    const paddleData = await paddleRes.json();
-    const subUrls = paddleData?.data?.urls?.subscriptions?.[0];
-    const url = subUrls?.cancel_subscription || paddleData?.data?.urls?.general?.overview;
-    if (!url) return res.status(502).json({ error: 'Paddle did not return a management link.' });
-
-    res.json({ url });
-  } catch (err) {
-    console.error('POST /premium/portal error:', err);
-    res.status(500).json({ error: 'Could not open subscription management.' });
-  }
-});
 // Despite the name, this is a one-way "back to Free" action, not a real
 // toggle — the client only ever calls it from the button shown when
 // status.is_premium is ALREADY true (SettingsModal.jsx's PremiumTab), for
@@ -1378,11 +1332,15 @@ router.post('/premium/portal', async (req, res) => {
 // flip Free → Premium when called with is_premium already false, with
 // nothing checking who was calling it or why — a real, serious bug: any
 // logged-in user could grant themselves Premium forever with a single
-// unauthenticated-by-anything-but-login API call, completely bypassing
-// Paddle. Real Premium grants must only ever come from a verified Paddle
-// webhook (routes/paddle.js) or the owner's own admin action — never
-// from this route. Now hard-blocked to the one direction the UI actually
-// uses.
+// unauthenticated-by-anything-but-login API call. Real Premium grants
+// must only ever come from admin.js's bank-transfer approval or the
+// owner's own admin action — never from this route. Now hard-blocked to
+// the one direction the UI actually uses.
+//
+// (POST /premium/portal — a Paddle-subscription-cancellation link —
+// used to live here too; removed Sept 2026 along with the rest of the
+// Paddle integration. Anyone who paid through a legacy Paddle
+// subscription before the removal needs a manual cancellation for now.)
 router.post('/premium/toggle', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);
@@ -1398,13 +1356,12 @@ router.post('/premium/toggle', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 // ── POST /premium/request — fallback contact path ───────────────
-// Real purchases now go through Paddle checkout (client calls
-// Paddle.Checkout.open() with a plan's priceId) and Premium is granted
-// by routes/paddle.js only once a verified subscription webhook confirms
-// payment actually happened. This route no longer flips is_premium
-// itself — it's kept as a lightweight "email the dev" fallback for
-// someone who can't complete checkout (no card, wants another payment
-// method, etc.), so there's still a record to follow up on manually.
+// Real purchases now go through the bank-transfer flow (POST
+// /premium/bank-transfer below), reviewed and approved manually by
+// admin.js. This route doesn't flip is_premium itself — it's kept as a
+// lightweight "email the dev" fallback for someone who wants a heads-up
+// sent before they send the transfer, or has a question about another
+// payment method, so there's still a record to follow up on manually.
 router.post('/premium/request', async (req, res) => {
   const { plan_key } = req.body;
   const plan = PLANS.find(p => p.key === plan_key);
@@ -1434,9 +1391,9 @@ router.post('/premium/request', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-// ── Bank transfer — primary payment path now that Paddle isn't
-// reliably workable (see PLANS comment above). No auto-charging is
-// possible with a plain transfer, so this is an honor-system queue:
+// ── Bank transfer — the only payment path (see PLANS comment above;
+// Paddle was removed Sept 2026). No auto-charging is possible with a
+// plain transfer, so this is an honor-system queue:
 // the user submits a note (when they sent it / sender name / anything
 // that helps Haneen match it in her bank app) once money is actually
 // sent, which creates a 'pending' row and emails her — she checks her
