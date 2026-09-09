@@ -96,16 +96,29 @@ Give three concrete on-ramps sized differently:
 
 Return a JSON object with exactly these three keys (five_minute, fifteen_minute, one_hour), each a string of 1-2 sentences.`,
       }],
-      reasoningEffort: null,
+      // Sept 2026: this was `reasoningEffort: null`, intending to turn
+      // reasoning off (see the "no forced extended reasoning needed"
+      // comment above) — but openrouter.js only sets body.reasoning when
+      // the value is truthy, so `null` skipped it entirely instead of
+      // disabling it. Omitting the field doesn't mean "off" server-side;
+      // OpenRouter/DeepSeek defaults an omitted reasoning field to
+      // 'high'. So every one of these calls was silently doing a full
+      // high-effort reasoning pass before writing the actual three-
+      // sentence answer, eating an unpredictable chunk of max_tokens on
+      // invisible thinking tokens first — that's what was actually
+      // causing the intermittent "Unexpected end of JSON input" /
+      // "Unterminated string in JSON" failures in the Stats panel, not
+      // max_tokens being too low on its own (bumping 400→800 earlier
+      // only masked it some of the time). chat.js and exam.js both
+      // already pass the literal string 'none' for exactly this reason —
+      // this route just hadn't been updated to match. Passing 'none'
+      // here actually disables the reasoning pass, so the full
+      // max_tokens budget goes to the answer instead of being split with
+      // an invisible thinking phase.
+      reasoningEffort: 'none',
       jsonMode: true,
-      // Was 400 — real production errors (visible in the owner Stats tab,
-      // "Unexpected end of JSON input") confirmed the model was
-      // occasionally getting cut off mid-object before it could close the
-      // JSON, which throws on parse (and the regex fallback below can't
-      // rescue it either, since there's no closing brace to match against
-      // in a truncated string). Three sentences worth of content plus
-      // JSON structure overhead just doesn't reliably fit in 400 — this
-      // is still a short, cheap, low-volume call either way.
+      // Kept at 800 (bumped from 400 earlier) as extra headroom on top of
+      // the real fix above — cheap either way at this call's volume.
       max_tokens: 800,
       temperature: 0.8,
     });
