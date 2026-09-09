@@ -281,4 +281,20 @@ html:not(.dark) .glass-spline {
 }
 .bg-preview-drift-a { animation: bg-preview-drift-a 3.2s ease-in-out infinite; }
 .bg-preview-drift-b { animation: bg-preview-drift-b 3.6s ease-in-out infinite; }
+
+/* Vivid's preview shapes — rotating organic blobs (border-radius
+   animates too, not just position) so the preview itself shows a
+   different shape language from Aurora's plain circles above, matching
+   GlobalBackground.jsx's own Aurora-vs-Vivid distinction. */
+@keyframes bg-preview-blob-a {
+  0%, 100% { transform: translate(0,0) rotate(0deg);   border-radius: 58% 42% 63% 37% / 47% 55% 45% 53%; }
+  50%      { transform: translate(4px,-4px) rotate(16deg); border-radius: 42% 58% 40% 60% / 55% 45% 60% 40%; }
+}
+@keyframes bg-preview-blob-b {
+  0%, 100% { transform: translate(0,0) rotate(0deg);    border-radius: 42% 58% 39% 61% / 58% 44% 56% 42%; }
+  50%      { transform: translate(-4px,4px) rotate(-18deg); border-radius: 60% 40% 55% 45% / 42% 58% 40% 60%; }
+}
+.bg-preview-blob-a { animation: bg-preview-blob-a 2.8s ease-in-out infinite; }
+.bg-preview-blob-b { animation: bg-preview-blob-b 3.1s ease-in-out infinite; }
+
 .dark .text-ink\/30, .dark .text-ink\/25 { color: rgba(255,255,255,0.3) !important; }
