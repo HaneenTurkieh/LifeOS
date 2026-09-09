@@ -1,13 +1,21 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 
-// Note (Sept 2026): nuvora.ps's Vercel edge cache served a ~50min-stale
-// copy of index.html after the sparkle-field deploy went out, pointing
-// browsers at the old (blob-rotation) JS bundle regardless of hard
-// refresh or browser — confirmed via response headers (x-vercel-cache:
-// HIT, high age, even on a cache:'no-store' fetch), not a browser-side
-// caching issue. This comment exists solely to force a fresh build/asset
-// hash and re-trigger Vercel's cache invalidation for the domain.
+// Note (Sept 2026): after the sparkle-field deploy went out, nuvora.ps
+// kept showing the old (blob-rotation) look on one device regardless of
+// hard refresh, which first looked like a Vercel edge-cache propagation
+// problem. It wasn't — checked directly against Vercel's deployment API
+// and public DNS (not just another fetch that could itself be stale):
+// nuvora.ps/www.nuvora.ps were correctly aliased to the new deployment,
+// DNS pointed straight at Vercel with no CDN in front, and a fresh
+// fetch showed x-vercel-cache: MISS, age: 0, and the new bundle's own
+// content confirmed present. Server side was never wrong. The actual
+// cause was local to that one device (an installed PWA / Safari holding
+// onto the old bundle past what a normal reload replaces) — resolved by
+// fully closing and reopening the installed app rather than refreshing
+// it. Leaving this here so a future "it won't update, redeploy again"
+// moment starts from the actual cause instead of re-chasing propagation
+// delay.
 
 // Vivid's particle field — computed once at module load (not per-render,
 // and not with Math.random(), which would make the layout jump around on
@@ -29,7 +37,16 @@ const VIVID_GLOWS = Array.from({ length: 9 }, (_, i) => ({
 const VIVID_SPARKLES = Array.from({ length: 24 }, (_, i) => ({
   top:      (i * 29 + 3) % 100,
   left:     (i * 53 + 17) % 100,
-  size:     3 + (i % 4) * 1.4,
+  // Sept 2026: real-device testing (installed iPhone PWA, over actual
+  // dashboard content rather than an empty page) showed these reading
+  // as too faint to register as "a field of light" — the twinkle
+  // animation's opacity floor (see vividSparkleTwinkle below) dipped
+  // low enough, and the points were small/dim enough, that most of the
+  // 24 were near-invisible most of the time against real UI on top.
+  // Bumped size here plus the opacity floor and glow strength below —
+  // still twinkles (still animates between a dim and bright state), it
+  // just no longer disappears at the dim end.
+  size:     4 + (i % 4) * 1.6,
   delay:    (i % 8) * 0.3,
   duration: 1.8 + (i % 5) * 0.4,
 }));
@@ -146,8 +163,8 @@ export default function GlobalBackground() {
           animation-iteration-count: infinite;
         }
         @keyframes vividSparkleTwinkle {
-          0%,100% { opacity: 0.12; transform: translate(-50%,-50%) scale(0.8); }
-          50%      { opacity: 0.95; transform: translate(-50%,-50%) scale(1.15); }
+          0%,100% { opacity: 0.4; transform: translate(-50%,-50%) scale(0.85); }
+          50%      { opacity: 1;   transform: translate(-50%,-50%) scale(1.2); }
         }
       `}</style>
       {/* Minimal's "still alive" glow — always mounted (like everything
@@ -182,12 +199,25 @@ export default function GlobalBackground() {
             animationDuration: `${g.duration}s`,
           }} />
         ))}
+        {/* A flat accent-300 fill read as too dim/washed-out against real
+            dashboard content (see the size-bump comment above this
+            component's VIVID_SPARKLES definition) — a small white-hot
+            core fading to the accent color, plus a stronger/wider glow,
+            gives each point actual contrast instead of blending into
+            the tinted background behind it. Light mode needs its own
+            (darker-centered, still bright-edged) version since a white
+            core disappears against a light background the way it pops
+            against a dark one. */}
         {VIVID_SPARKLES.map((s, i) => (
           <div key={`vs${i}`} className="vivid-sparkle" style={{
             top: `${s.top}%`, left: `${s.left}%`,
             width: s.size, height: s.size,
-            background: `rgb(var(--accent-300))`,
-            boxShadow: `0 0 ${Math.round(s.size * 2.2)}px rgb(var(--accent-400) / 0.9)`,
+            background: isDark
+              ? `radial-gradient(circle, #fff 0%, rgb(var(--accent-200)) 40%, rgb(var(--accent-400)) 100%)`
+              : `radial-gradient(circle, rgb(var(--accent-100)) 0%, rgb(var(--accent-500)) 100%)`,
+            boxShadow: isDark
+              ? `0 0 ${Math.round(s.size * 3)}px rgb(var(--accent-300) / 1)`
+              : `0 0 ${Math.round(s.size * 2.6)}px rgb(var(--accent-500) / 0.85)`,
             animationDelay: `${s.delay}s`,
             animationDuration: `${s.duration}s`,
           }} />
