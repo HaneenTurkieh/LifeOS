@@ -6,6 +6,7 @@ const { db }  = require('../db/connection');
 const {
   hashPassword,
   comparePassword,
+  needsRehash,
   signToken,
   authenticate,
   generateResetToken,
@@ -200,6 +201,25 @@ router.post('/login', async (req, res) => {
 
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+    // Transparent bcrypt → Argon2id migration: the only moment we ever
+    // have the real plaintext password in memory is right here, right
+    // after it's been verified — so this is the one safe place to
+    // re-hash it with the new algorithm and quietly upgrade the stored
+    // hash. No forced reset, no user-visible change, and every account
+    // upgrades itself the next time its owner logs in. Non-fatal if it
+    // fails for some reason — login already succeeded either way.
+    if (needsRehash(user.password_hash)) {
+      try {
+        const upgraded = await hashPassword(password);
+        await db.execute({
+          sql:  `UPDATE users SET password_hash = ? WHERE id = ?`,
+          args: [upgraded, user.id],
+        });
+      } catch (e) {
+        console.error('Password hash upgrade failed (non-fatal):', e.message);
+      }
+    }
 
     res.json({ token: signToken(user), user: publicUser(user) });
   } catch (err) {

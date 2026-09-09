@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 
 // In production, ALWAYS set a real JWT_SECRET environment variable.
@@ -60,13 +61,37 @@ function validatePassword(password) {
   return null; // valid
 }
 
+// Switched from bcrypt to Argon2id (the mode the Password Hashing
+// Competition recommends for general password storage — resists both
+// GPU/ASIC cracking and side-channel timing attacks better than bcrypt).
+// bcrypt was never actually broken or a real vulnerability here — this is
+// a "best available" upgrade, not a fix for a bug. All NEW hashes use
+// Argon2id from here on.
 async function hashPassword(plainPassword) {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(plainPassword, salt);
+  return argon2.hash(plainPassword, { type: argon2.argon2id });
 }
 
+// Existing accounts still have bcrypt hashes in the DB (bcryptjs hashes
+// always start with "$2a$"/"$2b$"/"$2y$"; Argon2 hashes start with
+// "$argon2"). Switching hashPassword() above does nothing for THOSE
+// accounts on its own — the old hash is what's still sitting in the DB
+// until the user's password is rewritten. So comparePassword() checks
+// the hash's own prefix and verifies against whichever algorithm
+// actually produced it, and routes/auth.js's /login re-hashes with
+// Argon2 (via needsRehash() below) the moment someone logs in
+// successfully with an old hash — a transparent, gradual migration with
+// zero forced resets and no account ever left un-upgradeable.
 function comparePassword(plainPassword, hash) {
-  return bcrypt.compare(plainPassword, hash);
+  if (typeof hash === 'string' && hash.startsWith('$2')) {
+    return bcrypt.compare(plainPassword, hash);
+  }
+  return argon2.verify(hash, plainPassword);
+}
+
+// True for any hash that isn't already Argon2 — i.e. still needs
+// upgrading. Called right after a successful login.
+function needsRehash(hash) {
+  return !(typeof hash === 'string' && hash.startsWith('$argon2'));
 }
 
 function signToken(user) {
@@ -122,6 +147,6 @@ function timingSafeEqual(a, b) {
 }
 
 module.exports = {
-  hashPassword, comparePassword, signToken, verifyToken, authenticate,
+  hashPassword, comparePassword, needsRehash, signToken, verifyToken, authenticate,
   generateResetToken, hashResetToken, timingSafeEqual, validatePassword,
 };
