@@ -10,6 +10,7 @@
 // pattern as Resend/Google Sign-In elsewhere in this app.
 const { OAuth2Client } = require('google-auth-library');
 const { db } = require('../db/connection');
+const tokenCrypto = require('./tokenCrypto');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'https://nuvora.ps';
 // Must exactly match an "Authorized redirect URI" on the OAuth client in
@@ -28,8 +29,14 @@ const REDIRECT_URI = `${CLIENT_URL}/auth/google-sheets/callback`;
 // required, unlike 'spreadsheets'.
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
+// Sept 2026 security review: also requires tokenCrypto's own
+// configured() — access_token/refresh_token are encrypted at rest now
+// (see saveTokens/getValidAccessToken below), so this feature reports as
+// "not set up yet" if TOKEN_ENCRYPTION_KEY is missing rather than ever
+// silently falling back to storing a real Google OAuth token in plain
+// text.
 function configured() {
-  return !!(process.env.GOOGLE_SHEETS_CLIENT_ID && process.env.GOOGLE_SHEETS_CLIENT_SECRET);
+  return !!(process.env.GOOGLE_SHEETS_CLIENT_ID && process.env.GOOGLE_SHEETS_CLIENT_SECRET) && tokenCrypto.configured();
 }
 
 function getClient() {
@@ -66,7 +73,18 @@ async function saveTokens(userId, tokens) {
   // refresh_token is only ever sent by Google on the FIRST consent (or
   // after a revoke) — COALESCE keeps whatever was already stored on any
   // later re-auth that doesn't include a new one, so a routine re-consent
-  // never silently wipes the ability to refresh later.
+  // never silently wipes the ability to refresh later. COALESCE compares
+  // two already-encrypted strings here (or, for a row saved before
+  // tokenCrypto existed, an already-encrypted new value against a legacy
+  // plaintext old one) — either way it's just picking which opaque
+  // string to keep, so encrypting doesn't change that logic at all.
+  //
+  // Encrypting here (rather than only on read) means every write —
+  // including the transparent refresh in getValidAccessToken below — is
+  // what naturally migrates a legacy plaintext row to encrypted, with no
+  // separate backfill step (see tokenCrypto.js's file comment).
+  const access_token  = tokenCrypto.encrypt(tokens.access_token);
+  const refresh_token = tokens.refresh_token ? tokenCrypto.encrypt(tokens.refresh_token) : null;
   await db.execute({
     sql: `INSERT INTO google_sheets_tokens (user_id, access_token, refresh_token, expires_at, updated_at)
           VALUES (?, ?, ?, ?, datetime('now'))
@@ -75,7 +93,7 @@ async function saveTokens(userId, tokens) {
             refresh_token = COALESCE(excluded.refresh_token, google_sheets_tokens.refresh_token),
             expires_at    = excluded.expires_at,
             updated_at    = datetime('now')`,
-    args: [userId, tokens.access_token, tokens.refresh_token || null, tokens.expiry_date || (Date.now() + 3500 * 1000)],
+    args: [userId, access_token, refresh_token, tokens.expiry_date || (Date.now() + 3500 * 1000)],
   });
 }
 
@@ -101,13 +119,19 @@ async function getValidAccessToken(userId) {
   })).rows[0];
   if (!row) return null;
 
+  // decrypt() passes a legacy plaintext value through unchanged (see
+  // tokenCrypto.js), so this works identically whether this particular
+  // row has already been through saveTokens' encrypting path or not.
+  const accessToken  = tokenCrypto.decrypt(row.access_token);
+  const refreshToken = tokenCrypto.decrypt(row.refresh_token);
+
   // 60s buffer so a token that's about to expire mid-request still gets refreshed.
-  if (Number(row.expires_at) - 60000 > Date.now()) return row.access_token;
-  if (!row.refresh_token) return null;
+  if (Number(row.expires_at) - 60000 > Date.now()) return accessToken;
+  if (!refreshToken) return null;
 
   const client = getClient();
   if (!client) return null;
-  client.setCredentials({ refresh_token: row.refresh_token });
+  client.setCredentials({ refresh_token: refreshToken });
   const { credentials } = await client.refreshAccessToken();
   await saveTokens(userId, credentials);
   return credentials.access_token;
