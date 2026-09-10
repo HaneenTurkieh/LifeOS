@@ -15,7 +15,7 @@ const { PLANS } = require('./focus');
 // row into user_trees by hand in Turso. Reusing the same catalogue
 // trees.js exports so this can't drift from what TreeShop.jsx actually
 // sells.
-const { PREMIUM_TREES } = require('./trees');
+const { PREMIUM_TREES, TREE_COLLECTIONS } = require('./trees');
 
 function requireOwner(req, res, next) {
   if (!isOwnerEmail(req.user?.email)) {
@@ -218,16 +218,19 @@ router.post('/users/:id/trees', requireOwner, async (req, res) => {
 
 // ── Bank transfer requests — owner-only review queue ───────────────
 // Backs the Stats tab's "Bank transfers" section. This manual-transfer
-// honor-system queue (POST /focus/premium/bank-transfer) is the only way
-// someone actually pays for Premium (Paddle was removed Sept 2026 — see
+// honor-system queue (POST /focus/premium/bank-transfer, and now also
+// POST /trees/bank-transfer for Tree Shop) is the only way someone
+// actually pays for anything (Paddle was removed Sept 2026 — see
 // routes/focus.js PLANS comment). Haneen checks her own bank app for a
-// matching transfer, then approves or rejects here — approving is the
-// only thing that ever grants Premium from this flow.
+// matching transfer, then approves or rejects here — approving is what
+// grants Premium (item_type 'premium'/legacy rows) or a Tree Shop
+// tree/collection (item_type 'tree'/'collection'), branched below in
+// reviewBankTransfer.
 router.get('/bank-transfers', requireOwner, async (req, res) => {
   try {
     const rows = (await db.execute(`
       SELECT b.id, b.user_id, b.plan_key, b.amount_usd, b.reference_note, b.status,
-             b.created_at, b.reviewed_at, u.name, u.email
+             b.item_type, b.created_at, b.reviewed_at, u.name, u.email
       FROM bank_transfer_requests b
       JOIN users u ON u.id = b.user_id
       ORDER BY (b.status = 'pending') DESC, b.created_at DESC
@@ -236,6 +239,7 @@ router.get('/bank-transfers', requireOwner, async (req, res) => {
     res.json({
       requests: rows.map((r) => ({
         id: r.id, user_id: r.user_id, plan_key: r.plan_key,
+        item_type: r.item_type || 'premium',
         amount_usd: Number(r.amount_usd), reference_note: r.reference_note,
         status: r.status, created_at: r.created_at, reviewed_at: r.reviewed_at,
         name: r.name, email: r.email,
@@ -253,7 +257,7 @@ async function reviewBankTransfer(req, res, { approve }) {
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
 
     const row = (await db.execute({
-      sql: `SELECT id, user_id, plan_key, status FROM bank_transfer_requests WHERE id = ?`,
+      sql: `SELECT id, user_id, plan_key, status, item_type FROM bank_transfer_requests WHERE id = ?`,
       args: [id],
     })).rows[0];
     if (!row) return res.status(404).json({ error: 'Request not found' });
@@ -266,7 +270,29 @@ async function reviewBankTransfer(req, res, { approve }) {
       args: [approve ? 'approved' : 'rejected', id],
     });
 
-    if (approve) {
+    const itemType = row.item_type || 'premium';
+
+    if (approve && itemType === 'tree') {
+      // A single premium tree — same one-row upsert the manual
+      // /users/:id/trees grant endpoint below uses, just triggered by
+      // the honor-system queue instead of Haneen picking a user by hand.
+      await db.execute({
+        sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?) ON CONFLICT(user_id, tree_key) DO NOTHING`,
+        args: [row.user_id, row.plan_key],
+      });
+    } else if (approve && itemType === 'collection') {
+      // A collection is just its member trees granted together — reuse
+      // the same catalogue TreeShop.jsx sells from so this can't drift.
+      const collection = TREE_COLLECTIONS.find((c) => c.key === row.plan_key);
+      if (collection) {
+        for (const treeKey of collection.treeKeys) {
+          await db.execute({
+            sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?) ON CONFLICT(user_id, tree_key) DO NOTHING`,
+            args: [row.user_id, treeKey],
+          });
+        }
+      }
+    } else if (approve) {
       // A bank transfer is a one-time payment, not a real subscription —
       // nothing bills again automatically, so this is the only place an
       // expiry ever gets set. Renewing a few days before the old one

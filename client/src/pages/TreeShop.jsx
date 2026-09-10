@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Lock, Check } from 'lucide-react';
+import { Sparkles, Lock, Check, Landmark, Copy } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -157,7 +157,7 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
 // Real-money tier — deliberately distinct visual language from TreeCard
 // (gold/champagne instead of rarity colors, a price tag instead of an XP
 // pill) so it reads as its own category, not just another rarity level.
-function PremiumTreeCard({ tree, onBuy, loading, t }) {
+function PremiumTreeCard({ tree, onBuy, loading, requestStatus, t }) {
   const c = PREMIUM_COLORS[tree.key] || '#F59E0B';
   return (
     <motion.div
@@ -223,15 +223,24 @@ function PremiumTreeCard({ tree, onBuy, loading, t }) {
           <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}29`, color: c }}>
             {t('shop.onShelf')}
           </div>
+        ) : requestStatus === 'pending' ? (
+          <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}1F`, color: c }}>
+            {t('shop.bankTransferPending')}
+          </div>
         ) : (
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            onClick={() => onBuy(tree)}
-            disabled={loading}
-            className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
-            style={{ background: `linear-gradient(135deg, ${c} 0%, ${c}CC 100%)`, boxShadow: `0 6px 16px ${c}59` }}>
-            {t('shop.addToShelf')}
-          </motion.button>
+          <>
+            <motion.button
+              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              onClick={() => onBuy(tree)}
+              disabled={loading}
+              className="w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-50"
+              style={{ background: `linear-gradient(135deg, ${c} 0%, ${c}CC 100%)`, boxShadow: `0 6px 16px ${c}59` }}>
+              {t('shop.addToShelf')}
+            </motion.button>
+            {requestStatus === 'rejected' && (
+              <p className="mt-1.5 text-[10px] text-center" style={{ color: '#EF4444' }}>{t('shop.bankTransferRejected')}</p>
+            )}
+          </>
         )}
       </div>
     </motion.div>
@@ -283,7 +292,7 @@ function ShelfDisplay({ ownedPremiumTrees, t }) {
     </div>
   );
 }
-function CollectionCard({ collection, premiumTrees, onBuy, loading, t }) {
+function CollectionCard({ collection, premiumTrees, onBuy, loading, requestStatus, t }) {
   const emojis = collection.treeKeys.map((k) => premiumTrees.find((pt) => pt.key === k)?.emoji || '🌳').join(' ');
   const individualTotal = collection.treeKeys.reduce((sum, k) => sum + (premiumTrees.find((pt) => pt.key === k)?.priceUsd || 0), 0);
   return (
@@ -306,15 +315,24 @@ function CollectionCard({ collection, premiumTrees, onBuy, loading, t }) {
         <div className="shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold" style={{ background: 'rgba(124,106,240,0.15)', color: 'rgb(var(--accent-600))' }}>
           {t('shop.currentlyOwned')}
         </div>
+      ) : requestStatus === 'pending' ? (
+        <div className="shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold text-center" style={{ background: 'rgba(124,106,240,0.15)', color: 'rgb(var(--accent-600))' }}>
+          {t('shop.bankTransferPending')}
+        </div>
       ) : (
-        <motion.button
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          onClick={() => onBuy(collection)}
-          disabled={loading}
-          className="shrink-0 rounded-2xl px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 6px 16px rgb(var(--accent-500) / 0.35)' }}>
-          {t('shop.buyCollection', { price: collection.priceUsd.toFixed(2) })}
-        </motion.button>
+        <div className="shrink-0 flex flex-col items-center gap-1">
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={() => onBuy(collection)}
+            disabled={loading}
+            className="rounded-2xl px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)', boxShadow: '0 6px 16px rgb(var(--accent-500) / 0.35)' }}>
+            {t('shop.buyCollection', { price: collection.priceUsd.toFixed(2) })}
+          </motion.button>
+          {requestStatus === 'rejected' && (
+            <p className="text-[10px]" style={{ color: '#EF4444' }}>{t('shop.bankTransferRejected')}</p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -355,6 +373,91 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
             className="flex-1 rounded-2xl py-2.5 text-sm font-bold text-white disabled:opacity-50"
             style={{ background: `linear-gradient(135deg, ${rarity.color}, ${rarity.color}CC)`, boxShadow: `0 4px 14px ${rarity.color}44` }}>
             {loading ? t('shop.unlocking') : `${t('shop.unlock')} ${tree.emoji}`}
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// Tree Shop's only purchase path — same honor-system bank-transfer queue
+// Premium uses (see SettingsModal's inline panel), just reached from a
+// modal here instead of an inline card panel, since these cards don't
+// have room to expand in place. Submitting creates a 'pending' row in
+// the same bank_transfer_requests table (item_type 'tree'/'collection'),
+// which shows up in Haneen's admin Bank Transfers queue exactly like a
+// Premium request — approving it there grants user_trees instead of
+// flipping is_premium (see server/routes/admin.js).
+function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, onSubmit, onCancel, loading, t }) {
+  if (!item) return null;
+  const c = PREMIUM_COLORS[item.key] || '#7C6AF0';
+  const copyIban = () => {
+    if (!bankDetails?.iban) return;
+    navigator.clipboard?.writeText(bankDetails.iban).then(() => {}, () => {});
+  };
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[90] flex items-center justify-center px-4"
+      style={{ background: 'rgba(30,34,51,0.45)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+      onClick={onCancel}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 12 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        className="w-full max-w-sm rounded-3xl p-6 text-start"
+        style={{
+          background:   'rgba(255,255,255,0.94)',
+          backdropFilter: 'blur(32px)',
+          border:       '1px solid rgba(255,255,255,0.80)',
+          boxShadow:    '0 24px 64px rgba(0,0,0,0.18)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="font-display font-bold text-base text-center mb-4" style={{ color: '#1E2233' }}>
+          {t('shop.bankTransferModalTitle', { name: item.name })}
+        </h3>
+        <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${c}14`, border: `1px solid ${c}33` }}>
+          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: `${c}CC` }}>
+            {t('settings.bankTransferAmount')}
+          </p>
+          <p className="text-sm font-bold" style={{ color: '#1E2233' }}>${item.priceUsd.toFixed(2)} USD</p>
+
+          <p className="text-[10px] font-bold uppercase tracking-wide mt-1" style={{ color: `${c}CC` }}>
+            {t('settings.bankTransferIban')}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <code className="text-[11px] font-mono break-all" style={{ color: 'rgba(30,34,51,0.80)' }}>{bankDetails?.iban}</code>
+            <button onClick={copyIban} title={t('settings.copy')} className="shrink-0" style={{ color: 'rgba(30,34,51,0.40)' }}>
+              <Copy size={13} />
+            </button>
+          </div>
+          <p className="text-[11px]" style={{ color: 'rgba(30,34,51,0.50)' }}>
+            {bankDetails?.bankName} — {bankDetails?.accountName}
+          </p>
+
+          <textarea
+            value={note}
+            onChange={(e) => onNoteChange(e.target.value)}
+            placeholder={t('settings.bankTransferNotePh')}
+            rows={2}
+            maxLength={500}
+            className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs resize-none"
+            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: 'inherit' }}
+          />
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold bg-ink/5" style={{ color: 'rgba(30,34,51,0.55)' }}>
+            {t('common.cancel')}
+          </button>
+          <motion.button
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            onClick={() => onSubmit(itemType, item.key)}
+            disabled={loading}
+            className="flex-1 rounded-2xl py-2.5 text-sm font-bold text-white disabled:opacity-50"
+            style={{ background: `linear-gradient(135deg, ${c}, ${c}CC)`, boxShadow: `0 4px 14px ${c}44` }}>
+            {loading ? t('settings.sending') : t('settings.bankTransferSubmit')}
           </motion.button>
         </div>
       </motion.div>
@@ -630,23 +733,49 @@ export default function TreeShop() {
   const [mysticActing,    setMysticActing]    = useState(false);
   const [showZodiacIntro, setShowZodiacIntro] = useState(false);
   const [buying, setBuying] = useState(false);
+  // Bank transfer — same honor-system path Premium uses (see
+  // SettingsModal). bankDetails is the shared IBAN/account info (one
+  // endpoint, reused from focus.js rather than duplicated here);
+  // myTreeRequests is every tree/collection request this user has ever
+  // sent, so each card can show its OWN pending/rejected state rather
+  // than just the single most-recent one the way Premium's /mine works.
+  // buyTarget is which tree/collection the modal is currently open for
+  // (with its itemType), null = closed.
+  const [bankDetails, setBankDetails] = useState(null);
+  const [myTreeRequests, setMyTreeRequests] = useState([]);
+  const [buyTarget, setBuyTarget] = useState(null);
+  const [transferNote, setTransferNote] = useState('');
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
   const load = useCallback(async () => {
     try { setData(await api.get('/trees')); }
     catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
-  // Real-money purchases for individual trees/collections were never
-  // actually wired up to a live price (every entry in server/routes/
-  // trees.js's TREES/COLLECTIONS has priceId: null — this was scaffolding
-  // for a checkout that hadn't launched yet), and the Paddle checkout
-  // that would have powered it was removed Sept 2026 along with the rest
-  // of the Paddle integration. Both buy buttons below just surface the
-  // existing "not available yet" state — same UI, no dead checkout call
-  // behind it. `buying`/setBuying are unused now but left in place since
-  // other code below still reads `buying` for button-disabled states.
-  const buyPremiumTree = () => { toast.error(t('shop.notAvailableYet')); };
-  const buyCollection = () => { toast.error(t('shop.notAvailableYet')); };
+  useEffect(() => {
+    api.get('/focus/premium/bank-transfer/details').then(setBankDetails).catch(() => setBankDetails(null));
+    api.get('/trees/bank-transfer/mine').then((d) => setMyTreeRequests(d.requests || [])).catch(() => setMyTreeRequests([]));
+  }, []);
+  const requestStatusFor = (key) => {
+    // Most recent request for this exact item — a rejected old request
+    // shouldn't hide a newer pending one for the same tree/collection.
+    const reqs = myTreeRequests.filter((r) => r.item_key === key);
+    return reqs[0]?.status || null;
+  };
+  const buyPremiumTree = (tree) => { setBuyTarget({ item: tree, itemType: 'tree' }); setTransferNote(''); };
+  const buyCollection = (collection) => { setBuyTarget({ item: collection, itemType: 'collection' }); setTransferNote(''); };
+  const submitTreeBankTransfer = async (itemType, itemKey) => {
+    setSubmittingTransfer(true);
+    try {
+      await api.post('/trees/bank-transfer', { item_type: itemType, item_key: itemKey, reference_note: transferNote });
+      const d = await api.get('/trees/bank-transfer/mine');
+      setMyTreeRequests(d.requests || []);
+      setBuyTarget(null);
+      setTransferNote('');
+      toast.success(t('shop.bankTransferSubmitted'));
+    } catch (e) { toast.error(e.message); }
+    finally { setSubmittingTransfer(false); }
+  };
   // First time this account's zodiac actually resolves (birthday set,
   // sign derived), explain the mechanic once — same
   // "nuvora_onboarded_<id>" localStorage pattern used by Onboarding.jsx,
@@ -865,11 +994,11 @@ export default function TreeShop() {
           <p className="text-xs text-ink/45 dark:text-white/35 mb-4">{t('shop.premiumSubtitle')}</p>
           <ShelfDisplay ownedPremiumTrees={data.premiumTrees.filter((tr) => tr.owned)} t={t} />
           {data.collections?.map((c) => (
-            <CollectionCard key={c.key} collection={c} premiumTrees={data.premiumTrees} onBuy={buyCollection} loading={buying} t={t} />
+            <CollectionCard key={c.key} collection={c} premiumTrees={data.premiumTrees} onBuy={buyCollection} loading={buying} requestStatus={requestStatusFor(c.key)} t={t} />
           ))}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {data.premiumTrees.map((tree) => (
-              <PremiumTreeCard key={tree.key} tree={tree} onBuy={buyPremiumTree} loading={buying} t={t} />
+              <PremiumTreeCard key={tree.key} tree={tree} onBuy={buyPremiumTree} loading={buying} requestStatus={requestStatusFor(tree.key)} t={t} />
             ))}
           </div>
         </div>
@@ -894,6 +1023,21 @@ export default function TreeShop() {
       <AnimatePresence>
         {confirm && (
           <ConfirmModal tree={confirm} onConfirm={handleUnlock} onCancel={() => setConfirm(null)} loading={acting} t={t} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {buyTarget && (
+          <BankTransferModal
+            item={buyTarget.item}
+            itemType={buyTarget.itemType}
+            bankDetails={bankDetails}
+            note={transferNote}
+            onNoteChange={setTransferNote}
+            onSubmit={submitTreeBankTransfer}
+            onCancel={() => setBuyTarget(null)}
+            loading={submittingTransfer}
+            t={t}
+          />
         )}
       </AnimatePresence>
       <AnimatePresence>

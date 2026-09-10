@@ -294,6 +294,86 @@ router.post('/equip', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
+// ── Bank transfer — premium trees/collections, same honor-system queue
+// as Premium plans (POST /focus/premium/bank-transfer). There's still no
+// real payment gateway (Paddle removed, nothing replaced it — see the
+// PREMIUM_TREES comment above), so this creates a 'pending' row and
+// emails Haneen the same way; she checks her bank app herself and
+// approves/rejects from Settings → Stats → Bank transfers, which now
+// grants a user_trees row instead of flipping is_premium when the
+// request's item_type is 'tree'/'collection' (see routes/admin.js).
+router.post('/bank-transfer', async (req, res) => {
+  const { item_type, item_key, reference_note } = req.body;
+  let item, priceUsd, label;
+  if (item_type === 'tree') {
+    item = PREMIUM_TREES.find((t) => t.key === item_key);
+    if (!item) return res.status(400).json({ error: 'Unknown tree' });
+    priceUsd = item.priceUsd;
+    label = item.name;
+  } else if (item_type === 'collection') {
+    item = TREE_COLLECTIONS.find((c) => c.key === item_key);
+    if (!item) return res.status(400).json({ error: 'Unknown collection' });
+    priceUsd = item.priceUsd;
+    label = item.name;
+  } else {
+    return res.status(400).json({ error: "item_type must be 'tree' or 'collection'" });
+  }
+
+  try {
+    // One pending shop request at a time, same rule the Premium flow
+    // uses — keeps this an honor-system queue Haneen can actually keep
+    // up with, not a backlog of duplicate "did I already send this"
+    // requests for the same or different trees.
+    const existing = (await db.execute({
+      sql: `SELECT id FROM bank_transfer_requests WHERE user_id = ? AND status = 'pending' AND item_type IN ('tree','collection')`,
+      args: [req.user.id],
+    })).rows[0];
+    if (existing) {
+      return res.status(400).json({ error: 'You already have a Tree Shop request pending review.' });
+    }
+
+    const note = String(reference_note || '').trim().slice(0, 500) || null;
+    const result = await db.execute({
+      sql: `INSERT INTO bank_transfer_requests (user_id, plan_key, amount_usd, reference_note, item_type)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [req.user.id, item_key, priceUsd, note, item_type],
+    });
+
+    try {
+      const { sendBankTransferRequestEmail } = require('../lib/email');
+      await sendBankTransferRequestEmail({
+        userEmail: req.user.email,
+        userName:  req.user.name,
+        planLabel: label,
+        amountLabel: `$${priceUsd.toFixed(2)}`,
+        referenceNote: note,
+        itemNoun: item_type === 'collection' ? 'collection' : 'tree',
+      });
+    } catch (e) {
+      console.error('sendBankTransferRequestEmail failed (non-fatal):', e.message);
+    }
+
+    res.json({ id: Number(result.lastInsertRowid), status: 'pending', item_type, item_key, amount_usd: priceUsd });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// Every one of this user's Tree Shop requests (not just the latest, the
+// way Premium's /mine works) — the shop shows more than one item at
+// once, so each tree/collection card needs to know its OWN status, not
+// just whichever request happened to be submitted most recently.
+router.get('/bank-transfer/mine', async (req, res) => {
+  try {
+    const rows = (await db.execute({
+      sql: `SELECT plan_key AS item_key, item_type, amount_usd, status, created_at, reviewed_at
+            FROM bank_transfer_requests
+            WHERE user_id = ? AND item_type IN ('tree','collection')
+            ORDER BY created_at DESC`,
+      args: [req.user.id],
+    })).rows;
+    res.json({ requests: rows });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
 // Exported so a future payment processor's webhook/checkout handler can
 // grant the right tree(s) for a completed one-time purchase without
 // re-hardcoding the catalogue a second time (routes/paddle.js used to be

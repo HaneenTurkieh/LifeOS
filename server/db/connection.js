@@ -919,6 +919,20 @@ async function initDb() {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_bank_transfer_status ON bank_transfer_requests(status, created_at)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_bank_transfer_user ON bank_transfer_requests(user_id, created_at)`);
 
+  // Tree Shop's premium trees/collections now go through this SAME
+  // honor-system bank-transfer queue instead of having no payment path
+  // at all — item_type tells routes/admin.js's approve action what to
+  // actually grant (user_premium vs a user_trees row), and every
+  // existing row is a real Premium-plan request, hence the 'premium'
+  // default rather than leaving old rows ambiguous. plan_key is reused
+  // to hold whichever key is relevant — a PLANS key for 'premium', a
+  // tree_key for 'tree', a collection key for 'collection' — rather
+  // than adding a second NOT NULL column that would need its own
+  // backfill for every row already in this table.
+  if (!(await hasColumn('bank_transfer_requests', 'item_type'))) {
+    await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN item_type TEXT NOT NULL DEFAULT 'premium'`);
+  }
+
   // Real gap this fixes: approving a bank transfer (routes/admin.js)
   // granted is_premium=1 with no expiry at all — a $4.99 ONE-TIME
   // transfer for the Monthly plan left someone Premium forever unless

@@ -1402,6 +1402,13 @@ function StatsTab() {
     { key: 'eclipse', label: '🌑 Eclipse' },
     { key: 'comet',   label: '☄️ Comet' },
   ];
+  // Just for labeling Tree Shop rows in the Bank transfers queue below —
+  // matches TREE_COLLECTIONS in server/routes/trees.js. Not needed for
+  // individual trees, since PREMIUM_TREE_OPTIONS above already covers those.
+  const COLLECTION_LABELS = {
+    celestial: 'Celestial Collection',
+    astral:    'Astral Collection',
+  };
   async function grantTree(userId, treeKey, grant) {
     setGrantingTreeId(userId);
     try {
@@ -1616,11 +1623,24 @@ function StatsTab() {
         const pending = transfers?.filter((r) => r.status === 'pending') || [];
         const rest    = transfers?.filter((r) => r.status !== 'pending') || [];
         const rowStyle = { borderTop: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(30,34,51,0.05)' };
+        // Premium requests just show the plan key (monthly/semester/annual)
+        // like before; Tree Shop requests get a "Tree ·"/"Collection ·"
+        // prefix so they don't read as a Premium plan by mistake.
+        const itemLabel = (r) => {
+          if (r.item_type === 'tree') {
+            const opt = PREMIUM_TREE_OPTIONS.find((o) => o.key === r.plan_key);
+            return `Tree · ${opt ? opt.label.replace(/^\S+\s/, '') : r.plan_key}`;
+          }
+          if (r.item_type === 'collection') {
+            return `Collection · ${COLLECTION_LABELS[r.plan_key] || r.plan_key}`;
+          }
+          return r.plan_key;
+        };
         const renderRow = (r) => (
           <div key={r.id} className="flex items-center justify-between gap-3 py-2" style={rowStyle}>
             <div className="min-w-0">
               <p className={`text-xs font-semibold truncate ${isDark?'text-white':'text-ink'}`}>
-                {r.name || '—'} <span className={isDark?'text-white/35':'text-ink/40'}>· {r.plan_key}</span>
+                {r.name || '—'} <span className={isDark?'text-white/35':'text-ink/40'}>· {itemLabel(r)}</span>
               </p>
               <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{r.email} — ${r.amount_usd.toFixed(2)}</p>
               {r.reference_note && (

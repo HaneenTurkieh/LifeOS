@@ -73,10 +73,14 @@ function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel })
 }
 
 // ── Bank transfer request — someone submitted a "I sent the money"
-// note via POST /focus/premium/bank-transfer. Nothing is granted yet;
-// this just tells Haneen to go check her Reflect/Arab Bank account for
-// a matching transfer, then approve or reject from the Stats tab.
-function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote }) {
+// note via POST /focus/premium/bank-transfer (Premium plans) or POST
+// /trees/bank-transfer (a Tree Shop tree/collection — same honor-system
+// queue, same Stats tab, just a different thing gets granted on
+// approval). Nothing is granted yet; this just tells Haneen to go check
+// her Reflect/Arab Bank account for a matching transfer, then approve
+// or reject from the Stats tab. `itemNoun` swaps "plan" for "tree"/
+// "collection" so the copy still reads naturally for either case.
+function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun = 'plan' }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
@@ -87,7 +91,7 @@ function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLa
       From: <strong>${esc(userName) || 'A user'}</strong> (${esc(userEmail) || 'not provided'})
     </p>
     <div style="background:#F0FBF5;border:1px solid #DCF5E7;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:1.6;text-align:center;">
-      Says they sent <strong>${esc(amountLabel)}</strong> for the <strong>${esc(planLabel)}</strong> plan.
+      Says they sent <strong>${esc(amountLabel)}</strong> for the <strong>${esc(planLabel)}</strong> ${esc(itemNoun)}.
       ${referenceNote ? `<br/><br/><span style="color:#5A5F73;font-size:13px;">Their note: "${esc(referenceNote)}"</span>` : ''}
     </div>
     <p style="color:#5A5F73;font-size:12px;text-align:center;margin:16px 0 0;">
@@ -299,13 +303,15 @@ async function sendPremiumRequestEmail({ userEmail, userName, planLabel, priceLa
   });
 }
 
-// ── Public: bank transfer request — see POST /focus/premium/bank-transfer.
-async function sendBankTransferRequestEmail({ userEmail, userName, planLabel, amountLabel, referenceNote }) {
+// ── Public: bank transfer request — see POST /focus/premium/bank-transfer
+// (Premium plans) and POST /trees/bank-transfer (Tree Shop items, via
+// itemNoun below). Same inbox, same review queue either way.
+async function sendBankTransferRequestEmail({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun = 'plan' }) {
   await dispatch({
     to: 'haneenturkieh@hotmail.com',
     label: 'bank transfer request',
     subject: `Bank transfer request: ${planLabel} (${amountLabel})`,
-    html: bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote }),
+    html: bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun }),
   });
 }
 
