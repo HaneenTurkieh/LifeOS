@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Plus, Trash2, Pencil, Calendar, Clock, ListChecks,
-  Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Timer, Sparkles,
+  Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Timer, Sparkles, X,
 } from 'lucide-react';
 import { api }       from '../api/client.js';
 import { useToast }  from '../context/ToastContext.jsx';
@@ -539,7 +539,7 @@ No explanation, no markdown fences, just the JSON object.`,
             <div>
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
               <div className="relative">
-                <input type="time" className="input-field" value={form.deadline_time}
+                <input type="time" className="input-field pe-9" value={form.deadline_time}
                   autoComplete="off" name="nuvora-task-deadline-time"
                   style={!form.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
                   onChange={e => setForm({...form, deadline_time:e.target.value})}
@@ -548,6 +548,19 @@ No explanation, no markdown fences, just the JSON object.`,
                   <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
                     {t('tasks.selectTime')}
                   </span>
+                )}
+                {/* Native <input type="time"> has no reliable clear control —
+                    desktop Chrome hides a tiny "x" that's easy to miss (and
+                    fights the showPicker() call above), and mobile Safari/
+                    Chrome show no clear affordance at all, so once a time was
+                    picked there was no way to remove it again on phone. This
+                    button is the actual, always-visible way to clear it. */}
+                {form.deadline_time && (
+                  <button type="button" onClick={() => setForm({...form, deadline_time:''})}
+                    aria-label={t('tasks.clearTime')}
+                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
+                    <X size={15} />
+                  </button>
                 )}
               </div>
             </div>

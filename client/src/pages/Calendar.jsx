@@ -823,9 +823,22 @@ No explanation, no markdown fences, just the JSON object.`,
                     <p className={`text-[11px] ${isDark?'text-white/25':'text-ink/35'}`}>{t('calendar.birthdayHint')}</p>
                   ) : (
                     <>
-                      <input type="time" className="input-field text-sm" value={editForm.deadline_time}
-                        onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}
-                        onClick={e => e.currentTarget.showPicker?.()}/>
+                      <div className="relative">
+                        <input type="time" className="input-field text-sm pe-9" value={editForm.deadline_time}
+                          onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}
+                          onClick={e => e.currentTarget.showPicker?.()}/>
+                        {/* Native time inputs have no reliable clear control —
+                            mobile browsers show none at all — so once a time
+                            was set there was no way to remove it again. This
+                            button is the actual, always-visible clear action. */}
+                        {editForm.deadline_time && (
+                          <button type="button" onClick={() => setEditForm({...editForm, deadline_time:''})}
+                            aria-label={t('tasks.clearTime')}
+                            className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                       {editForm.deadline_time && (
                         <ReminderPicker
                           value={editForm.remindOffsets}
@@ -1209,7 +1222,7 @@ No explanation, no markdown fences, just the JSON object.`,
             <div>
               <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
               <div className="relative">
-                <input type="time" className="input-field" value={addForm.deadline_time}
+                <input type="time" className="input-field pe-9" value={addForm.deadline_time}
                   autoComplete="off" name="nuvora-calendar-task-time"
                   style={!addForm.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
                   onChange={e => setAddForm({...addForm, deadline_time:e.target.value})}
@@ -1218,6 +1231,17 @@ No explanation, no markdown fences, just the JSON object.`,
                   <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
                     {t('tasks.selectTime')}
                   </span>
+                )}
+                {/* Native time inputs have no reliable clear control — mobile
+                    browsers show none at all — so once a time was set there
+                    was no way to remove it again. This button is the actual,
+                    always-visible clear action. */}
+                {addForm.deadline_time && (
+                  <button type="button" onClick={() => setAddForm({...addForm, deadline_time:''})}
+                    aria-label={t('tasks.clearTime')}
+                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/40 dark:text-white/30 hover:text-ink/70 dark:hover:text-white/60">
+                    <X size={14} />
+                  </button>
                 )}
               </div>
             </div>
