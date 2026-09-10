@@ -661,7 +661,25 @@ function PremiumTab() {
     { key: 'minimal', label: lang === 'ar' ? 'بسيط'    : 'Minimal',
       desc: lang === 'ar' ? 'توهج هادئ ونابض ببطء — أقل تشتيتًا للمذاكرة' : 'One slow, soft breathing glow — calm and less distracting while studying' },
     { key: 'vivid',   label: lang === 'ar' ? 'حيوي'    : 'Vivid',
-      desc: lang === 'ar' ? 'أشكال دوّارة أكبر وأكثر تشبعًا — حركة واضحة' : 'Bigger, bolder rotating shapes with a much more noticeable swing' },
+      desc: lang === 'ar' ? 'حقل من النقاط المتلألئة بدل الكرات المتحركة — مختلف تمامًا' : 'A field of twinkling sparkle points instead of drifting orbs — a completely different feel' },
+  ];
+  // Fixed positions/timing for Vivid's mini preview sparkles — mirrors
+  // GlobalBackground.jsx's VIVID_SPARKLES/VIVID_GLOWS approach (index-based,
+  // not Math.random()) so the preview doesn't jump around on re-render and
+  // actually looks like the real thing: a scattered twinkling field, not
+  // two big shapes.
+  const VIVID_PREVIEW_SPARKLES = [
+    { top: 15, left: 12, size: 3.5, delay: 0,   duration: 1.9 },
+    { top: 65, left: 28, size: 3,   delay: 0.5, duration: 2.3 },
+    { top: 30, left: 55, size: 4,   delay: 1.0, duration: 2.0 },
+    { top: 75, left: 72, size: 3,   delay: 0.3, duration: 2.5 },
+    { top: 20, left: 85, size: 3.5, delay: 0.8, duration: 2.1 },
+    { top: 50, left: 40, size: 2.5, delay: 1.3, duration: 1.8 },
+    { top: 82, left: 15, size: 3,   delay: 0.6, duration: 2.4 },
+  ];
+  const VIVID_PREVIEW_GLOWS = [
+    { top: 35, left: 22, size: 16, delay: 0,   duration: 3.6 },
+    { top: 60, left: 68, size: 14, delay: 0.9, duration: 4.1 },
   ];
   const bgSectionTitle = lang === 'ar' ? 'الخلفية' : 'Background';
   const changeBackground = async (preset) => {
@@ -1046,9 +1064,9 @@ function PremiumTab() {
                     swatch chip, matching what GlobalBackground.jsx
                     actually renders for each style so the picker isn't
                     lying about what you'll get: Aurora shows two small
-                    drifting circles, Vivid shows two bigger rotating
-                    organic blobs (a different shape, not just "the same
-                    circles but bigger" — that read as barely different),
+                    drifting circles, Vivid shows a scattered twinkling
+                    sparkle field (a genuinely different shape language,
+                    not a resized/rotated version of Aurora's shapes),
                     Minimal shows one slow breathing glow. */}
                 <span
                   className="relative block h-14 w-full overflow-hidden rounded-xl"
@@ -1066,18 +1084,24 @@ function PremiumTab() {
                     }} />
                   ) : isVivid ? (
                     <>
-                      <span className="absolute bg-preview-blob-a" style={{
-                        width: 28, height: 28,
-                        top: 2, left: 6,
-                        background: `radial-gradient(circle, rgb(var(--accent-300)) 0%, rgb(var(--accent-600)) 100%)`,
-                        filter: 'blur(3px)', opacity: 0.95,
-                      }} />
-                      <span className="absolute bg-preview-blob-b" style={{
-                        width: 22, height: 22,
-                        bottom: 1, right: 8,
-                        background: `radial-gradient(circle, rgb(var(--accent-200)) 0%, rgb(var(--accent-500)) 100%)`,
-                        filter: 'blur(2px)', opacity: 0.85,
-                      }} />
+                      {VIVID_PREVIEW_GLOWS.map((g, i) => (
+                        <span key={`pg${i}`} className="absolute rounded-full bg-preview-sparkle-glow" style={{
+                          width: g.size, height: g.size,
+                          top: `${g.top}%`, left: `${g.left}%`,
+                          background: `radial-gradient(circle, rgb(var(--accent-300) / 0.85) 0%, transparent 70%)`,
+                          filter: 'blur(3px)',
+                          animationDelay: `${g.delay}s`, animationDuration: `${g.duration}s`,
+                        }} />
+                      ))}
+                      {VIVID_PREVIEW_SPARKLES.map((s, i) => (
+                        <span key={`ps${i}`} className="absolute rounded-full bg-preview-sparkle-point" style={{
+                          width: s.size, height: s.size,
+                          top: `${s.top}%`, left: `${s.left}%`,
+                          background: `rgb(var(--accent-300))`,
+                          boxShadow: `0 0 ${Math.round(s.size * 2)}px rgb(var(--accent-400) / 0.9)`,
+                          animationDelay: `${s.delay}s`, animationDuration: `${s.duration}s`,
+                        }} />
+                      ))}
                     </>
                   ) : (
                     <>
@@ -1318,6 +1342,14 @@ function StatsTab() {
   const [showErrors,    setShowErrors]    = useState(false);
   const [cronHealth,    setCronHealth]    = useState(null);
   const [grantingId,    setGrantingId]    = useState(null);
+  // ── Tree Shop premium trees — separate from Premium/is_premium above.
+  // No real checkout exists for these yet (Paddle removed, nothing
+  // replaced it — see routes/trees.js), so this is the only way to give
+  // someone a premium tree until that changes. treePick remembers which
+  // tree is selected in each user row's dropdown; grantingTreeId is the
+  // per-row busy state while a grant/revoke call is in flight.
+  const [treePick,      setTreePick]      = useState({});
+  const [grantingTreeId, setGrantingTreeId] = useState(null);
   // ── Bank transfer requests (owner-only review queue) ────────────
   const [transfers,        setTransfers]        = useState(null);
   const [transfersLoading, setTransfersLoading] = useState(true);
@@ -1356,6 +1388,29 @@ function StatsTab() {
       toast.error(e.message || 'Could not update premium status');
     } finally {
       setGrantingId(null);
+    }
+  }
+
+  // Matches PREMIUM_TREES in server/routes/trees.js and PREMIUM_COLORS in
+  // TreeShop.jsx — same 6 keys, kept here too since this panel has no
+  // server round-trip to fetch the catalogue from.
+  const PREMIUM_TREE_OPTIONS = [
+    { key: 'aurora',  label: '🌌 Aurora' },
+    { key: 'phoenix', label: '🔥 Phoenix' },
+    { key: 'galaxy',  label: '🌠 Galaxy' },
+    { key: 'nebula',  label: '🪐 Nebula' },
+    { key: 'eclipse', label: '🌑 Eclipse' },
+    { key: 'comet',   label: '☄️ Comet' },
+  ];
+  async function grantTree(userId, treeKey, grant) {
+    setGrantingTreeId(userId);
+    try {
+      await api.post(`/admin/users/${userId}/trees`, { tree_key: treeKey, grant });
+      toast.success(grant ? 'Tree granted' : 'Tree revoked');
+    } catch (e) {
+      toast.error(e.message || 'Could not update tree ownership');
+    } finally {
+      setGrantingTreeId(null);
     }
   }
 
@@ -1487,29 +1542,62 @@ function StatsTab() {
             ) : !users?.length ? (
               <p className={`text-xs text-center py-4 ${isDark?'text-white/35':'text-ink/35'}`}>No users yet.</p>
             ) : users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between gap-3 py-1.5"
+              <div key={u.id} className="flex flex-col gap-1.5 py-1.5"
                 style={{ borderTop: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(30,34,51,0.05)' }}>
-                <div className="min-w-0">
-                  <p className={`text-xs font-semibold truncate ${isDark?'text-white':'text-ink'}`}>{u.name || '—'}</p>
-                  <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{u.email}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold truncate ${isDark?'text-white':'text-ink'}`}>{u.name || '—'}</p>
+                    <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <p className={`text-[10px] ${isDark?'text-white/30':'text-ink/35'}`}>
+                      {u.created_at ? String(u.created_at).slice(0, 10) : ''}
+                    </p>
+                    {/* Fulfills the "Request Premium" honor-system email flow —
+                        that route intentionally never flips is_premium itself
+                        (payment isn't verified there), so before this button
+                        existed the only way to actually grant it was editing
+                        the database by hand. */}
+                    <button
+                      disabled={grantingId === u.id}
+                      onClick={() => grantPremium(u.id, !u.is_premium)}
+                      className="text-[10px] font-semibold px-2 py-1 rounded-lg disabled:opacity-40"
+                      style={u.is_premium
+                        ? { background:'rgba(239,68,68,0.10)', color:'#EF4444' }
+                        : { background:'rgba(124,58,237,0.12)', color:'rgb(var(--accent-500))' }}>
+                      {grantingId === u.id ? '…' : u.is_premium ? 'Revoke' : 'Grant'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <p className={`text-[10px] ${isDark?'text-white/30':'text-ink/35'}`}>
-                    {u.created_at ? String(u.created_at).slice(0, 10) : ''}
-                  </p>
-                  {/* Fulfills the "Request Premium" honor-system email flow —
-                      that route intentionally never flips is_premium itself
-                      (payment isn't verified there), so before this button
-                      existed the only way to actually grant it was editing
-                      the database by hand. */}
+                {/* Tree Shop's premium trees (shelf collectibles) — a
+                    completely separate system from Premium above, and one
+                    with no real checkout yet, so this dropdown + grant/
+                    revoke pair is the only way to give someone one right
+                    now. Picking a tree here doesn't touch is_premium, and
+                    granting Premium above doesn't touch this. */}
+                <div className="flex items-center gap-1.5 ps-0.5">
+                  <select
+                    value={treePick[u.id] || PREMIUM_TREE_OPTIONS[0].key}
+                    onChange={(e) => setTreePick((m) => ({ ...m, [u.id]: e.target.value }))}
+                    className="text-[10px] rounded-lg px-1.5 py-1 bg-transparent"
+                    style={{ border: isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(30,34,51,0.10)', color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(30,34,51,0.6)' }}>
+                    {PREMIUM_TREE_OPTIONS.map((opt) => (
+                      <option key={opt.key} value={opt.key}>{opt.label}</option>
+                    ))}
+                  </select>
                   <button
-                    disabled={grantingId === u.id}
-                    onClick={() => grantPremium(u.id, !u.is_premium)}
+                    disabled={grantingTreeId === u.id}
+                    onClick={() => grantTree(u.id, treePick[u.id] || PREMIUM_TREE_OPTIONS[0].key, true)}
                     className="text-[10px] font-semibold px-2 py-1 rounded-lg disabled:opacity-40"
-                    style={u.is_premium
-                      ? { background:'rgba(239,68,68,0.10)', color:'#EF4444' }
-                      : { background:'rgba(124,58,237,0.12)', color:'rgb(var(--accent-500))' }}>
-                    {grantingId === u.id ? '…' : u.is_premium ? 'Revoke' : 'Grant'}
+                    style={{ background:'rgba(124,58,237,0.12)', color:'rgb(var(--accent-500))' }}>
+                    {grantingTreeId === u.id ? '…' : 'Grant tree'}
+                  </button>
+                  <button
+                    disabled={grantingTreeId === u.id}
+                    onClick={() => grantTree(u.id, treePick[u.id] || PREMIUM_TREE_OPTIONS[0].key, false)}
+                    className="text-[10px] font-semibold px-2 py-1 rounded-lg disabled:opacity-40"
+                    style={{ background:'rgba(239,68,68,0.10)', color:'#EF4444' }}>
+                    {grantingTreeId === u.id ? '…' : 'Revoke'}
                   </button>
                 </div>
               </div>

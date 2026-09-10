@@ -324,6 +324,8 @@ export const translations = {
   
       // ── Dashboard ──────────────────────────────────────
       'dash.viewAll':         'View all',
+      'dash.loadFailed':      "Couldn't load your dashboard",
+      'dash.retryLoad':       'Try again',
       'dash.todaysTasks':     "Today's tasks",
       'dash.colNotStarted':   'Not Started',
       'dash.colInProgress':   'In Progress',
@@ -1528,6 +1530,8 @@ export const translations = {
   
       // ── الرئيسية ────────────────────────────────────────────
       'dash.viewAll':         'عرض الكل',
+      'dash.loadFailed':      'ما قدرنا نحمّل لوحة التحكم',
+      'dash.retryLoad':       'حاول مرة ثانية',
       'dash.todaysTasks':     'مهام اليوم',
       'dash.colNotStarted':   'لم تبدأ',
       'dash.colInProgress':   'قيد التنفيذ',

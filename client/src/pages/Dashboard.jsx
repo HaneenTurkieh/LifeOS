@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw, WifiOff } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -190,6 +190,18 @@ export default function Dashboard() {
   const isBirthday = isTodayBirthday(user?.birthday);
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
+  // Real bug this fixes: load() below already retries once against a
+  // sleeping Render instance (see api/client.js's fetchWithTimeout
+  // comments), but if BOTH attempts still failed — a slow cold start, a
+  // dropped mobile connection, anything — the only signal was a toast
+  // that fades in a few seconds, while `data` stayed null forever and
+  // this page just sat on the spinner below with no way to tell it
+  // apart from "still loading" or any way to retry without a full page
+  // refresh. On a flaky connection (mobile data especially) this looked
+  // exactly like "my tasks disappeared" even though nothing was actually
+  // wrong with the tasks themselves — the dashboard just never finished
+  // loading them.
+  const [loadError,    setLoadError]    = useState(null);
   const [moodSaving,   setMoodSaving]   = useState(false);
   const [equippedTree, setEquippedTree] = useState('seedling');
   const [treeData,     setTreeData]     = useState(null);
@@ -233,6 +245,7 @@ export default function Dashboard() {
   }, [openHint]);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const localDate     = new Date().toLocaleDateString('en-CA');
       const [dash, trees] = await Promise.all([
@@ -248,7 +261,13 @@ export default function Dashboard() {
       if (dash.justEarnedShield) toast.success(t('dash.shieldEarned'));
       setEquippedTree(trees.equipped || 'seedling');
       setTreeData(trees);
-    } catch (e) { toast.error(e.message); }
+    } catch (e) {
+      toast.error(e.message);
+      // See loadError's declaration above — this is what turns a failed
+      // load into a real "couldn't load, tap to retry" state instead of
+      // an infinite spinner once the toast fades.
+      setLoadError(e.message);
+    }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
@@ -365,6 +384,27 @@ export default function Dashboard() {
     } catch (e) { toast.error(e.message); }
   };
 
+  // loadError only ever gets here once loading has already finished (see
+  // load() above) — so this is the "both attempts failed" case, not a
+  // slow-but-still-in-flight request. Without this branch, that state
+  // rendered as an infinite spinner forever (loading=false but data still
+  // null), which is what made a slow Render cold-start or a flaky mobile
+  // connection look exactly like "my tasks vanished" instead of what it
+  // actually was: the page just never finished loading them.
+  if (!loading && !data && loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] w-full gap-3 text-center px-4">
+        <WifiOff size={28} className="text-ink/25 dark:text-white/25" />
+        <p className="text-sm font-semibold text-ink dark:text-white">{t('dash.loadFailed')}</p>
+        <p className="text-xs text-ink/40 dark:text-white/35 max-w-xs">{loadError}</p>
+        <button onClick={() => { setLoading(true); load(); }}
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white"
+          style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)' }}>
+          <RefreshCw size={13} /> {t('dash.retryLoad')}
+        </button>
+      </div>
+    );
+  }
   if (loading || !data) return <PageLoader />;
   const firstName = user?.name?.split(' ')[0] || '';
   const { todaysTasks, todaysHabits, nextMilestones, birthday, mood, quote, productivityScore, streak, streakShields, recap, level, counts } = data;

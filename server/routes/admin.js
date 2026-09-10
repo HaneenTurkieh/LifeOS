@@ -7,6 +7,15 @@ const { isOwnerEmail } = require('../lib/ownerEmails');
 // for its PLANS export is a little unusual, but it's the one source of
 // truth for plan lengths and duplicating that mapping here would drift.
 const { PLANS } = require('./focus');
+// Tree Shop's premium trees (Aurora/Phoenix/Galaxy/...) aren't tied to
+// Premium/is_premium at all, and — since Paddle was removed and no
+// replacement checkout exists yet (see routes/trees.js) — there's no
+// purchase flow that can grant one either. Before the endpoint below
+// existed, the only way to give someone a premium tree was inserting a
+// row into user_trees by hand in Turso. Reusing the same catalogue
+// trees.js exports so this can't drift from what TreeShop.jsx actually
+// sells.
+const { PREMIUM_TREES } = require('./trees');
 
 function requireOwner(req, res, next) {
   if (!isOwnerEmail(req.user?.email)) {
@@ -162,6 +171,48 @@ router.post('/users/:id/premium', requireOwner, async (req, res) => {
   } catch (err) {
     console.error('POST /admin/users/:id/premium error:', err);
     res.status(500).json({ error: 'Could not update premium status' });
+  }
+});
+
+// ── POST /users/:id/trees — manually grant/revoke ONE premium tree ──
+// { tree_key, grant: true|false }. Same "manual until a real payment
+// processor exists" pattern as the /premium endpoint above, but for an
+// individual Tree Shop collectible instead of the account-wide Premium
+// flag — those are two separate systems (user_trees vs user_premium),
+// so granting Premium here does nothing for someone's shelf, and vice
+// versa. Idempotent both ways: granting an already-owned tree, or
+// revoking one never owned, both just succeed as a no-op.
+router.post('/users/:id/trees', requireOwner, async (req, res) => {
+  try {
+    const userId   = Number(req.params.id);
+    const treeKey  = req.body.tree_key;
+    const grant    = !!req.body.grant;
+    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid user id' });
+    const tree = PREMIUM_TREES.find((t) => t.key === treeKey);
+    if (!tree) return res.status(400).json({ error: 'Unknown premium tree' });
+
+    const user = (await db.execute({
+      sql: `SELECT id, email FROM users WHERE id = ?`, args: [userId],
+    })).rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (grant) {
+      await db.execute({
+        sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?)
+              ON CONFLICT(user_id, tree_key) DO NOTHING`,
+        args: [userId, treeKey],
+      });
+    } else {
+      await db.execute({
+        sql: `DELETE FROM user_trees WHERE user_id = ? AND tree_key = ?`,
+        args: [userId, treeKey],
+      });
+    }
+
+    res.json({ ok: true, user_id: userId, email: user.email, tree_key: treeKey, owned: grant });
+  } catch (err) {
+    console.error('POST /admin/users/:id/trees error:', err);
+    res.status(500).json({ error: 'Could not update tree ownership' });
   }
 });
 
