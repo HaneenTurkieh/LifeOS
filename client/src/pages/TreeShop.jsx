@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Lock, Check, Landmark, Copy } from 'lucide-react';
+import { Sparkles, Lock, Check, Landmark, Copy, Gift } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -157,7 +157,7 @@ function TreeCard({ tree, onUnlock, onEquip, loading, t }) {
 // Real-money tier — deliberately distinct visual language from TreeCard
 // (gold/champagne instead of rarity colors, a price tag instead of an XP
 // pill) so it reads as its own category, not just another rarity level.
-function PremiumTreeCard({ tree, onBuy, loading, requestStatus, t }) {
+function PremiumTreeCard({ tree, onBuy, onEquip, loading, requestStatus, t }) {
   const c = PREMIUM_COLORS[tree.key] || '#F59E0B';
   return (
     <motion.div
@@ -198,14 +198,15 @@ function PremiumTreeCard({ tree, onBuy, loading, requestStatus, t }) {
           style={{ background: `${c}2E`, color: c }}>
           {t('shop.premiumBadge')}
         </div>
-        {/* "Equipped" doesn't apply here anymore — premium trees aren't
-            the one-at-a-time grown tree, they're shelf collectibles, so
-            owned ones get a plain "owned" checkmark instead of implying
-            this is the one currently active. */}
+        {/* Premium trees can now be equipped just like earnable ones —
+            "grown" instead of just owned (see handleEquip in TreeShop) —
+            so an owned card needs to distinguish "this is what's
+            currently showing on your Dashboard" from "you just own it
+            but something else is equipped." */}
         {tree.owned && (
           <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-0.5 text-[10px] font-bold text-white"
             style={{ background: c, boxShadow: `0 2px 8px ${c}73` }}>
-            <Check size={10} /> {t('shop.currentlyOwned')}
+            <Check size={10} /> {tree.equipped ? t('shop.currentlyEq') : t('shop.currentlyOwned')}
           </div>
         )}
         <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -220,9 +221,20 @@ function PremiumTreeCard({ tree, onBuy, loading, requestStatus, t }) {
           </div>
         )}
         {tree.owned ? (
-          <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}29`, color: c }}>
-            {t('shop.onShelf')}
-          </div>
+          tree.equipped ? (
+            <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}29`, color: c }}>
+              {t('shop.currentlyEq')}
+            </div>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              onClick={() => onEquip(tree.key)}
+              disabled={loading}
+              className="w-full rounded-2xl py-2 text-xs font-bold disabled:opacity-50"
+              style={{ background: `${c}29`, color: c }}>
+              {t('shop.equip')}
+            </motion.button>
+          )
         ) : requestStatus === 'pending' ? (
           <div className="w-full rounded-2xl py-2 text-xs font-semibold text-center" style={{ background: `${c}1F`, color: c }}>
             {t('shop.bankTransferPending')}
@@ -389,6 +401,12 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
 // Premium request — approving it there grants user_trees instead of
 // flipping is_premium (see server/routes/admin.js).
 function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, onSubmit, onCancel, loading, t }) {
+  const [isGift, setIsGift]       = useState(false);
+  const [giftEmail, setGiftEmail] = useState('');
+  // Reset the gift toggle/email whenever a fresh item is opened, rather
+  // than leaving a stale email typed for a previous purchase silently
+  // attached to this one.
+  useEffect(() => { setIsGift(false); setGiftEmail(''); }, [item?.key]);
   if (!item) return null;
   const c = PREMIUM_COLORS[item.key] || '#7C6AF0';
   const copyIban = () => {
@@ -447,14 +465,39 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
           />
         </div>
 
+        {/* Gifting — buy it, someone else's shelf gets it. Off by
+            default: this is an extra step most purchases don't need,
+            not something to nudge every buyer toward. */}
+        <button
+          onClick={() => setIsGift((v) => !v)}
+          className="mt-3 w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-start"
+          style={{
+            background: isGift ? `${c}1F` : 'rgba(0,0,0,0.03)',
+            color: isGift ? c : 'rgba(30,34,51,0.55)',
+            border: `1px solid ${isGift ? `${c}55` : 'rgba(0,0,0,0.06)'}`,
+          }}>
+          <Gift size={14} className="shrink-0" />
+          {t('shop.giftToggle')}
+        </button>
+        {isGift && (
+          <input
+            type="email"
+            value={giftEmail}
+            onChange={(e) => setGiftEmail(e.target.value)}
+            placeholder={t('shop.giftEmailPh')}
+            className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs"
+            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: 'inherit' }}
+          />
+        )}
+
         <div className="flex gap-2 mt-4">
           <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold bg-ink/5" style={{ color: 'rgba(30,34,51,0.55)' }}>
             {t('common.cancel')}
           </button>
           <motion.button
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={() => onSubmit(itemType, item.key)}
-            disabled={loading}
+            onClick={() => onSubmit(itemType, item.key, isGift ? giftEmail.trim() : null)}
+            disabled={loading || (isGift && !giftEmail.trim())}
             className="flex-1 rounded-2xl py-2.5 text-sm font-bold text-white disabled:opacity-50"
             style={{ background: `linear-gradient(135deg, ${c}, ${c}CC)`, boxShadow: `0 4px 14px ${c}44` }}>
             {loading ? t('settings.sending') : t('settings.bankTransferSubmit')}
@@ -759,20 +802,27 @@ export default function TreeShop() {
   const requestStatusFor = (key) => {
     // Most recent request for this exact item — a rejected old request
     // shouldn't hide a newer pending one for the same tree/collection.
-    const reqs = myTreeRequests.filter((r) => r.item_key === key);
+    // Gift requests are excluded: a "pending"/"rejected" badge here means
+    // "your own shelf is affected", which isn't true for something you
+    // bought to send to someone else — that status only matters to the
+    // recipient, who doesn't have a request row of their own to look at.
+    const reqs = myTreeRequests.filter((r) => r.item_key === key && !r.gift_recipient_email);
     return reqs[0]?.status || null;
   };
   const buyPremiumTree = (tree) => { setBuyTarget({ item: tree, itemType: 'tree' }); setTransferNote(''); };
   const buyCollection = (collection) => { setBuyTarget({ item: collection, itemType: 'collection' }); setTransferNote(''); };
-  const submitTreeBankTransfer = async (itemType, itemKey) => {
+  const submitTreeBankTransfer = async (itemType, itemKey, giftRecipientEmail) => {
     setSubmittingTransfer(true);
     try {
-      await api.post('/trees/bank-transfer', { item_type: itemType, item_key: itemKey, reference_note: transferNote });
+      await api.post('/trees/bank-transfer', {
+        item_type: itemType, item_key: itemKey, reference_note: transferNote,
+        gift_recipient_email: giftRecipientEmail || undefined,
+      });
       const d = await api.get('/trees/bank-transfer/mine');
       setMyTreeRequests(d.requests || []);
       setBuyTarget(null);
       setTransferNote('');
-      toast.success(t('shop.bankTransferSubmitted'));
+      toast.success(giftRecipientEmail ? t('shop.giftSubmitted') : t('shop.bankTransferSubmitted'));
     } catch (e) { toast.error(e.message); }
     finally { setSubmittingTransfer(false); }
   };
@@ -904,7 +954,11 @@ export default function TreeShop() {
       </div>
     );
   }
-  const equippedTree = data?.trees.find(tr => tr.equipped);
+  // Premium trees are equippable now too (see handleEquip/PremiumTreeCard
+  // above), so "currently grown" needs to check both catalogues — a
+  // premium tree being equipped used to be silently invisible here,
+  // since this only ever looked at the free/earnable list.
+  const equippedTree = data?.trees.find(tr => tr.equipped) || data?.premiumTrees?.find(tr => tr.equipped);
   const equippedMystic = data?.mystic?.trees.find((mt) => mt.equipped);
   const ownedCount   = data?.trees.filter(tr => tr.owned).length || 0;
   const EARN = [
@@ -991,14 +1045,15 @@ export default function TreeShop() {
             <Sparkles size={16} style={{ color: '#B45309' }} />
             <h3 className="font-display font-semibold text-ink dark:text-white text-sm">{t('shop.premiumTitle')}</h3>
           </div>
-          <p className="text-xs text-ink/45 dark:text-white/35 mb-4">{t('shop.premiumSubtitle')}</p>
+          <p className="text-xs text-ink/45 dark:text-white/35 mb-1">{t('shop.premiumSubtitle')}</p>
+          <p className="text-[11px] font-medium mb-4" style={{ color: '#B45309' }}>{t('shop.treeAuraHint')}</p>
           <ShelfDisplay ownedPremiumTrees={data.premiumTrees.filter((tr) => tr.owned)} t={t} />
           {data.collections?.map((c) => (
             <CollectionCard key={c.key} collection={c} premiumTrees={data.premiumTrees} onBuy={buyCollection} loading={buying} requestStatus={requestStatusFor(c.key)} t={t} />
           ))}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {data.premiumTrees.map((tree) => (
-              <PremiumTreeCard key={tree.key} tree={tree} onBuy={buyPremiumTree} loading={buying} requestStatus={requestStatusFor(tree.key)} t={t} />
+              <PremiumTreeCard key={tree.key} tree={tree} onBuy={buyPremiumTree} onEquip={handleEquip} loading={buying || acting} requestStatus={requestStatusFor(tree.key)} t={t} />
             ))}
           </div>
         </div>

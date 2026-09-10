@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext.jsx';
 import MysticSvg from './MysticTreeIcon.jsx';
+import TreeSvg from './TreeSvg.jsx';
 
 // mysticTree: the actual designed record ({shape_key, color_hex, glow_hex})
 // for equippedTree when it's a "mystic:<id>" key — passed down from
@@ -13,16 +14,16 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
   const offset       = circumference - (Math.min(100, score) / 100) * circumference;
   const { displayAccent: accent } = useTheme();
 
-  const TREE_EMOJIS = {
-    seedling:       '🌱', sprout:  '🌿', oak:     '🌳',
-    cherry_blossom: '🌸', coral:   '🪸', bamboo:  '🎋',
-    cactus:         '🌵', palm:    '🌴', water:   '💧',
-    maple:          '🍁', pine:    '🌲', flamingo:'🦩',
-    money:          '💰', crystal: '✨', mystic:  '🔮',
-    christmas:      '🎄',
-  };
+  // Used to be a hardcoded emoji lookup that only covered the 14 earnable
+  // species — a real bug once premium trees became equippable (task: "get
+  // it grown"): equipping Aurora/Phoenix/etc. would silently fall back to
+  // the plain 🌱 seedling emoji right here on the Dashboard, which is
+  // exactly the one place a $2.99+ purchase most needs to look like one.
+  // TreeSvg's own SPECIES map (see TreeSvg.jsx) already covers every
+  // earnable AND premium key and needs no updating when a new tree is
+  // added, so this now renders the same real illustration every other
+  // page uses instead of maintaining a second, easily-stale emoji map.
   const isMystic  = equippedTree?.startsWith('mystic') && mysticTree;
-  const treeEmoji = !equippedTree ? '🌱' : equippedTree.startsWith('mystic') ? '🔮' : (TREE_EMOJIS[equippedTree] || '🌱');
 
   // SVG <linearGradient> stops can't read CSS custom properties reliably
   // across browsers the way inline styles can, so each accent preset
@@ -71,7 +72,7 @@ export default function ProductivitySphere({ score = 0, size = 132, equippedTree
           transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
           className="mb-0.5 select-none flex items-center justify-center"
         >
-          {isMystic ? <MysticSvg shapeKey={mysticTree.shape_key} size={26} colorHex={mysticTree.color_hex} glowHex={mysticTree.glow_hex} /> : <span className="text-2xl">{treeEmoji}</span>}
+          {isMystic ? <MysticSvg shapeKey={mysticTree.shape_key} size={26} colorHex={mysticTree.color_hex} glowHex={mysticTree.glow_hex} /> : <TreeSvg speciesKey={equippedTree || 'seedling'} size={30} />}
         </motion.div>
         <span className="font-display text-lg font-bold text-ink dark:text-white leading-none">{score}%</span>
         <span className="text-[9px] text-ink/40 dark:text-white/35">today</span>

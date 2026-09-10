@@ -12,6 +12,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast }    from '../context/ToastContext.jsx';
 import GlassCard        from '../components/GlassCard.jsx';
 import Modal             from '../components/Modal.jsx';
+import LeaderboardTreeBadge from '../components/LeaderboardTreeBadge.jsx';
 
 // api.js always JSON.stringify()s and never exposes raw response bodies
 // (see api/client.js) — the CSV export needs an actual file download, so
@@ -53,6 +54,7 @@ function ChannelFocusBoard({ board, loading, t }) {
           {board.leaderboard.map((row) => (
             <div key={row.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-ink/[0.03] dark:bg-white/5">
               <span className="w-5 shrink-0 text-xs font-bold text-ink/35 dark:text-white/30">{row.rank}</span>
+              <LeaderboardTreeBadge treeKey={row.equipped_tree_key} mysticDesign={row.mystic_design} />
               <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{row.name}</span>
               <span className="text-xs text-ink/40 dark:text-white/35">{t('channels.sessionsShort', { n: row.session_count })}</span>
               <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{row.total_minutes}m</span>
@@ -825,6 +827,7 @@ function ChannelDetail({ channel, isInstructor, t, toast, loading, onBack, onRef
                     style={row.id === user?.id ? { background: 'rgb(var(--accent-500) / 0.12)' } : undefined}>
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="w-5 shrink-0 text-xs font-bold text-ink/35 dark:text-white/30">{row.rank}</span>
+                      <LeaderboardTreeBadge treeKey={row.equipped_tree_key} mysticDesign={row.mystic_design} size={18} />
                       <span className="text-sm font-medium text-ink dark:text-white truncate">{row.name}</span>
                     </div>
                     <span className="text-sm font-bold text-[rgb(var(--accent-500))] shrink-0">{row.points}</span>

@@ -23,6 +23,7 @@ const { hashPassword }   = require('../lib/auth');
 const googleSheets = require('../lib/googleSheets');
 const { awardChannelPoints, getChannelPointsForStudent, getChannelLeaderboard } = require('../lib/channelPoints');
 const { getWeekStart } = require('./focus');
+const { attachEquippedTrees } = require('../lib/equippedTreeDisplay');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -547,10 +548,11 @@ router.get('/:id/focus-leaderboard', async (req, res) => {
         ORDER BY total_minutes DESC, u.name COLLATE NOCASE ASC`,
       args: [weekStart, channel.id],
     })).rows;
-    const leaderboard = rows.map((r, i) => ({
+    let leaderboard = rows.map((r, i) => ({
       id: r.id, name: r.name, rank: i + 1,
       total_minutes: Number(r.total_minutes), session_count: Number(r.session_count),
     }));
+    leaderboard = await attachEquippedTrees(leaderboard);
     res.json({ week_start: weekStart, leaderboard });
   } catch (err) { console.error('GET /channels/:id/focus-leaderboard error:', err); res.status(500).json({ error: 'Database error' }); }
 });
@@ -584,8 +586,9 @@ router.get('/:id/points', async (req, res) => {
       const mine = await getChannelPointsForStudent(channel.id, req.user.id);
       return res.json({ locked: true, leaderboard: [], mine: { points: mine, rank: null } });
     }
-    const leaderboard = await getChannelLeaderboard(channel.id);
+    let leaderboard = await getChannelLeaderboard(channel.id);
     const mineRow = leaderboard.find((r) => r.id === req.user.id);
+    leaderboard = await attachEquippedTrees(leaderboard);
     res.json({
       locked,
       leaderboard,

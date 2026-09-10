@@ -1643,6 +1643,11 @@ function StatsTab() {
                 {r.name || '—'} <span className={isDark?'text-white/35':'text-ink/40'}>· {itemLabel(r)}</span>
               </p>
               <p className={`text-[11px] truncate ${isDark?'text-white/40':'text-ink/45'}`}>{r.email} — ${r.amount_usd.toFixed(2)}</p>
+              {r.gift_recipient_email && (
+                <p className="text-[11px] font-semibold truncate mt-0.5" style={{ color: '#B45309' }}>
+                  🎁 Gift for {r.gift_recipient_name || r.gift_recipient_email} — approving grants it to THEM, not {r.name || 'the sender'}
+                </p>
+              )}
               {r.reference_note && (
                 <p className={`text-[11px] italic truncate mt-0.5 ${isDark?'text-white/35':'text-ink/40'}`}>"{r.reference_note}"</p>
               )}

@@ -18,6 +18,23 @@ export const ACCENTS = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'g
 // accent/font-scale it doesn't need a pre-paint DOM attribute, since
 // only that one component ever looks at it).
 export const BACKGROUND_STYLES = ['aurora', 'minimal', 'vivid'];
+// Matches PREMIUM_TREES in server/routes/trees.js / PREMIUM_COLORS in
+// TreeShop.jsx — duplicated here rather than shared (same call
+// SettingsModal's PREMIUM_TREE_OPTIONS and LeaderboardTreeBadge already
+// make) since this context has no reason to round-trip the whole shop
+// catalogue just to tint a background. Drives the "Tree Aura" perk: this
+// is completely independent of the is_premium-gated accent/background
+// system above — a premium *tree* (not a Premium *subscription*) is
+// what unlocks it, and it composes on top of whatever accent/background
+// a free or Premium account already has.
+export const PREMIUM_TREE_COLORS = {
+  aurora:  '#38BDF8',
+  phoenix: '#FB923C',
+  galaxy:  '#A855F7',
+  nebula:  '#EC4899',
+  eclipse: '#FBBF24',
+  comet:   '#7DD3FC',
+};
 // Percentages applied to the root font-size — every rem-based size in
 // the app (which is nearly all of Tailwind's defaults) scales together
 // proportionally, same mechanism iOS Text Size uses.
@@ -108,6 +125,13 @@ export function ThemeProvider({ children }) {
   // exports) without each one re-fetching /focus/premium/status itself —
   // piggybacks on the poll below, which was already hitting that route.
   const [isPremium, setIsPremium] = useState(false);
+  // Whichever tree is currently equipped — only matters here for the
+  // "Tree Aura" background tint (see PREMIUM_TREE_COLORS above), so
+  // GlobalBackground.jsx can react to it without every page needing to
+  // fetch /trees itself just to answer "what color, if any, should the
+  // background be tinted." Piggybacks on the same poll tick as
+  // isPremium/accent/backgroundStyle below.
+  const [equippedTreeKey, setEquippedTreeKey] = useState(null);
 
   // Birthday theme — pink for a girl, blue for a boy, for that one day
   // only, then back to whatever they actually had. Deliberately NOT
@@ -205,6 +229,10 @@ export function ThemeProvider({ children }) {
           setFontScaleState(f.font_scale);
         }
       } catch (_) {}
+      try {
+        const eq = await api.get('/trees/equipped-summary');
+        if (active) setEquippedTreeKey(eq?.tree_key || null);
+      } catch (_) {}
     };
 
     pull();
@@ -250,6 +278,10 @@ export function ThemeProvider({ children }) {
       accent, setAccent, displayAccent: birthdayOverride || accent, setBirthdayOverride,
       fontScale, setFontScale, isPremium,
       backgroundStyle, setBackgroundStyle,
+      // null unless the equipped tree is one of the 6 paid ones — an
+      // earnable/mystic tree equipped means no aura, same as nothing
+      // equipped at all.
+      treeAuraColor: PREMIUM_TREE_COLORS[equippedTreeKey] || null,
     }}>
       {children}
     </ThemeContext.Provider>

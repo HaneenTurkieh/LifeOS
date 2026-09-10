@@ -52,7 +52,7 @@ const VIVID_SPARKLES = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 export default function GlobalBackground() {
-  const { resolvedTheme, backgroundStyle } = useTheme();
+  const { resolvedTheme, backgroundStyle, treeAuraColor } = useTheme();
   const isDark = resolvedTheme === 'dark';
   // 'aurora' is the original look below, unchanged — soft round orbs,
   // gentle drift. 'minimal' fades the orbs out to a single slow, soft
@@ -94,6 +94,28 @@ export default function GlobalBackground() {
           background: isDark
             ? 'color-mix(in srgb, rgb(var(--accent-700)) 7%, #080612)'
             : 'color-mix(in srgb, rgb(var(--accent-100)) 55%, #F4F6FB)',
+        }}
+      />
+      {/* "Tree Aura" — the actual payoff for equipping one of the Tree
+          Shop's paid trees (see PREMIUM_TREE_COLORS in ThemeContext.jsx):
+          a soft tint from that tree's own color, washed in from the top
+          of every screen in the app, not just Dashboard's little sphere
+          or the Shelf. Completely independent of the is_premium-gated
+          accent/background system below — a free account with a
+          premium tree equipped gets this too, and it composes with
+          whichever accent/backgroundStyle is already active rather than
+          replacing it. Always mounted (like every other layer here) so
+          equipping/un-equipping a premium tree cross-fades this in and
+          out over 900ms instead of popping. A soft top-edge wash reads
+          as "the sky/ambiance changed" without adding another blob
+          competing with the 5 accent orbs already in this scene. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          pointerEvents: 'none',
+          transition: 'opacity 900ms ease',
+          opacity: treeAuraColor ? 1 : 0,
+          background: `radial-gradient(ellipse 140% 55% at 50% -12%, ${treeAuraColor || 'transparent'}${isDark ? '3D' : '29'} 0%, transparent 62%)`,
         }}
       />
       <style>{`

@@ -811,6 +811,18 @@ export const translations = {
       'shop.bankTransferRejected':       "Couldn't confirm last transfer",
       'shop.bankTransferRejectedDesc':   "We didn't find a matching transfer. Double-check the IBAN and amount, then try again.",
       'shop.bankTransferAlreadyPending': 'You already have a Tree Shop request pending review.',
+      // "Tree Aura" — equipping an owned premium tree tints the whole
+      // app in that tree's color (see PREMIUM_TREE_COLORS in
+      // ThemeContext.jsx / GlobalBackground.jsx), independent of the
+      // Premium subscription's own accent/background picker.
+      'shop.treeAuraHint':  '✨ Equip one to tint your whole app in its color — visible on every page, not just here.',
+      // Gifting a Tree Shop purchase to another Nuvora account (see
+      // POST /trees/bank-transfer's gift_recipient_email) — the buyer
+      // pays, but the tree/collection lands on the recipient's shelf,
+      // not the buyer's, once Haneen approves.
+      'shop.giftToggle':      '🎁 Send this as a gift instead',
+      'shop.giftEmailPh':     "Recipient's Nuvora account email",
+      'shop.giftSubmitted':   "Got it — once we confirm your transfer, it'll land on their shelf, not yours.",
       'shop.earnTask':      'Complete a task',
       'shop.earnHabit':     'Log a recurring task',
       'shop.earnGoal':      'Complete a goal',
@@ -2018,6 +2030,10 @@ export const translations = {
       'shop.bankTransferRejected':       'ما قدرنا نأكد آخر تحويل',
       'shop.bankTransferRejectedDesc':   'ما لقينا تحويل مطابق. تأكد من رقم الآيبان والمبلغ، وحاول مرة ثانية.',
       'shop.bankTransferAlreadyPending': 'عندك طلب من متجر الأشجار قيد المراجعة أصلاً.',
+      'shop.treeAuraHint':  '✨ جهّزها لتلوّن تطبيقك كله بلونها — تظهر بكل صفحة، مش هون بس.',
+      'shop.giftToggle':      '🎁 أرسلها كهدية بدل هيك',
+      'shop.giftEmailPh':     'إيميل حساب الشخص المستلم على Nuvora',
+      'shop.giftSubmitted':   'تم الاستلام — فور ما نأكد تحويلك، رح توصل لرفه هو، مش رفك.',
       'shop.earnTask':      'أنجز مهمة',
       'shop.earnHabit':     'سجّل مهمة متكررة',
       'shop.earnGoal':      'أكمل هدفًا',

@@ -303,7 +303,7 @@ router.post('/equip', async (req, res) => {
 // grants a user_trees row instead of flipping is_premium when the
 // request's item_type is 'tree'/'collection' (see routes/admin.js).
 router.post('/bank-transfer', async (req, res) => {
-  const { item_type, item_key, reference_note } = req.body;
+  const { item_type, item_key, reference_note, gift_recipient_email } = req.body;
   let item, priceUsd, label;
   if (item_type === 'tree') {
     item = PREMIUM_TREES.find((t) => t.key === item_key);
@@ -320,23 +320,52 @@ router.post('/bank-transfer', async (req, res) => {
   }
 
   try {
-    // One pending shop request at a time, same rule the Premium flow
-    // uses — keeps this an honor-system queue Haneen can actually keep
-    // up with, not a backlog of duplicate "did I already send this"
-    // requests for the same or different trees.
+    // Gifting — buyer pays, but the tree/collection lands on someone
+    // ELSE's shelf once Haneen approves (see routes/admin.js's
+    // reviewBankTransfer). Resolved to a real account up front, not left
+    // as a bare email string, so approval never has to guess who "the
+    // recipient" was from free text.
+    let giftRecipientId = null;
+    let giftRecipientEmail = null;
+    let giftRecipientName = null;
+    const giftEmailInput = String(gift_recipient_email || '').trim();
+    if (giftEmailInput) {
+      const recipient = (await db.execute({
+        sql: `SELECT id, name, email FROM users WHERE lower(email) = lower(?)`,
+        args: [giftEmailInput],
+      })).rows[0];
+      if (!recipient) {
+        return res.status(400).json({ error: 'No Nuvora account found with that email.' });
+      }
+      if (recipient.id === req.user.id) {
+        return res.status(400).json({ error: "You can't gift a tree to yourself — just buy it directly." });
+      }
+      giftRecipientId    = recipient.id;
+      giftRecipientEmail = recipient.email;
+      giftRecipientName  = recipient.name;
+    }
+
+    // Blocks a duplicate submission for the SAME item only (not one
+    // pending request across the whole shop) — unlike Premium, which is
+    // a single account-wide subscription, trees/collections are
+    // independent purchases, so someone with a Phoenix Tree request
+    // under review shouldn't be locked out of also buying the Astral
+    // Collection while they wait. Still keeps Haneen's queue free of
+    // "did I already send this" duplicates for the one item that
+    // actually matters: the same tree/collection twice.
     const existing = (await db.execute({
-      sql: `SELECT id FROM bank_transfer_requests WHERE user_id = ? AND status = 'pending' AND item_type IN ('tree','collection')`,
-      args: [req.user.id],
+      sql: `SELECT id FROM bank_transfer_requests WHERE user_id = ? AND status = 'pending' AND item_type = ? AND plan_key = ?`,
+      args: [req.user.id, item_type, item_key],
     })).rows[0];
     if (existing) {
-      return res.status(400).json({ error: 'You already have a Tree Shop request pending review.' });
+      return res.status(400).json({ error: 'You already have a request for this pending review.' });
     }
 
     const note = String(reference_note || '').trim().slice(0, 500) || null;
     const result = await db.execute({
-      sql: `INSERT INTO bank_transfer_requests (user_id, plan_key, amount_usd, reference_note, item_type)
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [req.user.id, item_key, priceUsd, note, item_type],
+      sql: `INSERT INTO bank_transfer_requests (user_id, plan_key, amount_usd, reference_note, item_type, gift_recipient_id, gift_recipient_email)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [req.user.id, item_key, priceUsd, note, item_type, giftRecipientId, giftRecipientEmail],
     });
 
     try {
@@ -348,12 +377,16 @@ router.post('/bank-transfer', async (req, res) => {
         amountLabel: `$${priceUsd.toFixed(2)}`,
         referenceNote: note,
         itemNoun: item_type === 'collection' ? 'collection' : 'tree',
+        giftRecipientLabel: giftRecipientId ? (giftRecipientName || giftRecipientEmail) : null,
       });
     } catch (e) {
       console.error('sendBankTransferRequestEmail failed (non-fatal):', e.message);
     }
 
-    res.json({ id: Number(result.lastInsertRowid), status: 'pending', item_type, item_key, amount_usd: priceUsd });
+    res.json({
+      id: Number(result.lastInsertRowid), status: 'pending', item_type, item_key, amount_usd: priceUsd,
+      gift_recipient_email: giftRecipientEmail,
+    });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -364,13 +397,32 @@ router.post('/bank-transfer', async (req, res) => {
 router.get('/bank-transfer/mine', async (req, res) => {
   try {
     const rows = (await db.execute({
-      sql: `SELECT plan_key AS item_key, item_type, amount_usd, status, created_at, reviewed_at
+      sql: `SELECT plan_key AS item_key, item_type, amount_usd, status, created_at, reviewed_at, gift_recipient_email
             FROM bank_transfer_requests
             WHERE user_id = ? AND item_type IN ('tree','collection')
             ORDER BY created_at DESC`,
       args: [req.user.id],
     })).rows;
     res.json({ requests: rows });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// ── GET /equipped-summary — just the current equipped tree_key ──────
+// Powers the "Tree Aura" background tint (ThemeContext.jsx polls this
+// every 5s, same tick as its existing premium/theme sync) — when a
+// premium tree is equipped, GlobalBackground.jsx tints the whole app
+// with that tree's own color, everywhere, not just on this page. That's
+// the actual payoff for buying one: it changes how using Nuvora feels,
+// not just what one card on the Shelf looks like. Deliberately NOT
+// reusing GET / here, which builds the entire catalogue + XP totals —
+// wasteful to hit that every few seconds just for one column.
+router.get('/equipped-summary', async (req, res) => {
+  try {
+    const row = (await db.execute({
+      sql: `SELECT tree_key FROM user_equipped_tree WHERE user_id = ?`,
+      args: [req.user.id],
+    })).rows[0];
+    res.json({ tree_key: row?.tree_key || 'seedling' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 

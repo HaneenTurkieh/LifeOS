@@ -80,7 +80,7 @@ function premiumRequestEmailHtml({ userEmail, userName, planLabel, priceLabel })
 // her Reflect/Arab Bank account for a matching transfer, then approve
 // or reject from the Stats tab. `itemNoun` swaps "plan" for "tree"/
 // "collection" so the copy still reads naturally for either case.
-function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun = 'plan' }) {
+function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun = 'plan', giftRecipientLabel = null }) {
   return `
   <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
@@ -93,6 +93,7 @@ function bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLa
     <div style="background:#F0FBF5;border:1px solid #DCF5E7;border-radius:14px;padding:20px;color:#1E2233;font-size:14px;line-height:1.6;text-align:center;">
       Says they sent <strong>${esc(amountLabel)}</strong> for the <strong>${esc(planLabel)}</strong> ${esc(itemNoun)}.
       ${referenceNote ? `<br/><br/><span style="color:#5A5F73;font-size:13px;">Their note: "${esc(referenceNote)}"</span>` : ''}
+      ${giftRecipientLabel ? `<br/><br/><span style="color:#7C6AF0;font-weight:600;">🎁 This is a gift for ${esc(giftRecipientLabel)} — approving grants it to THEM, not the sender.</span>` : ''}
     </div>
     <p style="color:#5A5F73;font-size:12px;text-align:center;margin:16px 0 0;">
       Check your bank app for a matching transfer, then approve or reject from Settings → Stats → Bank transfers.
@@ -176,6 +177,31 @@ function channelInviteEmailHtml({ channelName, joinCode, instructorName }) {
     <p style="color:#9AA0B5;font-size:12px;line-height:1.6;text-align:center;">
       Sign in (or create a free student account), go to Channels, and enter the code above to join.
     </p>
+  </div>`;
+}
+
+// ── Tree Shop gifting — sent to the RECIPIENT once Haneen approves a
+// gifted bank-transfer request (routes/admin.js's reviewBankTransfer),
+// never to the person who paid. The payer already sees their own
+// request's status update in Settings; this is the one notification
+// that reaches someone who never submitted anything themselves and
+// otherwise has no way to know a tree just showed up on their Shelf.
+function treeGiftGrantedEmailHtml({ recipientName, giftedByName, itemLabel }) {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:inline-flex;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#F59E0B,#7C6AF0);color:#fff;font-size:22px;line-height:48px;text-align:center;">🎁</div>
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">You got a gift on Nuvora!</h2>
+    <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
+      ${esc(giftedByName) || 'Someone'} sent you <strong>${esc(itemLabel)}</strong> for your Tree Shop shelf.
+    </p>
+    <div style="text-align:center;margin:20px 0 8px;">
+      <a href="${CLIENT_URL}/trees"
+        style="display:inline-block;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;text-decoration:none;padding:13px 32px;border-radius:14px;font-weight:600;font-size:14px;">
+        Open your Shelf
+      </a>
+    </div>
   </div>`;
 }
 
@@ -306,12 +332,28 @@ async function sendPremiumRequestEmail({ userEmail, userName, planLabel, priceLa
 // ── Public: bank transfer request — see POST /focus/premium/bank-transfer
 // (Premium plans) and POST /trees/bank-transfer (Tree Shop items, via
 // itemNoun below). Same inbox, same review queue either way.
-async function sendBankTransferRequestEmail({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun = 'plan' }) {
+async function sendBankTransferRequestEmail({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun = 'plan', giftRecipientLabel = null }) {
   await dispatch({
     to: 'haneenturkieh@hotmail.com',
     label: 'bank transfer request',
-    subject: `Bank transfer request: ${planLabel} (${amountLabel})`,
-    html: bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun }),
+    subject: giftRecipientLabel
+      ? `Bank transfer request: ${planLabel} — gift for ${giftRecipientLabel} (${amountLabel})`
+      : `Bank transfer request: ${planLabel} (${amountLabel})`,
+    html: bankTransferRequestEmailHtml({ userEmail, userName, planLabel, amountLabel, referenceNote, itemNoun, giftRecipientLabel }),
+  });
+}
+
+// ── Public: Tree Shop gift granted — sent to the RECIPIENT, once, right
+// when routes/admin.js's reviewBankTransfer grants a gifted request
+// (never on rejection — no point telling someone about a gift that
+// didn't go through). Non-fatal if it fails, same as every other email
+// call site in this codebase — a missed notification shouldn't undo the
+// grant that already happened in the database.
+async function sendTreeGiftGrantedEmail({ to, recipientName, giftedByName, itemLabel }) {
+  await dispatch({
+    to, label: 'tree gift granted',
+    subject: `🎁 ${giftedByName || 'Someone'} sent you a gift on Nuvora`,
+    html: treeGiftGrantedEmailHtml({ recipientName, giftedByName, itemLabel }),
   });
 }
 
@@ -353,4 +395,5 @@ async function sendChannelInviteEmail({ to, channelName, joinCode, instructorNam
 module.exports = {
   sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail,
   sendInstructorCredentialsEmail, sendChannelInviteEmail, sendBankTransferRequestEmail,
+  sendTreeGiftGrantedEmail,
 };

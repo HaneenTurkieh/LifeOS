@@ -228,11 +228,18 @@ router.post('/users/:id/trees', requireOwner, async (req, res) => {
 // reviewBankTransfer.
 router.get('/bank-transfers', requireOwner, async (req, res) => {
   try {
+    // LEFT JOIN (not JOIN) for the gift recipient — gift_recipient_id is
+    // NULL on every non-gift request, and even a gift request's
+    // recipient row could theoretically be gone (deleted account) while
+    // the request itself stays reviewable using the raw
+    // gift_recipient_email already stored on the row.
     const rows = (await db.execute(`
       SELECT b.id, b.user_id, b.plan_key, b.amount_usd, b.reference_note, b.status,
-             b.item_type, b.created_at, b.reviewed_at, u.name, u.email
+             b.item_type, b.created_at, b.reviewed_at, u.name, u.email,
+             b.gift_recipient_id, b.gift_recipient_email, ru.name AS gift_recipient_name
       FROM bank_transfer_requests b
       JOIN users u ON u.id = b.user_id
+      LEFT JOIN users ru ON ru.id = b.gift_recipient_id
       ORDER BY (b.status = 'pending') DESC, b.created_at DESC
       LIMIT 100
     `)).rows;
@@ -243,6 +250,8 @@ router.get('/bank-transfers', requireOwner, async (req, res) => {
         amount_usd: Number(r.amount_usd), reference_note: r.reference_note,
         status: r.status, created_at: r.created_at, reviewed_at: r.reviewed_at,
         name: r.name, email: r.email,
+        gift_recipient_email: r.gift_recipient_email || null,
+        gift_recipient_name: r.gift_recipient_name || null,
       })),
     });
   } catch (err) {
@@ -257,7 +266,8 @@ async function reviewBankTransfer(req, res, { approve }) {
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid request id' });
 
     const row = (await db.execute({
-      sql: `SELECT id, user_id, plan_key, status, item_type FROM bank_transfer_requests WHERE id = ?`,
+      sql: `SELECT id, user_id, plan_key, status, item_type, gift_recipient_id, gift_recipient_email
+            FROM bank_transfer_requests WHERE id = ?`,
       args: [id],
     })).rows[0];
     if (!row) return res.status(404).json({ error: 'Request not found' });
@@ -271,6 +281,11 @@ async function reviewBankTransfer(req, res, { approve }) {
     });
 
     const itemType = row.item_type || 'premium';
+    // Gifting only ever applies to tree/collection requests (trees.js is
+    // the only place that ever sets gift_recipient_id) — grant to
+    // whoever's actually supposed to end up with it, which is the payer
+    // themselves unless this was a gift.
+    const grantToUserId = row.gift_recipient_id || row.user_id;
 
     if (approve && itemType === 'tree') {
       // A single premium tree — same one-row upsert the manual
@@ -278,7 +293,7 @@ async function reviewBankTransfer(req, res, { approve }) {
       // the honor-system queue instead of Haneen picking a user by hand.
       await db.execute({
         sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?) ON CONFLICT(user_id, tree_key) DO NOTHING`,
-        args: [row.user_id, row.plan_key],
+        args: [grantToUserId, row.plan_key],
       });
     } else if (approve && itemType === 'collection') {
       // A collection is just its member trees granted together — reuse
@@ -288,7 +303,7 @@ async function reviewBankTransfer(req, res, { approve }) {
         for (const treeKey of collection.treeKeys) {
           await db.execute({
             sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?) ON CONFLICT(user_id, tree_key) DO NOTHING`,
-            args: [row.user_id, treeKey],
+            args: [grantToUserId, treeKey],
           });
         }
       }
@@ -325,6 +340,30 @@ async function reviewBankTransfer(req, res, { approve }) {
               ON CONFLICT(user_id) DO UPDATE SET is_premium = 1, plan = excluded.plan, premium_expires_at = excluded.premium_expires_at`,
         args: [row.user_id, row.plan_key, expiresAt],
       });
+    }
+
+    // Tell the RECIPIENT, not the payer — the payer already sees their
+    // own request's status flip in Settings, but a gift recipient never
+    // submitted anything and has no other way to learn a tree just
+    // landed on their Shelf. Only on approval — rejecting a gift isn't
+    // news anyone but the payer needs.
+    if (approve && row.gift_recipient_id && (itemType === 'tree' || itemType === 'collection')) {
+      try {
+        const { sendTreeGiftGrantedEmail } = require('../lib/email');
+        const catalogueItem = itemType === 'tree'
+          ? PREMIUM_TREES.find((t) => t.key === row.plan_key)
+          : TREE_COLLECTIONS.find((c) => c.key === row.plan_key);
+        const payer = (await db.execute({
+          sql: `SELECT name FROM users WHERE id = ?`, args: [row.user_id],
+        })).rows[0];
+        await sendTreeGiftGrantedEmail({
+          to: row.gift_recipient_email,
+          giftedByName: payer?.name || null,
+          itemLabel: catalogueItem?.name || row.plan_key,
+        });
+      } catch (e) {
+        console.error('sendTreeGiftGrantedEmail failed (non-fatal):', e.message);
+      }
     }
 
     res.json({ ok: true, id, status: approve ? 'approved' : 'rejected' });

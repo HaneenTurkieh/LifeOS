@@ -8,6 +8,7 @@ import { Trophy, Flame, Clock, Medal } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import GlassCard from '../components/GlassCard.jsx';
+import LeaderboardTreeBadge from '../components/LeaderboardTreeBadge.jsx';
 
 const MEDAL_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
 
@@ -72,6 +73,7 @@ export default function FlowRankings() {
                   style={{ color: MEDAL_COLORS[r.rank - 1] || 'inherit' }}>
                   {r.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[r.rank - 1] }} /> : r.rank}
                 </span>
+                <LeaderboardTreeBadge treeKey={r.equipped_tree_key} mysticDesign={r.mystic_design} />
                 <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{r.name}</span>
                 <span className="text-xs text-ink/40 dark:text-white/35">{r.session_count} sessions</span>
                 <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{r.total_minutes}m</span>

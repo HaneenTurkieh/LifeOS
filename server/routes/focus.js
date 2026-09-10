@@ -6,6 +6,7 @@ const { getPremium } = require('../lib/premium');
 const { getLevelInfo } = require('../lib/gamification');
 const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 const { isTodayBirthday } = require('../lib/birthday');
+const { attachEquippedTrees } = require('../lib/equippedTreeDisplay');
 const crypto  = require('crypto');
 
 function getWeekStart() {
@@ -766,12 +767,17 @@ router.get('/leaderboard', async (req, res) => {
       }),
     ]);
 
-    const leaderboard = boardResult.rows.map((r, i) => ({
+    let leaderboard = boardResult.rows.map((r, i) => ({
       ...r,
       rank:          i + 1,
       total_minutes: Number(r.total_minutes),
       session_count: Number(r.session_count),
     }));
+    // Each row's currently-equipped tree (premium trees included) — this
+    // is the ONE place in the app a Tree Shop purchase is visible to
+    // anyone but its owner, so it's worth the extra batched query. See
+    // lib/equippedTreeDisplay.js for why this exists.
+    leaderboard = await attachEquippedTrees(leaderboard);
 
     // Multiple categories rather than one crowned "winner" — keeps this
     // encouraging for more than just whoever has the most total minutes.

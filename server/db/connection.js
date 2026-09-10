@@ -933,6 +933,23 @@ async function initDb() {
     await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN item_type TEXT NOT NULL DEFAULT 'premium'`);
   }
 
+  // Gifting — a Tree Shop bank-transfer request can be sent on someone
+  // else's behalf: the payer submits it, but on approval the tree/
+  // collection is granted to gift_recipient_id instead of user_id (see
+  // routes/admin.js's reviewBankTransfer). NULL on every existing row
+  // and on any non-gift request — item_type 'premium' never sets this,
+  // since a Premium plan grant is tied to the account that paid for it.
+  // gift_recipient_email is kept alongside the id purely for display in
+  // Haneen's admin queue (routes/admin.js GET /bank-transfers) without a
+  // second JOIN, and so the request still reads sensibly if the
+  // recipient's account is ever deleted after the id no longer resolves.
+  if (!(await hasColumn('bank_transfer_requests', 'gift_recipient_id'))) {
+    await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN gift_recipient_id INTEGER`);
+  }
+  if (!(await hasColumn('bank_transfer_requests', 'gift_recipient_email'))) {
+    await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN gift_recipient_email TEXT`);
+  }
+
   // Real gap this fixes: approving a bank transfer (routes/admin.js)
   // granted is_premium=1 with no expiry at all — a $4.99 ONE-TIME
   // transfer for the Monthly plan left someone Premium forever unless
