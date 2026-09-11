@@ -15,11 +15,11 @@ function resolveItem(itemType, itemKey) {
   }
   if (itemType === 'tree') {
     const tree = PREMIUM_TREES.find((t) => t.key === itemKey);
-    return tree ? { priceUsd: tree.priceUsd, label: tree.name } : null;
+    return tree ? { priceUsd: tree.priceUsd, label: tree.name, emoji: tree.emoji } : null;
   }
   if (itemType === 'collection') {
     const collection = TREE_COLLECTIONS.find((c) => c.key === itemKey);
-    return collection ? { priceUsd: collection.priceUsd, label: collection.name } : null;
+    return collection ? { priceUsd: collection.priceUsd, label: collection.name, emoji: '🎁' } : null;
   }
   return null;
 }
@@ -35,7 +35,13 @@ async function completeLahzaPayment(reference) {
     args: [reference],
   })).rows[0];
   if (!row) return { ok: false, reason: 'unknown_reference' };
-  if (row.status !== 'pending') return { ok: true, alreadyProcessed: true, status: row.status };
+  // Included on every branch below (including alreadyProcessed) so the
+  // client can render the purchase-reveal celebration off a single
+  // verify call regardless of which race won — see TreeShop.jsx.
+  const itemInfo = resolveItem(row.item_type || 'premium', row.plan_key) || {};
+  if (row.status !== 'pending') {
+    return { ok: true, alreadyProcessed: true, status: row.status, itemType: row.item_type, itemKey: row.plan_key, isGift: Boolean(row.gift_recipient_email), giftRecipientEmail: row.gift_recipient_email || null, ...itemInfo };
+  }
 
   const verified = await verifyTransaction(reference);
   if (!verified.success) {
@@ -78,7 +84,7 @@ async function completeLahzaPayment(reference) {
     } catch (e) { console.error('sendTreeGiftGrantedEmail failed (non-fatal):', e.message); }
   }
 
-  return { ok: true, alreadyProcessed: false };
+  return { ok: true, alreadyProcessed: false, itemType: row.item_type, itemKey: row.plan_key, isGift: Boolean(row.gift_recipient_email), giftRecipientEmail: row.gift_recipient_email || null, ...itemInfo };
 }
 
 // Start a Lahza checkout — mirrors trees.js's POST /bank-transfer input

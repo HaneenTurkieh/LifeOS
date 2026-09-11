@@ -823,6 +823,20 @@ export const translations = {
       'shop.lahzaSuccess':       'Payment confirmed — enjoy!',
       'shop.lahzaFailed':        "That payment didn't go through. You weren't charged for this — try again, or use bank transfer instead.",
       'shop.lahzaNotConfigured': 'Card payments are temporarily unavailable — please use bank transfer for now.',
+      // Purchase-reveal celebration — shown once, right after a Lahza
+      // payment confirms (see the lahza_ref useEffect below), instead of
+      // just the plain toast above. Tree/collection wording doubles as
+      // each other's copy (both just "land on the Shelf"); Premium and
+      // gift purchases get their own framing since neither is "a shelf
+      // item" from the buyer's point of view.
+      'shop.revealTreeTitle':        '{label} is yours!',
+      'shop.revealTreeBody':         "It's on your Shelf now — equip it anytime to change your Dashboard's look.",
+      'shop.revealPremiumTitle':     '{label} activated!',
+      'shop.revealPremiumBody':      'Your perks are live — enjoy the upgrade.',
+      'shop.revealGiftTitle':        'Gift sent!',
+      'shop.revealGiftBody':         '{label} is on its way to {email}.',
+      'shop.revealGiftBodyGeneric':  "{label} is on its way — they'll see it land on their Shelf.",
+      'shop.revealCta':              'Nice!',
       'shop.bankTransferSubmitted':      "Got it — we'll confirm the transfer and add it to your shelf soon.",
       'shop.bankTransferPending':        'Pending review',
       'shop.bankTransferPendingDesc':    "We'll add this to your shelf as soon as we confirm your transfer — usually within a day.",
@@ -2056,6 +2070,14 @@ export const translations = {
       'shop.lahzaSuccess':       'تم تأكيد الدفع — استمتع!',
       'shop.lahzaFailed':        'الدفعة ما تمت. ما انخصم منك شي — جرب مرة ثانية، أو استخدم التحويل البنكي بدالها.',
       'shop.lahzaNotConfigured': 'الدفع بالبطاقة مش متاح مؤقتًا — استخدم التحويل البنكي حاليًا من فضلك.',
+      'shop.revealTreeTitle':        '{label} صارت إلك!',
+      'shop.revealTreeBody':         'ضفناها لرفك هلق — جهزها أي وقت تحبي تغيري شكل الداشبورد.',
+      'shop.revealPremiumTitle':     '{label} تفعّلت!',
+      'shop.revealPremiumBody':      'مزاياك صارت شغالة — استمتعي بالترقية.',
+      'shop.revealGiftTitle':        'الهدية اترسلت!',
+      'shop.revealGiftBody':         '{label} في طريقها لـ {email}.',
+      'shop.revealGiftBodyGeneric':  '{label} في طريقها — رح تشوفها توصل لرفهم.',
+      'shop.revealCta':              'تمام!',
       'shop.bankTransferSubmitted':      'تم الاستلام — سنؤكد التحويل ونضيفها لرفك قريبًا.',
       'shop.bankTransferPending':        'قيد المراجعة',
       'shop.bankTransferPendingDesc':    'رح نضيفها لرفك فور ما نأكد تحويلك — عادةً خلال يوم واحد.',

@@ -701,6 +701,92 @@ function ZodiacIntroModal({ zodiacKey, zodiacGlyph, zodiacEmoji, onClose, t }) {
   );
 }
 
+// Purchase-reveal celebration — shown once right after a Lahza card
+// payment confirms (see the lahza_ref useEffect in TreeShop below),
+// replacing what used to be just a plain toast. Haneen's call: an instant
+// purchase deserves an actual payoff moment, not just a passing
+// confirmation — a burst of particles, the item's own emoji front and
+// center, and copy that's aware of whether this was bought for the
+// buyer's own Shelf or sent as a gift to someone else.
+function PurchaseRevealModal({ reveal, onClose, t }) {
+  // Keyed on itemKey so a second purchase (a different item) re-rolls the
+  // particle layout instead of silently reusing the previous burst.
+  const particles = useMemo(() => Array.from({ length: 14 }, (_, i) => {
+    const angle = (i / 14) * Math.PI * 2;
+    const dist = 68 + (i % 3) * 22;
+    return {
+      x: Math.cos(angle) * dist,
+      y: Math.sin(angle) * dist,
+      delay: (i % 5) * 0.04,
+      emoji: ['✨', '🎉', '⭐'][i % 3],
+    };
+  }), [reveal?.itemKey, reveal?.itemType]);
+  if (!reveal) return null;
+  const c = PREMIUM_COLORS[reveal.itemKey] || '#8B5CF6';
+  const isPremium = reveal.itemType === 'premium';
+  const centerEmoji = reveal.isGift ? '🎁' : isPremium ? '👑' : (reveal.emoji || '🌳');
+  const title = reveal.isGift
+    ? t('shop.revealGiftTitle')
+    : t(isPremium ? 'shop.revealPremiumTitle' : 'shop.revealTreeTitle', { label: reveal.label || '' });
+  const body = reveal.isGift
+    ? (reveal.giftRecipientEmail
+        ? t('shop.revealGiftBody', { label: reveal.label || '', email: reveal.giftRecipientEmail })
+        : t('shop.revealGiftBodyGeneric', { label: reveal.label || '' }))
+    : t(isPremium ? 'shop.revealPremiumBody' : 'shop.revealTreeBody');
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[95] flex items-center justify-center px-4"
+      style={{ background: 'rgba(20,16,35,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.75, y: 24 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.85, y: 12, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+        className="relative w-full max-w-xs rounded-3xl p-8 text-center"
+        style={{
+          background:  'linear-gradient(160deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.90) 100%)',
+          border:      `1px solid ${c}55`,
+          boxShadow:   `0 30px 70px rgba(0,0,0,0.25), 0 0 0 1px ${c}22`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative mx-auto mb-4 flex h-24 w-24 items-center justify-center">
+          {particles.map((p, i) => (
+            <motion.span
+              key={i}
+              className="absolute text-lg pointer-events-none select-none"
+              initial={{ x: 0, y: 0, opacity: 1, scale: 0.4 }}
+              animate={{ x: p.x, y: p.y, opacity: 0, scale: 1 }}
+              transition={{ duration: 1.1, delay: p.delay, ease: 'easeOut' }}
+            >
+              {p.emoji}
+            </motion.span>
+          ))}
+          <motion.div
+            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.1 }}
+            className="flex h-20 w-20 items-center justify-center rounded-full text-4xl"
+            style={{ background: `${c}22`, boxShadow: `0 0 0 1px ${c}44, 0 8px 24px ${c}33` }}
+          >
+            {centerEmoji}
+          </motion.div>
+        </div>
+        <h3 className="font-display font-bold text-lg mb-1.5" style={{ color: '#1E2233' }}>{title}</h3>
+        <p className="text-sm leading-relaxed mb-6" style={{ color: 'rgba(30,34,51,0.55)' }}>{body}</p>
+        <motion.button
+          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          onClick={onClose}
+          className="w-full rounded-2xl py-2.5 text-sm font-bold text-white"
+          style={{ background: `linear-gradient(135deg, ${c}, ${c}CC)`, boxShadow: `0 4px 14px ${c}44` }}
+        >
+          {t('shop.revealCta')}
+        </motion.button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function MysticModal({ open, mode, initial, zodiacKey, onSave, onCancel, loading, t }) {
   const [form, setForm] = useState(initial);
   // Real bug that used to live here: resetting on [open, initial] meant
@@ -828,6 +914,11 @@ export default function TreeShop() {
   // trip, right after Lahza sends the browser back here.
   const [payingWithCard, setPayingWithCard] = useState(false);
   const [verifyingLahza, setVerifyingLahza] = useState(false);
+  // The purchase-reveal celebration (see PurchaseRevealModal above) — set
+  // from the verify response itself (label/emoji/isGift/itemType, added
+  // server-side in routes/lahza.js) the moment a Lahza purchase confirms,
+  // null the rest of the time.
+  const [reveal, setReveal] = useState(null);
   const load = useCallback(async () => {
     try { setData(await api.get('/trees')); }
     catch (e) { toast.error(e.message); }
@@ -859,7 +950,12 @@ export default function TreeShop() {
     api.get(`/lahza/verify/${encodeURIComponent(ref)}`)
       .then((result) => {
         if (result?.ok) {
+          // The reveal modal is the real celebration now; the toast stays
+          // too since it's the same "confirmed" signal used everywhere
+          // else in the app, and the modal can take a beat to notice on a
+          // slow connection.
           toast.success(t('shop.lahzaSuccess'));
+          setReveal(result);
           load();
           api.get('/trees/bank-transfer/mine').then((d) => setMyTreeRequests(d.requests || [])).catch(() => {});
         } else {
@@ -1214,6 +1310,11 @@ export default function TreeShop() {
             onClose={dismissZodiacIntro}
             t={t}
           />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {reveal && (
+          <PurchaseRevealModal reveal={reveal} onClose={() => setReveal(null)} t={t} />
         )}
       </AnimatePresence>
     </div>
