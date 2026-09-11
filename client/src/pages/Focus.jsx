@@ -470,7 +470,7 @@ export default function Flow() {
               background: 'rgba(255,255,255,0.88)',
               boxShadow:  `0 8px 24px rgba(0,0,0,0.13), 0 2px 8px ${modeColor}2E, inset 0 1px 0 rgba(255,255,255,1)`,
               color:      '#1E2233',
-            } : { color: 'rgba(255,255,255,0.45)' }}
+            } : { color: muted(0.45) }}
           >
             {tab !== key && (
               <span className="absolute inset-0 rounded-xl opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none"
