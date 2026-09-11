@@ -814,9 +814,18 @@ No explanation, no markdown fences, just the JSON object.`,
                       <label className={`text-[10px] font-bold uppercase tracking-widest mb-1 block ${textSub}`}>
                         {t('tasks.endDateLabel')}
                       </label>
-                      <input type="date" className="input-field text-sm" value={editForm.end_date || ''}
-                        min={editForm.deadline}
-                        onChange={e => setEditForm({...editForm, end_date:e.target.value})}/>
+                      <div className="relative">
+                        <input type="date" className="input-field text-sm pe-9" value={editForm.end_date || ''}
+                          min={editForm.deadline}
+                          onChange={e => setEditForm({...editForm, end_date:e.target.value})}/>
+                        {editForm.end_date && (
+                          <button type="button" onClick={() => setEditForm({...editForm, end_date:''})}
+                            aria-label={t('tasks.clearDate')}
+                            className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   {editForm.isBirthday ? (
@@ -1212,10 +1221,22 @@ No explanation, no markdown fences, just the JSON object.`,
           {!addForm.isBirthday && !addForm.recurrenceType && (
             <div>
               <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.endDateLabel')}</label>
-              <input type="date" className="input-field" value={addForm.end_date}
-                min={addModalOpen || undefined}
-                onChange={e => setAddForm({...addForm, end_date:e.target.value})}
-                onClick={e => e.currentTarget.showPicker?.()} />
+              <div className="relative">
+                <input type="date" className="input-field pe-9" value={addForm.end_date}
+                  min={addModalOpen || undefined}
+                  onChange={e => setAddForm({...addForm, end_date:e.target.value})}
+                  onClick={e => e.currentTarget.showPicker?.()} />
+                {/* Same fix as the time field below — native date inputs have
+                    no reliable clear control once a value is set, so this is
+                    the actual, always-visible way to remove it again. */}
+                {addForm.end_date && (
+                  <button type="button" onClick={() => setAddForm({...addForm, end_date:''})}
+                    aria-label={t('tasks.clearDate')}
+                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/40 dark:text-white/30 hover:text-ink/70 dark:hover:text-white/60">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {!addForm.isBirthday && (
