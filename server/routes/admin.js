@@ -2,11 +2,12 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { isOwnerEmail } = require('../lib/ownerEmails');
-// Only used to look up a plan's `months` when approving a bank transfer
-// (see reviewBankTransfer below) — requiring the whole focus router just
-// for its PLANS export is a little unusual, but it's the one source of
-// truth for plan lengths and duplicating that mapping here would drift.
-const { PLANS } = require('./focus');
+// The actual tree/collection/premium grant logic used to live inline
+// here — now shared with the instant Lahza gateway path (routes/
+// lahza.js) via lib/grantPurchase.js, so manual approval and an
+// automatic card payment can never drift apart on what a purchase
+// actually grants.
+const { grantPurchase } = require('../lib/grantPurchase');
 // Tree Shop's premium trees (Aurora/Phoenix/Galaxy/...) aren't tied to
 // Premium/is_premium at all, and — since Paddle was removed and no
 // replacement checkout exists yet (see routes/trees.js) — there's no
@@ -287,59 +288,11 @@ async function reviewBankTransfer(req, res, { approve }) {
     // themselves unless this was a gift.
     const grantToUserId = row.gift_recipient_id || row.user_id;
 
-    if (approve && itemType === 'tree') {
-      // A single premium tree — same one-row upsert the manual
-      // /users/:id/trees grant endpoint below uses, just triggered by
-      // the honor-system queue instead of Haneen picking a user by hand.
-      await db.execute({
-        sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?) ON CONFLICT(user_id, tree_key) DO NOTHING`,
-        args: [grantToUserId, row.plan_key],
-      });
-    } else if (approve && itemType === 'collection') {
-      // A collection is just its member trees granted together — reuse
-      // the same catalogue TreeShop.jsx sells from so this can't drift.
-      const collection = TREE_COLLECTIONS.find((c) => c.key === row.plan_key);
-      if (collection) {
-        for (const treeKey of collection.treeKeys) {
-          await db.execute({
-            sql: `INSERT INTO user_trees (user_id, tree_key) VALUES (?, ?) ON CONFLICT(user_id, tree_key) DO NOTHING`,
-            args: [grantToUserId, treeKey],
-          });
-        }
-      }
-    } else if (approve) {
-      // A bank transfer is a one-time payment, not a real subscription —
-      // nothing bills again automatically, so this is the only place an
-      // expiry ever gets set. Renewing a few days before the old one
-      // actually runs out shouldn't cost the person those leftover
-      // days, so the new period stacks on top of whichever is later:
-      // their current expiry (if still in the future) or right now.
-      const months = (PLANS.find((p) => p.key === row.plan_key) || {}).months || 1;
-      const existing = (await db.execute({
-        sql: `SELECT premium_expires_at FROM user_premium WHERE user_id = ?`,
-        args: [row.user_id],
-      })).rows[0];
-      const nowIso = new Date().toISOString();
-      const baseIso = (existing?.premium_expires_at && new Date(existing.premium_expires_at) > new Date())
-        ? existing.premium_expires_at
-        : nowIso;
-      const expiresAt = (await db.execute({
-        sql: `SELECT datetime(?, '+' || ? || ' months') AS e`,
-        args: [baseIso, months],
-      })).rows[0].e;
-
-      // Same grant mechanism as the manual /users/:id/premium route
-      // above, except plan is the real plan the person paid for
-      // (monthly/semester/annual) instead of the generic 'manual' label
-      // — so their Premium tab shows the actual plan they're on, and
-      // premium_expires_at is what lib/premium.js's lazy expiry check
-      // (same pattern as the free trial) uses to quietly revert them to
-      // Free once this period is actually up.
-      await db.execute({
-        sql: `INSERT INTO user_premium (user_id, is_premium, plan, premium_expires_at) VALUES (?, 1, ?, ?)
-              ON CONFLICT(user_id) DO UPDATE SET is_premium = 1, plan = excluded.plan, premium_expires_at = excluded.premium_expires_at`,
-        args: [row.user_id, row.plan_key, expiresAt],
-      });
+    // Same grant logic the instant Lahza gateway path uses (routes/
+    // lahza.js) — extracted to lib/grantPurchase.js so manual approval
+    // here and an automatic card payment there can never drift apart.
+    if (approve) {
+      await grantPurchase({ itemType, planKey: row.plan_key, userId: grantToUserId });
     }
 
     // Tell the RECIPIENT, not the payer — the payer already sees their

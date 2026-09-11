@@ -950,6 +950,27 @@ async function initDb() {
     await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN gift_recipient_email TEXT`);
   }
 
+  // Lahza gateway support (routes/lahza.js, lib/lahza.js) — a request row
+  // now covers two very different payment methods: the original manual
+  // 'bank_transfer' (honor system, Haneen approves by hand) and the new
+  // 'lahza' (a real card payment, confirmed by Lahza's API/webhook and
+  // granted instantly, no human review). lahza_reference is the unique
+  // id Lahza's API tracks the transaction under — how the webhook and
+  // the post-checkout client redirect both find their way back to the
+  // right row. Most rows are still plain bank transfers and never get
+  // one, hence the partial unique index (NULLs excluded) rather than a
+  // plain UNIQUE column.
+  if (!(await hasColumn('bank_transfer_requests', 'payment_method'))) {
+    await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'bank_transfer'`);
+  }
+  if (!(await hasColumn('bank_transfer_requests', 'lahza_reference'))) {
+    await db.execute(`ALTER TABLE bank_transfer_requests ADD COLUMN lahza_reference TEXT`);
+  }
+  await db.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_transfer_lahza_ref
+    ON bank_transfer_requests(lahza_reference) WHERE lahza_reference IS NOT NULL
+  `);
+
   // Real gap this fixes: approving a bank transfer (routes/admin.js)
   // granted is_premium=1 with no expiry at all — a $4.99 ONE-TIME
   // transfer for the Monthly plan left someone Premium forever unless

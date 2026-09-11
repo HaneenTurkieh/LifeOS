@@ -14,6 +14,13 @@ app.use((req, res, next) => {
     'http://localhost:5173',
     'https://life-os-three-xi.vercel.app',
     'https://life-os-git-main-ctrl-alt-elite07.vercel.app',
+    // Vercel's stable "production alias" domain for this project — was
+    // missing here, which is why signing in from
+    // life-os-ctrl-alt-elite07.vercel.app (used to sanity-check a
+    // deploy directly, bypassing nuvora.ps/DNS/CDN caching) failed with
+    // a CORS-driven "Network error" even though the deployment itself
+    // was healthy.
+    'https://life-os-ctrl-alt-elite07.vercel.app',
     'https://nuvora.ps',
     'https://www.nuvora.ps',
   ];
@@ -30,17 +37,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Paddle's webhook used to be mounted here, before express.json(), for
+// exactly the reason this one is: a signature check needs the exact raw
+// body, and express.json() below would have already parsed it into an
+// object by the time a route saw it. Lahza (routes/lahzaWebhook.js) is
+// that same real card processor coming back — see lib/lahza.js.
+app.use('/api/lahza/webhook', express.raw({ type: 'application/json' }), require('./routes/lahzaWebhook'));
+
 app.use(express.json());
 
 // Public routes
-// Paddle (webhook + checkout) was removed Sept 2026 — Paddle rejected
-// Nuvora's account verification and the primary payment path had
-// already moved to manual bank transfer (see routes/focus.js's
-// /premium/bank-transfer/* routes and legal/Pricing.jsx). If a real
-// card processor ever comes back, mount its webhook with express.raw()
-// BEFORE express.json() above, same as this used to — a signature check
-// needs the exact raw body, and express.json() would have already
-// parsed it into an object by the time a route below saw it.
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/cron', require('./routes/cron')); // no JWT — protected by CRON_SECRET header instead, checked inside
 
@@ -62,6 +68,7 @@ app.use('/api/feedback',     authenticate, require('./routes/feedback'));
 app.use('/api/history',      authenticate, require('./routes/history'));
 app.use('/api/chat', authenticate, require('./routes/chat'));
 app.use('/api/trees', authenticate, require('./routes/trees'));
+app.use('/api/lahza', authenticate, require('./routes/lahza'));
 app.use('/api/notifications', authenticate, require('./routes/notifications'));
 app.use('/api/push', authenticate, require('./routes/push'));
 app.use('/api/exam', authenticate, require('./routes/exam'));
