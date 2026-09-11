@@ -17,6 +17,16 @@ const { grantPurchase } = require('../lib/grantPurchase');
 // trees.js exports so this can't drift from what TreeShop.jsx actually
 // sells.
 const { PREMIUM_TREES, TREE_COLLECTIONS } = require('./trees');
+// For notification copy only (see reviewBankTransfer below) — the
+// catalogue name to show the payer, e.g. "Aurora Tree" or "Pro Plan",
+// rather than the bare plan_key.
+const { PLANS } = require('./focus');
+
+function itemLabel(itemType, planKey) {
+  if (itemType === 'tree')       return PREMIUM_TREES.find((t) => t.key === planKey)?.name || planKey;
+  if (itemType === 'collection') return TREE_COLLECTIONS.find((c) => c.key === planKey)?.name || planKey;
+  return PLANS.find((p) => p.key === planKey)?.name || planKey;
+}
 
 function requireOwner(req, res, next) {
   if (!isOwnerEmail(req.user?.email)) {
@@ -293,6 +303,41 @@ async function reviewBankTransfer(req, res, { approve }) {
     // here and an automatic card payment there can never drift apart.
     if (approve) {
       await grantPurchase({ itemType, planKey: row.plan_key, userId: grantToUserId });
+    }
+
+    // Instant bell + push the moment Haneen reviews a transfer — before
+    // this, the payer's only way to find out was reopening Settings/Tree
+    // Shop and noticing the status badge had changed, which could sit
+    // unnoticed for a day. Same direct-INSERT pattern channels.js uses
+    // for instructor-triggered events (see channel_task_assigned etc.
+    // there) — this is admin-triggered, not something generateNotifications
+    // computes lazily, so it's written straight into the table. Goes to
+    // the PAYER regardless of gift status: they submitted this request
+    // and are waiting on an answer either way, separate from the
+    // gift-recipient email below (which is about who received the item,
+    // not whether the payment cleared). Registered in PUSHABLE_TYPES
+    // (lib/pushReminders.js) so the next push tick actually delivers it,
+    // not just the in-app bell.
+    try {
+      const label = itemLabel(itemType, row.plan_key);
+      await db.execute({
+        sql: `INSERT INTO notifications (user_id, type, title, body, link, dedupe_key, data)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(user_id, dedupe_key) DO NOTHING`,
+        args: [
+          row.user_id,
+          approve ? 'purchase_approved' : 'purchase_rejected',
+          approve ? 'Payment confirmed!' : "Transfer couldn't be confirmed",
+          approve
+            ? `${label} is ${itemType === 'premium' ? 'now active' : 'on its way to your Shelf'} — enjoy!`
+            : `We couldn't match your bank transfer for ${label}. Double-check the IBAN/amount and try again, or pay by card instead.`,
+          itemType === 'premium' ? '/' : '/trees',
+          `bank_transfer_review:${id}`,
+          JSON.stringify({ itemType, planKey: row.plan_key }),
+        ],
+      });
+    } catch (e) {
+      console.error('bank-transfer review notification failed (non-fatal):', e.message);
     }
 
     // Tell the RECIPIENT, not the payer — the payer already sees their

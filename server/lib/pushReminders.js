@@ -28,6 +28,11 @@ const PUSHABLE_TYPES = new Set([
   'overdue', 'due_soon', 'deadline', 'milestone_due', 'focus_complete',
   'channel_announcement', 'channel_chat', 'channel_room_invite',
   'channel_task_assigned', 'channel_goal_assigned', 'channel_points_awarded',
+  // Bank-transfer review outcome (see routes/admin.js's reviewBankTransfer)
+  // — Haneen approving/rejecting a transfer is exactly the kind of thing
+  // worth buzzing someone's phone for even with Nuvora closed, same as a
+  // channel announcement.
+  'purchase_approved', 'purchase_rejected',
 ]);
 
 async function sendPendingPushNotifications() {

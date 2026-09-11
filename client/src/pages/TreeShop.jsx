@@ -461,7 +461,13 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
             onChange={(e) => setGiftEmail(e.target.value)}
             placeholder={t('shop.giftEmailPh')}
             className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs"
-            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: 'inherit' }}
+            // Pinned instead of color:'inherit' — this modal's own
+            // background is always a light glass panel, but 'inherit' was
+            // picking up the app's dark-mode text-white from an ancestor,
+            // making typed text invisible (white-on-near-white) whenever
+            // Haneen's theme was set to dark. Same fix as the note
+            // textarea below and SettingsModal's bank-transfer note.
+            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: '#1E2233' }}
           />
         )}
 
@@ -519,7 +525,7 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
             rows={2}
             maxLength={500}
             className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs resize-none"
-            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: 'inherit' }}
+            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: '#1E2233' }}
           />
         </div>
 

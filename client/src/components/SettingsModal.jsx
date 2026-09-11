@@ -985,7 +985,15 @@ function PremiumTab() {
                         rows={2}
                         maxLength={500}
                         className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs resize-none"
-                        style={{ background:'rgba(255,255,255,0.6)', border:'1px solid rgb(var(--accent-500) / 0.18)', color:'inherit' }}
+                        // Real bug: color:'inherit' picked up the app's own
+                        // dark-mode text-white from an ancestor, even though
+                        // this box's own background is always a light glass
+                        // panel (background above) — in dark mode that made
+                        // the typed text white-on-near-white, invisible.
+                        // This box never follows the app theme, so its text
+                        // color shouldn't either — pinned to the same dark
+                        // ink used elsewhere in these always-light panels.
+                        style={{ background:'rgba(255,255,255,0.6)', border:'1px solid rgb(var(--accent-500) / 0.18)', color:'#1E2233' }}
                       />
                       <button onClick={() => submitBankTransfer(plan.key)} disabled={submittingTransfer}
                         className="mt-1 w-full rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-40"
