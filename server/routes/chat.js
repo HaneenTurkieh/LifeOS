@@ -2,7 +2,8 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
-const { callOpenRouter } = require('../lib/openrouter');
+const { isPremium } = require('../lib/premium');
+const { callOpenRouter, PLUS_MODEL } = require('../lib/openrouter');
 const { getHabitStreak, addXp } = require('../lib/gamification');
 const { logError } = require('../lib/errorLog');
 
@@ -1388,6 +1389,13 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: limitMessage(gateFeature, gate.limit), code: 'DAILY_LIMIT', feature: gateFeature });
     }
   }
+  // Lumi Plus — the Premium perk inside Lumi itself, not a separate
+  // purchase. checkLimit above already gives Premium unlimited Deep
+  // Think/Deep Search/AI Review (isPremium bypasses the daily cap there).
+  // This is the other half: Study and Review get a genuinely deeper
+  // model pass for Plus accounts, not just more of them. One query,
+  // reused for both the gate above (already ran) and this.
+  const isPlus = await isPremium(req.user.id);
 
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -1468,12 +1476,26 @@ router.post('/', async (req, res) => {
     // instead of skipping it — explicit 'none' actually does what the
     // comment above always intended.
     const maxTokens = mode === 'think' ? 6000 : hasAttachments ? 4000 : 2048;
-    const reasoningEffort = mode === 'think' ? 'xhigh' : mode === 'review' ? 'high' : mode === 'study' ? 'medium' : 'none';
+    // Lumi Plus bump: Study and Review step up a tier for Premium accounts
+    // (medium→high, high→xhigh) — the same "actually think harder" boost
+    // Deep Think already gets, applied to the two other modes that
+    // benefit from it. Think/chat/search are unaffected — think is
+    // already at the ceiling, chat/search don't use extended reasoning.
+    const reasoningEffort = mode === 'think' ? 'xhigh'
+      : mode === 'review' ? (isPlus ? 'xhigh' : 'high')
+      : mode === 'study'  ? (isPlus ? 'high'  : 'medium')
+      : 'none';
     const toolsForCall = mode === 'search' ? undefined : TOOLS;
+    // Model selection: plain chat is unlimited and free for everyone, so
+    // it stays on the cheaper default (DeepSeek, see openrouter.js). Every
+    // "Deep" mode — already daily-capped for free accounts, unlimited for
+    // Premium — gets Grok 4.6 instead, regardless of plan; the reasoning-
+    // effort bump above is the part that's actually Premium-only.
+    const callModel = mode === 'chat' ? undefined : PLUS_MODEL;
     for (let i = 0; i < 6; i++) {
       const data = await callOpenRouter({
         system, messages: currentMessages, tools: toolsForCall, max_tokens: maxTokens,
-        reasoningEffort, webSearch: mode === 'search',
+        reasoningEffort, webSearch: mode === 'search', model: callModel,
       });
       const msg = data.choices?.[0]?.message || {};
       const toolCalls = msg.tool_calls || [];
@@ -1516,7 +1538,7 @@ router.post('/', async (req, res) => {
             { role: 'assistant', content: finalText },
             { role: 'user', content: 'Continue exactly where you left off — do not repeat anything you already said, and do not add any preamble like "continuing" or "sure". Just resume the text directly.' },
           ],
-          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search',
+          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search', model: callModel,
         });
         const contMsg = contData.choices?.[0]?.message || {};
         if (contMsg.content) finalText += contMsg.content;

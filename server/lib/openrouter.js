@@ -22,6 +22,18 @@
 const OPENROUTER_MODEL = 'deepseek/deepseek-v4-pro';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Sept 2026 — Lumi's "Deep" modes (Think/Search/Study/Review in chat.js,
+// all already gated by daily caps for free accounts and unlimited for
+// Premium/Lumi Plus, see usageLimits.js) get a real reasoning upgrade
+// over plain chat's DeepSeek V4 Pro: Grok 4.6. Scores meaningfully
+// higher on GPQA Diamond (93.3% vs DeepSeek's ~90%) while still costing
+// well under Claude Sonnet 5 on output tokens ($6/1M vs Sonnet's $10/1M),
+// which is what actually drives cost on reasoning-heavy calls. Plain
+// chat stays on the cheaper DeepSeek model — it's the unlimited,
+// high-volume, free-for-everyone feature, so its cost has to stay low
+// regardless of plan.
+const PLUS_MODEL = 'x-ai/grok-4.6';
+
 // Anthropic tool shape ({ name, description, input_schema }) → OpenAI/
 // OpenRouter function-calling shape ({ type:'function', function:{...} }).
 // Lets chat.js keep defining its tools once, in the format it already
@@ -39,6 +51,10 @@ function toolsToOpenAiFormat(tools) {
 
 async function callOpenRouter({
   system, messages, tools, max_tokens = 1024, temperature, top_p,
+  // Per-call override — omit to get the standard OPENROUTER_MODEL
+  // (DeepSeek). Callers pass PLUS_MODEL (exported above) for the modes
+  // that should get the stronger model.
+  model = OPENROUTER_MODEL,
   // 'high' is V4 Pro's normal/baseline reasoning tier — the default
   // OpenRouter falls back to for this model whenever no explicit effort
   // is sent. 'xhigh' maps to its actual max-effort mode, reserved for
@@ -77,7 +93,7 @@ async function callOpenRouter({
   if (!key) throw new Error('OPENROUTER_API_KEY not set');
 
   const body = {
-    model:    OPENROUTER_MODEL,
+    model,
     messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
     max_tokens,
   };
@@ -192,4 +208,4 @@ async function callOpenRouter({
   }
 }
 
-module.exports = { callOpenRouter, OPENROUTER_MODEL };
+module.exports = { callOpenRouter, OPENROUTER_MODEL, PLUS_MODEL };
