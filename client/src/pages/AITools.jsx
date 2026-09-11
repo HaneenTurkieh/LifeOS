@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Plus, Trash2, Brain, Paperclip, X, FileText,
   Sparkles, Globe, SlidersHorizontal, Check, Pencil, Copy,
+  GraduationCap,
 } from 'lucide-react';
 import { api, getToken } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -231,6 +232,7 @@ function TypingIndicator({ mode, t }) {
         </div>
         {mode === 'think'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.thinkingDeeply')}</span>}
         {mode === 'search' && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.searchingWeb')}</span>}
+        {mode === 'study'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.studying')}</span>}
       </div>
     </div>
   );
@@ -410,9 +412,10 @@ export default function AITools() {
     { icon: '🧠', text: t('lumi.sugg6') },
   ];
   const CHAT_MODES = [
-    { key: 'chat',   label: t('lumi.chat'),       Icon: Sparkles, hint: t('lumi.chatHint')   },
-    { key: 'think',  label: t('lumi.deepThink'),  Icon: Brain,    hint: t('lumi.thinkHint')  },
-    { key: 'search', label: t('lumi.deepSearch'), Icon: Globe,    hint: t('lumi.searchHint') },
+    { key: 'chat',   label: t('lumi.chat'),       Icon: Sparkles,      hint: t('lumi.chatHint')   },
+    { key: 'think',  label: t('lumi.deepThink'),  Icon: Brain,         hint: t('lumi.thinkHint')  },
+    { key: 'search', label: t('lumi.deepSearch'), Icon: Globe,         hint: t('lumi.searchHint') },
+    { key: 'study',  label: t('lumi.study'),      Icon: GraduationCap, hint: t('lumi.studyHint')  },
   ];
 
   const [convos,         setConvos]         = useState([]);
@@ -874,6 +877,8 @@ export default function AITools() {
                     ? t('lumi.askSearch')
                     : mode === 'think'
                     ? t('lumi.askThink')
+                    : mode === 'study'
+                    ? t('lumi.askStudy')
                     : t('lumi.ask')
                 }
                 value={input}

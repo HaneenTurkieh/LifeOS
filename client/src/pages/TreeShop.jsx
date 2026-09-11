@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Lock, Check, Landmark, Copy, Gift } from 'lucide-react';
+import { Sparkles, Lock, Check, Landmark, Copy, Gift, CreditCard } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -400,7 +400,7 @@ function ConfirmModal({ tree, onConfirm, onCancel, loading, t }) {
 // which shows up in Haneen's admin Bank Transfers queue exactly like a
 // Premium request — approving it there grants user_trees instead of
 // flipping is_premium (see server/routes/admin.js).
-function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, onSubmit, onCancel, loading, t }) {
+function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, onSubmit, onPayCard, payingWithCard, onCancel, loading, t }) {
   const [isGift, setIsGift]       = useState(false);
   const [giftEmail, setGiftEmail] = useState('');
   // Reset the gift toggle/email whenever a fresh item is opened, rather
@@ -413,6 +413,7 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
     if (!bankDetails?.iban) return;
     navigator.clipboard?.writeText(bankDetails.iban).then(() => {}, () => {});
   };
+  const giftEmailTrimmed = isGift ? giftEmail.trim() : null;
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -432,9 +433,66 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="font-display font-bold text-base text-center mb-4" style={{ color: '#1E2233' }}>
+        <h3 className="font-display font-bold text-base text-center mb-1" style={{ color: '#1E2233' }}>
           {t('shop.bankTransferModalTitle', { name: item.name })}
         </h3>
+        <p className="text-center text-sm font-bold mb-4" style={{ color: c }}>${item.priceUsd.toFixed(2)} USD</p>
+
+        {/* Gifting — buy it, someone else's shelf gets it. Shared between
+            both payment paths below (card and bank transfer), so it sits
+            once, up top, rather than duplicated per-method. Off by
+            default: this is an extra step most purchases don't need, not
+            something to nudge every buyer toward. */}
+        <button
+          onClick={() => setIsGift((v) => !v)}
+          className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-start"
+          style={{
+            background: isGift ? `${c}1F` : 'rgba(0,0,0,0.03)',
+            color: isGift ? c : 'rgba(30,34,51,0.55)',
+            border: `1px solid ${isGift ? `${c}55` : 'rgba(0,0,0,0.06)'}`,
+          }}>
+          <Gift size={14} className="shrink-0" />
+          {t('shop.giftToggle')}
+        </button>
+        {isGift && (
+          <input
+            type="email"
+            value={giftEmail}
+            onChange={(e) => setGiftEmail(e.target.value)}
+            placeholder={t('shop.giftEmailPh')}
+            className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs"
+            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: 'inherit' }}
+          />
+        )}
+
+        {/* Instant option — pay with card via Lahza, land back here with
+            access already granted. This is the option most people want;
+            the bank-transfer honor system below stays as a fallback for
+            anyone whose card doesn't work with Lahza, or who'd rather. */}
+        <motion.button
+          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+          onClick={() => onPayCard(itemType, item.key, giftEmailTrimmed)}
+          disabled={payingWithCard || (isGift && !giftEmailTrimmed)}
+          className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold text-white disabled:opacity-50"
+          style={{ background: `linear-gradient(135deg, ${c}, ${c}CC)`, boxShadow: `0 4px 14px ${c}44` }}>
+          <CreditCard size={15} />
+          {payingWithCard ? t('shop.redirectingToLahza') : t('shop.payWithCard')}
+        </motion.button>
+        <p className="text-center text-[10px] mt-1.5" style={{ color: 'rgba(30,34,51,0.40)' }}>
+          {t('shop.payWithCardHint')}
+        </p>
+
+        <div className="flex items-center gap-2 my-4">
+          <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
+          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(30,34,51,0.35)' }}>
+            {t('shop.orDivider')}
+          </span>
+          <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
+        </div>
+
+        <p className="text-[11px] font-semibold mb-2" style={{ color: 'rgba(30,34,51,0.55)' }}>
+          {t('shop.payByBankTransfer')}
+        </p>
         <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: `${c}14`, border: `1px solid ${c}33` }}>
           <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: `${c}CC` }}>
             {t('settings.bankTransferAmount')}
@@ -465,39 +523,14 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
           />
         </div>
 
-        {/* Gifting — buy it, someone else's shelf gets it. Off by
-            default: this is an extra step most purchases don't need,
-            not something to nudge every buyer toward. */}
-        <button
-          onClick={() => setIsGift((v) => !v)}
-          className="mt-3 w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-start"
-          style={{
-            background: isGift ? `${c}1F` : 'rgba(0,0,0,0.03)',
-            color: isGift ? c : 'rgba(30,34,51,0.55)',
-            border: `1px solid ${isGift ? `${c}55` : 'rgba(0,0,0,0.06)'}`,
-          }}>
-          <Gift size={14} className="shrink-0" />
-          {t('shop.giftToggle')}
-        </button>
-        {isGift && (
-          <input
-            type="email"
-            value={giftEmail}
-            onChange={(e) => setGiftEmail(e.target.value)}
-            placeholder={t('shop.giftEmailPh')}
-            className="mt-2 w-full rounded-lg px-2.5 py-2 text-xs"
-            style={{ background: 'rgba(255,255,255,0.7)', border: `1px solid ${c}33`, color: 'inherit' }}
-          />
-        )}
-
         <div className="flex gap-2 mt-4">
           <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold bg-ink/5" style={{ color: 'rgba(30,34,51,0.55)' }}>
             {t('common.cancel')}
           </button>
           <motion.button
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={() => onSubmit(itemType, item.key, isGift ? giftEmail.trim() : null)}
-            disabled={loading || (isGift && !giftEmail.trim())}
+            onClick={() => onSubmit(itemType, item.key, giftEmailTrimmed)}
+            disabled={loading || (isGift && !giftEmailTrimmed)}
             className="flex-1 rounded-2xl py-2.5 text-sm font-bold text-white disabled:opacity-50"
             style={{ background: `linear-gradient(135deg, ${c}, ${c}CC)`, boxShadow: `0 4px 14px ${c}44` }}>
             {loading ? t('settings.sending') : t('settings.bankTransferSubmit')}
@@ -789,6 +822,12 @@ export default function TreeShop() {
   const [buyTarget, setBuyTarget] = useState(null);
   const [transferNote, setTransferNote] = useState('');
   const [submittingTransfer, setSubmittingTransfer] = useState(false);
+  // Lahza card checkout — instant alternative to the bank-transfer honor
+  // system above. payingWithCard tracks the in-flight POST /lahza/checkout
+  // call (before the redirect fires); verifyingLahza tracks the return
+  // trip, right after Lahza sends the browser back here.
+  const [payingWithCard, setPayingWithCard] = useState(false);
+  const [verifyingLahza, setVerifyingLahza] = useState(false);
   const load = useCallback(async () => {
     try { setData(await api.get('/trees')); }
     catch (e) { toast.error(e.message); }
@@ -799,6 +838,37 @@ export default function TreeShop() {
     api.get('/focus/premium/bank-transfer/details').then(setBankDetails).catch(() => setBankDetails(null));
     api.get('/trees/bank-transfer/mine').then((d) => setMyTreeRequests(d.requests || [])).catch(() => setMyTreeRequests([]));
   }, []);
+  // Runs once on mount, whether the user arrived here fresh or just got
+  // redirected back from Lahza's checkout page. routes/lahza.js's
+  // callback_url always points at /trees?lahza_ref=..., regardless of
+  // whether the purchase was a tree, collection, or Premium plan started
+  // from Settings — this is the one place that param is ever handled.
+  // This is the fast path (grants the moment the user is looking at the
+  // screen); the webhook (server-side) is the reliable backstop for
+  // anyone who closes the tab before this runs.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('lahza_ref');
+    if (!ref) return;
+    // Strip the param immediately so a manual refresh doesn't re-verify
+    // (harmless since completeLahzaPayment is idempotent, but pointless).
+    params.delete('lahza_ref');
+    const cleanUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+    window.history.replaceState({}, '', cleanUrl);
+    setVerifyingLahza(true);
+    api.get(`/lahza/verify/${encodeURIComponent(ref)}`)
+      .then((result) => {
+        if (result?.ok) {
+          toast.success(t('shop.lahzaSuccess'));
+          load();
+          api.get('/trees/bank-transfer/mine').then((d) => setMyTreeRequests(d.requests || [])).catch(() => {});
+        } else {
+          toast.error(t('shop.lahzaFailed'));
+        }
+      })
+      .catch(() => toast.error(t('shop.lahzaFailed')))
+      .finally(() => setVerifyingLahza(false));
+  }, []); // eslint-disable-line
   const requestStatusFor = (key) => {
     // Most recent request for this exact item — a rejected old request
     // shouldn't hide a newer pending one for the same tree/collection.
@@ -825,6 +895,30 @@ export default function TreeShop() {
       toast.success(giftRecipientEmail ? t('shop.giftSubmitted') : t('shop.bankTransferSubmitted'));
     } catch (e) { toast.error(e.message); }
     finally { setSubmittingTransfer(false); }
+  };
+  // Lahza card checkout — POST /lahza/checkout records a 'pending' row
+  // (same table as bank transfer, item_type/item_key identical shape) and
+  // hands back a hosted checkout URL. Redirecting the whole tab there is
+  // deliberate, not a popup: Lahza's own page needs the full page context
+  // for its own redirect back to callback_url once payment completes.
+  const payWithCard = async (itemType, itemKey, giftRecipientEmail) => {
+    setPayingWithCard(true);
+    try {
+      const res = await api.post('/lahza/checkout', {
+        item_type: itemType, item_key: itemKey,
+        gift_recipient_email: giftRecipientEmail || undefined,
+      });
+      if (res?.authorization_url) {
+        toast.success(t('shop.redirectingToLahza'));
+        window.location.href = res.authorization_url;
+      } else {
+        toast.error(t('shop.lahzaFailed'));
+        setPayingWithCard(false);
+      }
+    } catch (e) {
+      toast.error(e.status === 503 ? t('shop.lahzaNotConfigured') : (e.message || t('shop.lahzaFailed')));
+      setPayingWithCard(false);
+    }
   };
   // First time this account's zodiac actually resolves (birthday set,
   // sign derived), explain the mechanic once — same
@@ -1089,6 +1183,8 @@ export default function TreeShop() {
             note={transferNote}
             onNoteChange={setTransferNote}
             onSubmit={submitTreeBankTransfer}
+            onPayCard={payWithCard}
+            payingWithCard={payingWithCard}
             onCancel={() => setBuyTarget(null)}
             loading={submittingTransfer}
             t={t}

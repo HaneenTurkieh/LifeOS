@@ -5,6 +5,7 @@ import {
   AlertTriangle, LogOut, Mail, Camera, Check,
   Eye, EyeOff, ChevronRight, Crown, Snowflake, Gift, Sparkles,
   BarChart3, Users, TrendingUp, GraduationCap, Landmark, Copy, Clock, XCircle,
+  CreditCard,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api }       from '../api/client.js';
@@ -103,20 +104,12 @@ function ProfileTab() {
     setSaving(true);
     try {
       await updateUser({ name:name.trim(), bio, gender, birthday });
-      // A newly-set or changed gender gets a sensible default accent —
-      // blue for male, pink for female — but only on an actual change,
-      // so it doesn't quietly overwrite a color someone already picked
-      // on purpose just because they saved their bio again.
-      if (gender !== (user?.gender || '') && (gender === 'male' || gender === 'female')) {
-        const preset = gender === 'male' ? 'blue' : 'pink';
-        setAccent(preset);
-        // Not /focus/premium/theme — that route is gated behind
-        // is_premium, which would silently no-op for free accounts:
-        // the color would flash on then get reverted a few seconds
-        // later by ThemeContext's own periodic status poll reading
-        // back the theme_preset that never actually got saved.
-        api.post('/focus/premium/gender-theme', { theme_preset: preset }).catch(() => {});
-      }
+      // Used to set a permanent blue/pink accent here the moment gender
+      // was saved. Removed per Haneen's spec: purple is the one standard
+      // accent for every non-premium account — pink/blue should only ever
+      // show up as the birthday override (see App.jsx's setBirthdayOverride,
+      // which is ephemeral and already handles that correctly), never as a
+      // persisted theme_preset from gender alone.
       toast.success(t('settings.profileSaved'));
     }
     catch (err) { toast.error(err.message); }
@@ -534,6 +527,12 @@ function PremiumTab() {
   const [bankPlan,     setBankPlan]     = useState(null);
   const [transferNote, setTransferNote] = useState('');
   const [submittingTransfer, setSubmittingTransfer] = useState(false);
+  // Lahza card checkout — instant alternative to the bank-transfer honor
+  // system above. Redirects the whole tab to Lahza's hosted checkout;
+  // the return trip (?lahza_ref=... on the Dashboard) is handled by
+  // Dashboard.jsx's own effect, since this modal won't be mounted by the
+  // time the browser comes back.
+  const [payingWithCard, setPayingWithCard] = useState(false);
   const load = useCallback(() => {
     api.get('/focus/premium/status')
       .then((d) => {
@@ -560,6 +559,22 @@ function PremiumTab() {
       toast.success(t('settings.bankTransferSubmitted'));
     } catch (err) { toast.error(err.message); }
     finally { setSubmittingTransfer(false); }
+  };
+  const payWithCard = async (planKey) => {
+    setPayingWithCard(true);
+    try {
+      const res = await api.post('/lahza/checkout', { item_type: 'premium', item_key: planKey });
+      if (res?.authorization_url) {
+        toast.success(t('shop.redirectingToLahza'));
+        window.location.href = res.authorization_url;
+      } else {
+        toast.error(t('shop.lahzaFailed'));
+        setPayingWithCard(false);
+      }
+    } catch (err) {
+      toast.error(err.status === 503 ? t('shop.lahzaNotConfigured') : (err.message || t('shop.lahzaFailed')));
+      setPayingWithCard(false);
+    }
   };
   const copyIban = () => {
     if (!bankDetails?.iban) return;
@@ -928,10 +943,18 @@ function PremiumTab() {
                       {t('settings.perMonthEq', { n: monthlyEq(plan) })}
                     </p>
                   )}
-                  {/* Bank transfer is the only payment path (Paddle was
-                      removed Sept 2026 — see server/routes/focus.js). */}
+                  {/* Card via Lahza — instant, no waiting on manual
+                      review. Sits above the bank-transfer fallback below
+                      it (Paddle was removed Sept 2026 — see
+                      server/routes/focus.js) as the option most people
+                      actually want. */}
+                  <button onClick={() => payWithCard(plan.key)} disabled={payingWithCard}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-50"
+                    style={{ background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', boxShadow:'0 3px 10px rgb(var(--accent-500) / 0.30)' }}>
+                    <CreditCard size={13}/> {payingWithCard ? t('shop.redirectingToLahza') : t('shop.payWithCard')}
+                  </button>
                   <button onClick={() => setBankPlan(transferOpen ? null : plan.key)}
-                    className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-white transition"
+                    className="mt-1.5 w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-white transition"
                     style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
                     <Landmark size={13}/> {t('settings.payByBankTransfer')}
                   </button>

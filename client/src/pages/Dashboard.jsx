@@ -272,6 +272,27 @@ export default function Dashboard() {
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
 
+  // Lahza's Premium checkout (started from Settings, see SettingsModal's
+  // PremiumTab) sends the browser back here with ?lahza_ref=... — Trees/
+  // collections instead return to /trees (see TreeShop.jsx's matching
+  // effect; server/routes/lahza.js picks the return path per item type).
+  // This is the fast path that confirms the purchase the moment the user
+  // is looking at the screen; the webhook is the reliable backstop for
+  // anyone who closes the tab before this runs. ThemeContext's own
+  // periodic status poll picks up the resulting premium/theme change on
+  // its own, so this only needs to verify, notify, and clean the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('lahza_ref');
+    if (!ref) return;
+    params.delete('lahza_ref');
+    const cleanUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+    window.history.replaceState({}, '', cleanUrl);
+    api.get(`/lahza/verify/${encodeURIComponent(ref)}`)
+      .then((result) => { toast[result?.ok ? 'success' : 'error'](t(result?.ok ? 'shop.lahzaSuccess' : 'shop.lahzaFailed')); })
+      .catch(() => toast.error(t('shop.lahzaFailed')));
+  }, []); // eslint-disable-line
+
   const saveMood = async (value) => {
     setMoodSaving(true);
     try {

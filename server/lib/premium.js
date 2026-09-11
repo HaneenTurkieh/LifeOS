@@ -21,9 +21,18 @@ const { db } = require('../db/connection');
 // harm running both unconditionally.
 async function expireTrialIfNeeded(userId) {
   const nowIso = new Date().toISOString();
+  // Per Haneen's spec: purple/aurora is the standard look for everyone —
+  // premium-only accent/background choices belong to premium, so losing
+  // premium (trial lapsing or a bank-transfer period running out) resets
+  // theme_preset/background_style back to the defaults right alongside
+  // is_premium flipping to 0. Without this a lapsed account could keep
+  // whatever non-purple accent it had picked while premium, indefinitely.
+  // (The birthday pink/blue override is separate — client-side only,
+  // applied on top of whatever theme_preset this returns — so it isn't
+  // affected by this reset.)
   await db.execute({
     sql: `UPDATE user_premium
-          SET is_premium = 0
+          SET is_premium = 0, theme_preset = 'purple', background_style = 'aurora'
           WHERE user_id = ? AND is_premium = 1
             AND trial_expires_at IS NOT NULL
             AND trial_expires_at < ?`,
@@ -31,7 +40,7 @@ async function expireTrialIfNeeded(userId) {
   });
   await db.execute({
     sql: `UPDATE user_premium
-          SET is_premium = 0
+          SET is_premium = 0, theme_preset = 'purple', background_style = 'aurora'
           WHERE user_id = ? AND is_premium = 1
             AND premium_expires_at IS NOT NULL
             AND premium_expires_at < ?`,
@@ -46,14 +55,22 @@ async function getPremium(userId) {
           FROM user_premium WHERE user_id = ?`,
     args: [userId],
   })).rows[0];
+  const isPremiumNow = Boolean(row?.is_premium);
+  // Per Haneen's spec: purple/aurora is the one standard look for every
+  // non-premium account — theme_preset/background_style are premium
+  // customization, so a non-premium row never gets to show anything else,
+  // no matter what's sitting in those columns (a stray value from before
+  // this rule existed, a leftover from a lapsed trial, etc). The birthday
+  // pink/blue override is separate and client-side (App.jsx), applied on
+  // top of whatever this returns, so it isn't affected by this.
   return {
-    is_premium:       Boolean(row?.is_premium),
+    is_premium:       isPremiumNow,
     freeze_date:       row?.freeze_date || null,
-    theme_preset:      row?.theme_preset || 'purple',
+    theme_preset:      isPremiumNow ? (row?.theme_preset || 'purple') : 'purple',
     // Second personalization axis, alongside theme_preset — which
     // background mood (see GlobalBackground.jsx) the app uses. Same
     // shape/defaulting as theme_preset.
-    background_style: row?.background_style || 'aurora',
+    background_style: isPremiumNow ? (row?.background_style || 'aurora') : 'aurora',
     plan:              row?.plan || null,
     requested_at:      row?.requested_at || null,
     trial_used:        Boolean(row?.trial_used),

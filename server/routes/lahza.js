@@ -114,13 +114,18 @@ router.post('/checkout', async (req, res) => {
       args: [req.user.id, item_key, item.priceUsd, itemType, reference, giftRecipientId, giftRecipientEmail],
     });
 
+    // Trees/collections land back on the Tree Shop (where the shelf and
+    // the request-status badges live); Premium has no dedicated page of
+    // its own — it's managed inline in Settings — so that one redirects
+    // to the Dashboard instead, which runs the same lahza_ref check.
+    const returnPath = itemType === 'premium' ? '/' : '/trees';
     const { authorizationUrl } = await initializeTransaction({
       email: req.user.email,
       amount: item.priceUsd,
       currency: 'USD',
       reference,
       metadata: { userId: req.user.id, itemType, itemKey: item_key },
-      callbackUrl: `${CLIENT_URL}/trees?lahza_ref=${encodeURIComponent(reference)}`,
+      callbackUrl: `${CLIENT_URL}${returnPath}?lahza_ref=${encodeURIComponent(reference)}`,
     });
 
     res.json({ authorization_url: authorizationUrl, reference });
