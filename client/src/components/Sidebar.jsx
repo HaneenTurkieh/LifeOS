@@ -61,11 +61,16 @@ export default function Sidebar() {
     : NAV;
   return (
     <aside
-      className="hidden lg:flex flex-col items-center w-20 shrink-0 py-6"
+      className="hidden lg:flex flex-col items-center justify-center w-20 shrink-0 py-6"
       style={{ position: 'relative', zIndex: 100, overflow: 'visible' }}
     >
+      {/* Was `sticky top-6` (hugging the top of the viewport) — Haneen's
+          call: the icon pill looked top-heavy with a big empty gap below
+          it before the settings icon. `justify-center` on the aside
+          above vertically centers the whole pill instead; sticky isn't
+          needed since this aside doesn't scroll with the page content. */}
       <div
-        className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4 sticky top-6"
+        className="relative flex flex-col items-center gap-1 rounded-[2rem] border border-white/70 dark:border-white/10 glass-spline px-2.5 py-4"
         style={{ overflow: 'visible' }}
       >
         <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent" />

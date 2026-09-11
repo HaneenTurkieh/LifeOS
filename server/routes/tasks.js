@@ -151,6 +151,15 @@ router.post('/', async (req, res) => {
     // at all.
     if (end_date && !deadline) return res.status(400).json({ error: 'Add a start date before setting an end date' });
     if (end_date && deadline && end_date < deadline) return res.status(400).json({ error: "End date can't be before the start date" });
+    // Multi-day span (end_date) and recurrence are two different ways to
+    // represent "spans several days," and having both live on the same
+    // task at once is exactly the confusing state that caused a stuck
+    // recurring task to silently fail to save (an inverted end_date
+    // blocking the whole request with no obvious cause). The client no
+    // longer lets both be set together — this is the actual enforcement,
+    // so a request from anywhere else can't reintroduce that state:
+    // recurrence always wins.
+    const effectiveEndDate = recurrence ? null : end_date;
 
     const maxPos = await db.execute({
       sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
@@ -182,8 +191,9 @@ router.post('/', async (req, res) => {
         // Same "only meaningful with a real deadline" reasoning as
         // recurrence_until above — already validated end_date>=deadline
         // when both are present, but a stray end_date with no deadline
-        // at all shouldn't be persisted either.
-        deadline ? (end_date || null) : null,
+        // at all shouldn't be persisted either. effectiveEndDate is also
+        // already forced null whenever recurrence is set (see above).
+        deadline ? (effectiveEndDate || null) : null,
       ],
     });
 
@@ -275,6 +285,18 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Add a start date before setting an end date' });
     if (updates.end_date && updates.deadline && updates.end_date < updates.deadline)
       return res.status(400).json({ error: "End date can't be before the start date" });
+    // Multi-day span (end_date) and recurrence are two different ways to
+    // represent "spans several days," and having both live on the same
+    // task at once is exactly the confusing state that caused a stuck
+    // recurring task to silently fail to save (an inverted end_date
+    // blocking the whole request with no obvious cause). The client no
+    // longer lets both be set together — this is the actual enforcement,
+    // so a request from anywhere else can't reintroduce that state:
+    // recurrence always wins. Overwritten on `updates` itself (not a
+    // separate variable) so every downstream use below — the SQL update,
+    // the late-check, the occurrence backfill's span carry-over — all
+    // see the same, already-reconciled value.
+    if (updates.recurrence) updates.end_date = null;
     const wasDone   = existing.status === 'done';
     const isNowDone = updates.status  === 'done';
 
@@ -335,40 +357,61 @@ router.put('/:id', async (req, res) => {
     // "Daily until Sep 23" for the first time, like the create-time
     // case above. Pre-create every future occurrence now so the whole
     // series shows up on the calendar immediately, instead of only
-    // ever having the one row that was just edited. Only fires when
-    // recurrence and/or recurrence_until actually changed this save —
-    // an unrelated edit to an already-expanded recurring task (e.g.
-    // renaming it) must not re-run this and duplicate the series.
-    const recurrenceJustSet = updates.recurrence && updates.recurrence_until && updates.deadline
-      && (existing.recurrence !== updates.recurrence || existing.recurrence_until !== updates.recurrence_until);
-    if (recurrenceJustSet) {
+    // ever having the one row that was just edited.
+    //
+    // This used to only run on the ONE save where recurrence/
+    // recurrence_until actually changed (`existing.recurrence !==
+    // updates.recurrence || ...`) — but that's fragile: if THAT one save
+    // got rejected for an unrelated reason (e.g. an invalid end_date),
+    // or the series otherwise ended up missing a date some other way,
+    // there was no other path that would ever create the missing
+    // occurrence — every later save of an already-bounded recurring
+    // task skipped this block entirely since recurrence/recurrence_until
+    // "hadn't changed" from its own (already-set) perspective. Instead,
+    // every save of a bounded recurring task now re-checks the FULL
+    // expected date range and backfills whatever's actually missing —
+    // matched by user_id + title + recurrence + recurrence_until so an
+    // already-existing occurrence (including this row's own date) is
+    // never duplicated, and matched by day, not identity, since an
+    // occurrence is a plain independent row.
+    if (updates.recurrence && updates.recurrence_until && updates.deadline) {
       const occurrenceDates = generateOccurrenceDates(updates.recurrence, updates.deadline, updates.recurrence_until);
-      // See the same span carry-over in POST above — a bounded recurring
-      // multi-day task must keep its span on every pre-created occurrence,
-      // not just the one row that was just edited.
-      const span = spanDays(updates.deadline, updates.end_date);
       if (occurrenceDates.length) {
-        const maxPos = await db.execute({
-          sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
-          args: [req.user.id],
+        const existingRows = await db.execute({
+          sql:  `SELECT deadline FROM tasks
+                 WHERE user_id = ? AND title = ? AND recurrence = ? AND recurrence_until = ?`,
+          args: [req.user.id, updates.title, updates.recurrence, updates.recurrence_until],
         });
-        let nextPos = Number(maxPos.rows[0].m) + 1;
-        await db.batch(
-          occurrenceDates.map((d) => ({
-            sql:  `INSERT INTO tasks
-                     (user_id, title, description, priority, category,
-                      deadline, deadline_time, recurrence, recurrence_until, status, progress, position, project_id, is_birthday, end_date)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?)`,
-            args: [
-              req.user.id, updates.title, updates.description ?? '', updates.priority, updates.category,
-              d, updates.deadline_time || null, updates.recurrence, updates.recurrence_until,
-              nextPos++, updates.project_id || null, updates.is_birthday ? 1 : 0,
-              span ? addDaysStr(d, span) : null,
-            ],
-          })),
-          'write'
-        );
-        spawnedOccurrences = occurrenceDates.length;
+        const existingDates = new Set(existingRows.rows.map((r) => r.deadline));
+        existingDates.add(updates.deadline); // this row's own start date
+        const missingDates = occurrenceDates.filter((d) => !existingDates.has(d));
+        if (missingDates.length) {
+          // See the same span carry-over in POST above — a bounded
+          // recurring multi-day task must keep its span on every
+          // backfilled occurrence, not just the one row just edited.
+          const span = spanDays(updates.deadline, updates.end_date);
+          const maxPos = await db.execute({
+            sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
+            args: [req.user.id],
+          });
+          let nextPos = Number(maxPos.rows[0].m) + 1;
+          await db.batch(
+            missingDates.map((d) => ({
+              sql:  `INSERT INTO tasks
+                       (user_id, title, description, priority, category,
+                        deadline, deadline_time, recurrence, recurrence_until, status, progress, position, project_id, is_birthday, end_date)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', 0, ?, ?, ?, ?)`,
+              args: [
+                req.user.id, updates.title, updates.description ?? '', updates.priority, updates.category,
+                d, updates.deadline_time || null, updates.recurrence, updates.recurrence_until,
+                nextPos++, updates.project_id || null, updates.is_birthday ? 1 : 0,
+                span ? addDaysStr(d, span) : null,
+              ],
+            })),
+            'write'
+          );
+          spawnedOccurrences = missingDates.length;
+        }
       }
     }
 
