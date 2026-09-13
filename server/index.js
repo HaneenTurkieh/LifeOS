@@ -49,6 +49,11 @@ app.use(express.json());
 // Public routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/cron', require('./routes/cron')); // no JWT — protected by CRON_SECRET header instead, checked inside
+// iPhone Shortcut → this, whenever Haneen's Reflect/Arab Bank SMS
+// arrives — no logged-in user on that end, so no JWT here either;
+// protected by BANK_SMS_WEBHOOK_SECRET (checked inside) instead, same
+// pattern as cron above. See routes/bankSms.js for the full story.
+app.use('/api/bank-sms', require('./routes/bankSms'));
 
 // Protected routes
 app.use('/api/tasks',        authenticate, require('./routes/tasks'));

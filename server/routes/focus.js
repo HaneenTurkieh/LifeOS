@@ -1638,3 +1638,8 @@ module.exports.getWeekStart = getWeekStart;
 // months-per-plan mapping there would just be another thing to keep in
 // sync by hand every time a plan changes.
 module.exports.PLANS = PLANS;
+// Exported so routes/bankSms.js can convert a request's USD price into
+// the ILS amount an incoming Reflect/Arab Bank SMS actually reports —
+// duplicating this constant there would just be one more place it could
+// silently drift from the NIS figure shown in the app itself.
+module.exports.USD_TO_NIS_RATE = USD_TO_NIS_RATE;
