@@ -817,8 +817,24 @@ No explanation, no markdown fences, just the JSON object.`,
                       <option value="medium">🟡 {t('tasks.medium')}</option>
                       <option value="low">🟣 {t('tasks.low')}</option>
                     </select>
-                    <input type="date" className="input-field text-sm" value={editForm.deadline || ''}
-                      onChange={e => setEditForm({...editForm, deadline:e.target.value})}/>
+                    <div className="relative">
+                      <input type="date" className="input-field text-sm pe-9" value={editForm.deadline || ''}
+                        onChange={e => setEditForm({...editForm, deadline:e.target.value})}/>
+                      {/* iOS/Android's native date picker is a wheel with no
+                          "blank" position and no keyboard involved at all —
+                          there's no backspace to fall back on like there is
+                          on desktop, so without an explicit clear button a
+                          phone user genuinely cannot undo picking a date
+                          here. Same reasoning as every other date/time field
+                          in this file already having one. */}
+                      {editForm.deadline && (
+                        <button type="button" onClick={() => setEditForm({...editForm, deadline:''})}
+                          aria-label={t('tasks.clearDate')}
+                          className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {/* Optional — leave blank for a single-day task
                       (unchanged behavior). Set it to make the task span
@@ -917,10 +933,19 @@ No explanation, no markdown fences, just the JSON object.`,
                         {editForm.recurrenceType && (
                           <div className="mt-2">
                             <label className={`text-[10px] mb-1 block ${textSub}`}>{t('tasks.repeatUntil')}</label>
-                            <input type="date" className="input-field text-sm" style={{ maxWidth: 180 }}
-                              value={editForm.recurrenceUntil}
-                              min={editForm.deadline || undefined}
-                              onChange={e => setEditForm({...editForm, recurrenceUntil: e.target.value})} />
+                            <div className="relative" style={{ maxWidth: 180 }}>
+                              <input type="date" className="input-field text-sm pe-9" style={{ maxWidth: 180 }}
+                                value={editForm.recurrenceUntil}
+                                min={editForm.deadline || undefined}
+                                onChange={e => setEditForm({...editForm, recurrenceUntil: e.target.value})} />
+                              {editForm.recurrenceUntil && (
+                                <button type="button" onClick={() => setEditForm({...editForm, recurrenceUntil: ''})}
+                                  aria-label={t('tasks.clearDate')}
+                                  className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1320,10 +1345,19 @@ No explanation, no markdown fences, just the JSON object.`,
             {addForm.recurrenceType && (
               <div className="mt-3">
                 <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.repeatUntil')}</label>
-                <input type="date" className="input-field" style={{ maxWidth: 200 }}
-                  value={addForm.recurrenceUntil}
-                  min={addModalOpen || undefined}
-                  onChange={e => setAddForm({...addForm, recurrenceUntil: e.target.value})} />
+                <div className="relative" style={{ maxWidth: 200 }}>
+                  <input type="date" className="input-field pe-9" style={{ maxWidth: 200 }}
+                    value={addForm.recurrenceUntil}
+                    min={addModalOpen || undefined}
+                    onChange={e => setAddForm({...addForm, recurrenceUntil: e.target.value})} />
+                  {addForm.recurrenceUntil && (
+                    <button type="button" onClick={() => setAddForm({...addForm, recurrenceUntil: ''})}
+                      aria-label={t('tasks.clearDate')}
+                      className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/40 dark:text-white/30 hover:text-ink/70 dark:hover:text-white/60">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

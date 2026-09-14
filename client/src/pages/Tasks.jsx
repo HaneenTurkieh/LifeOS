@@ -5,6 +5,7 @@ import {
   Circle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, Timer, Sparkles, X,
 } from 'lucide-react';
 import { api }       from '../api/client.js';
+import TimeDropdown  from '../components/TimeDropdown.jsx';
 import { useToast }  from '../context/ToastContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import PageHeader    from '../components/PageHeader.jsx';
@@ -524,7 +525,7 @@ No explanation, no markdown fences, just the JSON object.`,
                     which our color:transparent trick above can't override
                     (that's the stray pre-filled date some people were
                     seeing here instead of an empty field). */}
-                <input type="date" className="input-field" value={form.deadline}
+                <input type="date" className="input-field pe-9" value={form.deadline}
                   autoComplete="off" name="nuvora-task-deadline-date"
                   style={!form.deadline ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
                   onChange={e => setForm({...form, deadline:e.target.value})}
@@ -534,35 +535,28 @@ No explanation, no markdown fences, just the JSON object.`,
                     {t('tasks.selectDate')}
                   </span>
                 )}
+                {/* Phone date pickers are a wheel with no keyboard and no
+                    "blank" position to scroll to — there's no backspace to
+                    fall back on like desktop, so without this button a
+                    phone user can never get back to an empty date once
+                    they've picked one. */}
+                {form.deadline && (
+                  <button type="button" onClick={() => setForm({...form, deadline:''})}
+                    aria-label={t('tasks.clearDate')}
+                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/40 dark:text-white/30 hover:text-ink/70 dark:hover:text-white/60">
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             </div>
             <div>
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
-              <div className="relative">
-                <input type="time" className="input-field pe-9" value={form.deadline_time}
-                  autoComplete="off" name="nuvora-task-deadline-time"
-                  style={!form.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
-                  onChange={e => setForm({...form, deadline_time:e.target.value})}
-                  onClick={e => e.currentTarget.showPicker?.()} />
-                {!form.deadline_time && (
-                  <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
-                    {t('tasks.selectTime')}
-                  </span>
-                )}
-                {/* Native <input type="time"> has no reliable clear control —
-                    desktop Chrome hides a tiny "x" that's easy to miss (and
-                    fights the showPicker() call above), and mobile Safari/
-                    Chrome show no clear affordance at all, so once a time was
-                    picked there was no way to remove it again on phone. This
-                    button is the actual, always-visible way to clear it. */}
-                {form.deadline_time && (
-                  <button type="button" onClick={() => setForm({...form, deadline_time:''})}
-                    aria-label={t('tasks.clearTime')}
-                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
+              <TimeDropdown
+                value={form.deadline_time}
+                onChange={(v) => setForm({...form, deadline_time: v})}
+                placeholder={t('tasks.selectTime')}
+                clearLabel={t('tasks.clearTime')}
+              />
             </div>
           </div>
           {/* Optional — leave blank and the task behaves exactly as
@@ -578,10 +572,19 @@ No explanation, no markdown fences, just the JSON object.`,
           {form.deadline && !form.recurrenceType && (
             <div>
               <label className="text-[11px] text-ink/40 dark:text-white/35 mb-1 block">{t('tasks.endDateLabel')}</label>
-              <input type="date" className="input-field" value={form.end_date}
-                min={form.deadline}
-                onChange={e => setForm({...form, end_date:e.target.value})}
-                onClick={e => e.currentTarget.showPicker?.()} />
+              <div className="relative">
+                <input type="date" className="input-field pe-9" value={form.end_date}
+                  min={form.deadline}
+                  onChange={e => setForm({...form, end_date:e.target.value})}
+                  onClick={e => e.currentTarget.showPicker?.()} />
+                {form.end_date && (
+                  <button type="button" onClick={() => setForm({...form, end_date:''})}
+                    aria-label={t('tasks.clearDate')}
+                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/40 dark:text-white/30 hover:text-ink/70 dark:hover:text-white/60">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {form.deadline_time && (
@@ -649,10 +652,19 @@ No explanation, no markdown fences, just the JSON object.`,
               // forever" behavior exactly as-is.
               <motion.div initial={{ opacity:0, y:-4 }} animate={{ opacity:1, y:0 }} className="mt-3">
                 <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.repeatUntil')}</label>
-                <input type="date" value={form.recurrenceUntil}
-                  min={form.deadline || undefined}
-                  onChange={(e) => setForm({...form, recurrenceUntil: e.target.value})}
-                  className="input-field" style={{ maxWidth: 200 }} />
+                <div className="relative" style={{ maxWidth: 200 }}>
+                  <input type="date" value={form.recurrenceUntil}
+                    min={form.deadline || undefined}
+                    onChange={(e) => setForm({...form, recurrenceUntil: e.target.value})}
+                    className="input-field pe-9" style={{ maxWidth: 200 }} />
+                  {form.recurrenceUntil && (
+                    <button type="button" onClick={() => setForm({...form, recurrenceUntil: ''})}
+                      aria-label={t('tasks.clearDate')}
+                      className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/25 hover:text-ink/60 dark:hover:text-white/50">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </motion.div>
             )}
           </div>

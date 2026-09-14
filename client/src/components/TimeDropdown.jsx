@@ -8,12 +8,20 @@ import { Clock, X } from 'lucide-react';
 // "broken" to someone who only ever tested in Chrome. This renders the
 // exact same scrollable hour/minute dropdown everywhere, in both light
 // and dark mode and both LTR/RTL (uses logical start/end, not left/right).
+// Dark mode is handled with the same `dark:` Tailwind classes the rest of
+// the app already uses (no isDark prop needed), so this drops in
+// anywhere regardless of whether that page tracks theme state itself.
 //
 // value/onChange use the same 24h "HH:MM" string the rest of the app
-// already stores in deadline_time, so it's a drop-in swap for the two
-// spots that used to render <input type="time"> directly (the add-task
-// and edit-task modals in Calendar.jsx).
-export default function TimeDropdown({ value, onChange, placeholder, clearLabel, isDark, className = '' }) {
+// already stores in deadline_time, so it's a drop-in swap for every spot
+// that used to render <input type="time"> directly (Calendar.jsx's
+// add/edit modals, Tasks.jsx's add/edit modal).
+//
+// Minute granularity: every real minute (0-59), not rounded to a step —
+// an earlier version limited this to 5-minute increments to keep the
+// list short, but that silently made times like 10:09 impossible to
+// pick, which is worse than a longer scroll list.
+export default function TimeDropdown({ value, onChange, placeholder, clearLabel, className = '' }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -42,13 +50,13 @@ export default function TimeDropdown({ value, onChange, placeholder, clearLabel,
   const setMinute = (m) => onChange(`${value ? hour : '00'}:${m}`);
 
   const hours   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  // 5-minute steps (12 rows) instead of all 60 — plenty precise for a
-  // task deadline/reminder time, and keeps the dropdown short enough to
-  // scan without scrolling through a huge list.
-  const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
-  const mutedClr = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(30,34,51,0.40)';
-  const textClr  = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(30,34,51,0.85)';
+  const rowClass = (active) =>
+    `w-full text-center text-xs py-1.5 ${active
+      ? 'font-bold text-[rgb(var(--accent-500))]'
+      : 'font-medium text-ink/75 dark:text-white/75'}`;
+  const rowStyle = (active) => (active ? { background: 'rgb(var(--accent-500) / 0.15)' } : undefined);
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
@@ -57,8 +65,8 @@ export default function TimeDropdown({ value, onChange, placeholder, clearLabel,
         onClick={() => setOpen((v) => !v)}
         className="input-field pe-9 w-full text-start flex items-center gap-2"
       >
-        <Clock size={14} style={{ color: mutedClr, flexShrink: 0 }} />
-        <span style={{ color: value ? textClr : mutedClr }}>
+        <Clock size={14} className="shrink-0 text-ink/35 dark:text-white/30" />
+        <span className={value ? '' : 'text-ink/40 dark:text-white/30'}>
           {value ? `${hour}:${minute}` : (placeholder || 'Select time')}
         </span>
       </button>
@@ -68,8 +76,7 @@ export default function TimeDropdown({ value, onChange, placeholder, clearLabel,
           type="button"
           onClick={(e) => { e.stopPropagation(); onChange(''); setOpen(false); }}
           aria-label={clearLabel}
-          className="absolute inset-y-0 end-2 flex items-center px-1.5"
-          style={{ color: mutedClr }}
+          className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60"
         >
           <X size={14} />
         </button>
@@ -77,49 +84,24 @@ export default function TimeDropdown({ value, onChange, placeholder, clearLabel,
 
       {open && (
         <div
-          className="absolute z-50 top-full start-0 mt-1 flex rounded-xl overflow-hidden"
-          style={{
-            background:     isDark ? 'rgba(24,20,40,0.98)' : 'rgba(255,255,255,0.98)',
-            border:         isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.08)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            boxShadow:      '0 12px 32px rgba(0,0,0,0.18)',
-          }}
+          className="absolute z-50 top-full start-0 mt-1 flex rounded-xl overflow-hidden border shadow-lg
+                     bg-white/95 dark:bg-[#181428]/95 border-black/8 dark:border-white/10 backdrop-blur-2xl"
         >
           <div className="max-h-48 overflow-y-auto py-1 w-16">
             {hours.map((h) => {
-              const active = value && h === hour;
+              const active = Boolean(value) && h === hour;
               return (
-                <button
-                  key={h} type="button" onClick={() => setHour(h)}
-                  className="w-full text-center text-xs py-1.5"
-                  style={{
-                    background: active ? 'rgb(var(--accent-500) / 0.15)' : 'transparent',
-                    color:      active ? 'rgb(var(--accent-500))' : textClr,
-                    fontWeight: active ? 700 : 500,
-                  }}
-                >
+                <button key={h} type="button" onClick={() => setHour(h)} className={rowClass(active)} style={rowStyle(active)}>
                   {h}
                 </button>
               );
             })}
           </div>
-          <div
-            className="max-h-48 overflow-y-auto py-1 w-16"
-            style={{ borderInlineStart: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)' }}
-          >
+          <div className="max-h-48 overflow-y-auto py-1 w-16 border-s border-black/6 dark:border-white/8">
             {minutes.map((m) => {
-              const active = value && m === minute;
+              const active = Boolean(value) && m === minute;
               return (
-                <button
-                  key={m} type="button" onClick={() => setMinute(m)}
-                  className="w-full text-center text-xs py-1.5"
-                  style={{
-                    background: active ? 'rgb(var(--accent-500) / 0.15)' : 'transparent',
-                    color:      active ? 'rgb(var(--accent-500))' : textClr,
-                    fontWeight: active ? 700 : 500,
-                  }}
-                >
+                <button key={m} type="button" onClick={() => setMinute(m)} className={rowClass(active)} style={rowStyle(active)}>
                   {m}
                 </button>
               );
