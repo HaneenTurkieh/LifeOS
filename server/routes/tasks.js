@@ -70,18 +70,30 @@ function addDaysStr(dateStr, days) {
 }
 
 // ── Generate all occurrence dates for a bounded recurring task ──
-// Used by both create and update: when a task has BOTH a recurrence
-// AND a recurrence_until cutoff, every date in the series gets
-// created as its own row immediately, instead of lazily spawning
-// just the "next" one after the current one is completed. This is
-// what makes a "Daily until Sep 23" task actually show up on the
-// 22nd, 23rd, etc. on the calendar right away, rather than one date
-// appearing only after the previous one is checked off. Capped hard
-// at 366 rows so a mistyped far-future "until" date can't insert
-// thousands of rows in one request. Open-ended recurrences (no
-// recurrence_until) are NOT expanded here — there's no end date to
-// expand to, so those still spawn one occurrence at a time on
-// completion, same as before (see the PUT /:id completion block).
+// Used by both create and update: every date in the series gets created
+// as its own row immediately, instead of lazily spawning just the "next"
+// one after the current one is completed. This is what makes a "Daily
+// until Sep 23" task actually show up on the 22nd, 23rd, etc. on the
+// calendar right away, rather than one date appearing only after the
+// previous one is checked off. Capped hard at 366 rows so a mistyped
+// far-future "until" date can't insert thousands of rows in one request.
+//
+// Open-ended recurrences (no recurrence_until — "repeat forever") used to
+// skip this entirely and only ever spawn one occurrence at a time on
+// completion (see the PUT /:id completion block), which meant a task
+// repeating every Wed/Sat with no end date showed exactly ONE row on the
+// calendar until you manually completed it — the next Wed/Sat wouldn't
+// appear until then. Both call sites below now fall back to a rolling
+// DEFAULT_RECURRENCE_WINDOW_DAYS window so open-ended recurrences also
+// show up in advance, like any normal calendar app. The stored
+// recurrence_until on every generated row still stays whatever the user
+// actually set (null for "forever") — only the WINDOW used to decide how
+// far to pre-generate defaults to 90 days; the lazy completion-spawn
+// path keeps extending a forever-task's chain past that window as each
+// occurrence gets completed over time, same as before, now guarded
+// against re-inserting a date this pre-generation already created (see
+// the completion block's existence check).
+const DEFAULT_RECURRENCE_WINDOW_DAYS = 90;
 function generateOccurrenceDates(recurrence, fromDeadline, untilDate) {
   const dates = [];
   let cursor = fromDeadline;
@@ -211,11 +223,19 @@ router.post('/', async (req, res) => {
       args: [Number(insert.lastInsertRowid), req.user.id],
     })).rows[0];
 
-    // Bounded recurrence (has a recurrence_until) — pre-create every
-    // future occurrence now instead of waiting for each one to be
-    // completed first. See generateOccurrenceDates() above.
-    if (task.recurrence && task.recurrence_until && task.deadline) {
-      const occurrenceDates = generateOccurrenceDates(task.recurrence, task.deadline, task.recurrence_until);
+    // Pre-create every occurrence within the generation window now,
+    // instead of waiting for each one to be completed first. Bounded
+    // recurrences (has recurrence_until) generate up to that date; open-
+    // ended ones ("repeat forever") generate a rolling
+    // DEFAULT_RECURRENCE_WINDOW_DAYS window instead — see the comment on
+    // generateOccurrenceDates() above. Every generated row still carries
+    // the task's ORIGINAL recurrence_until (null if the user left it
+    // blank), not the window fallback — that's what keeps "forever"
+    // actually forever via the completion-spawn path once this window
+    // runs out.
+    if (task.recurrence && task.deadline) {
+      const genUntil = task.recurrence_until || addDaysStr(task.deadline, DEFAULT_RECURRENCE_WINDOW_DAYS);
+      const occurrenceDates = generateOccurrenceDates(task.recurrence, task.deadline, genUntil);
       // Carry the same span forward onto every pre-created occurrence —
       // otherwise a bounded recurring multi-day task (e.g. a review
       // session every week, each running 3 days) would collapse back to
@@ -366,12 +386,16 @@ router.put('/:id', async (req, res) => {
     let late      = false;
     let spawnedOccurrences = 0;
 
-    // Bounded recurrence was just turned on (or its dates changed) on
-    // this save — e.g. the user opened an existing task and set
-    // "Daily until Sep 23" for the first time, like the create-time
-    // case above. Pre-create every future occurrence now so the whole
-    // series shows up on the calendar immediately, instead of only
-    // ever having the one row that was just edited.
+    // Recurrence was just turned on (or its dates changed) on this save
+    // — e.g. the user opened an existing task and set "Daily until Sep
+    // 23" for the first time, like the create-time case above. Pre-
+    // create every occurrence in the generation window now so the whole
+    // series shows up on the calendar immediately, instead of only ever
+    // having the one row that was just edited. Same open-ended fallback
+    // as the create-time block above: no recurrence_until (repeat
+    // forever) still generates a rolling DEFAULT_RECURRENCE_WINDOW_DAYS
+    // window, it just doesn't get PERSISTED as recurrence_until on the
+    // generated rows — see generateOccurrenceDates()'s comment.
     //
     // This used to only run on the ONE save where recurrence/
     // recurrence_until actually changed (`existing.recurrence !==
@@ -382,19 +406,25 @@ router.put('/:id', async (req, res) => {
     // occurrence — every later save of an already-bounded recurring
     // task skipped this block entirely since recurrence/recurrence_until
     // "hadn't changed" from its own (already-set) perspective. Instead,
-    // every save of a bounded recurring task now re-checks the FULL
-    // expected date range and backfills whatever's actually missing —
-    // matched by user_id + title + recurrence + recurrence_until so an
-    // already-existing occurrence (including this row's own date) is
-    // never duplicated, and matched by day, not identity, since an
-    // occurrence is a plain independent row.
-    if (updates.recurrence && updates.recurrence_until && updates.deadline) {
-      const occurrenceDates = generateOccurrenceDates(updates.recurrence, updates.deadline, updates.recurrence_until);
+    // every save of a recurring task now re-checks the FULL expected
+    // date range and backfills whatever's actually missing — matched by
+    // user_id + title + recurrence only (NOT recurrence_until: SQL's
+    // `col = NULL` never matches, even another NULL, so matching on it
+    // too would silently stop finding any existing rows the moment
+    // recurrence_until is null, i.e. exactly the open-ended case this
+    // now needs to handle — same identity match the completion-spawn
+    // block below uses for its own existence check) so an already-
+    // existing occurrence (including this row's own date) is never
+    // duplicated, and matched by day, not identity, since an occurrence
+    // is a plain independent row.
+    if (updates.recurrence && updates.deadline) {
+      const genUntil = updates.recurrence_until || addDaysStr(updates.deadline, DEFAULT_RECURRENCE_WINDOW_DAYS);
+      const occurrenceDates = generateOccurrenceDates(updates.recurrence, updates.deadline, genUntil);
       if (occurrenceDates.length) {
         const existingRows = await db.execute({
           sql:  `SELECT deadline FROM tasks
-                 WHERE user_id = ? AND title = ? AND recurrence = ? AND recurrence_until = ?`,
-          args: [req.user.id, updates.title, updates.recurrence, updates.recurrence_until],
+                 WHERE user_id = ? AND title = ? AND recurrence = ?`,
+          args: [req.user.id, updates.title, updates.recurrence],
         });
         const existingDates = new Set(existingRows.rows.map((r) => r.deadline));
         existingDates.add(updates.deadline); // this row's own start date
@@ -519,7 +549,18 @@ router.put('/:id', async (req, res) => {
         // same as a non-recurring task being completed normally.
         const pastCutoff = updates.recurrence_until && nextDeadline > updates.recurrence_until;
 
-        if (!pastCutoff) {
+        // Now that open-ended ("forever") recurrences also get eagerly
+        // pre-generated up to DEFAULT_RECURRENCE_WINDOW_DAYS out (see the
+        // backfill block above), nextDeadline very likely already exists
+        // as one of those pre-generated rows — inserting unconditionally
+        // here would duplicate it. Same identity match used everywhere
+        // else in this file (user_id + title + recurrence + the date).
+        const dupe = !pastCutoff && (await db.execute({
+          sql:  `SELECT id FROM tasks WHERE user_id = ? AND title = ? AND recurrence = ? AND deadline = ?`,
+          args: [req.user.id, updates.title, updates.recurrence, nextDeadline],
+        })).rows[0];
+
+        if (!pastCutoff && !dupe) {
           const maxPos = await db.execute({
             sql:  `SELECT COALESCE(MAX(position), -1) m FROM tasks WHERE user_id = ? AND status = 'todo'`,
             args: [req.user.id],
@@ -546,6 +587,11 @@ router.put('/:id', async (req, res) => {
           nextTask = (await db.execute({
             sql:  `SELECT * FROM tasks WHERE id = ?`,
             args: [Number(nextInsert.lastInsertRowid)],
+          })).rows[0];
+        } else if (dupe) {
+          nextTask = (await db.execute({
+            sql:  `SELECT * FROM tasks WHERE id = ?`,
+            args: [dupe.id],
           })).rows[0];
         }
       }
