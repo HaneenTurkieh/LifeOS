@@ -1004,7 +1004,7 @@ router.get('/rooms/:code', async (req, res) => {
     // same cheer isn't handed back on a slightly-late next poll, without
     // needing to track a per-client "last seen reaction id" server-side.
     const reactions = (await db.execute({
-      sql: `SELECT fr.id, fr.emoji, u.name AS from_name
+      sql: `SELECT fr.id, fr.emoji, fr.from_user_id, u.name AS from_name
             FROM focus_reactions fr JOIN users u ON u.id = fr.from_user_id
             WHERE fr.room_id = ? AND fr.to_user_id = ? AND fr.created_at >= datetime('now', '-7 seconds')
             ORDER BY fr.id ASC`,

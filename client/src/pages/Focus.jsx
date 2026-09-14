@@ -12,6 +12,7 @@ import Modal        from '../components/Modal.jsx';
 import EmptyState   from '../components/EmptyState.jsx';
 import PriorityPill from '../components/PriorityPill.jsx';
 import { localDateStr, isTodayBirthday } from '../utils/birthday.js';
+import { avatarGradient, avatarColor } from '../utils/avatarColor.js';
 import MysticSvg from '../components/MysticTreeIcon.jsx';
 import TreeSvg   from '../components/TreeSvg.jsx';
 
@@ -20,6 +21,16 @@ const CX = 140, CY = 140, R = 108;
 const CIRC = 2 * Math.PI * R;
 
 const ACCENT_HEX = { purple: '#7C6AF0', orange: '#FF7A2E', pink: '#F5408F', blue: '#3B82F6' };
+
+// Preset (not random) offsets for the little cheer-burst — a fixed,
+// designed scatter reads as more intentional than Math.random() jitter
+// and never looks lopsided or clustered.
+const BURST_OFFSETS = [
+  { dx: -14, dy: -30, rot: -18 },
+  { dx: -4,  dy: -38, rot: 8 },
+  { dx: 8,   dy: -34, rot: -6 },
+  { dx: 16,  dy: -26, rot: 20 },
+];
 
 function lg({ color, active } = {}) {
   if (active && color) {
@@ -166,9 +177,15 @@ export default function Flow() {
   // cheers — keyed by user_id, cleared 3s after each send. Purely a
   // client-side UX guard (nothing server-side rate-limits this).
   const [cheerCooldown, setCheerCooldown] = useState({});
+  // Which member's button is mid-burst right now, if any — a fresh
+  // `key` per send so React remounts the particles even if the same
+  // member gets cheered again right after their cooldown clears.
+  const [cheerBurst, setCheerBurst] = useState(null);
   const handleSendCheer = (userId) => {
     if (cheerCooldown[userId]) return;
     sendReaction(userId);
+    setCheerBurst({ userId, key: Date.now() });
+    setTimeout(() => setCheerBurst((b) => (b?.userId === userId ? null : b)), 900);
     setCheerCooldown((c) => ({ ...c, [userId]: true }));
     setTimeout(() => setCheerCooldown((c) => { const { [userId]: _drop, ...rest } = c; return rest; }), 3000);
   };
@@ -956,7 +973,7 @@ export default function Flow() {
                           />
                         )}
                         <div className="relative flex h-9 w-9 items-center justify-center rounded-xl text-white text-xs font-bold"
-                          style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}88 100%)` }}>
+                          style={{ background: avatarGradient(m.user_id) }}>
                           {m.display_name?.[0]?.toUpperCase() || '?'}
                         </div>
                         {/* Small corner badge — a second, distinct signal
@@ -984,20 +1001,47 @@ export default function Flow() {
                       {/* Async, one-tap cheer — no chat/typing, nothing to
                           reply to. Hidden for your own row (can't cheer
                           yourself) and disabled briefly after a send so
-                          it can't be spammed into something chat-like. */}
+                          it can't be spammed into something chat-like.
+                          Tinted in the recipient's own avatar color (not
+                          a flat neutral pill) with a little confetti-style
+                          burst on tap, so sending one actually feels like
+                          a small gift instead of just toggling a button. */}
                       {Number(m.user_id) !== Number(user?.id) && (
-                        <motion.button
-                          type="button"
-                          whileTap={{ scale: 0.85 }}
-                          disabled={Boolean(cheerCooldown[m.user_id])}
-                          onClick={() => handleSendCheer(m.user_id)}
-                          title={t('flow.cheerTitle', { name: m.display_name })}
-                          aria-label={t('flow.cheerTitle', { name: m.display_name })}
-                          className="shrink-0 flex h-8 w-8 items-center justify-center rounded-xl text-base disabled:opacity-40"
-                          style={lg()}
-                        >
-                          👏
-                        </motion.button>
+                        <div className="relative shrink-0">
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.08 }}
+                            whileTap={{ scale: 0.82 }}
+                            disabled={Boolean(cheerCooldown[m.user_id])}
+                            onClick={() => handleSendCheer(m.user_id)}
+                            title={t('flow.cheerTitle', { name: m.display_name })}
+                            aria-label={t('flow.cheerTitle', { name: m.display_name })}
+                            className="relative flex h-9 w-9 items-center justify-center rounded-full text-base disabled:opacity-40"
+                            style={{
+                              background: `${avatarColor(m.user_id)}18`,
+                              border:     `1.5px solid ${avatarColor(m.user_id)}45`,
+                              boxShadow:  `0 2px 10px ${avatarColor(m.user_id)}25`,
+                            }}
+                          >
+                            👏
+                          </motion.button>
+                          <AnimatePresence>
+                            {cheerBurst?.userId === m.user_id && (
+                              <div className="absolute inset-0 pointer-events-none">
+                                {BURST_OFFSETS.map((o, i) => (
+                                  <motion.span key={`${cheerBurst.key}-${i}`}
+                                    initial={{ opacity: 1, x: 0, y: 0, scale: 0.5 }}
+                                    animate={{ opacity: 0, x: o.dx, y: o.dy, rotate: o.rot, scale: 1.15 }}
+                                    transition={{ duration: 0.75, delay: i * 0.03, ease: 'easeOut' }}
+                                    className="absolute inset-x-0 top-1 text-center text-sm"
+                                  >
+                                    👏
+                                  </motion.span>
+                                ))}
+                              </div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       )}
                       <div className="flex items-center gap-1.5">
                         <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15 dark:bg-white/15'}`} />
@@ -1229,18 +1273,33 @@ export default function Flow() {
           (the sender might be looking at the room tab while I'm on the
           timer). Each one removes itself via the timer in FocusContext's
           room poll, this just renders whatever's currently in the list. */}
-      <div className="fixed top-4 inset-x-0 z-[95] flex flex-col items-center gap-2 pointer-events-none px-4">
+      <div className="fixed top-4 inset-x-0 z-[95] flex flex-col items-center gap-2.5 pointer-events-none px-4">
         <AnimatePresence>
           {reactions.map((r) => (
             <motion.div
               key={r.id}
-              initial={{ opacity: 0, y: -12, scale: 0.9 }}
+              initial={{ opacity: 0, y: -16, scale: 0.85 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.9 }}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg"
-              style={{ background: 'rgba(30,34,51,0.88)', backdropFilter: 'blur(12px)' }}
+              exit={{ opacity: 0, y: -10, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+              className="flex items-center gap-2.5 rounded-full ps-1.5 pe-4 py-1.5 text-sm font-semibold text-white shadow-lg"
+              style={{
+                background: 'rgba(30,34,51,0.88)',
+                backdropFilter: 'blur(12px)',
+                boxShadow: `0 6px 20px ${avatarColor(r.from_user_id)}33, 0 2px 8px rgba(0,0,0,0.2)`,
+              }}
             >
-              <span className="text-lg">{r.emoji}</span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                style={{ background: avatarGradient(r.from_user_id) }}>
+                {r.from_name?.[0]?.toUpperCase() || '?'}
+              </span>
+              <motion.span
+                className="text-xl"
+                animate={{ scale: [1, 1.25, 1], rotate: [0, -8, 8, 0] }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              >
+                {r.emoji}
+              </motion.span>
               {t('flow.cheerToast', { name: r.from_name })}
             </motion.div>
           ))}

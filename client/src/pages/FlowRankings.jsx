@@ -8,6 +8,7 @@ import { Trophy, Flame, Clock, Medal, Users } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useFocus } from '../context/FocusContext.jsx';
+import { avatarGradient } from '../utils/avatarColor.js';
 import GlassCard from '../components/GlassCard.jsx';
 import LeaderboardTreeBadge from '../components/LeaderboardTreeBadge.jsx';
 
@@ -91,7 +92,7 @@ export default function FlowRankings() {
                     {m.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[m.rank - 1] }} /> : m.rank}
                   </span>
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white text-xs font-bold"
-                    style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-500) / 0.65) 100%)' }}>
+                    style={{ background: avatarGradient(m.user_id) }}>
                     {m.display_name?.[0]?.toUpperCase() || '?'}
                   </div>
                   <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{m.display_name}</span>
@@ -149,7 +150,7 @@ export default function FlowRankings() {
                       second full-size icon competing for space. */}
                   <div className="relative shrink-0">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-xs font-bold"
-                      style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-500) / 0.65) 100%)' }}>
+                      style={{ background: avatarGradient(r.id) }}>
                       {r.name?.[0]?.toUpperCase() || '?'}
                     </div>
                     <div className="absolute -bottom-1.5 -end-1.5 rounded-full p-[3px] bg-white dark:bg-[#181428]"
