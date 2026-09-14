@@ -127,19 +127,42 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* ── Features ─────────────────────────────────────── */}
+        {/* ── Features — bento grid ────────────────────────────
+            Asymmetric grid instead of a plain uniform 3-col: Lumi (the
+            actual differentiator - an AI companion woven through the
+            whole app, not a bolted-on chatbot) gets a tall 2x2 hero cell,
+            Focus/Forest and Launchpad get wide 2x1 cells (Forest is the
+            other standout - a focus timer that grows a real tree), and
+            Tasks/Exam/Bilingual fill the remaining 1x1 cells. `grid-flow-
+            dense` lets the auto-placement pack cells tightly instead of
+            leaving gaps from the mixed spans. Still the same glass cards
+            as before (backdrop-blur panels) - only the layout changed,
+            not the material. */}
         <h2 className="font-display font-bold text-lg text-center mb-5" style={{ color: titleClr }}>
           {s.featuresHeading}
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:grid-flow-dense gap-4 mb-14 lg:auto-rows-[150px]">
           {s.features.map((f) => {
             const Icon = ICONS[f.icon];
+            const isHero = f.icon === 'lumi';
+            const isWide = f.icon === 'forest' || f.icon === 'launch';
             return (
-              <div key={f.title} className="rounded-2xl p-5"
-                style={{ background: cardBg, backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', border: cardBorder }}>
-                <Icon size={20} style={{ color: 'rgb(var(--accent-500))' }} className="mb-2" />
-                <p className="font-display font-bold text-sm mb-1" style={{ color: titleClr }}>{f.title}</p>
-                <p className="text-xs leading-relaxed" style={{ color: bodyClr }}>{f.desc}</p>
+              <div
+                key={f.title}
+                className={[
+                  'rounded-2xl p-5 flex flex-col',
+                  isHero ? 'justify-center lg:col-span-2 lg:row-span-2' : 'justify-start',
+                  isWide ? 'lg:col-span-2' : '',
+                ].join(' ')}
+                style={{ background: cardBg, backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', border: cardBorder }}
+              >
+                <Icon size={isHero ? 28 : 20} style={{ color: 'rgb(var(--accent-500))' }} className="mb-2" />
+                <p className={isHero ? 'font-display font-bold text-base mb-1.5' : 'font-display font-bold text-sm mb-1'} style={{ color: titleClr }}>
+                  {f.title}
+                </p>
+                <p className={isHero ? 'text-sm leading-relaxed' : 'text-xs leading-relaxed'} style={{ color: bodyClr }}>
+                  {f.desc}
+                </p>
               </div>
             );
           })}
