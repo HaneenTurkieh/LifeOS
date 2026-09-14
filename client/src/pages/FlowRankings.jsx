@@ -90,8 +90,8 @@ export default function FlowRankings() {
                     style={{ color: MEDAL_COLORS[m.rank - 1] || 'inherit' }}>
                     {m.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[m.rank - 1] }} /> : m.rank}
                   </span>
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white text-xs font-bold"
-                    style={{ background: 'rgb(var(--accent-500))' }}>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white text-xs font-bold"
+                    style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-500) / 0.65) 100%)' }}>
                     {m.display_name?.[0]?.toUpperCase() || '?'}
                   </div>
                   <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{m.display_name}</span>
@@ -139,7 +139,24 @@ export default function FlowRankings() {
                     style={{ color: MEDAL_COLORS[r.rank - 1] || 'inherit' }}>
                     {r.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[r.rank - 1] }} /> : r.rank}
                   </span>
-                  <LeaderboardTreeBadge treeKey={r.equipped_tree_key} mysticDesign={r.mystic_design} />
+                  {/* Who they are (initials avatar, same language as the
+                      room view) is now the primary shape here, with what
+                      they've equipped as a small badge riding its corner
+                      — same layering the room member list already uses
+                      for the "focusing" badge, just carrying a tree
+                      instead. Keeps the Tree Shop showcase this badge
+                      exists for (see LeaderboardTreeBadge) without a
+                      second full-size icon competing for space. */}
+                  <div className="relative shrink-0">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl text-white text-xs font-bold"
+                      style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-500) / 0.65) 100%)' }}>
+                      {r.name?.[0]?.toUpperCase() || '?'}
+                    </div>
+                    <div className="absolute -bottom-1.5 -end-1.5 rounded-full p-[3px] bg-white dark:bg-[#181428]"
+                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
+                      <LeaderboardTreeBadge treeKey={r.equipped_tree_key} mysticDesign={r.mystic_design} size={13} />
+                    </div>
+                  </div>
                   <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{r.name}</span>
                   <span className="text-xs text-ink/40 dark:text-white/35">{r.session_count} sessions</span>
                   <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{r.total_minutes}m</span>
