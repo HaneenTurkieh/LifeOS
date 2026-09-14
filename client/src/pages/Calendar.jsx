@@ -5,6 +5,7 @@ import {
   Pencil, Trash2, Calendar as CalIcon, Sparkles,
 } from 'lucide-react';
 import { api }      from '../api/client.js';
+import TimeDropdown from '../components/TimeDropdown.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -398,9 +399,19 @@ export default function Calendar() {
       toast.error(t('tasks.endDateBeforeStart'));
       return;
     }
+    const editRecurrence = formToRecurrence(editForm);
+    // Same trap as end_date < deadline above, but for "Ends on" — the
+    // server rejects it too now, but catching it here means an instant
+    // inline error instead of a round-trip, and it's what stopped this
+    // exact task (repeat until a date before its own start) from ever
+    // generating its Wed/Sat occurrences.
+    if (editRecurrence && editForm.recurrenceUntil && editForm.deadline && editForm.recurrenceUntil < editForm.deadline) {
+      toast.error(t('tasks.recurrenceUntilBeforeStart'));
+      return;
+    }
     setSaving(true);
     try {
-      const recurrence = formToRecurrence(editForm);
+      const recurrence = editRecurrence;
       await api.put(`/tasks/${selectedTask.id}`, {
         title:         editForm.title.trim(),
         description:   editForm.description || '',
@@ -521,9 +532,17 @@ No explanation, no markdown fences, just the JSON object.`,
       toast.error(t('tasks.endDateBeforeStart'));
       return;
     }
+    const addRecurrence = formToRecurrence(addForm);
+    // See the matching check in saveTask() above — this is what let a
+    // Custom-repeat task with an "Ends on" earlier than its own start
+    // date save silently with zero occurrences ever generated.
+    if (addRecurrence && addForm.recurrenceUntil && addForm.recurrenceUntil < addModalOpen) {
+      toast.error(t('tasks.recurrenceUntilBeforeStart'));
+      return;
+    }
     setSaving(true);
     try {
-      const recurrence = formToRecurrence(addForm);
+      const recurrence = addRecurrence;
       await api.post('/tasks', {
         ...addForm,
         deadline: addModalOpen,
@@ -832,22 +851,13 @@ No explanation, no markdown fences, just the JSON object.`,
                     <p className={`text-[11px] ${isDark?'text-white/25':'text-ink/35'}`}>{t('calendar.birthdayHint')}</p>
                   ) : (
                     <>
-                      <div className="relative">
-                        <input type="time" className="input-field text-sm pe-9" value={editForm.deadline_time}
-                          onChange={e => setEditForm({...editForm, deadline_time:e.target.value})}
-                          onClick={e => e.currentTarget.showPicker?.()}/>
-                        {/* Native time inputs have no reliable clear control —
-                            mobile browsers show none at all — so once a time
-                            was set there was no way to remove it again. This
-                            button is the actual, always-visible clear action. */}
-                        {editForm.deadline_time && (
-                          <button type="button" onClick={() => setEditForm({...editForm, deadline_time:''})}
-                            aria-label={t('tasks.clearTime')}
-                            className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/35 dark:text-white/35 hover:text-ink/60 dark:hover:text-white/60">
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
+                      <TimeDropdown
+                        value={editForm.deadline_time}
+                        onChange={(v) => setEditForm({...editForm, deadline_time: v})}
+                        placeholder={t('tasks.selectTime')}
+                        clearLabel={t('tasks.clearTime')}
+                        isDark={isDark}
+                      />
                       {editForm.deadline_time && (
                         <ReminderPicker
                           value={editForm.remindOffsets}
@@ -1242,29 +1252,13 @@ No explanation, no markdown fences, just the JSON object.`,
           {!addForm.isBirthday && (
             <div>
               <label className="text-[11px] text-ink/35 dark:text-white/25 mb-1 block">{t('tasks.deadlineTimeLabel')}</label>
-              <div className="relative">
-                <input type="time" className="input-field pe-9" value={addForm.deadline_time}
-                  autoComplete="off" name="nuvora-calendar-task-time"
-                  style={!addForm.deadline_time ? { color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined}
-                  onChange={e => setAddForm({...addForm, deadline_time:e.target.value})}
-                  onClick={e => e.currentTarget.showPicker?.()} />
-                {!addForm.deadline_time && (
-                  <span className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-sm text-ink/40 dark:text-white/30">
-                    {t('tasks.selectTime')}
-                  </span>
-                )}
-                {/* Native time inputs have no reliable clear control — mobile
-                    browsers show none at all — so once a time was set there
-                    was no way to remove it again. This button is the actual,
-                    always-visible clear action. */}
-                {addForm.deadline_time && (
-                  <button type="button" onClick={() => setAddForm({...addForm, deadline_time:''})}
-                    aria-label={t('tasks.clearTime')}
-                    className="absolute inset-y-0 end-2 flex items-center px-1.5 text-ink/40 dark:text-white/30 hover:text-ink/70 dark:hover:text-white/60">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
+              <TimeDropdown
+                value={addForm.deadline_time}
+                onChange={(v) => setAddForm({...addForm, deadline_time: v})}
+                placeholder={t('tasks.selectTime')}
+                clearLabel={t('tasks.clearTime')}
+                isDark={isDark}
+              />
             </div>
           )}
           {addForm.deadline_time && !addForm.isBirthday && (

@@ -151,6 +151,15 @@ router.post('/', async (req, res) => {
     // at all.
     if (end_date && !deadline) return res.status(400).json({ error: 'Add a start date before setting an end date' });
     if (end_date && deadline && end_date < deadline) return res.status(400).json({ error: "End date can't be before the start date" });
+    // Same trap as end_date, but silent instead of loud: recurrence_until
+    // < deadline doesn't error anywhere downstream, it just makes
+    // generateOccurrenceDates() break on its very first loop iteration
+    // (the first candidate date is already past "until"), so a repeating
+    // task quietly gets zero extra rows and looks like recurrence is
+    // broken. Caught here instead, with the same wording style as the
+    // end_date check above.
+    if (recurrence_until && deadline && recurrence_until < deadline)
+      return res.status(400).json({ error: "\"Ends on\" can't be before the start date" });
     // Multi-day span (end_date) and recurrence are two different ways to
     // represent "spans several days," and having both live on the same
     // task at once is exactly the confusing state that caused a stuck
@@ -285,6 +294,11 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Add a start date before setting an end date' });
     if (updates.end_date && updates.deadline && updates.end_date < updates.deadline)
       return res.status(400).json({ error: "End date can't be before the start date" });
+    // Same reasoning as the POST /tasks version of this check — see the
+    // comment there. Checked against the merged state for the same
+    // reason the end_date check above is.
+    if (updates.recurrence_until && updates.deadline && updates.recurrence_until < updates.deadline)
+      return res.status(400).json({ error: "\"Ends on\" can't be before the start date" });
     // Multi-day span (end_date) and recurrence are two different ways to
     // represent "spans several days," and having both live on the same
     // task at once is exactly the confusing state that caused a stuck
