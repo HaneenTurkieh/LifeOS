@@ -935,6 +935,49 @@ export default function TreeShop() {
     api.get('/focus/premium/bank-transfer/details').then(setBankDetails).catch(() => setBankDetails(null));
     api.get('/trees/bank-transfer/mine').then((d) => setMyTreeRequests(d.requests || [])).catch(() => setMyTreeRequests([]));
   }, []);
+  // Bank-transfer requests don't get an instant redirect back the way a
+  // Lahza card payment does — Haneen reviews and approves/rejects them in
+  // her own time, could be minutes or hours later. Without this, the
+  // reveal celebration only ever fired for the card path, which felt like
+  // a gap the moment someone actually tested the bank-transfer path end
+  // to end. So: every time myTreeRequests reloads, compare each request's
+  // status against what was last seen (localStorage, per account, keyed
+  // by request id — see the `id` field trees.js's GET /bank-transfer/mine
+  // now returns) and treat a pending → approved/rejected flip as "just
+  // happened," the same way the lahza_ref effect below treats a fresh
+  // redirect. Gated on `data` being loaded too, purely so the reveal can
+  // show the tree/collection's real name instead of falling back to its
+  // bare key — first-ever run for an account just seeds the snapshot
+  // silently, so this never retroactively celebrates something that was
+  // already resolved before this existed.
+  useEffect(() => {
+    if (!user?.id || !data || !myTreeRequests.length) return;
+    const storageKey = `nuvora_treereq_status_${user.id}`;
+    let prev = {};
+    try { prev = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) {}
+    const next = { ...prev };
+    for (const r of myTreeRequests) {
+      const prevStatus = prev[r.id];
+      next[r.id] = r.status;
+      if (prevStatus !== 'pending') continue; // first sighting, or already handled
+      if (r.status === 'approved') {
+        const item = r.item_type === 'tree'
+          ? data.premiumTrees?.find((t) => t.key === r.item_key)
+          : data.collections?.find((c) => c.key === r.item_key);
+        setReveal({
+          itemType: r.item_type,
+          itemKey: r.item_key,
+          label: item?.name || r.item_key,
+          emoji: r.item_type === 'tree' ? item?.emoji : '🎁',
+          isGift: Boolean(r.gift_recipient_email),
+          giftRecipientEmail: r.gift_recipient_email || null,
+        });
+      } else if (r.status === 'rejected') {
+        toast.error(t('shop.bankTransferRejectedDesc'));
+      }
+    }
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch (_) {}
+  }, [myTreeRequests, data, user?.id]); // eslint-disable-line
   // Runs once on mount, whether the user arrived here fresh or just got
   // redirected back from Lahza's checkout page. routes/lahza.js's
   // callback_url always points at /trees?lahza_ref=..., regardless of
