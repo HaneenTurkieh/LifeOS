@@ -18,7 +18,7 @@ export default function VoiceInputButton({ onText, size = 'md', className = '' }
   const { lang, t } = useLanguage();
   const toast = useToast();
 
-  const { supported, listening, toggle } = useVoiceDictation({
+  const { supported, listening, interimText, toggle } = useVoiceDictation({
     lang,
     onResult: (text) => onText?.(text),
     onError: () => {
@@ -34,34 +34,67 @@ export default function VoiceInputButton({ onText, size = 'md', className = '' }
   const iconSize = size === 'sm' ? 13 : 15;
 
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={listening
-        ? (lang === 'ar' ? 'إيقاف الاستماع' : 'Stop listening')
-        : (lang === 'ar' ? 'أملِ بصوتك' : 'Dictate with your voice')}
-      className={`relative flex shrink-0 items-center justify-center rounded-full transition ${className}`}
-      style={{
-        width: dim, height: dim,
-        background: listening ? 'rgba(255,90,90,0.16)' : 'rgb(var(--accent-500) / 0.10)',
-        border: `1px solid ${listening ? 'rgba(255,90,90,0.40)' : 'rgb(var(--accent-500) / 0.22)'}`,
-        color: listening ? '#FF5A5A' : 'rgb(var(--accent-500))',
-      }}
-    >
+    <div className="relative inline-flex">
+      <button
+        type="button"
+        onClick={toggle}
+        title={listening
+          ? (lang === 'ar' ? 'إيقاف الاستماع' : 'Stop listening')
+          : (lang === 'ar' ? 'أملِ بصوتك' : 'Dictate with your voice')}
+        className={`relative flex shrink-0 items-center justify-center rounded-full transition ${className}`}
+        style={{
+          width: dim, height: dim,
+          background: listening ? 'rgba(255,90,90,0.16)' : 'rgb(var(--accent-500) / 0.10)',
+          border: `1px solid ${listening ? 'rgba(255,90,90,0.40)' : 'rgb(var(--accent-500) / 0.22)'}`,
+          color: listening ? '#FF5A5A' : 'rgb(var(--accent-500))',
+        }}
+      >
+        <AnimatePresence>
+          {listening && (
+            <motion.span
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.8, opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.1, repeat: Infinity, ease: 'easeOut' }}
+              className="absolute inset-0 rounded-full"
+              style={{ background: 'rgba(255,90,90,0.35)' }}
+            />
+          )}
+        </AnimatePresence>
+        {listening ? <MicOff size={iconSize} /> : <Mic size={iconSize} />}
+      </button>
+
+      {/* Live partial transcript — the browser's speech engine only
+          calls onResult once it decides a phrase is FINAL (after
+          detecting a pause), which used to be the only thing shown
+          anywhere. That made dictation feel slow/unresponsive even
+          though the engine was already recognizing words in real
+          time — useVoiceDictation was tracking interimText the whole
+          time, it just wasn't surfaced. This bubble shows those
+          in-progress words the instant the engine reports them, so
+          catching speech reads as fast as it actually is; the field
+          itself still only updates with the committed final chunk. */}
       <AnimatePresence>
-        {listening && (
-          <motion.span
-            initial={{ scale: 1, opacity: 0.6 }}
-            animate={{ scale: 1.8, opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.1, repeat: Infinity, ease: 'easeOut' }}
-            className="absolute inset-0 rounded-full"
-            style={{ background: 'rgba(255,90,90,0.35)' }}
-          />
+        {listening && interimText && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            className="absolute bottom-full start-1/2 -translate-x-1/2 mb-2 max-w-[220px] px-2.5 py-1.5 rounded-xl text-xs font-medium text-center pointer-events-none z-30"
+            style={{
+              background: 'rgba(30,34,51,0.88)',
+              color: 'white',
+              backdropFilter: 'blur(8px)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            }}
+          >
+            {interimText}
+          </motion.div>
         )}
       </AnimatePresence>
-      {listening ? <MicOff size={iconSize} /> : <Mic size={iconSize} />}
-    </button>
+    </div>
   );
 }
 
