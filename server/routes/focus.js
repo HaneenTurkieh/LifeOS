@@ -999,7 +999,19 @@ router.get('/rooms/:code', async (req, res) => {
       }
     } catch (_) {}
 
-    res.json({ code: roomRow.code, name: roomRow.name, host_id: Number(roomRow.host_id), members, timer, tree });
+    // Cheers sent TO this member since their last poll or so — a short
+    // window (a bit more than the client's 5s poll interval) so the
+    // same cheer isn't handed back on a slightly-late next poll, without
+    // needing to track a per-client "last seen reaction id" server-side.
+    const reactions = (await db.execute({
+      sql: `SELECT fr.id, fr.emoji, u.name AS from_name
+            FROM focus_reactions fr JOIN users u ON u.id = fr.from_user_id
+            WHERE fr.room_id = ? AND fr.to_user_id = ? AND fr.created_at >= datetime('now', '-7 seconds')
+            ORDER BY fr.id ASC`,
+      args: [roomRow.id, req.user.id],
+    })).rows;
+
+    res.json({ code: roomRow.code, name: roomRow.name, host_id: Number(roomRow.host_id), members, timer, tree, reactions });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -1181,6 +1193,45 @@ router.post('/rooms/:code/pulse', async (req, res) => {
       });
     }
     await reconcileRoomSession(roomRow.id); // catch any other member whose session ended without self-reporting
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// Lightweight tap-to-send cheer between members of the same room, no
+// chat/typing/audio involved — deliberately kept to this instead of a
+// real conversation feature (chat/voice/screen-share) or ambient
+// audio, both ruled out as too much for what Flow is. A recipient
+// picks it up on their own next room poll (GET /rooms/:code below,
+// within ~5s) and it's shown as a brief floating bubble, then gone —
+// nothing is stored beyond that window (see the opportunistic prune
+// below and the table comment in schema.sql).
+router.post('/rooms/:code/react', async (req, res) => {
+  try {
+    const { to_user_id, emoji = '👏' } = req.body;
+    if (!to_user_id) return res.status(400).json({ error: 'to_user_id is required' });
+    if (Number(to_user_id) === Number(req.user.id)) return res.status(400).json({ error: "You can't cheer yourself" });
+
+    const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
+    if (!roomRow) return res.status(404).json({ error: 'Room not found' });
+
+    // Both sides have to actually be in this room — stops a stale tab
+    // from cheering someone who already left, and (same as every other
+    // room route in this file) stops anyone who merely knows/guessed a
+    // room code from using it without having joined.
+    const [senderIn, targetIn] = await Promise.all([
+      db.execute({ sql: `SELECT 1 FROM focus_room_members WHERE room_id = ? AND user_id = ?`, args: [roomRow.id, req.user.id] }),
+      db.execute({ sql: `SELECT 1 FROM focus_room_members WHERE room_id = ? AND user_id = ?`, args: [roomRow.id, to_user_id] }),
+    ]);
+    if (!senderIn.rows[0]) return res.status(403).json({ error: 'You are not a member of this room' });
+    if (!targetIn.rows[0]) return res.status(404).json({ error: 'That member is not in this room' });
+
+    await db.execute({
+      sql:  `INSERT INTO focus_reactions (room_id, from_user_id, to_user_id, emoji) VALUES (?, ?, ?, ?)`,
+      args: [roomRow.id, req.user.id, to_user_id, emoji],
+    });
+    // These rows are only ever read within seconds of being written (the
+    // poll below) — no separate cron needed to keep this table small.
+    await db.execute(`DELETE FROM focus_reactions WHERE created_at < datetime('now', '-1 hour')`);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });

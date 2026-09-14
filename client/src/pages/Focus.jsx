@@ -157,10 +157,21 @@ export default function Flow() {
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
     taskName, taskId, taskTimeSpent, dots, startedAt, congrats, died, stats, board, spotlights, room, roomTree,
-    myRooms, switchRoom, loadMyRooms,
+    myRooms, switchRoom, loadMyRooms, reactions, sendReaction,
     setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, joinRoomTimer, handleModeClick,
   } = useFocus();
+
+  // Per-member cooldown so a tap can't be spammed into a stream of
+  // cheers — keyed by user_id, cleared 3s after each send. Purely a
+  // client-side UX guard (nothing server-side rate-limits this).
+  const [cheerCooldown, setCheerCooldown] = useState({});
+  const handleSendCheer = (userId) => {
+    if (cheerCooldown[userId]) return;
+    sendReaction(userId);
+    setCheerCooldown((c) => ({ ...c, [userId]: true }));
+    setTimeout(() => setCheerCooldown((c) => { const { [userId]: _drop, ...rest } = c; return rest; }), 3000);
+  };
 
   // `room` stays set just from being a member of a persistent room (not
   // only while actively focusing together), and `roomTree` keeps the
@@ -970,6 +981,24 @@ export default function Flow() {
                         </p>
                         <p className="text-xs text-ink/40 dark:text-white/30">{m.focus_minutes} {t('flow.minFocusedSub')}</p>
                       </div>
+                      {/* Async, one-tap cheer — no chat/typing, nothing to
+                          reply to. Hidden for your own row (can't cheer
+                          yourself) and disabled briefly after a send so
+                          it can't be spammed into something chat-like. */}
+                      {Number(m.user_id) !== Number(user?.id) && (
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.85 }}
+                          disabled={Boolean(cheerCooldown[m.user_id])}
+                          onClick={() => handleSendCheer(m.user_id)}
+                          title={t('flow.cheerTitle', { name: m.display_name })}
+                          aria-label={t('flow.cheerTitle', { name: m.display_name })}
+                          className="shrink-0 flex h-8 w-8 items-center justify-center rounded-xl text-base disabled:opacity-40"
+                          style={lg()}
+                        >
+                          👏
+                        </motion.button>
+                      )}
                       <div className="flex items-center gap-1.5">
                         <span className={`h-2 w-2 rounded-full ${m.is_focusing ? 'bg-sage-500 animate-pulse' : 'bg-ink/15 dark:bg-white/15'}`} />
                         <span className={`text-xs font-medium ${m.is_focusing ? 'text-sage-600 dark:text-sage-400' : 'text-ink/35 dark:text-white/30'}`}>
@@ -1195,6 +1224,29 @@ export default function Flow() {
         )}
       </Modal>
 
+      {/* Incoming cheers — a brief floating bubble per reaction, stacked
+          top-of-screen so it's visible no matter which Flow tab is open
+          (the sender might be looking at the room tab while I'm on the
+          timer). Each one removes itself via the timer in FocusContext's
+          room poll, this just renders whatever's currently in the list. */}
+      <div className="fixed top-4 inset-x-0 z-[95] flex flex-col items-center gap-2 pointer-events-none px-4">
+        <AnimatePresence>
+          {reactions.map((r) => (
+            <motion.div
+              key={r.id}
+              initial={{ opacity: 0, y: -12, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.9 }}
+              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg"
+              style={{ background: 'rgba(30,34,51,0.88)', backdropFilter: 'blur(12px)' }}
+            >
+              <span className="text-lg">{r.emoji}</span>
+              {t('flow.cheerToast', { name: r.from_name })}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       <AnimatePresence>
         {congrats && (
           <motion.div
@@ -1245,6 +1297,22 @@ export default function Flow() {
                     style={{ background: 'linear-gradient(135deg,#4CC38A,#2FA36B)', boxShadow: '0 4px 14px rgba(76,195,138,0.35)' }}>
                     <CheckCircle2 size={13} /> {t('flow.markDone')}
                   </motion.button>
+                </div>
+              )}
+              {congrats.groupRecap && (
+                <div className="rounded-2xl px-5 py-4 mb-4 text-start flex items-center gap-3" style={lg({ color: modeColor, active: true })}>
+                  <span className="text-2xl shrink-0">🤝</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-ink dark:text-white truncate">
+                      {t('flow.groupRecapTitle', { room: congrats.groupRecap.roomName })}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: muted(0.45) }}>
+                      {t('flow.groupRecapStat', {
+                        count: congrats.groupRecap.participantCount,
+                        minutes: congrats.groupRecap.totalMinutes,
+                      })}
+                    </p>
+                  </div>
                 </div>
               )}
               <div className="rounded-2xl px-5 py-4 mb-4 text-start" style={lg()}>

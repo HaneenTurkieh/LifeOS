@@ -4,9 +4,10 @@
 // Reuses the existing GET /focus/leaderboard endpoint — that data
 // already existed, this just gives it a real home.
 import React, { useEffect, useState } from 'react';
-import { Trophy, Flame, Clock, Medal } from 'lucide-react';
+import { Trophy, Flame, Clock, Medal, Users } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { useFocus } from '../context/FocusContext.jsx';
 import GlassCard from '../components/GlassCard.jsx';
 import LeaderboardTreeBadge from '../components/LeaderboardTreeBadge.jsx';
 
@@ -14,18 +15,38 @@ const MEDAL_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
 
 export default function FlowRankings() {
   const { t } = useLanguage();
+  const { room } = useFocus(); // whichever room is currently active, if any (set app-wide by FocusContext)
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // 'global' (existing site-wide weekly leaderboard) vs 'room' (this
+  // room's own members, ranked by the same weekly focus_minutes the
+  // room screen already shows — no new leaderboard concept, just a
+  // second view onto data that already existed).
+  const [viewMode, setViewMode] = useState('global');
+  const [roomData, setRoomData] = useState(null);
+  const [roomLoading, setRoomLoading] = useState(false);
 
   useEffect(() => {
     api.get('/focus/leaderboard').then(setData).catch(() => setData({ leaderboard: [], spotlights: {} }))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (viewMode !== 'room' || !room?.code) return;
+    setRoomLoading(true);
+    api.get(`/focus/rooms/${room.code}`).then(setRoomData).catch(() => setRoomData(null))
+      .finally(() => setRoomLoading(false));
+  }, [viewMode, room?.code]);
+
   if (loading) return <div className="flex items-center justify-center min-h-[40vh] text-ink/30 dark:text-white/30">…</div>;
 
   const board = data?.leaderboard || [];
   const s = data?.spotlights || {};
+  // GET /focus/rooms/:code already returns members ordered by
+  // focus_minutes DESC (see server/routes/focus.js) — this just adds
+  // the 1-based rank on top of that existing order.
+  const roomBoard = (roomData?.members || []).map((m, i) => ({ ...m, rank: i + 1 }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,9 +55,53 @@ export default function FlowRankings() {
           <Trophy size={22} className="text-[rgb(var(--accent-500))]" /> {t('flow.rankingsTitle')}
         </h1>
         <p className="text-sm text-ink/45 dark:text-white/40 mt-1">{t('flow.rankingsSubtitle')}</p>
+
+        <div className="flex items-center gap-1.5 mt-4">
+          <button type="button" onClick={() => setViewMode('global')}
+            className="rounded-xl px-3.5 py-1.5 text-xs font-semibold transition"
+            style={viewMode === 'global'
+              ? { background: 'rgb(var(--accent-500) / 0.15)', color: 'rgb(var(--accent-500))' }
+              : { background: 'transparent', color: 'inherit' }}>
+            {t('flow.globalRankings')}
+          </button>
+          <button type="button" onClick={() => setViewMode('room')}
+            className="rounded-xl px-3.5 py-1.5 text-xs font-semibold transition flex items-center gap-1.5"
+            style={viewMode === 'room'
+              ? { background: 'rgb(var(--accent-500) / 0.15)', color: 'rgb(var(--accent-500))' }
+              : { background: 'transparent', color: 'inherit' }}>
+            <Users size={13} /> {t('flow.roomRankings')}
+          </button>
+        </div>
       </GlassCard>
 
-      {(s.star || s.consistent || s.longest) && (
+      {viewMode === 'room' ? (
+        <GlassCard className="p-5">
+          {!room?.code ? (
+            <p className="text-sm text-ink/40 dark:text-white/35 text-center py-6">{t('flow.noRoomForRanking')}</p>
+          ) : roomLoading ? (
+            <p className="text-sm text-ink/30 dark:text-white/25 text-center py-6">…</p>
+          ) : roomBoard.length === 0 ? (
+            <p className="text-sm text-ink/40 dark:text-white/35 text-center py-6">{t('flow.noRankingsYet')}</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {roomBoard.map((m) => (
+                <div key={m.user_id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-ink/[0.03] dark:bg-white/5">
+                  <span className="w-7 text-center font-display font-bold text-sm"
+                    style={{ color: MEDAL_COLORS[m.rank - 1] || 'inherit' }}>
+                    {m.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[m.rank - 1] }} /> : m.rank}
+                  </span>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white text-xs font-bold"
+                    style={{ background: 'rgb(var(--accent-500))' }}>
+                    {m.display_name?.[0]?.toUpperCase() || '?'}
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{m.display_name}</span>
+                  <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{m.focus_minutes}m</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+      ) : (s.star || s.consistent || s.longest) && (
         <div className="grid sm:grid-cols-3 gap-4">
           {s.star && (
             <GlassCard className="p-5 text-center">
@@ -62,26 +127,28 @@ export default function FlowRankings() {
         </div>
       )}
 
-      <GlassCard className="p-5">
-        {board.length === 0 ? (
-          <p className="text-sm text-ink/40 dark:text-white/35 text-center py-6">{t('flow.noRankingsYet')}</p>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            {board.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-ink/[0.03] dark:bg-white/5">
-                <span className="w-7 text-center font-display font-bold text-sm"
-                  style={{ color: MEDAL_COLORS[r.rank - 1] || 'inherit' }}>
-                  {r.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[r.rank - 1] }} /> : r.rank}
-                </span>
-                <LeaderboardTreeBadge treeKey={r.equipped_tree_key} mysticDesign={r.mystic_design} />
-                <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{r.name}</span>
-                <span className="text-xs text-ink/40 dark:text-white/35">{r.session_count} sessions</span>
-                <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{r.total_minutes}m</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </GlassCard>
+      {viewMode !== 'room' && (
+        <GlassCard className="p-5">
+          {board.length === 0 ? (
+            <p className="text-sm text-ink/40 dark:text-white/35 text-center py-6">{t('flow.noRankingsYet')}</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {board.map((r) => (
+                <div key={r.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-ink/[0.03] dark:bg-white/5">
+                  <span className="w-7 text-center font-display font-bold text-sm"
+                    style={{ color: MEDAL_COLORS[r.rank - 1] || 'inherit' }}>
+                    {r.rank <= 3 ? <Medal size={16} style={{ color: MEDAL_COLORS[r.rank - 1] }} /> : r.rank}
+                  </span>
+                  <LeaderboardTreeBadge treeKey={r.equipped_tree_key} mysticDesign={r.mystic_design} />
+                  <span className="flex-1 text-sm font-medium text-ink dark:text-white truncate">{r.name}</span>
+                  <span className="text-xs text-ink/40 dark:text-white/35">{r.session_count} sessions</span>
+                  <span className="text-sm font-bold text-[rgb(var(--accent-500))]">{r.total_minutes}m</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+      )}
     </div>
   );
 }

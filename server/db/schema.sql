@@ -267,6 +267,23 @@ CREATE TABLE IF NOT EXISTS focus_room_tree (
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Room cheers (async tap-to-send reaction between members) ────
+-- Deliberately no chat/voice here — a member taps a cheer on another
+-- member's card while focusing, it's picked up by that member's next
+-- 5s room poll (GET /rooms/:code), shown as a brief floating bubble,
+-- then forgotten. Rows are short-lived on purpose: POST /react prunes
+-- anything older than an hour on every insert, so this never needs
+-- its own cleanup job for something this small.
+CREATE TABLE IF NOT EXISTS focus_reactions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id      INTEGER NOT NULL REFERENCES focus_rooms(id) ON DELETE CASCADE,
+  from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  to_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji        TEXT NOT NULL DEFAULT '👏',
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_focus_reactions_to ON focus_reactions(to_user_id, created_at);
+
 -- ── Instructor/Student classroom system ─────────────────────────
 -- A channel is one instructor's "class" — students join it with a
 -- short code (emailed or shared directly). The channel is read-only

@@ -205,6 +205,12 @@ export function FocusProvider({ children }) {
   const [room,      setRoom]      = useState(null);
   const [roomTree,  setRoomTree]  = useState(null);
   const [myRooms,   setMyRooms]   = useState([]); // every room the user's created/joined
+  // Cheers someone just sent this member, waiting to be shown as a
+  // floating bubble and then forgotten — see the room poll effect
+  // below for how these arrive and seenReactionIds for why a given
+  // server row is only ever added here once.
+  const [reactions, setReactions] = useState([]);
+  const seenReactionIds = useRef(new Set());
 
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
@@ -469,6 +475,22 @@ export function FocusProvider({ children }) {
           prevTreeStatusRef.current = null;
           setRoomTree(null);
         }
+
+        // Cheers sent to this member since the last poll. Dedupe by id
+        // (the server's 7s lookback window can hand back a row this
+        // poll already saw if two polls land close together) and
+        // auto-remove each bubble a few seconds after it's shown —
+        // nothing about a cheer needs to persist once it's been seen.
+        if (Array.isArray(d.reactions) && d.reactions.length > 0) {
+          const fresh = d.reactions.filter((r) => !seenReactionIds.current.has(r.id));
+          if (fresh.length > 0) {
+            fresh.forEach((r) => seenReactionIds.current.add(r.id));
+            setReactions((prev) => [...prev, ...fresh]);
+            fresh.forEach((r) => {
+              setTimeout(() => setReactions((prev) => prev.filter((x) => x.id !== r.id)), 4000);
+            });
+          }
+        }
       } catch (_) {}
     };
     poll();
@@ -491,6 +513,15 @@ export function FocusProvider({ children }) {
     document.addEventListener('visibilitychange', onVisible);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [room?.code, isRunning]); // eslint-disable-line
+
+  // Fire-and-forget on purpose (same pattern as the pulse call below) —
+  // a cheer that fails to send silently is fine, there's nothing to
+  // roll back or retry for something this small.
+  const sendReaction = useCallback((toUserId, emoji = '👏') => {
+    const r = roomRef.current;
+    if (!r) return;
+    api.post(`/focus/rooms/${r.code}/react`, { to_user_id: toUserId, emoji }).catch(() => {});
+  }, []);
 
   const leaveRoom = useCallback(async () => {
     if (!room) return;
@@ -532,7 +563,27 @@ export function FocusProvider({ children }) {
           // server-side handling in routes/focus.js.
           session_started_at: sessionStartedAt ? sessionStartedAt.toISOString() : null,
         });
-        if (r) api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus }).catch(() => {});
+        // A room session's group recap (shown on the congrats popup
+        // below) reads the room's current member totals right after
+        // this — so unlike the old fire-and-forget version, this is
+        // awaited first. Otherwise the recap could fetch before this
+        // member's own just-earned minutes actually landed, undercounting
+        // the "combined this week" total by exactly this session.
+        let groupRecap = null;
+        if (r) {
+          try {
+            await api.post(`/focus/rooms/${r.code}/pulse`, { is_focusing: false, add_minutes: min.focus });
+          } catch (_) {}
+          try {
+            const roomData = await api.get(`/focus/rooms/${r.code}`);
+            const members = roomData.members || [];
+            groupRecap = {
+              roomName:         roomData.name,
+              participantCount: members.length,
+              totalMinutes:     members.reduce((sum, mm) => sum + Number(mm.focus_minutes || 0), 0),
+            };
+          } catch (_) {}
+        }
         // Session just banked its minutes onto the task server-side —
         // carry the fresh cumulative total forward so a second session
         // on the same task keeps adding up instead of resetting.
@@ -563,6 +614,7 @@ export function FocusProvider({ children }) {
           // locally otherwise.
           treePlantedDesign: res.treePlantedDesign || null,
           nextBreak: { type: nextBreak, minutes: breakMins },
+          groupRecap,
         });
         setMode(nextBreak);
         setTimeLeft(breakMins * 60);
@@ -839,8 +891,8 @@ export function FocusProvider({ children }) {
   return (
     <FocusContext.Provider value={{
       mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, taskTimeSpent, dots,
-      startedAt, congrats, died, stats, board, spotlights, room, roomTree, myRooms,
-      setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
+      startedAt, congrats, died, stats, board, spotlights, room, roomTree, myRooms, reactions,
+      setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom, sendReaction,
       switchRoom, loadMyRooms,
       toggleTimer, resetTimer, addMinute, setDuration, joinRoomTimer, handleModeClick, switchMode,
       loadData,
