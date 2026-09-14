@@ -7,7 +7,7 @@ export default function Refund() {
       <Section>
         <p>
           Nuvora Premium is paid by direct bank transfer to our account, reviewed and activated
-          manually — see "Bank transfer refunds" below for how that's handled.
+          manually - see "Bank transfer refunds" below for how that's handled.
         </p>
       </Section>
 
@@ -15,7 +15,7 @@ export default function Refund() {
         <p>
           If you're not happy with Nuvora Premium, email us within <strong>14 days</strong> of
           your first payment on any plan (monthly, semester, or annual) and we'll send a full
-          refund — no questions asked. See "Bank transfer refunds" below for how that's handled.
+          refund - no questions asked. See "Bank transfer refunds" below for how that's handled.
         </p>
       </Section>
 
@@ -23,7 +23,7 @@ export default function Refund() {
         <p>
           Subscriptions renew automatically, and we don't offer partial refunds for time already
           used in a billing period. You can cancel anytime from Settings → Premium to stop future
-          renewals — your Premium access continues until the end of the period you already paid
+          renewals - your Premium access continues until the end of the period you already paid
           for, then reverts to the free tier.
         </p>
       </Section>
@@ -45,7 +45,7 @@ export default function Refund() {
           The same <strong>14-day money-back guarantee</strong> applies to purchases made by bank
           transfer. Email us within 14 days of your transfer and we'll send the full amount back
           to the account it came from. After 14 days, subscriptions don't auto-renew from a bank
-          transfer — you're simply billed the same way again if you choose to renew — so there's
+          transfer - you're simply billed the same way again if you choose to renew - so there's
           nothing to cancel, and no partial refund applies to time already used.
         </p>
       </Section>

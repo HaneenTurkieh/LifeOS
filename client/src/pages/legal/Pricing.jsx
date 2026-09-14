@@ -16,7 +16,7 @@ const PLANS = [
 
 const PERKS = [
   'Unlimited tasks, goals, habits, and AI usage',
-  'Streak freeze — excuse one missed day without breaking your streak',
+  'Streak freeze - excuse one missed day without breaking your streak',
   'All app color themes',
   'Full AI exam study tool (unlimited generations)',
   'Watermark-free PDF/PPT exports',
@@ -29,7 +29,7 @@ export default function Pricing() {
         <p>
           Nuvora is free to use. <strong>Premium</strong> unlocks unlimited AI usage and a few
           extra perks, priced in US Dollars. The way to pay is a direct bank transfer to our
-          USD account — see below.
+          USD account - see below.
         </p>
       </Section>
 
@@ -53,7 +53,7 @@ export default function Pricing() {
       <Section heading="How to pay">
         <p>
           After signing in, go to Settings → Premium and choose "Pay by bank transfer" on any
-          plan. You'll see our IBAN and account details there — send the amount shown, add a short
+          plan. You'll see our IBAN and account details there - send the amount shown, add a short
           note (your name or the transfer time helps us match it), and submit. We manually confirm
           the transfer against our bank statement and activate Premium on your account, usually
           within a day.
@@ -68,7 +68,7 @@ export default function Pricing() {
 
       <Section heading="Cancel anytime">
         <p>
-          Subscriptions auto-renew until cancelled. Cancel anytime from Settings → Premium — your
+          Subscriptions auto-renew until cancelled. Cancel anytime from Settings → Premium - your
           access continues until the end of the period you already paid for. See our{' '}
           <a href="/refund-policy" style={{ textDecoration: 'underline' }}>Refund Policy</a> for
           details, including our 14-day money-back guarantee.

@@ -22,17 +22,17 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 const STRINGS = {
   en: {
     tagline: 'Your student life. One system.',
-    subhead: 'Nuvora is a calm, bilingual Life OS for students — tasks, focus, habits, an AI study companion, and everything after graduation, in one place instead of five apps.',
+    subhead: 'Nuvora is a calm, bilingual Life OS for students - tasks, focus, habits, an AI study companion, and everything after graduation, in one place instead of five apps.',
     login: 'Log in',
     getStarted: 'Get started',
     featuresHeading: 'What’s inside',
     features: [
       { icon: 'tasks',   title: 'Tasks & Goals',      desc: 'Everyday to-dos, milestones, a real day planner.' },
-      { icon: 'forest',  title: 'Focus & the Forest', desc: 'A focus timer that grows a real tree — break focus, and it can die.' },
-      { icon: 'lumi',    title: 'Lumi',               desc: 'An AI companion woven through the app — remembers context, nudges deadlines, can act for you.' },
+      { icon: 'forest',  title: 'Focus & the Forest', desc: 'A focus timer that grows a real tree - break focus, and it can die.' },
+      { icon: 'lumi',    title: 'Lumi',               desc: 'An AI companion woven through the app - remembers context, nudges deadlines, can act for you.' },
       { icon: 'exam',    title: 'Exam Assistant',     desc: 'Upload your notes, get a real AI-generated practice exam with a rubric and a timer.' },
       { icon: 'launch',  title: 'Launchpad',          desc: 'A CV builder plus internship and project tracking for after graduation.' },
-      { icon: 'lang',    title: 'Bilingual, EN/AR',   desc: 'Built for Arabic and English from day one — not a translation pass bolted on later.' },
+      { icon: 'lang',    title: 'Bilingual, EN/AR',   desc: 'Built for Arabic and English from day one - not a translation pass bolted on later.' },
     ],
     footerBy: 'Nuvora is operated by Haneen Turkieh, an individual seller based in Nablus, Palestine.',
     footerLinks: { pricing: 'Pricing', terms: 'Terms', privacy: 'Privacy', refund: 'Refund Policy' },
@@ -50,14 +50,14 @@ const STRINGS = {
   },
   ar: {
     tagline: 'حياتك الدراسية، بنظام واحد.',
-    subhead: 'نيفورا نظام تشغيل هادئ ثنائي اللغة للطلاب — المهام، التركيز، العادات، رفيق دراسي ذكي، وكل شي بعد التخرج، بمكان واحد بدل خمس تطبيقات.',
+    subhead: 'نيفورا نظام تشغيل هادئ ثنائي اللغة للطلاب - المهام، التركيز، العادات، رفيق دراسي ذكي، وكل شي بعد التخرج، بمكان واحد بدل خمس تطبيقات.',
     login: 'تسجيل الدخول',
     getStarted: 'ابدأ الآن',
     featuresHeading: 'شو في داخلها',
     features: [
       { icon: 'tasks',   title: 'المهام والأهداف',         desc: 'مهام يومية، محطات إنجاز، ومخطط يوم حقيقي.' },
-      { icon: 'forest',  title: 'التركيز والغابة',        desc: 'مؤقت تركيز بيزرع شجرة حقيقية — لو فقدت تركيزك بتموت.' },
-      { icon: 'lumi',    title: 'لومي',                    desc: 'رفيق ذكي مدمج بالكامل — بيتذكر، بيذكرك بالمواعيد، وبيقدر ينفذ إلك.' },
+      { icon: 'forest',  title: 'التركيز والغابة',        desc: 'مؤقت تركيز بيزرع شجرة حقيقية - لو فقدت تركيزك بتموت.' },
+      { icon: 'lumi',    title: 'لومي',                    desc: 'رفيق ذكي مدمج بالكامل - بيتذكر، بيذكرك بالمواعيد، وبيقدر ينفذ إلك.' },
       { icon: 'exam',    title: 'مساعد الامتحانات',    desc: 'ارفع ملاحظاتك واحصل على امتحان تجريبي حقيقي بوقت محدد.' },
       { icon: 'launch',  title: 'لونشباد',                  desc: 'منشئ سيرة ذاتية ومتابعة فرص تدريب ومشاريع.' },
       { icon: 'lang',    title: 'ثنائي اللغة',              desc: 'مبني للعربية والإنجليزية من اليوم الأول.' },
@@ -95,7 +95,7 @@ export default function Landing() {
         className="w-full max-w-4xl mx-auto"
       >
         {/* ── Top nav ──────────────────────────────────────────
-            Pricing, front and center, above the fold — not just a footer
+            Pricing, front and center, above the fold - not just a footer
             link. A domain/OAuth reviewer skimming the page for a few
             seconds needs to see this without scrolling or hunting for it. */}
         <div className="flex items-center justify-between mb-10">
@@ -146,7 +146,7 @@ export default function Landing() {
         </div>
 
         {/* ── Pricing teaser ───────────────────────────────────
-            An actual price, visible on the page itself — not just a link
+            An actual price, visible on the page itself - not just a link
             to click through to. See the STRINGS comment above for why. */}
         <div className="rounded-2xl p-6 text-center mb-14"
           style={{ background: cardBg, backdropFilter: 'blur(40px)', WebkitBackdropFilter: 'blur(40px)', border: cardBorder }}>

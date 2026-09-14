@@ -35,10 +35,10 @@ export default function Terms() {
         <p>
           Nuvora offers a free tier and a paid "Premium" subscription (monthly, semester, or
           annual), priced in USD. Premium is paid by direct bank transfer to our account,
-          reviewed and activated manually — see our{' '}
+          reviewed and activated manually - see our{' '}
           <a href="/pricing" style={{ textDecoration: 'underline' }}>Pricing</a> page for details.
           We evaluated card checkout through a third-party order processor but it did not
-          reliably support a Palestine-based seller in practice, so it is not currently offered —
+          reliably support a Palestine-based seller in practice, so it is not currently offered -
           bank transfer is the only way to pay for Premium.
         </p>
         <p>
@@ -54,7 +54,7 @@ export default function Terms() {
         <p>
           Don't use Nuvora to break the law, harass others, upload malicious content, or attempt
           to disrupt or reverse-engineer the Service. The AI exam study tool is intended as a
-          study aid for practicing and reviewing material you already have access to — you're
+          study aid for practicing and reviewing material you already have access to - you're
           responsible for complying with your school or institution's academic integrity policies
           when using it.
         </p>
@@ -65,7 +65,7 @@ export default function Terms() {
           You retain ownership of the content you create or upload in Nuvora (tasks, notes,
           uploaded study material, etc.). By using AI-powered features (Lumi chat, exam
           generation), you understand that relevant content is sent to third-party AI providers
-          for processing — see our{' '}
+          for processing - see our{' '}
           <a href="/privacy" style={{ textDecoration: 'underline' }}>Privacy Policy</a> for
           details.
         </p>
@@ -75,7 +75,7 @@ export default function Terms() {
         <p>
           Nuvora is provided "as is." We do our best to keep it reliable and accurate, but we
           don't guarantee uninterrupted service or that AI-generated content (study material,
-          chat responses) is error-free — always verify anything important yourself. To the
+          chat responses) is error-free - always verify anything important yourself. To the
           fullest extent permitted by law, we aren't liable for indirect, incidental, or
           consequential damages arising from your use of Nuvora.
         </p>

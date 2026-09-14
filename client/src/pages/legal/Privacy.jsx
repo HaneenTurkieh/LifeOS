@@ -14,7 +14,7 @@ export default function Privacy() {
       <Section heading="1. What we collect">
         <p>
           <strong>Account data:</strong> name, email address, and a securely hashed password.{' '}
-          <strong>Product data:</strong> the content you create in Nuvora — tasks, goals, habits,
+          <strong>Product data:</strong> the content you create in Nuvora - tasks, goals, habits,
           mood logs, focus sessions, projects, exam material you upload, and messages you send to
           Lumi (our AI assistant). <strong>Usage data:</strong> basic technical data like device/
           browser type and timestamps, used only to keep the Service working and to fix bugs.
@@ -22,7 +22,7 @@ export default function Privacy() {
         <p>
           <strong>Payment data:</strong> Premium is paid by direct bank transfer, and we store the
           reference note and amount you submit so we can match your transfer and activate Premium
-          — we never see your bank login or full account details, only what you choose to enter in
+          - we never see your bank login or full account details, only what you choose to enter in
           that note. We do not collect or store payment card details, since card checkout is not
           currently offered.
         </p>
@@ -40,21 +40,21 @@ export default function Privacy() {
         <p>
           <strong>AI providers:</strong> when you use Lumi chat or the AI exam study tool, the
           relevant text (and any files you upload for that feature) is sent to third-party AI
-          providers we use to generate responses — currently Google (Gemini, for PDF/image
+          providers we use to generate responses - currently Google (Gemini, for PDF/image
           extraction only) and OpenRouter, which routes requests to an underlying model (currently
           DeepSeek). Every request we send through OpenRouter is configured to deny provider-side
-          data collection — this instructs OpenRouter to only route to model providers that do not
+          data collection - this instructs OpenRouter to only route to model providers that do not
           store or train on the request content, so no AI provider we use trains its models on
           your data. These providers process your data only to return a response; we don't control
           their infrastructure beyond the configuration we send and what they publish themselves.
         </p>
         <p>
           <strong>Payments:</strong> Premium subscriptions are paid by direct bank transfer,
-          reviewed manually on our end — no third party is involved in that flow.
+          reviewed manually on our end - no third party is involved in that flow.
         </p>
         <p>
           <strong>Hosting:</strong> our infrastructure runs on Vercel (frontend), Render (backend),
-          and Turso (database) — standard infrastructure providers that store data on our behalf
+          and Turso (database) - standard infrastructure providers that store data on our behalf
           under their own security practices.
         </p>
         <p>We don't sell your data to anyone, ever.</p>
@@ -68,7 +68,7 @@ export default function Privacy() {
         </p>
         <p>
           <strong>In transit:</strong> all traffic between your device, our servers, and every
-          third-party integration listed above is encrypted using HTTPS/TLS — nothing is ever sent
+          third-party integration listed above is encrypted using HTTPS/TLS - nothing is ever sent
           in plain text. <strong>At rest:</strong> passwords are never stored in plain text; they're
           hashed with a one-way algorithm (bcrypt) before being saved, so we cannot see or recover
           your actual password, even internally. Our database (Turso) and hosting providers encrypt
@@ -77,19 +77,19 @@ export default function Privacy() {
           user's private data to another user. <strong>Third-party connections (e.g. Google Sheets):
           </strong> access and refresh tokens for connected accounts are stored server-side only,
           scoped to the minimum permission needed for the feature (for Google Sheets, only the
-          ability to create and write to spreadsheets — never read your existing Drive or Sheets
+          ability to create and write to spreadsheets - never read your existing Drive or Sheets
           content), and are never exposed to the browser or any third party. You can revoke this
           access at any time from Settings, which deletes the stored tokens immediately.
         </p>
       </Section>
 
-      <Section heading="5. Google Workspace API data — Limited Use compliance">
+      <Section heading="5. Google Workspace API data - Limited Use compliance">
         <p>
           Nuvora's Google Sheets integration (used by instructors to export their own classroom
           analytics) requests the <code>https://www.googleapis.com/auth/spreadsheets</code> scope
           only. Data written through this scope is limited to information already stored in
           Nuvora's own database at the instructor's request (student names/emails already known to
-          the instructor, task/goal completion counts, XP, and channel points) — Nuvora never reads
+          the instructor, task/goal completion counts, XP, and channel points) - Nuvora never reads
           your existing Google Sheets, Drive files, or any other Workspace content, and this data is
           never sent to any AI/ML model or service, including Gemini, OpenRouter, or DeepSeek.
         </p>
