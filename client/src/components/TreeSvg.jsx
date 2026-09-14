@@ -262,6 +262,84 @@ function CrystalTree() {
     </g>
   );
 }
+function Willow() {
+  // Drooping branches, not a round canopy — a handful of soft curves
+  // sweeping down past the trunk on both sides, the one silhouette in
+  // the catalogue that's defined by hanging rather than reaching up.
+  const drape = (x1, y1, x2, y2, color) => (
+    <path key={`${x1}-${y1}`} d={`M${x1} ${y1} Q${x1 + (x2 - x1) * 0.3} ${y1 + (y2 - y1) * 0.5} ${x2} ${y2}`}
+      stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+  );
+  return (
+    <g>
+      <Roots color="#5B7A4A" />
+      <Trunk topY={22} width={5} color="#7A6248" />
+      <Blobs color="#7FB86B" opacity={0.5} points={[[22, 18, 10]]} />
+      {drape(14, 16, 10, 40, '#8FCB78')}
+      {drape(17, 14, 14, 44, '#7FB86B')}
+      {drape(22, 13, 22, 47, '#8FCB78')}
+      {drape(27, 14, 30, 44, '#7FB86B')}
+      {drape(30, 16, 34, 40, '#8FCB78')}
+    </g>
+  );
+}
+function Sunflower() {
+  // A single bloom on a bare stalk instead of a leafy canopy — reads
+  // instantly as "sunflower" even at small badge sizes, which a round
+  // canopy in yellow would not.
+  const petal = (rot) => (
+    <ellipse key={rot} cx={22} cy={9} rx={2.6} ry={6} fill="#FBBF24" transform={`rotate(${rot} 22 18)`} />
+  );
+  return (
+    <g>
+      <Roots color="#3F8F52" />
+      <path d="M22 51 L22 20" stroke="#4CA05A" strokeWidth="3" strokeLinecap="round" />
+      <path d="M22 38 Q14 36 12 30" stroke="#4CA05A" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M22 33 Q30 31 32 26" stroke="#4CA05A" strokeWidth="2" strokeLinecap="round" fill="none" />
+      {[0, 45, 90, 135, 180, 225, 270, 315].map(petal)}
+      <circle cx={22} cy={18} r={7} fill="#92400E" />
+      <circle cx={22} cy={18} r={7} fill="none" stroke="#78350F" strokeWidth="0.6" />
+    </g>
+  );
+}
+function Olive() {
+  // Silvery-green canopy on a slightly twisted trunk, with small dark
+  // fruit dotted through it — the muted palette (sage, not bright
+  // green) is what separates this from Oak at a glance.
+  return (
+    <g>
+      <Roots color="#6B7A4A" />
+      <Trunk topY={26} width={5.5} color="#8A7355" lean={-2} />
+      <Blobs color="#9CAF88" points={[[13, 21, 9], [31, 21, 9], [22, 13, 11], [22, 25, 9]]} />
+      <Blobs color="#B9C99E" opacity={0.5} points={[[17, 15, 5], [28, 17, 4.5]]} />
+      <g fill="#3F3350">
+        <circle cx={15} cy={22} r={1.6} /><circle cx={29} cy={21} r={1.6} />
+        <circle cx={20} cy={14} r={1.4} /><circle cx={26} cy={27} r={1.5} />
+      </g>
+    </g>
+  );
+}
+function Lotus() {
+  // Petals fanned from one base point, sitting on the same water-ellipse
+  // ground WaterTree uses — the two make sense as a pair (both float
+  // rather than root into soil) without looking like reskins of each
+  // other.
+  const petal = (rot, color) => (
+    <path key={rot} d="M22 26 Q17 16 22 8 Q27 16 22 26 Z" fill={color} transform={`rotate(${rot} 22 26)`} />
+  );
+  return (
+    <g>
+      <ellipse cx={22} cy={GROUND_Y + 1} rx={14} ry={2.6} fill="#93C5FD" opacity="0.4" />
+      <path d="M22 51 Q20 38 22 28" stroke="#4CA05A" strokeWidth="2" strokeLinecap="round" fill="none" />
+      {petal(-40, '#FBCFE8')}
+      {petal(-20, '#F9A8D4')}
+      {petal(0, '#FFFFFF')}
+      {petal(20, '#F9A8D4')}
+      {petal(40, '#FBCFE8')}
+      <circle cx={22} cy={24} r={3} fill="#FBBF24" />
+    </g>
+  );
+}
 function ChristmasTree() {
   return (
     <g>
@@ -351,6 +429,7 @@ const SPECIES = {
   seedling: Seedling, sprout: Sprout, oak: Oak, cherry_blossom: CherryBlossom,
   coral: Coral, bamboo: Bamboo, cactus: Cactus, palm: Palm, water: WaterTree,
   maple: Maple, pine: Pine, flamingo: Flamingo, money: MoneyTree, crystal: CrystalTree,
+  willow: Willow, sunflower: Sunflower, olive: Olive, lotus: Lotus,
   christmas: ChristmasTree,
   aurora: Aurora, phoenix: Phoenix, galaxy: Galaxy, nebula: Nebula, eclipse: Eclipse, comet: Comet,
 };

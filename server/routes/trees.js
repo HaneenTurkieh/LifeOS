@@ -19,11 +19,21 @@ const TREES = [
   { key: 'flamingo',       name: 'Flamingo Tree',  emoji: '🦩', cost: 3200, description: 'Rare, pink, impossible to miss.' },
   { key: 'money',          name: 'Money Tree',     emoji: '💰', cost: 4000, description: 'Grows richer the more you tend it.' },
   { key: 'crystal',        name: 'Crystal Tree',   emoji: '✨', cost: 5000, description: 'Legendary. For the dedicated.' },
+  // A second, higher tier above Crystal Tree's old 5000 XP ceiling —
+  // same earn-with-XP path as everything above, just further out, so
+  // the ladder still has somewhere to go once someone's cleared the
+  // original catalogue. Costs keep accelerating (1000 → 1600 between
+  // steps) the same way the tail end of the original ladder already
+  // did, rather than resetting to a smaller jump.
+  { key: 'willow',    name: 'Willow',    emoji: '🍃', cost: 6000,  description: 'Bends in every storm, never breaks.' },
+  { key: 'sunflower', name: 'Sunflower', emoji: '🌻', cost: 7200,  description: 'Always turns to find the light.' },
+  { key: 'olive',     name: 'Olive Tree',emoji: '🫒', cost: 8600,  description: 'Its roots outlive empires.' },
+  { key: 'lotus',     name: 'Lotus',     emoji: '🪷', cost: 10200, description: 'Rises clean out of the mud, every time.' },
 ];
 
 // ── Premium trees — real money, not XP ───────────────────────────
-// The XP catalogue above has a ceiling (Crystal Tree tops it out at
-// 5000 XP) — these three sit above that ceiling entirely and can only be
+// The XP catalogue above has a ceiling (Lotus tops it out at 10200 XP)
+// — these three sit above that ceiling entirely and can only be
 // bought, never earned, same pattern as an "extraordinary" cosmetic tier
 // in a live-service game. priceId was meant to hold a Paddle one-time
 // Price ID — left null here since this never actually got wired up to a

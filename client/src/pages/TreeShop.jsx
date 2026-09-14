@@ -37,6 +37,15 @@ const RARITY = {
   palm:           { label: 'shop.rarEpic',      color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
   pine:           { label: 'shop.rarEpic',      color: '#6366F1', bg: 'rgba(99,102,241,0.12)' },
   crystal:        { label: 'shop.rarLegendary', color: '#A855F7', bg: 'rgba(168,85,247,0.12)' },
+  // The tier above Crystal Tree's old 5000 XP ceiling — Willow/
+  // Sunflower/Olive stay Legendary (same badge, own accent color, same
+  // pattern the tiers above already use), and Lotus — the very top of
+  // the ladder — gets its own one-rank-higher badge so finishing the
+  // whole catalogue actually feels like reaching somewhere new.
+  willow:         { label: 'shop.rarLegendary', color: '#65A30D', bg: 'rgba(101,163,10,0.12)' },
+  sunflower:      { label: 'shop.rarLegendary', color: '#EAB308', bg: 'rgba(234,179,8,0.12)' },
+  olive:          { label: 'shop.rarLegendary', color: '#78716C', bg: 'rgba(120,113,108,0.12)' },
+  lotus:          { label: 'shop.rarMythic',    color: '#F43F5E', bg: 'rgba(244,63,94,0.12)' },
 };
 
 function XPBar({ totalXp, t }) {

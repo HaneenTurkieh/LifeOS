@@ -786,6 +786,14 @@ async function executeTool(name, input, userId, todayLocal, clientLoc) {
         { key:'palm',           name:'Palm',           cost:1500 },
         { key:'pine',           name:'Pine',           cost:2500 },
         { key:'crystal',        name:'Crystal Tree',   cost:5000 },
+        // New top tier — without these, "next tree" would dead-end at
+        // Crystal Tree for anyone who's cleared the original ladder,
+        // even though there's now somewhere further to go (see
+        // routes/trees.js's full TREES catalogue).
+        { key:'willow',         name:'Willow',         cost:6000  },
+        { key:'sunflower',      name:'Sunflower',      cost:7200  },
+        { key:'olive',          name:'Olive Tree',     cost:8600  },
+        { key:'lotus',          name:'Lotus',          cost:10200 },
       ];
       const [xp, equipped, unlocked] = await Promise.all([
         db.execute({ sql: `SELECT COALESCE(SUM(amount),0) total FROM xp_log WHERE user_id=?`, args: [userId] }),
