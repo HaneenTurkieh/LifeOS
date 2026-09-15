@@ -213,26 +213,58 @@ function Message({ msg, isEditing, canEdit, onStartEdit, onCancelEdit, onSaveEdi
   );
 }
 function TypingIndicator({ mode, t }) {
+  // Progress feedback, not a speed fix — Deep Think (and Search/Study)
+  // do a genuine multi-second-to-multi-minute reasoning pass server-side
+  // (xhigh effort, up to 6 tool-call round-trips, see routes/chat.js), and
+  // the old static "thinking deeply..." dots gave no sense anything was
+  // actually happening, which is what made a normal-but-long wait feel
+  // stuck. A ticking elapsed-time count is honest about how long it's
+  // really taking, and past ~20s a second line sets the right expectation
+  // instead of leaving someone to wonder — nothing about the actual
+  // request, model, or reasoning effort changes here.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [mode]);
+  const label =
+    mode === 'think'  ? t('lumi.thinkingDeeply') :
+    mode === 'search' ? t('lumi.searchingWeb') :
+    mode === 'study'  ? t('lumi.studying') : null;
+  // Only Deep Think and Deep Search realistically run long enough that a
+  // reassurance line actually helps rather than just adding noise —
+  // Study's real-reasoning bump is a smaller tier (see chat.js) and
+  // usually resolves well before this would show.
+  const showsSlowNotice = (mode === 'think' || mode === 'search') && elapsed >= 20;
   return (
     <div className="flex gap-3">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-white text-sm"
         style={{ background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)' }}
       >✦</div>
-      <div className="rounded-3xl rounded-tl-md px-4 py-3 bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 flex items-center gap-2">
-        <div className="flex items-center gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              className="h-1.5 w-1.5 rounded-full bg-lavender-400"
-              animate={{ y: [0, -4, 0] }}
-              transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-            />
-          ))}
+      <div className="rounded-3xl rounded-tl-md px-4 py-3 bg-white/70 dark:bg-white/[0.07] border border-white/60 dark:border-white/10 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="h-1.5 w-1.5 rounded-full bg-lavender-400"
+                animate={{ y: [0, -4, 0] }}
+                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+              />
+            ))}
+          </div>
+          {label && (
+            <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">
+              {label}{elapsed > 2 ? ` · ${elapsed}s` : ''}
+            </span>
+          )}
         </div>
-        {mode === 'think'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.thinkingDeeply')}</span>}
-        {mode === 'search' && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.searchingWeb')}</span>}
-        {mode === 'study'  && <span className="text-[10px] text-ink/35 dark:text-white/30 font-medium">{t('lumi.studying')}</span>}
+        {showsSlowNotice && (
+          <span className="text-[10px] text-ink/30 dark:text-white/25">{t('lumi.stillWorking')}</span>
+        )}
       </div>
     </div>
   );

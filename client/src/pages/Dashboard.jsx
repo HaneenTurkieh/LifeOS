@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw, WifiOff } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw, WifiOff, GripVertical } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
 import { useAuth }        from '../context/AuthContext.jsx';
@@ -62,7 +62,7 @@ function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCom
               <Draggable key={task.id} draggableId={String(task.id)} index={index}>
                 {(dragProvided, dragSnapshot) => {
                   const card = (
-                    <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}
+                    <div ref={dragProvided.innerRef} {...dragProvided.draggableProps}
                       className="rounded-xl px-3 py-2.5 group"
                       style={{
                         ...dragProvided.draggableProps.style,
@@ -89,6 +89,30 @@ function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCom
                           className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400">
                           <Trash2 size={12} />
                         </button>
+                        {/* Dedicated drag handle — used to be the whole card
+                            (dragHandleProps spread on the outer div), which
+                            is exactly what made this quirky on phones/
+                            iPads: every tap on the complete/delete buttons
+                            was also a tap on the drag handle, so a touch
+                            with even a hair of movement could get eaten as
+                            a micro-drag instead of a click, and swiping
+                            past the list to scroll the page fought with
+                            starting a drag. Confining dragHandleProps to
+                            this one small, always-visible grip (not gated
+                            behind group-hover, which never fires on touch
+                            anyway) leaves the rest of the card free for
+                            ordinary taps and scrolling — desktop drag still
+                            works the same, just from this handle instead of
+                            anywhere on the row. touch-none is belt-and-
+                            suspenders on top of what the library already
+                            sets, to stop the browser's own scroll gesture
+                            from racing the drag gesture on the handle itself. */}
+                        <span {...dragProvided.dragHandleProps}
+                          className="shrink-0 mt-0.5 text-ink/20 dark:text-white/20 cursor-grab active:cursor-grabbing touch-none"
+                          aria-label={t('dash.dragToReorder')}
+                          title={t('dash.dragToReorder')}>
+                          <GripVertical size={14} />
+                        </span>
                       </div>
                       {(task.deadline || task.priority) && (
                         <div className="flex items-center gap-1.5 mt-1.5 ps-[21px]">
