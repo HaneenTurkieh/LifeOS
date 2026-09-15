@@ -613,29 +613,21 @@ export default function AITools() {
         clientLon = cachedWeather.data.lon;
       }
     } catch (_) {}
+    // Sept 2026: switched from a single blocking POST (with a fixed
+    // chatTimeoutMs abort ceiling that kept needing to be re-tuned every
+    // time a slow-but-healthy Deep Think call legitimately needed longer)
+    // to a streamed response — see api/client.js's streamChat and
+    // server/routes/chat.js for the wire protocol. There's no more fixed
+    // total-duration ceiling to pick: as long as text keeps arriving, the
+    // call keeps going; only a genuine stall (streamChat's own idle
+    // timeout) counts as a failure now. `assistantCreated`/`liveContent`
+    // are plain closure variables, not state — they just track what
+    // *this* in-flight send has appended so far, so onDelta doesn't need
+    // to reach back into `messages` (a stale closure) on every chunk.
+    let assistantCreated = false;
+    let liveContent = '';
     try {
-      // Real bug this fixes: "Sorry, I couldn't connect" kept firing on
-      // ordinary queries (e.g. "what tasks do I have today") because the
-      // API client's default 20s timeout was tuned for simple CRUD calls,
-      // not a chat turn — the server can run up to 6 sequential tool-
-      // calling round-trips per message (see routes/chat.js), and Deep
-      // Think's xhigh reasoning pass genuinely needs more headroom still.
-      // Nothing ever showed up in the admin "Recent failures" log either,
-      // because the server wasn't actually throwing — the client was just
-      // giving up first, before the server had a chance to finish.
-      //
-      // Sept 2026 follow-up: 120s wasn't quite enough either, specifically
-      // for Deep Think with a real attachment — routes/chat.js now gives
-      // that one OpenRouter call up to 100s on its own (and, just as
-      // important, no longer retries a timeout there — see noRetry in
-      // openrouter.js — since retrying an already-near-the-limit call
-      // just spends the same time again for little extra chance of
-      // success). 150s leaves real margin above that single 100s attempt
-      // for network transfer of a large attachment/response and normal
-      // request overhead, instead of the client cutting the connection
-      // just as the server was about to actually finish.
-      const chatTimeoutMs = mode === 'think' ? 150000 : 75000;
-      const res = await api.post('/chat', {
+      await api.stream('/chat', {
         messages:        history,
         conversation_id: activeConvId,
         mode,
@@ -649,38 +641,85 @@ export default function AITools() {
         local_date:      new Date().toLocaleDateString('en-CA'),
         client_lat:      clientLat,
         client_lon:      clientLon,
-      }, { timeoutMs: chatTimeoutMs });
-      setMessages((prev) => {
-        const next = [...prev];
-        for (let i = next.length - 1; i >= 0; i--) {
-          if (next[i].role === 'user' && next[i].id == null) { next[i] = { ...next[i], id: res.user_message_id }; break; }
-        }
-        next.push({ role: 'assistant', content: res.text, actions: res.actions || [], suggestSearch: res.suggestSearch });
-        return next;
+      }, {
+        onDelta: (chunk) => {
+          liveContent += chunk;
+          // First real text back — swap the typing indicator for the
+          // actual (still-growing) bubble instead of showing both at
+          // once. Every chunk after this one just grows the same bubble.
+          setLoading(false);
+          setMessages((prev) => {
+            const next = [...prev];
+            if (!assistantCreated) {
+              assistantCreated = true;
+              next.push({ role: 'assistant', content: liveContent, actions: [] });
+            } else {
+              next[next.length - 1] = { ...next[next.length - 1], content: liveContent };
+            }
+            return next;
+          });
+        },
+        onDone: (evt) => {
+          setMessages((prev) => {
+            const next = [...prev];
+            for (let i = next.length - 1; i >= 0; i--) {
+              if (next[i].role === 'user' && next[i].id == null) { next[i] = { ...next[i], id: evt.user_message_id }; break; }
+            }
+            // evt.text is the server's own authoritative final text —
+            // used here instead of the accumulated liveContent so a
+            // dropped/out-of-order chunk along the way (nothing has
+            // shown any sign of this happening, but it costs nothing to
+            // be sure) can never leave the shown answer subtly different
+            // from what actually got saved to the conversation history.
+            const msg = { role: 'assistant', content: evt.text, actions: evt.actions || [], suggestSearch: evt.suggestSearch };
+            if (assistantCreated) next[next.length - 1] = msg;
+            else next.push(msg);
+            return next;
+          });
+          if (!activeConvId) {
+            setActiveConvId(evt.conversation_id);
+            loadConvos();
+          }
+        },
+        onError: (err) => {
+          // Real bug this fixes (pre-streaming): every non-DAILY_LIMIT
+          // failure — a genuine timeout, a real server error, a plain
+          // network drop — showed the exact same generic "couldn't
+          // connect" text, discarding whatever the actual message was.
+          // Now a timeout gets its own honest copy and any other real
+          // message is shown as-is; only a genuinely blank message falls
+          // back to the generic text.
+          //
+          // err.partial (set by streamChat, ultimately from the server's
+          // own err.receivedAny — see chat.js) means some of the answer
+          // had already streamed in and been shown before this failure —
+          // per Haneen's "no mistakes at all" bar, that partial answer is
+          // kept as-is with a short, clearly-marked note appended, rather
+          // than being wiped out just because its tail failed.
+          const isTimeout = /taking longer than usual|took too long/i.test(err?.message || '');
+          setMessages((prev) => {
+            const next = [...prev];
+            if (err?.partial && assistantCreated) {
+              const note = `\n\n⚠️ ${t('lumi.errorPartial')}`;
+              next[next.length - 1] = { ...next[next.length - 1], content: next[next.length - 1].content + note };
+            } else {
+              let content;
+              if (err?.code === 'DAILY_LIMIT') content = err.message;
+              else if (isTimeout) content = t('lumi.errorTimeout');
+              else content = err?.message || t('lumi.errorConnect');
+              next.push({ role: 'assistant', content, actions: [], isLimitNotice: err?.code === 'DAILY_LIMIT' });
+            }
+            return next;
+          });
+        },
       });
-      if (!activeConvId) {
-        setActiveConvId(res.conversation_id);
-        loadConvos();
-      }
     } catch (err) {
-      // Real bug this fixes: every non-DAILY_LIMIT failure — a genuine
-      // timeout, a real server error, a plain network drop — all showed
-      // the exact same generic "couldn't connect" text, discarding
-      // whatever the actual message was. That made every failure look
-      // identical and impossible to diagnose from a screenshot, which is
-      // exactly what happened when this kept failing for real: the true
-      // cause (the client giving up before the server finished — see
-      // chatTimeoutMs above) was invisible either in the UI or in the
-      // admin "Recent failures" log. Now a timeout gets its own honest
-      // copy (the most likely real cause), and any other real message is
-      // shown as-is instead of being thrown away; only a genuinely blank
-      // message falls back to the generic text.
-      const isTimeout = /taking longer than usual/i.test(err?.message || '');
-      let content;
-      if (err?.code === 'DAILY_LIMIT') content = err.message;
-      else if (isTimeout) content = t('lumi.errorTimeout');
-      else content = err?.message || t('lumi.errorConnect');
-      setMessages((prev) => [...prev, { role: 'assistant', content, actions: [], isLimitNotice: err?.code === 'DAILY_LIMIT' }]);
+      // streamChat itself always resolves via the callbacks above rather
+      // than throwing — this is only a safety net for something
+      // unexpected (a bug in one of the callbacks themselves, say)
+      // instead of leaving the send silently hanging.
+      console.error('Lumi stream error:', err);
+      setMessages((prev) => [...prev, { role: 'assistant', content: t('lumi.errorConnect'), actions: [] }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);

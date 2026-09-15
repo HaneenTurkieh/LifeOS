@@ -117,10 +117,153 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+// Streaming (SSE) request — used only by POST /chat now (see
+// server/routes/chat.js + server/lib/openrouter.js for the wire protocol:
+// `data: {type:'delta'|'done'|'error', ...}\n\n` frames). Separate from
+// request() above because that one reads a single res.json() and returns;
+// this one has to read the body incrementally and hand pieces to the
+// caller as they arrive, via callbacks instead of a return value.
+//
+// Sept 2026: added alongside the server's move to streaming, replacing
+// the old fixed chatTimeoutMs (120s/150s single-shot abort) that kept
+// having to be re-tuned every time a slow-but-healthy Deep Think request
+// legitimately needed longer than whatever ceiling was set. idleTimeoutMs
+// here is an *idle* timeout instead — it resets on every chunk actually
+// read off the stream, so it only fires on a genuine stall (no bytes at
+// all for a while), never on a call that's simply taking a while to
+// generate a long answer. Kept a bit above the server's own 60s idle
+// timeout (see chat.js) so the server has first chance to notice and
+// report a real stall before the client's own timer would.
+//
+// Not retried on a mid-stream drop, unlike the plain JSON path above —
+// once part of the answer has already reached the caller and been shown
+// to the user, retrying from scratch would duplicate/garble it. A drop
+// before any bytes arrive at all (e.g. a sleeping Render instance's very
+// first connection) still gets the same one retry the plain path gets,
+// since nothing has been shown yet and a clean retry is safe.
+export async function streamChat(path, body, { onDelta, onDone, onError, idleTimeoutMs = 70000 } = {}) {
+  const token = getToken();
+  const controller = new AbortController();
+  let idleTimer = setTimeout(() => controller.abort(), idleTimeoutMs);
+  const resetIdle = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(), idleTimeoutMs);
+  };
+
+  const doFetch = () => fetch(`${BASE}${path}`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+
+  let res;
+  try {
+    res = await doFetch();
+  } catch (networkErr) {
+    clearTimeout(idleTimer);
+    if (networkErr.name === 'AbortError') {
+      onError?.({ message: 'Nuvora is taking longer than usual to respond — please try again.', partial: false });
+      return;
+    }
+    // Same cold-start allowance the plain JSON path gets above — nothing
+    // has streamed yet, so one clean retry is safe.
+    await new Promise((r) => setTimeout(r, 2500));
+    idleTimer = setTimeout(() => controller.abort(), idleTimeoutMs);
+    try {
+      res = await doFetch();
+    } catch (retryErr) {
+      clearTimeout(idleTimer);
+      const timedOut = retryErr?.name === 'AbortError';
+      onError?.({
+        message: timedOut
+          ? 'Nuvora is taking longer than usual to respond — please try again.'
+          : 'Network error — check your connection and try again.',
+        partial: false,
+      });
+      return;
+    }
+  }
+
+  if (res.status === 401) {
+    setToken(null);
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  }
+
+  if (!res.ok) {
+    // Validation/limit/API-key failures in chat.js all return before the
+    // route ever switches to SSE (see its comments), so these are still
+    // plain JSON error bodies exactly like the non-streaming path above.
+    clearTimeout(idleTimer);
+    let payload = {};
+    try { payload = await res.json(); } catch (_) {}
+    onError?.({ message: payload.error || `Request failed (${res.status})`, code: payload.code || null, partial: false });
+    return;
+  }
+
+  let streamedAny = false;
+  try {
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resetIdle();
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(5).trim()); } catch (_) { continue; }
+        if (evt.type === 'delta') {
+          streamedAny = true;
+          onDelta?.(evt.text);
+        } else if (evt.type === 'done') {
+          clearTimeout(idleTimer);
+          onDone?.(evt);
+          return;
+        } else if (evt.type === 'error') {
+          clearTimeout(idleTimer);
+          onError?.({ message: evt.message, partial: evt.partial ?? streamedAny });
+          return;
+        }
+      }
+    }
+    // Stream ended without ever sending a 'done' or 'error' event — treat
+    // it as a failure rather than leaving the caller waiting forever.
+    clearTimeout(idleTimer);
+    onError?.({
+      message: streamedAny
+        ? 'The connection to the AI provider dropped partway through the answer.'
+        : 'Something went wrong. Please try again.',
+      partial: streamedAny,
+    });
+  } catch (err) {
+    clearTimeout(idleTimer);
+    const timedOut = err?.name === 'AbortError';
+    onError?.({
+      message: timedOut
+        ? (streamedAny
+            ? 'The connection to the AI provider dropped partway through the answer.'
+            : 'The AI provider took too long to respond.')
+        : 'Network error — check your connection and try again.',
+      partial: streamedAny,
+    });
+  }
+}
+
 export const api = {
-  get:   (path, opts)       => request(path, opts),
-  post:  (path, body, opts) => request(path, { method: 'POST',   body: JSON.stringify(body), ...opts }),
-  put:   (path, body, opts) => request(path, { method: 'PUT',    body: JSON.stringify(body), ...opts }),
-  patch: (path, body, opts) => request(path, { method: 'PATCH',  body: JSON.stringify(body), ...opts }),
-  del:   (path, opts)       => request(path, { method: 'DELETE', ...opts }),
+  get:    (path, opts)       => request(path, opts),
+  post:   (path, body, opts) => request(path, { method: 'POST',   body: JSON.stringify(body), ...opts }),
+  put:    (path, body, opts) => request(path, { method: 'PUT',    body: JSON.stringify(body), ...opts }),
+  patch:  (path, body, opts) => request(path, { method: 'PATCH',  body: JSON.stringify(body), ...opts }),
+  del:    (path, opts)       => request(path, { method: 'DELETE', ...opts }),
+  stream: streamChat,
 };

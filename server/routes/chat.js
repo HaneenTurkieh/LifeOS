@@ -3,7 +3,7 @@ const router  = express.Router();
 const { db }  = require('../db/connection');
 const { checkLimit, recordUsage, limitMessage } = require('../lib/usageLimits');
 const { isPremium } = require('../lib/premium');
-const { callOpenRouter, PLUS_MODEL } = require('../lib/openrouter');
+const { streamOpenRouter, PLUS_MODEL } = require('../lib/openrouter');
 const { getHabitStreak, addXp } = require('../lib/gamification');
 const { logError } = require('../lib/errorLog');
 
@@ -1422,6 +1422,35 @@ router.post('/', async (req, res) => {
   // reused for both the gate above (already ran) and this.
   const isPlus = await isPremium(req.user.id);
 
+  // Streaming (SSE) response — see openrouter.js's streamOpenRouter for
+  // the wire protocol this speaks. Switched on right here, after every
+  // early-exit validation above (bad request, daily limit, missing API
+  // key) has already had its chance to send a plain JSON response
+  // instead — none of those above are SSE, only what follows. Declared
+  // outside the try block (not inside it) specifically so the catch
+  // block below can still call sendEvent on a mid-stream failure — a
+  // const declared inside try {} isn't visible from its own catch {}.
+  // Once writeHead below has run, res.headersSent is true and every
+  // other exit from this route — success and the catch-all alike — MUST
+  // go through an SSE event + res.end(), never res.json()/res.status(),
+  // or Node throws "Cannot set headers after they are sent".
+  //
+  // This is the actual fix for "Deep Think times out on large
+  // requests/attachments" (see the idleTimeoutMs comment further down):
+  // a single blocking HTTP response has to pick some fixed ceiling and
+  // hope generation finishes inside it. Streaming removes that ceiling
+  // entirely — the client now only needs to know the connection is
+  // still alive, which every delta chunk proves — so the only failure
+  // mode left is a genuine stall (no bytes at all for a while), handled
+  // by streamOpenRouter's own idle timeout.
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // stop Render's proxy from buffering the whole reply before forwarding it
+  });
+  const sendEvent = (obj) => { res.write(`data: ${JSON.stringify(obj)}\n\n`); };
+
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     const system = await buildSystemPrompt(req.user.id, mode, hasAttachments, conversation_id, todayLocal);
@@ -1535,28 +1564,24 @@ router.post('/', async (req, res) => {
     // unavailable" failures specifically on Deep Think with a real
     // attachment (a lecture slide deck) — a big prompt (long conversation
     // + attachment text) at xhigh reasoning effort is a genuinely slow
-    // generation, and openrouter.js's default 45s-per-attempt timeout
-    // (tuned for an ordinary call) was killing it before it could finish.
-    // First fix (raising this to 100s) wasn't the whole story: with the
-    // default retry-once behavior, a call that actually needs close to
-    // 100s to finish can still fail twice (100s + 800ms + another 100s),
-    // which is what surfaced next — not as "AI provider unavailable" this
-    // time, but as the *client's own* 120s ceiling giving up first
-    // (chatTimeoutMs in AITools.jsx), because the server was still
-    // legitimately working past it. Retrying a call that timed out for
-    // being structurally slow (not from an actual one-off blip) mostly
-    // just spends the same time and real xhigh/Grok cost again for
-    // little extra chance of success — so 'think' now skips the retry
-    // (noRetry, see openrouter.js) and gets its full timeout on one real
-    // attempt, and the client's own ceiling (raised alongside this) gives
-    // it room to actually be received.
-    const callTimeoutMs = mode === 'think' ? 100000 : undefined;
-    const noRetryForCall = mode === 'think';
+    // generation, and a single blocking response has to enforce some
+    // fixed total-duration ceiling, which a big/slow-but-healthy call
+    // could legitimately exceed. Streaming (streamOpenRouter, see
+    // openrouter.js) removes that ceiling: its timeoutMs is an *idle*
+    // timeout that resets on every chunk received from the provider —
+    // including reasoning-only frames this route never forwards to the
+    // client — so as long as the connection is alive and the provider is
+    // still sending *something*, generation can run as long as it needs
+    // to. It only fires on a genuine stall. One value works for every
+    // mode now — there's no more "will this mode's call structurally
+    // take longer than the ceiling" to tune per mode, because there is
+    // no total-duration ceiling left to tune.
+    const idleTimeoutMs = 60000;
     for (let i = 0; i < 6; i++) {
-      const data = await callOpenRouter({
+      const data = await streamOpenRouter({
         system, messages: currentMessages, tools: toolsForCall, max_tokens: maxTokens,
-        reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: callTimeoutMs,
-        noRetry: noRetryForCall,
+        reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: idleTimeoutMs,
+        onDelta: (text) => sendEvent({ type: 'delta', text }),
       });
       const msg = data.choices?.[0]?.message || {};
       const toolCalls = msg.tool_calls || [];
@@ -1592,15 +1617,15 @@ router.post('/', async (req, res) => {
     // answer rather than an error, which is strictly better than before.
     if (truncated && finalText) {
       try {
-        const contData = await callOpenRouter({
+        const contData = await streamOpenRouter({
           system,
           messages: [
             ...currentMessages,
             { role: 'assistant', content: finalText },
             { role: 'user', content: 'Continue exactly where you left off — do not repeat anything you already said, and do not add any preamble like "continuing" or "sure". Just resume the text directly.' },
           ],
-          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: callTimeoutMs,
-          noRetry: noRetryForCall,
+          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: idleTimeoutMs,
+          onDelta: (text) => sendEvent({ type: 'delta', text }),
         });
         const contMsg = contData.choices?.[0]?.message || {};
         if (contMsg.content) finalText += contMsg.content;
@@ -1659,27 +1684,40 @@ router.post('/', async (req, res) => {
       });
     }
     if (gateFeature) await recordUsage(req.user.id, gateFeature);
-    res.json({ text: responseText, actions, conversation_id: convId, mode, suggestSearch, user_message_id: userMessageId });
+    sendEvent({ type: 'done', text: responseText, actions, conversation_id: convId, mode, suggestSearch, user_message_id: userMessageId });
+    res.end();
   } catch (err) {
     console.error('Lumi error:', err);
     logError(req.user?.id, 'chat', err.message).catch(() => {});
     // Real bug this fixes: this one catch wraps the whole route — a
     // genuine, already-diagnosed AI-provider hiccup (openrouter.js's own
-    // retry-exhausted error, already phrased in plain language — see its
-    // own comments) got flattened into the exact same generic "Something
-    // went wrong" as a real unexpected bug in this route. logError (and
-    // so the admin Stats panel) always got the real message; the actual
-    // user never did, even though AITools.jsx's own error handling
-    // already prefers showing the real err.message when the server sends
-    // one — this route was throwing that detail away before the client
-    // ever got the chance. Passing the provider's own message through
-    // for that one known, already-safe-to-show case (not for anything
-    // else, which stays the generic fallback) lets a real failure read
-    // as "the AI provider hiccuped, try again" instead of an opaque dead
-    // end — exactly what showed up twice in a row for a Deep Think
-    // request with a large attachment.
-    const providerMessage = /AI provider is temporarily unavailable/i.test(err.message || '') ? err.message : null;
-    res.status(500).json({ error: providerMessage || 'Something went wrong. Please try again.' });
+    // errors, already phrased in plain language — see its own comments)
+    // got flattened into the exact same generic "Something went wrong" as
+    // a real unexpected bug in this route. logError (and so the admin
+    // Stats panel) always got the real message; the actual user never
+    // did. Passing the provider's own message through for known,
+    // already-safe-to-show cases (not for anything else, which stays the
+    // generic fallback) lets a real failure read as "the AI provider
+    // hiccuped, try again" instead of an opaque dead end.
+    const providerMessage = /AI provider (is temporarily unavailable|took too long to respond)|connection to the AI provider dropped/i.test(err.message || '') ? err.message : null;
+    const errorMessage = providerMessage || 'Something went wrong. Please try again.';
+    if (res.headersSent) {
+      // Streaming had already started — res.status()/res.json() would
+      // throw "Cannot set headers after they are sent" from here on.
+      // Tell the client over the same stream instead. err.receivedAny is
+      // set by streamOpenRouter whenever any content/tool-call data had
+      // already reached this route before the failure — forwarded here
+      // as `partial` so the client knows a partial answer already shown
+      // to the user is worth keeping rather than wiping out on error
+      // (per Haneen's "no mistakes" bar — a good partial answer failing
+      // at the tail shouldn't make the whole thing disappear).
+      try {
+        sendEvent({ type: 'error', message: errorMessage, partial: !!err.receivedAny });
+      } catch (_) {}
+      res.end();
+    } else {
+      res.status(500).json({ error: errorMessage });
+    }
   }
 });
 

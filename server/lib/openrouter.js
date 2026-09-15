@@ -235,4 +235,179 @@ async function callOpenRouter({
   }
 }
 
-module.exports = { callOpenRouter, OPENROUTER_MODEL, PLUS_MODEL };
+// Sept 2026 — real fix for the "Deep Think times out on big inputs"
+// problem, after noRetry/bigger-timeout turned out to only buy more time
+// before failing, not actually solve it (see the noRetry comment above
+// and chat.js's own notes). callOpenRouter's fundamental shape — one
+// blocking call that must fully finish inside timeoutMs or the whole
+// thing fails — has a hard ceiling no matter how big timeoutMs gets,
+// because a big-enough input (long conversation, several large
+// attachments, xhigh reasoning) can always need longer than whatever
+// fixed number is picked. Streaming removes that ceiling as a failure
+// mode entirely: instead of waiting for one complete response, this
+// reads the answer as OpenRouter generates it and hands each piece to
+// the caller via onDelta as it arrives — so "done" is however long it
+// actually takes, not bounded by a number chosen in advance. What CAN
+// still fail is the connection going idle (nothing arriving at all for
+// timeoutMs) — that's a real stall, not a slow-but-working generation,
+// and is the only thing this still treats as a hard failure.
+//
+// Deliberately a separate function rather than a `stream` flag on
+// callOpenRouter above: every other caller (ai.js, exam.js, and chat.js's
+// intermediate tool-decision calls) keeps using the exact same,
+// unmodified, already-proven callOpenRouter — this is net-new code path
+// used only where a caller explicitly opts into it, so nothing about the
+// existing behavior anywhere else in the app changes.
+//
+// Retry: none, on purpose. A pre-first-byte connection failure is rare
+// with an idle timeout (rather than a fixed one) and can just surface as
+// an honest error — and once any content has already streamed to the
+// caller (and from there, likely already out to the actual end user),
+// retrying would mean starting a fresh answer on top of a partial one
+// already shown, which is a worse, more confusing failure than just
+// stopping. err.receivedAny on a thrown error tells the caller whether
+// anything reached the user before the failure, so it can decide how to
+// present that (see chat.js).
+async function streamOpenRouter({
+  system, messages, tools, max_tokens = 1024, temperature, top_p,
+  model = OPENROUTER_MODEL,
+  reasoningEffort = 'high',
+  // Idle timeout — resets on every chunk received, not started once for
+  // the whole call. A slow-but-actively-generating answer never hits
+  // this; only a genuine stall (nothing arriving at all) does.
+  timeoutMs = 45000,
+  webSearch = false,
+  jsonMode = false,
+  // Called with each fragment of visible answer text as it streams in —
+  // NOT called for the model's internal reasoning/thinking tokens (those
+  // arrive, if at all, on a separate field this never reads), so a
+  // caller forwarding onDelta straight to an HTTP response only ever
+  // shows the real answer, not raw chain-of-thought.
+  onDelta,
+}) {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error('OPENROUTER_API_KEY not set');
+
+  const body = {
+    model,
+    messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
+    max_tokens,
+    stream: true,
+  };
+  if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
+  if (webSearch) body.plugins = [{ id: 'web', max_results: 5 }];
+  if (jsonMode) body.response_format = { type: 'json_object' };
+  body.provider = { data_collection: 'deny' }; // same compliance requirement as callOpenRouter above
+  if (temperature !== undefined) body.temperature = temperature;
+  if (top_p !== undefined) body.top_p = top_p;
+  if (tools?.length) body.tools = toolsToOpenAiFormat(tools);
+
+  const controller = new AbortController();
+  let idleTimer = setTimeout(() => controller.abort(), timeoutMs);
+  const resetIdle = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(), timeoutMs);
+  };
+
+  let content = '';
+  let receivedAny = false;
+  const toolCallsByIndex = {};
+  let finishReason = null;
+
+  try {
+    const r = await fetch(OPENROUTER_URL, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer':  'https://nuvora.ps',
+        'X-Title':       'Nuvora',
+      },
+      body:   JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!r.ok) {
+      // Error responses come back as plain JSON, not a stream, same as
+      // the non-streaming path.
+      let errData = {};
+      try { errData = await r.json(); } catch (_) {}
+      const err = new Error(errData.error?.message || 'OpenRouter API error');
+      err.status = r.status;
+      throw err;
+    }
+
+    const reader  = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resetIdle(); // data is actively arriving — this is not a stall
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // hold back a possibly-incomplete trailing line for the next chunk
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') continue;
+        let chunk;
+        try { chunk = JSON.parse(payload); } catch (_) { continue; } // a malformed line is skipped, not fatal
+        const choice = chunk.choices?.[0] || {};
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+        const delta = choice.delta || {};
+        if (delta.content) {
+          content += delta.content;
+          receivedAny = true;
+          if (onDelta) onDelta(delta.content);
+        }
+        if (delta.tool_calls) {
+          receivedAny = true;
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallsByIndex[idx]) {
+              toolCallsByIndex[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
+            }
+            if (tc.id) toolCallsByIndex[idx].id = tc.id;
+            if (tc.function?.name) toolCallsByIndex[idx].function.name += tc.function.name;
+            if (tc.function?.arguments) toolCallsByIndex[idx].function.arguments += tc.function.arguments;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    clearTimeout(idleTimer);
+    if (err.name === 'AbortError') {
+      const e = new Error(
+        receivedAny
+          ? 'The connection to the AI provider dropped partway through the answer.'
+          : 'The AI provider took too long to respond.'
+      );
+      e.receivedAny = receivedAny;
+      throw e;
+    }
+    err.receivedAny = receivedAny;
+    throw err;
+  }
+  clearTimeout(idleTimer);
+
+  const toolCalls = Object.keys(toolCallsByIndex).length
+    ? Object.keys(toolCallsByIndex).sort((a, b) => Number(a) - Number(b)).map((k) => toolCallsByIndex[k])
+    : undefined;
+
+  // Same response shape as callOpenRouter's return value (choices[0].
+  // message / finish_reason) — chat.js's existing post-loop logic (tool-
+  // call detection, truncation check) reads this exactly the same way
+  // whether the answer streamed in or arrived all at once.
+  return {
+    choices: [{
+      message: { content, tool_calls: toolCalls },
+      finish_reason: finishReason,
+    }],
+  };
+}
+
+module.exports = { callOpenRouter, streamOpenRouter, OPENROUTER_MODEL, PLUS_MODEL };
