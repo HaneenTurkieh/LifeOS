@@ -1343,6 +1343,23 @@ router.put('/settings', async (req, res) => {
 });
 
 const MAX_ATTACHMENT_CHARS = 25000;
+// Sept 2026: this capped each file individually, but nothing capped the
+// COMBINED total — up to 5 files (client's own MAX_ATTACH) at 25,000
+// chars each meant a single message could inject up to 125,000 characters
+// of attachment content into the prompt, on top of the conversation
+// itself. That's exactly the "many large files" case Haneen flagged as a
+// real, recurring pattern, and it scales the actual generation time (not
+// just input size) linearly with however many big files get attached —
+// no per-call timeout can safely promise to finish against that. This is
+// a stopgap, not the real fix (that's moving Deep Think to a streaming
+// response, which removes the hard-timeout failure mode entirely) — but
+// it bounds today's worst case to something the current timeouts can
+// actually complete, instead of growing without limit. Attachments are
+// truncated fairly (each still gets a fair per-file slice first, see
+// below) rather than just processing the first N and dropping the rest,
+// and the model is told when something was cut so it can say so instead
+// of silently answering off partial content.
+const MAX_TOTAL_ATTACHMENT_CHARS = 45000;
 
 // Numeric/statistical claim detector — deliberately narrow. Only fires
 // on digits paired with a stat-like unit (%, percent, million, billion,
@@ -1441,9 +1458,23 @@ router.post('/', async (req, res) => {
     if (hasAttachments) {
       for (let i = currentMessages.length - 1; i >= 0; i--) {
         if (currentMessages[i].role === 'user') {
-          const attachBlock = attachments.map(a =>
-            `\n\n📎 ATTACHED FILE: ${a.name || 'file'}\n---\n${String(a.text || '').slice(0, MAX_ATTACHMENT_CHARS)}\n---`
-          ).join('');
+          // Equal-share budget across every attached file, capped at the
+          // existing per-file ceiling too — bounds the combined total to
+          // MAX_TOTAL_ATTACHMENT_CHARS regardless of how many files came
+          // in (see that constant's comment above), instead of each file
+          // independently maxing out and the total growing with file
+          // count. A small file that doesn't need its whole share just
+          // leaves some budget unused — simple and predictable beats
+          // perfectly optimal here.
+          const perFileBudget = Math.min(MAX_ATTACHMENT_CHARS, Math.floor(MAX_TOTAL_ATTACHMENT_CHARS / attachments.length));
+          const attachBlock = attachments.map((a) => {
+            const text = String(a.text || '');
+            const wasTruncated = text.length > perFileBudget;
+            const note = wasTruncated
+              ? `\n[…truncated — only the first ${perFileBudget.toLocaleString()} of ${text.length.toLocaleString()} characters were included; say so if this file's content is central to the answer]`
+              : '';
+            return `\n\n📎 ATTACHED FILE: ${a.name || 'file'}\n---\n${text.slice(0, perFileBudget)}${note}\n---`;
+          }).join('');
           currentMessages[i] = { ...currentMessages[i], content: currentMessages[i].content + attachBlock };
           break;
         }

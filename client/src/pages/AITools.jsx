@@ -717,6 +717,15 @@ export default function AITools() {
   const isFirstMessage = messages.length === 0;
   const firstName      = user?.name?.split(' ')[0] || 'there';
   const glass          = isDark ? glassDark : glassLight;
+  // Heads-up for genuinely heavy Deep Think requests — set the
+  // expectation before sending, not just during the wait (the
+  // elapsed-time indicator in TypingIndicator already covers that part).
+  // 30,000 combined characters is comfortably below the server's own
+  // MAX_TOTAL_ATTACHMENT_CHARS ceiling (see routes/chat.js) — close
+  // enough to that limit that the request is genuinely large, but with
+  // room to spare so this doesn't fire on every single attachment.
+  const totalAttachmentChars = attachments.reduce((sum, a) => sum + (a.text?.length || 0), 0);
+  const heavyAttachments = mode === 'think' && totalAttachmentChars > 30000;
 
   return (
     <div className="flex h-[calc(100vh-88px)] lg:h-[calc(100vh-64px)] gap-3">
@@ -889,6 +898,12 @@ export default function AITools() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {heavyAttachments && (
+            <p className="text-[11px] mb-2 px-1 text-ink/40 dark:text-white/35">
+              {t('lumi.heavyAttachments')}
+            </p>
+          )}
 
           <div className="relative">
             <div className="flex items-end gap-1.5 rounded-3xl p-2" style={glass}>
