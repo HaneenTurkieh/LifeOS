@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { api, getToken } from '../api/client.js';
 import { useToast } from './ToastContext.jsx';
 import { useLanguage } from './LanguageContext.jsx';
+import { useAuth } from './AuthContext.jsx';
 import { computeFromServer } from '../utils/timerSync.mjs';
 import { localDateStr } from '../utils/birthday.js';
 import { migrateStorageKey } from '../utils/migrateStorageKey.js';
@@ -170,6 +171,7 @@ function playTreeDied() {
 export function FocusProvider({ children }) {
   const toast      = useToast();
   const { lang }   = useLanguage();
+  const { user }   = useAuth();
 
   const saved = loadState();
   // Found the actual production crash here: this used `saved?.mode ||
@@ -233,12 +235,14 @@ export function FocusProvider({ children }) {
   const roomRef            = useRef(room);
   const startedAtRef       = useRef(startedAt);
   const prevTreeStatusRef  = useRef(null);
+  const userIdRef          = useRef(user?.id ?? null);
   useEffect(() => { modeRef.current      = mode;      }, [mode]);
   useEffect(() => { customMinRef.current = customMin; }, [customMin]);
   useEffect(() => { startedAtRef.current = startedAt;  }, [startedAt]);
   useEffect(() => { taskRef.current      = taskName;  }, [taskName]);
   useEffect(() => { taskIdRef.current    = taskId;    }, [taskId]);
   useEffect(() => { roomRef.current      = room;      }, [room]);
+  useEffect(() => { userIdRef.current    = user?.id ?? null; }, [user]);
 
   // taskId can arrive from places that never fetch the task's real
   // cumulative time — a fresh page load restoring it from session
@@ -521,6 +525,29 @@ export function FocusProvider({ children }) {
     const r = roomRef.current;
     if (!r) return;
     api.post(`/focus/rooms/${r.code}/react`, { to_user_id: toUserId, emoji }).catch(() => {});
+  }, []);
+
+  // Ready check — flips the caller's own is_ready flag for the current
+  // room (server: POST /rooms/:code/ready). Optimistically updates the
+  // local member row too, so the toggle feels instant instead of waiting
+  // up to 5s for the next room poll to reflect it.
+  const setReady = useCallback(async (ready) => {
+    const r = roomRef.current;
+    if (!r) return;
+    setRoom((prev) => prev ? {
+      ...prev,
+      members: (prev.members || []).map((m) => Number(m.user_id) === Number(userIdRef.current) ? { ...m, is_ready: ready } : m),
+    } : prev);
+    try {
+      await api.post(`/focus/rooms/${r.code}/ready`, { ready });
+    } catch (_) {
+      // Roll back on failure — next poll would eventually correct it
+      // anyway, but no reason to leave a stale optimistic state around.
+      setRoom((prev) => prev ? {
+        ...prev,
+        members: (prev.members || []).map((m) => Number(m.user_id) === Number(userIdRef.current) ? { ...m, is_ready: !ready } : m),
+      } : prev);
+    }
   }, []);
 
   const leaveRoom = useCallback(async () => {
@@ -892,7 +919,7 @@ export function FocusProvider({ children }) {
     <FocusContext.Provider value={{
       mode, customMin, timeLeft, totalTime, isRunning, taskName, taskId, taskTimeSpent, dots,
       startedAt, congrats, died, stats, board, spotlights, room, roomTree, myRooms, reactions,
-      setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom, sendReaction,
+      setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom, sendReaction, setReady,
       switchRoom, loadMyRooms,
       toggleTimer, resetTimer, addMinute, setDuration, joinRoomTimer, handleModeClick, switchMode,
       loadData,

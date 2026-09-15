@@ -168,7 +168,7 @@ export default function Flow() {
   const {
     mode, customMin, timeLeft, totalTime, isRunning,
     taskName, taskId, taskTimeSpent, dots, startedAt, congrats, died, stats, board, spotlights, room, roomTree,
-    myRooms, switchRoom, loadMyRooms, reactions, sendReaction,
+    myRooms, switchRoom, loadMyRooms, reactions, sendReaction, setReady,
     setTaskName, setTask, clearTask, setRoom, setCongrats, setDied, leaveRoom,
     toggleTimer, resetTimer, addMinute, setDuration, joinRoomTimer, handleModeClick,
   } = useFocus();
@@ -368,6 +368,16 @@ export default function Flow() {
 
   const startForEveryone = async () => {
     if (!room) return;
+    // Fail fast client-side with a clear message instead of a round-trip
+    // to find out — the server enforces this for real (see POST
+    // /timer/start in focus.js), this is purely a friendlier UX shortcut
+    // for the common case. Race conditions (someone goes stale right
+    // between the button unlocking and the click) still fall through to
+    // the server's own NOT_ALL_READY error below.
+    if (!allOthersReady) {
+      toast.error(t('flow.notAllReady'));
+      return;
+    }
     const mins = customMin.focus || 25;
     try {
       await api.post(`/focus/rooms/${room.code}/timer/start`, { duration_minutes: mins, mode: 'focus', client_date: localDateStr() });
@@ -378,7 +388,9 @@ export default function Flow() {
         setTimeout(() => { if (!isRunningRef.current) toggleTimer(); }, 150);
       }
       setTab('timer');
-    } catch (err) { toast.error(err.message); }
+    } catch (err) {
+      toast.error(err.code === 'NOT_ALL_READY' ? t('flow.notAllReady') : err.message);
+    }
   };
 
   const stopForEveryone = async () => {
@@ -475,6 +487,18 @@ export default function Flow() {
   ];
 
   const memberList = displayRoom?.members || [];
+  // Ready check — same idea as Forest's "plant together": the host's
+  // start button only unlocks once everyone who's actually online right
+  // now (a pulse within the last ~90s, same freshness window the server
+  // uses — see focus.js) has confirmed they're ready. Someone whose
+  // connection went stale doesn't block the room forever, matching how
+  // the server itself gates POST /timer/start (a client-side check
+  // purely for a clear button/label — the server is the real gate).
+  const onlineOtherMembers = memberList.filter((m) => m.online && Number(m.user_id) !== Number(user?.id));
+  const readyOtherCount    = onlineOtherMembers.filter((m) => m.is_ready).length;
+  const allOthersReady     = onlineOtherMembers.length === 0 || readyOtherCount === onlineOtherMembers.length;
+  const myMember = memberList.find((m) => Number(m.user_id) === Number(user?.id));
+  const iAmReady = Boolean(myMember?.is_ready);
   const todayStr = new Date().toLocaleDateString('en-CA');
   const todaysTrees = forest?.days.find((d) => d.date === todayStr)?.trees || [];
 
@@ -804,11 +828,14 @@ export default function Flow() {
                   ))}
                 </div>
                 {isHost && !sessionLive && (
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  <motion.button whileHover={{ scale: allOthersReady ? 1.02 : 1 }} whileTap={{ scale: allOthersReady ? 0.97 : 1 }}
                     onClick={startForEveryone}
-                    className="mt-3 w-full rounded-2xl py-2.5 text-xs font-bold text-white"
-                    style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
-                    {t('flow.startForAll', { n: customMin.focus })}
+                    disabled={!allOthersReady}
+                    className="mt-3 w-full rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: allOthersReady ? `0 4px 14px ${modeColor}44` : 'none' }}>
+                    {allOthersReady
+                      ? t('flow.startForAll', { n: customMin.focus })
+                      : t('flow.readyCount', { ready: readyOtherCount, total: onlineOtherMembers.length })}
                   </motion.button>
                 )}
                 {isHost && sessionLive && (
@@ -936,17 +963,40 @@ export default function Flow() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-bold text-ink dark:text-white">{t('flow.youAreHost')}</p>
-                      <p className="text-xs mt-0.5" style={{ color: muted(0.50) }}>{t('flow.hostDesc')}</p>
+                      <p className="text-xs mt-0.5" style={{ color: muted(0.50) }}>
+                        {onlineOtherMembers.length > 0
+                          ? t('flow.readyCount', { ready: readyOtherCount, total: onlineOtherMembers.length })
+                          : t('flow.hostDesc')}
+                      </p>
                     </div>
-                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+                    <motion.button whileHover={{ scale: allOthersReady ? 1.03 : 1 }} whileTap={{ scale: allOthersReady ? 0.96 : 1 }}
                       onClick={startForEveryone}
-                      className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-bold text-white"
-                      style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: `0 4px 14px ${modeColor}44` }}>
-                      {t('flow.startForAll', { n: customMin.focus })}
+                      disabled={!allOthersReady}
+                      title={!allOthersReady ? t('flow.notAllReady') : undefined}
+                      className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, boxShadow: allOthersReady ? `0 4px 14px ${modeColor}44` : 'none' }}>
+                      {allOthersReady ? t('flow.startForAll', { n: customMin.focus }) : t('flow.waitingForReady')}
                     </motion.button>
                   </div>
                 ) : (
-                  <p className="text-xs" style={{ color: muted(0.50) }}>{t('flow.waitingHost')}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-ink dark:text-white">
+                        {iAmReady ? t('flow.youAreReady') : t('flow.waitingHost')}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: muted(0.50) }}>
+                        {iAmReady ? t('flow.readyDesc') : t('flow.readyPrompt')}
+                      </p>
+                    </div>
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+                      onClick={() => setReady(!iAmReady)}
+                      className="shrink-0 rounded-2xl px-4 py-2.5 text-xs font-bold"
+                      style={iAmReady
+                        ? { background: 'rgba(76,195,138,0.16)', border: '1.5px solid rgba(76,195,138,0.4)', color: '#3FA372' }
+                        : { background: `linear-gradient(135deg, ${modeColor} 0%, ${modeColor}AA 100%)`, color: '#fff', boxShadow: `0 4px 14px ${modeColor}44` }}>
+                      {iAmReady ? `✓ ${t('flow.imReady')}` : t('flow.markReady')}
+                    </motion.button>
+                  </div>
                 )}
               </div>
 
@@ -988,6 +1038,20 @@ export default function Flow() {
                             title={t('flow.focusing')}
                           >
                             ⏱
+                          </span>
+                        )}
+                        {/* Ready-check badge — only meaningful before a
+                            session starts (is_ready is zeroed the moment
+                            one does, see POST /timer/start), so this just
+                            naturally disappears once things go live rather
+                            than needing its own sessionLive check here. */}
+                        {!sessionLive && m.online && m.is_ready && (
+                          <span
+                            className="absolute -top-1 -end-1 flex h-4 w-4 items-center justify-center rounded-full text-[9px] shrink-0 text-white"
+                            style={{ background: '#3FA372', border: '1.5px solid white', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}
+                            title={t('flow.imReady')}
+                          >
+                            ✓
                           </span>
                         )}
                       </div>

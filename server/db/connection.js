@@ -283,6 +283,17 @@ async function initDb() {
   if (!(await hasColumn('focus_room_members', 'week_start'))) {
     await db.execute(`ALTER TABLE focus_room_members ADD COLUMN week_start TEXT DEFAULT NULL`);
   }
+  // Ready check — the host used to be able to start a synced session
+  // (planting the room's one shared tree) with nobody actually paying
+  // attention, the same problem Forest's own "plant together" flow
+  // solves by having everyone confirm before the timer starts. Each
+  // member flips this themselves (POST /rooms/:code/ready); the host's
+  // "Start for everyone" only unlocks once every currently-online
+  // member has, and it's zeroed again right after a session starts so
+  // the next round needs a fresh confirmation, not a stale one.
+  if (!(await hasColumn('focus_room_members', 'is_ready'))) {
+    await db.execute(`ALTER TABLE focus_room_members ADD COLUMN is_ready INTEGER NOT NULL DEFAULT 0`);
+  }
 
   if (!(await hasColumn('moods', 'user_id'))) {
     await db.batch([

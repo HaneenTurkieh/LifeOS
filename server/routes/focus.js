@@ -19,6 +19,11 @@ function getWeekStart() {
 function generateCode() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
+// Shared "online" freshness window — a pulse (see POST /pulse) actually
+// arrived within the last full interval-plus-slack. Used both to decide
+// who's shown as active in GET /rooms/:code and, below, to decide whose
+// readiness actually counts before the host can start a synced session.
+const ONLINE_STALE_MS = 90 * 1000;
 async function getEquippedTree(userId) {
   try {
     const row = (await db.execute({
@@ -923,26 +928,33 @@ router.get('/rooms/:code', async (req, res) => {
     // "stopped" pulse, the flag stays true forever — a real bug (user
     // report: a friend's tree kept showing as running when they weren't
     // actively focusing). Trusting the raw stored flag isn't safe; it's
-    // only meaningful if a pulse actually arrived recently. STALE_MS
-    // gives one full missed pulse interval (30s) plus generous slack
-    // for network jitter/backgrounding before treating someone as no
-    // longer active — long enough to not flicker false on a slow
-    // connection, short enough that a real disconnect clears within a
+    // only meaningful if a pulse actually arrived recently. ONLINE_STALE_MS
+    // (shared with the ready-check gate below, so the two windows can't
+    // drift apart) gives one full missed pulse interval (30s) plus
+    // generous slack for network jitter/backgrounding before treating
+    // someone as no longer active — long enough to not flicker false on a
+    // slow connection, short enough that a real disconnect clears within a
     // minute or two instead of lingering indefinitely.
-    const STALE_MS = 90 * 1000;
     const members = (await db.execute({
-      sql:  `SELECT user_id, display_name, focus_minutes, is_focusing, last_seen
+      sql:  `SELECT user_id, display_name, focus_minutes, is_focusing, is_ready, last_seen
              FROM focus_room_members
              WHERE room_id = ?
              ORDER BY focus_minutes DESC`,
       args: [roomRow.id],
     })).rows.map((r) => {
       const lastSeenMs = r.last_seen ? new Date(r.last_seen.replace(' ', 'T') + 'Z').getTime() : 0;
-      const fresh = lastSeenMs > 0 && (Date.now() - lastSeenMs) < STALE_MS;
+      const fresh = lastSeenMs > 0 && (Date.now() - lastSeenMs) < ONLINE_STALE_MS;
       return {
         user_id: r.user_id, display_name: r.display_name,
         focus_minutes: Number(r.focus_minutes),
         is_focusing: Boolean(r.is_focusing) && fresh,
+        // Same freshness window as is_focusing — "online" means a pulse
+        // actually arrived recently, not just that they joined the room
+        // at some point in the past. The ready-check gate below (and the
+        // host's "Start for everyone" button) both key off this: only
+        // members who are actually here right now need to confirm ready.
+        online:   fresh,
+        is_ready: fresh && Boolean(r.is_ready),
       };
     });
 
@@ -1022,6 +1034,31 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     if (Number(roomRow.host_id) !== Number(req.user.id))
       return res.status(403).json({ error: 'Only the host can start the shared timer' });
+    // Ready check — same idea as Forest's "plant together": don't let the
+    // host plant the shared tree while someone who's actually here (fresh
+    // pulse within ONLINE_STALE_MS) hasn't confirmed they're ready. Only
+    // enforced when someone besides the host is actually online — a host
+    // sitting alone in the room has no one to wait on, so they can just
+    // start. Anyone whose pulse has gone stale is treated as not present
+    // and doesn't block the start (that's exactly what "online" already
+    // means in GET /rooms/:code).
+    const roster = (await db.execute({
+      sql: `SELECT user_id, display_name, is_ready, last_seen FROM focus_room_members WHERE room_id = ?`,
+      args: [roomRow.id],
+    })).rows;
+    const onlineOthers = roster.filter((r) => {
+      if (Number(r.user_id) === Number(req.user.id)) return false;
+      const lastSeenMs = r.last_seen ? new Date(r.last_seen.replace(' ', 'T') + 'Z').getTime() : 0;
+      return lastSeenMs > 0 && (Date.now() - lastSeenMs) < ONLINE_STALE_MS;
+    });
+    const notReady = onlineOthers.filter((r) => !r.is_ready);
+    if (notReady.length > 0) {
+      return res.status(400).json({
+        error: 'Not everyone is ready yet',
+        code: 'NOT_ALL_READY',
+        notReady: notReady.map((r) => ({ user_id: r.user_id, display_name: r.display_name })),
+      });
+    }
     await reconcileRoomSession(roomRow.id); // sweep the previous session before this row gets overwritten
     await db.execute({
       sql: `INSERT INTO focus_room_timer (room_id, started_at, duration_seconds, mode, running)
@@ -1031,6 +1068,10 @@ router.post('/rooms/:code/timer/start', async (req, res) => {
               mode = excluded.mode, running = 1`,
       args: [roomRow.id, Math.round(duration_minutes * 60), mode],
     });
+    // Reset everyone's readiness now that the session has actually
+    // started — the next round (whenever this room starts again) needs a
+    // fresh confirmation, not a leftover "ready" from last time.
+    await db.execute({ sql: `UPDATE focus_room_members SET is_ready = 0 WHERE room_id = ?`, args: [roomRow.id] });
     if (mode === 'focus') {
       try {
         // Anyone in the room, not just the host who happened to hit
@@ -1194,6 +1235,27 @@ router.post('/rooms/:code/pulse', async (req, res) => {
     }
     await reconcileRoomSession(roomRow.id); // catch any other member whose session ended without self-reporting
     res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
+});
+
+// Ready check — a member confirms they're actually here and about to
+// focus, not just that the app happens to be open. The host's "Start
+// for everyone" button (POST /timer/start below) reads this the same
+// way it reads is_focusing: only members whose last_seen is still
+// fresh (within ONLINE_STALE_MS — see GET /rooms/:code) count at all,
+// so someone who readied up and then went idle for a while doesn't
+// silently block the room forever.
+router.post('/rooms/:code/ready', async (req, res) => {
+  try {
+    const { ready = true } = req.body;
+    const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [req.params.code.toUpperCase()] })).rows[0];
+    if (!roomRow) return res.status(404).json({ error: 'Room not found' });
+
+    await db.execute({
+      sql:  `UPDATE focus_room_members SET is_ready = ?, last_seen = datetime('now') WHERE room_id = ? AND user_id = ?`,
+      args: [ready ? 1 : 0, roomRow.id, req.user.id],
+    });
+    res.json({ ok: true, ready: Boolean(ready) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
