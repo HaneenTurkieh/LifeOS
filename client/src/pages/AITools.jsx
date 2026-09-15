@@ -642,6 +642,13 @@ export default function AITools() {
         client_lat:      clientLat,
         client_lon:      clientLon,
       }, {
+        // Matches server/routes/chat.js's own idleTimeoutMs per mode (see
+        // its Sept 2026 follow-up comment: Deep Think can go fully silent
+        // for well over 60s mid-reasoning on a big prompt, so it needs
+        // real headroom, not the tighter default). Kept a bit above the
+        // server's own value so the server gets first chance to notice
+        // and report a real stall before the client's own timer would.
+        idleTimeoutMs: mode === 'think' ? 195000 : 70000,
         onDelta: (chunk) => {
           liveContent += chunk;
           // First real text back — swap the typing indicator for the

@@ -1449,7 +1449,29 @@ router.post('/', async (req, res) => {
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no', // stop Render's proxy from buffering the whole reply before forwarding it
   });
-  const sendEvent = (obj) => { res.write(`data: ${JSON.stringify(obj)}\n\n`); };
+  // Real bug this fixes: "if I leave the chat it shouldn't just get
+  // dropped — let it finish in the background." Before this, sendEvent
+  // did a bare res.write(), which THROWS once the client's socket is
+  // gone (tab closed, navigated away in a way that actually tears down
+  // the connection, phone locked and the OS suspended the network, etc).
+  // That thrown error propagated straight out of streamOpenRouter's
+  // onDelta callback, which streamOpenRouter treats exactly like any
+  // other mid-call failure — it aborts the whole OpenRouter request and
+  // rethrows, which landed in the catch block below and stopped
+  // generation dead, right as the client disconnected. Silently
+  // swallowing a failed write here instead means a gone client can no
+  // longer interrupt anything: the tool loop and OpenRouter call below
+  // keep running exactly as if the client were still listening, right
+  // through to the DB persistence a bit further down — so the answer is
+  // there, saved, next time this conversation is opened, even though
+  // nobody was around to watch it stream in.
+  let clientGone = false;
+  res.on('close', () => { clientGone = true; });
+  const sendEvent = (obj) => {
+    if (clientGone || res.writableEnded) return;
+    try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch (_) { clientGone = true; }
+  };
+  const endStream = () => { try { if (!res.writableEnded) res.end(); } catch (_) {} };
 
   try {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -1568,15 +1590,26 @@ router.post('/', async (req, res) => {
     // fixed total-duration ceiling, which a big/slow-but-healthy call
     // could legitimately exceed. Streaming (streamOpenRouter, see
     // openrouter.js) removes that ceiling: its timeoutMs is an *idle*
-    // timeout that resets on every chunk received from the provider —
-    // including reasoning-only frames this route never forwards to the
-    // client — so as long as the connection is alive and the provider is
-    // still sending *something*, generation can run as long as it needs
-    // to. It only fires on a genuine stall. One value works for every
-    // mode now — there's no more "will this mode's call structurally
-    // take longer than the ceiling" to tune per mode, because there is
-    // no total-duration ceiling left to tune.
-    const idleTimeoutMs = 60000;
+    // timeout that resets on every chunk received from the provider, so
+    // as long as the connection is alive and something is still coming
+    // through, generation can run as long as it needs to — it only fires
+    // on a genuine stall.
+    //
+    // Sept 2026 follow-up: this was first shipped as one flat 60s value
+    // for every mode, on the assumption that the provider streams *some*
+    // frame (even a reasoning-only one this route never forwards)
+    // frequently enough to keep resetting the idle timer through a long
+    // xhigh reasoning pass. Confirmed live that assumption doesn't hold
+    // for Deep Think with a large attachment — it can go fully silent
+    // (zero bytes of any kind, reasoning included) for well over 60s
+    // while the model works through a big prompt at max reasoning
+    // effort, which then looked exactly like a real stall and failed the
+    // same way the pre-streaming timeout used to. Deep Think gets real
+    // headroom for that silence instead of a one-size ceiling; every
+    // other mode keeps the tighter 60s, since chat/search/study don't
+    // run anywhere near that kind of reasoning pass and a real 60s
+    // silence there is much more likely to mean something's actually wrong.
+    const idleTimeoutMs = mode === 'think' ? 180000 : 60000;
     for (let i = 0; i < 6; i++) {
       const data = await streamOpenRouter({
         system, messages: currentMessages, tools: toolsForCall, max_tokens: maxTokens,
@@ -1685,7 +1718,7 @@ router.post('/', async (req, res) => {
     }
     if (gateFeature) await recordUsage(req.user.id, gateFeature);
     sendEvent({ type: 'done', text: responseText, actions, conversation_id: convId, mode, suggestSearch, user_message_id: userMessageId });
-    res.end();
+    endStream();
   } catch (err) {
     console.error('Lumi error:', err);
     logError(req.user?.id, 'chat', err.message).catch(() => {});
@@ -1711,10 +1744,8 @@ router.post('/', async (req, res) => {
       // to the user is worth keeping rather than wiping out on error
       // (per Haneen's "no mistakes" bar — a good partial answer failing
       // at the tail shouldn't make the whole thing disappear).
-      try {
-        sendEvent({ type: 'error', message: errorMessage, partial: !!err.receivedAny });
-      } catch (_) {}
-      res.end();
+      sendEvent({ type: 'error', message: errorMessage, partial: !!err.receivedAny });
+      endStream();
     } else {
       res.status(500).json({ error: errorMessage });
     }

@@ -4,7 +4,7 @@ import {
   Brain, Sparkles, RotateCcw, Check, X,
   ChevronLeft, ChevronRight, ChevronDown, Upload, FileText,
   Clock, BarChart2, Info, AlertCircle, History as HistoryIcon, Trash2,
-  FileDown, Presentation, Network, Globe,
+  FileDown, Presentation, Network, Globe, Target,
 } from 'lucide-react';
 import { api, getToken } from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -1299,7 +1299,11 @@ export default function ExamAssistant() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Upload failed');
         const id = `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-        setFiles(prev => [...prev, { id, name: file.name, text: data.text, wordCount: data.wordCount }]);
+        // isPattern: false by default — see toggleFilePattern below. A file
+        // marked as a pattern reference (a real previous exam) is held out
+        // of the actual study content and used only to tell the model what
+        // shape/style to generate in, not what to ask about.
+        setFiles(prev => [...prev, { id, name: file.name, text: data.text, wordCount: data.wordCount, isPattern: false }]);
         toast.success(`✓ ${file.name} — ${data.wordCount?.toLocaleString()} ${t('exam.wordsReady')}`);
       } catch (err) {
         toast.error(`${file.name}: ${err.message}`);
@@ -1309,14 +1313,24 @@ export default function ExamAssistant() {
   }, [toast, authedFetch, t, files.length]);
   const onDrop = (e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); };
   const removeFile = (id) => setFiles(prev => prev.filter(f => f.id !== id));
+  // Sept 2026: "do we have the syllabus/previous exams so the AI can copy
+  // the pattern" — we didn't; every uploaded file was just more source
+  // content to pull facts from, with nothing telling the model "this one
+  // is a real past exam, match its format." This toggle marks a specific
+  // uploaded file as that pattern reference instead of study content —
+  // see combinedContent/patternContent below and the prompt-building in
+  // generate() for how the split is actually used.
+  const toggleFilePattern = (id) => setFiles(prev => prev.map(f => f.id === id ? { ...f, isPattern: !f.isPattern } : f));
 
-  // Notes plus every uploaded file's extracted text, combined into one
-  // source blob — each file is labeled so the model can tell them apart
-  // instead of them running together as one undifferentiated wall of text.
+  // Notes plus every uploaded file's extracted text EXCEPT ones marked as
+  // a pattern reference — those are held out here and folded in
+  // separately (see patternContent in generate()) so the model is never
+  // tested on the previous exam's own questions, only shown its shape.
   const combinedContent = [
     notes.trim(),
-    ...files.map(f => `[${f.name}]\n${f.text}`),
+    ...files.filter(f => !f.isPattern).map(f => `[${f.name}]\n${f.text}`),
   ].filter(Boolean).join('\n\n---\n\n');
+  const patternContent = files.filter(f => f.isPattern).map(f => `[${f.name}]\n${f.text}`).join('\n\n---\n\n');
 
   const generate = async () => {
     const content = combinedContent;
@@ -1370,16 +1384,28 @@ export default function ExamAssistant() {
 ${NO_AI_VOICE}
 ${varietyTag}
 `;
+    // Pattern mimicry — see toggleFilePattern/patternContent above. Only
+    // meaningful for the actual exam-shaped modes (a flashcard deck or a
+    // slide summary doesn't have an "exam format" to copy), and only when
+    // at least one file was actually marked as a pattern reference.
+    // Deliberately told to imitate STRUCTURE/STYLE only, not pull facts
+    // from it — the previous exam almost certainly covers different
+    // specific questions than whatever's being freshly tested here, and
+    // the whole point is a new, honest exam over the real content below,
+    // just shaped like the one the instructor actually gives.
+    const patternBlock = (patternContent && ['mcq','blanks','mixed'].includes(mode))
+      ? `\n\nPATTERN TO MIMIC: What follows is a real previous exam from this exact course/instructor. Study ONLY its structure and style — how many questions total, how difficulty is distributed across them, how each question is phrased (length, tone, how much setup/context it gives), how MCQ options are worded and how plausible the distractors are, and roughly how much depth is expected per topic. Shape the new exam below so it reads like it could have come from the same instructor, following that same structure — but every question must test the CONTENT given separately further down, never the previous exam's own questions or facts.\n\nPREVIOUS EXAM (structure/style reference only — do not reuse its questions, facts, or answers):\n${patternContent}`
+      : '';
     if (mode === 'mcq') {
       prompt = `${base}${difficultyLine}
 ${MCQ_LENGTH_RULE}
 Generate a ${difficulty} multiple choice exam with exactly ${count} questions.
-Each object: { "question": string, "options": [4 strings], "correct": 0-indexed number, "explanation": string }
+Each object: { "question": string, "options": [4 strings], "correct": 0-indexed number, "explanation": string }${patternBlock}
 Content:\n${content}`;
     } else if (mode === 'blanks') {
       prompt = `${base}${difficultyLine}
 Generate a ${difficulty} fill-in-the-blank exercise with exactly ${count} questions.
-Each object: { "sentence": "text with ___ blank", "answer": string, "hint": string }
+Each object: { "sentence": "text with ___ blank", "answer": string, "hint": string }${patternBlock}
 Content:\n${content}`;
     } else if (mode === 'mixed') {
       const half = Math.ceil(count/2);
@@ -1387,7 +1413,7 @@ Content:\n${content}`;
 ${MCQ_LENGTH_RULE}
 Generate a ${difficulty} mixed exam: ${half} MCQ and ${count-half} fill-in-the-blank questions. Interleave them.
 MCQ object:   { "type": "mcq",   "question": string, "options": [4 strings], "correct": number, "explanation": string }
-Blank object: { "type": "blank", "sentence": "text with ___", "answer": string, "hint": string }
+Blank object: { "type": "blank", "sentence": "text with ___", "answer": string, "hint": string }${patternBlock}
 Content:\n${content}`;
     } else if (mode === 'flashcards') {
       prompt = `${base}${difficultyLine}
@@ -1748,11 +1774,27 @@ Content:\n${content}`;
                           {t('exam.words', { n: f.wordCount?.toLocaleString() })} · {t('exam.wordsReady')}
                         </p>
                       </div>
+                      <button
+                        onClick={() => toggleFilePattern(f.id)}
+                        title={t('exam.patternToggleHint')}
+                        className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-bold transition ${
+                          f.isPattern ? 'text-white' : 'text-sage-600/45 hover:text-lavender-500'
+                        }`}
+                        style={f.isPattern ? { background: 'rgb(var(--accent-500))' } : {}}
+                      >
+                        <Target size={12}/>
+                        {f.isPattern && t('exam.patternActive')}
+                      </button>
                       <button onClick={() => removeFile(f.id)} className="text-sage-600/50 hover:text-coral-500 transition">
                         <X size={16}/>
                       </button>
                     </div>
                   ))}
+                  {files.some(f => f.isPattern) && (
+                    <p className="text-[11px] text-lavender-600 px-1">
+                      🎯 {t('exam.patternHint')}
+                    </p>
+                  )}
                 </div>
               )}
               <div className="flex items-center gap-2">
