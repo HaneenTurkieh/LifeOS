@@ -1500,10 +1500,26 @@ router.post('/', async (req, res) => {
     // Premium — gets Grok 4.6 instead, regardless of plan; the reasoning-
     // effort bump above is the part that's actually Premium-only.
     const callModel = mode === 'chat' ? undefined : PLUS_MODEL;
+    // Real bug this fixes: Haneen hit repeated "AI provider is temporarily
+    // unavailable" failures specifically on Deep Think with a real
+    // attachment (a lecture slide deck) — a big prompt (long conversation
+    // + attachment text) at xhigh reasoning effort is a genuinely slow
+    // generation, and openrouter.js's default 45s-per-attempt timeout
+    // (tuned for an ordinary call) was killing it before it could finish
+    // — twice: once on the first attempt, once on the automatic retry —
+    // which is exactly what produces that "temporarily unavailable"
+    // message even though nothing was actually down. The client already
+    // budgets up to 120s for a whole 'think' request (see AITools.jsx's
+    // chatTimeoutMs); 100s per OpenRouter attempt here leaves headroom
+    // under that ceiling while giving a legitimately large/slow call a
+    // real chance to complete instead of losing a race against our own
+    // conservative internal timeout. Same override pattern exam.js already
+    // uses for its mindmap mode, for the same underlying reason.
+    const callTimeoutMs = mode === 'think' ? 100000 : undefined;
     for (let i = 0; i < 6; i++) {
       const data = await callOpenRouter({
         system, messages: currentMessages, tools: toolsForCall, max_tokens: maxTokens,
-        reasoningEffort, webSearch: mode === 'search', model: callModel,
+        reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: callTimeoutMs,
       });
       const msg = data.choices?.[0]?.message || {};
       const toolCalls = msg.tool_calls || [];
@@ -1546,7 +1562,7 @@ router.post('/', async (req, res) => {
             { role: 'assistant', content: finalText },
             { role: 'user', content: 'Continue exactly where you left off — do not repeat anything you already said, and do not add any preamble like "continuing" or "sure". Just resume the text directly.' },
           ],
-          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search', model: callModel,
+          tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: callTimeoutMs,
         });
         const contMsg = contData.choices?.[0]?.message || {};
         if (contMsg.content) finalText += contMsg.content;
@@ -1609,7 +1625,23 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Lumi error:', err);
     logError(req.user?.id, 'chat', err.message).catch(() => {});
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    // Real bug this fixes: this one catch wraps the whole route — a
+    // genuine, already-diagnosed AI-provider hiccup (openrouter.js's own
+    // retry-exhausted error, already phrased in plain language — see its
+    // own comments) got flattened into the exact same generic "Something
+    // went wrong" as a real unexpected bug in this route. logError (and
+    // so the admin Stats panel) always got the real message; the actual
+    // user never did, even though AITools.jsx's own error handling
+    // already prefers showing the real err.message when the server sends
+    // one — this route was throwing that detail away before the client
+    // ever got the chance. Passing the provider's own message through
+    // for that one known, already-safe-to-show case (not for anything
+    // else, which stays the generic fallback) lets a real failure read
+    // as "the AI provider hiccuped, try again" instead of an opaque dead
+    // end — exactly what showed up twice in a row for a Deep Think
+    // request with a large attachment.
+    const providerMessage = /AI provider is temporarily unavailable/i.test(err.message || '') ? err.message : null;
+    res.status(500).json({ error: providerMessage || 'Something went wrong. Please try again.' });
   }
 });
 
