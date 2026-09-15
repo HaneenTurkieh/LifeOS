@@ -88,6 +88,22 @@ async function callOpenRouter({
   // silently falls back to a worse response. This forces the provider to
   // actually constrain output to valid JSON.
   jsonMode = false,
+  // Sept 2026: added for Deep Think specifically, after a real, repeatable
+  // failure — a big prompt (long conversation + a real attachment) at
+  // xhigh reasoning effort can legitimately need close to this function's
+  // now-larger timeoutMs just to finish once. The automatic retry below
+  // was designed for the OPPOSITE case: a genuine one-off blip (a dropped
+  // connection, a 5xx) that a fresh attempt clears in seconds. Applying
+  // that same retry to a call that timed out because it's structurally
+  // slow — not because anything actually blipped — just runs the same
+  // slow call again with less time left on the client's own clock,
+  // trading one honest failure for a slower, still-likely failure (and,
+  // for an xhigh/Grok call, doubling real cost for essentially no
+  // chance of success). Callers doing that kind of genuinely large/slow
+  // call pass noRetry so a timeout fails fast and honestly instead of
+  // silently eating a doomed second attempt. Every other caller is
+  // unaffected — default stays the retry-once behavior this always had.
+  noRetry = false,
 }) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY not set');
@@ -187,6 +203,17 @@ async function callOpenRouter({
     return await attempt();
   } catch (err) {
     if (!err.transient) throw err;
+    // noRetry: fail fast on the one attempt instead of spending another
+    // full timeoutMs (plus real API cost, for an xhigh/Grok call) on a
+    // second try that's very unlikely to turn out differently — see the
+    // noRetry param comment above. Same error shape either way, so
+    // callers (e.g. chat.js's own "was this the known AI-provider
+    // failure" check) don't need to know which path produced it.
+    if (noRetry) {
+      const e = new Error(`The AI provider is temporarily unavailable. Please try again. (${err.message})`);
+      e.cause = err;
+      throw e;
+    }
     await new Promise((r) => setTimeout(r, 800));
     try {
       return await attempt();

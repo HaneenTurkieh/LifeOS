@@ -623,7 +623,18 @@ export default function AITools() {
       // Nothing ever showed up in the admin "Recent failures" log either,
       // because the server wasn't actually throwing — the client was just
       // giving up first, before the server had a chance to finish.
-      const chatTimeoutMs = mode === 'think' ? 120000 : 75000;
+      //
+      // Sept 2026 follow-up: 120s wasn't quite enough either, specifically
+      // for Deep Think with a real attachment — routes/chat.js now gives
+      // that one OpenRouter call up to 100s on its own (and, just as
+      // important, no longer retries a timeout there — see noRetry in
+      // openrouter.js — since retrying an already-near-the-limit call
+      // just spends the same time again for little extra chance of
+      // success). 150s leaves real margin above that single 100s attempt
+      // for network transfer of a large attachment/response and normal
+      // request overhead, instead of the client cutting the connection
+      // just as the server was about to actually finish.
+      const chatTimeoutMs = mode === 'think' ? 150000 : 75000;
       const res = await api.post('/chat', {
         messages:        history,
         conversation_id: activeConvId,

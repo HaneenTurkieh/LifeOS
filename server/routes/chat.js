@@ -1505,21 +1505,27 @@ router.post('/', async (req, res) => {
     // attachment (a lecture slide deck) — a big prompt (long conversation
     // + attachment text) at xhigh reasoning effort is a genuinely slow
     // generation, and openrouter.js's default 45s-per-attempt timeout
-    // (tuned for an ordinary call) was killing it before it could finish
-    // — twice: once on the first attempt, once on the automatic retry —
-    // which is exactly what produces that "temporarily unavailable"
-    // message even though nothing was actually down. The client already
-    // budgets up to 120s for a whole 'think' request (see AITools.jsx's
-    // chatTimeoutMs); 100s per OpenRouter attempt here leaves headroom
-    // under that ceiling while giving a legitimately large/slow call a
-    // real chance to complete instead of losing a race against our own
-    // conservative internal timeout. Same override pattern exam.js already
-    // uses for its mindmap mode, for the same underlying reason.
+    // (tuned for an ordinary call) was killing it before it could finish.
+    // First fix (raising this to 100s) wasn't the whole story: with the
+    // default retry-once behavior, a call that actually needs close to
+    // 100s to finish can still fail twice (100s + 800ms + another 100s),
+    // which is what surfaced next — not as "AI provider unavailable" this
+    // time, but as the *client's own* 120s ceiling giving up first
+    // (chatTimeoutMs in AITools.jsx), because the server was still
+    // legitimately working past it. Retrying a call that timed out for
+    // being structurally slow (not from an actual one-off blip) mostly
+    // just spends the same time and real xhigh/Grok cost again for
+    // little extra chance of success — so 'think' now skips the retry
+    // (noRetry, see openrouter.js) and gets its full timeout on one real
+    // attempt, and the client's own ceiling (raised alongside this) gives
+    // it room to actually be received.
     const callTimeoutMs = mode === 'think' ? 100000 : undefined;
+    const noRetryForCall = mode === 'think';
     for (let i = 0; i < 6; i++) {
       const data = await callOpenRouter({
         system, messages: currentMessages, tools: toolsForCall, max_tokens: maxTokens,
         reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: callTimeoutMs,
+        noRetry: noRetryForCall,
       });
       const msg = data.choices?.[0]?.message || {};
       const toolCalls = msg.tool_calls || [];
@@ -1563,6 +1569,7 @@ router.post('/', async (req, res) => {
             { role: 'user', content: 'Continue exactly where you left off — do not repeat anything you already said, and do not add any preamble like "continuing" or "sure". Just resume the text directly.' },
           ],
           tools: toolsForCall, max_tokens: maxTokens, reasoningEffort, webSearch: mode === 'search', model: callModel, timeoutMs: callTimeoutMs,
+          noRetry: noRetryForCall,
         });
         const contMsg = contData.choices?.[0]?.message || {};
         if (contMsg.content) finalText += contMsg.content;
