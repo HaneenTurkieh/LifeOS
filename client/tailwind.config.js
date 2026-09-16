@@ -40,7 +40,18 @@ export default {
           600: '#2DA76E' 
         },
         coral: { 400: '#FF9C8A', 500: '#FF7A63' },
-        midnight: { 950: '#08070F', 900: '#0C0A1A', 800: '#161329', 700: '#1F1A3D' },
+        // Was a purple-navy ramp (#161329 etc — noticeably more blue/violet
+        // than gray) — the one dark-mode surface color in the app that was
+        // NEVER accent-aware to begin with, unlike everything else (glass
+        // cards, glows, buttons). Used for Modal.jsx's opaque dark
+        // background, so every modal (Settings included) kept a purple
+        // tint underneath no matter which accent was active — the last
+        // real "still purple" leftover. Neutralized to a true charcoal
+        // ramp (R≈G≈B, only the faintest cool cast) so the surface itself
+        // stays out of the way and lets the active accent do the work via
+        // buttons/highlights/glow, the same way it already does everywhere
+        // else in the app.
+        midnight: { 950: '#0A0A0D', 900: '#131316', 800: '#1C1C21', 700: '#28282F' },
         nuvora: {
           purple: '#7C5CFF', violet: '#8B5CF6', indigo: '#6366F1',
           sky: '#60A5FA', emerald: '#34D399', amber: '#FBBF24',
