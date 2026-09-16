@@ -50,12 +50,18 @@ export default {
         glass: '0 8px 32px 0 rgba(76, 70, 150, 0.12)',
         'glass-lg': '0 20px 60px -10px rgba(76, 70, 150, 0.25)',
         'glass-xl': '0 30px 80px -16px rgba(76, 70, 150, 0.35)',
-        glow: '0 0 0 1px rgba(255,255,255,0.4) inset, 0 8px 32px 0 rgba(76, 70, 150, 0.12)',
-        'glow-lg': '0 0 0 1px rgba(255,255,255,0.5) inset, 0 12px 40px 0 rgba(124,106,240,0.35)',
+        // glow/glow-lg/glow-ring used to be hardcoded to a purple RGB
+        // triplet regardless of the active accent — so every primary
+        // button and hoverable "clay" card kept a purple halo even under
+        // teal/slate/blue/etc. Now driven by --accent-500, same pattern
+        // as the lavender color scale, so the glow always matches
+        // whatever accent is actually active.
+        glow: '0 0 0 1px rgba(255,255,255,0.4) inset, 0 8px 32px 0 rgb(var(--accent-500) / 0.35)',
+        'glow-lg': '0 0 0 1px rgba(255,255,255,0.5) inset, 0 12px 40px 0 rgb(var(--accent-500) / 0.35)',
         'inner-highlight': 'inset 0 1px 0 0 rgba(255,255,255,0.5)',
         clay: '0 1px 2px rgba(124,92,255,0.06), 0 8px 24px -4px rgba(124,92,255,0.12), inset 0 1px 0 rgba(255,255,255,0.6)',
         'clay-dark': '0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)',
-        'glow-ring': '0 0 0 1px rgba(124,92,255,0.15), 0 0 24px rgba(124,92,255,0.18)',
+        'glow-ring': '0 0 0 1px rgb(var(--accent-500) / 0.15), 0 0 24px rgb(var(--accent-500) / 0.18)',
       },
       backgroundImage: {
         'app-gradient': 'radial-gradient(circle at 10% 0%, #EFEAFF 0%, #F4F6FB 35%, #EAF4F6 100%)',

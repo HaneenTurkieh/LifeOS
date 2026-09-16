@@ -870,7 +870,7 @@ export default function Dashboard() {
             />
             <div className="relative flex items-center gap-4">
               <motion.div
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[#6366F1] shadow-glow"
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))] shadow-glow"
                 animate={{ y: [0, -5, 0] }}
                 transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
               >

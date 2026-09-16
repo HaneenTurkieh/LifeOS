@@ -1467,8 +1467,8 @@ router.post('/premium/toggle', async (req, res) => {
       return res.status(403).json({ error: 'Premium can only be granted through a real purchase.' });
     }
     await db.execute({
-      sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, background_style, plan) VALUES (?, 0, 'purple', 'aurora', NULL)
-            ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'purple', background_style = 'aurora', plan = NULL`,
+      sql: `INSERT INTO user_premium (user_id, is_premium, theme_preset, background_style, plan) VALUES (?, 0, 'teal', 'aurora', NULL)
+            ON CONFLICT(user_id) DO UPDATE SET is_premium = 0, theme_preset = 'teal', background_style = 'aurora', plan = NULL`,
       args: [req.user.id],
     });
     res.json(await getPremium(req.user.id));

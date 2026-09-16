@@ -83,9 +83,9 @@ function applyFontScale(key) {
   }
   try {
     const storedAccent = localStorage.getItem(ACCENT_STORAGE_KEY);
-    applyAccent(ACCENTS.includes(storedAccent) ? storedAccent : 'purple');
+    applyAccent(ACCENTS.includes(storedAccent) ? storedAccent : 'teal');
   } catch (_) {
-    applyAccent('purple');
+    applyAccent('teal');
   }
   try {
     const storedFont = localStorage.getItem(FONT_STORAGE_KEY);
@@ -108,8 +108,8 @@ export function ThemeProvider({ children }) {
   const [accent, setAccentState] = useState(() => {
     try {
       const stored = localStorage.getItem(ACCENT_STORAGE_KEY);
-      return ACCENTS.includes(stored) ? stored : 'purple';
-    } catch (_) { return 'purple'; }
+      return ACCENTS.includes(stored) ? stored : 'teal';
+    } catch (_) { return 'teal'; }
   });
   const [fontScale, setFontScaleState] = useState(() => {
     try {
