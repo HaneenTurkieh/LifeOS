@@ -7,11 +7,16 @@ const { getZodiacSign } = require('../lib/zodiac');
 const TREES = [
   { key: 'seedling',       name: 'Seedling',       emoji: '🌱', cost: 0,    description: 'Every journey starts here.' },
   { key: 'sprout',         name: 'Sprout',         emoji: '🌿', cost: 100,  description: 'Your first real growth.' },
+  // Sept 2026: the shop's first non-plant growth image — see TreeSvg.jsx's
+  // comment on Campfire/Rocket for why. Priced right after Sprout so it's
+  // reachable early, not buried behind a dozen trees first.
+  { key: 'campfire',       name: 'Campfire',       emoji: '🔥', cost: 150,  description: "Keep it burning — don't let it go out." },
   { key: 'oak',            name: 'Oak',            emoji: '🌳', cost: 300,  description: 'Strong and steady.' },
   { key: 'cherry_blossom', name: 'Cherry Blossom', emoji: '🌸', cost: 600,  description: 'Beautiful under pressure.' },
   { key: 'coral',          name: 'Coral Tree',     emoji: '🪸', cost: 800,  description: 'Vivid and alive, like a reef beneath the waves.' },
   { key: 'bamboo',         name: 'Bamboo',         emoji: '🎋', cost: 1000, description: 'Flexible, fast, unstoppable.' },
   { key: 'cactus',         name: 'Cactus',         emoji: '🌵', cost: 1200, description: 'Thrives on very little — resilience in its purest form.' },
+  { key: 'rocket',         name: 'Rocket',         emoji: '🚀', cost: 1350, description: 'Cleared for launch — built for the climb.' },
   { key: 'palm',           name: 'Palm',           emoji: '🌴', cost: 1500, description: 'Thriving in the heat.' },
   { key: 'water',          name: 'Water Tree',     emoji: '💧', cost: 1800, description: 'Fluid, calm, endlessly renewing.' },
   { key: 'maple',          name: 'Maple',          emoji: '🍁', cost: 2200, description: 'Changes color, never loses its roots.' },

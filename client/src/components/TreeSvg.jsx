@@ -425,6 +425,47 @@ function Comet() {
   );
 }
 
+// Sept 2026: two new entries on the free XP ladder (see TREES in
+// server/routes/trees.js) — not a "wilder tree species," a genuinely
+// different growth image, same as Coral above already isn't a tree
+// either. Business feedback was that a garden of trees reads as a fairly
+// feminine-coded theme by itself, and the fix isn't dropping the "don't
+// let it die" growth mechanic (Forest, the app this whole feature is
+// modeled on, proves that mechanic isn't gendered — it has an enormous,
+// broad user base) — it's giving the existing shop more than one visual
+// language to grow. Both still share the 44×56/ground-at-51 convention
+// so they drop into LandPlot/TreeIcon/TreeShop exactly like any tree.
+function Campfire() {
+  return (
+    <g>
+      {/* crossed logs instead of Roots/Trunk — nothing here is plant-shaped */}
+      <path d="M10 51 L34 47 L34 49.5 L10 53.5 Z" fill="#7A5240" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M34 51 L10 47 L10 49.5 L34 53.5 Z" fill="#8B5A2B" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M22 49 Q14 40 19 30 Q21 34 24 31 Q23 24 28 18 Q30 30 26 34 Q30 32 29 38 Q33 42 28 49 Q25 44 22 49 Z"
+        fill="#F59E0B" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M22 48 Q18 41 21 34 Q23 38 25 35 Q27 40 24 44 Q26 43 26 46 Q24 49 22 48 Z" fill="#FDE68A" />
+      <g fill="#FCA5A5">
+        <circle cx={9} cy={30} r={1} /><circle cx={35} cy={26} r={0.9} /><circle cx={30} cy={14} r={0.8} />
+      </g>
+    </g>
+  );
+}
+function Rocket() {
+  return (
+    <g>
+      <path d="M14 51 L30 51 L28 53.5 L16 53.5 Z" fill="#6B7280" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M17 47 L11 51 L18 51 Z" fill="#DC2626" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M27 47 L33 51 L26 51 Z" fill="#DC2626" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M18 47 L18 24 Q22 12 26 24 L26 47 Z" fill="#E5E7EB" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M22 12 Q24.5 17 25.3 23 L18.7 23 Q19.5 17 22 12 Z" fill="#DC2626" />
+      <circle cx={22} cy={31} r={3.1} fill="#38BDF8" stroke="rgba(0,0,0,0.22)" strokeWidth="0.6" />
+      <path d="M22 47 Q17 50.5 19 55 Q22 52.5 22 47 Z" fill="#F59E0B" />
+      <path d="M22 47 Q27 50.5 25 55 Q22 52.5 22 47 Z" fill="#F59E0B" />
+      <path d="M22 47 Q22 53 22 55.5 Q22 53 22 47 Z" fill="#FDE68A" />
+    </g>
+  );
+}
+
 const SPECIES = {
   seedling: Seedling, sprout: Sprout, oak: Oak, cherry_blossom: CherryBlossom,
   coral: Coral, bamboo: Bamboo, cactus: Cactus, palm: Palm, water: WaterTree,
@@ -432,6 +473,7 @@ const SPECIES = {
   willow: Willow, sunflower: Sunflower, olive: Olive, lotus: Lotus,
   christmas: ChristmasTree,
   aurora: Aurora, phoenix: Phoenix, galaxy: Galaxy, nebula: Nebula, eclipse: Eclipse, comet: Comet,
+  campfire: Campfire, rocket: Rocket,
 };
 
 export default function TreeSvg({ speciesKey, size = 34, className = '' }) {
