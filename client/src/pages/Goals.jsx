@@ -213,7 +213,13 @@ export default function Goals() {
     try { setGoals(await api.get('/goals')); } catch (e) { toast.error(e.message); }
   }, []); // eslint-disable-line
   const loadHabits = useCallback(async () => {
-    try { setHabits(await api.get('/habits')); } catch (e) { toast.error(e.message); }
+    // Same ?date= pattern as Dashboard.jsx's /dashboard call — the
+    // client's own local date, not the server's UTC one, so doneToday
+    // actually lines up with the day the user is looking at right now.
+    try {
+      const localDate = new Date().toLocaleDateString('en-CA');
+      setHabits(await api.get(`/habits?date=${localDate}`));
+    } catch (e) { toast.error(e.message); }
   }, []); // eslint-disable-line
   useEffect(() => {
     Promise.all([loadGoals(), loadHabits()]).finally(() => setLoading(false));
@@ -414,7 +420,13 @@ No explanation, no markdown fences, just the JSON object.`,
   };
   const toggleToday = async (habit) => {
     try {
-      const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, {});
+      // Send the client's own local date, same reasoning as loadHabits
+      // above — otherwise a habit checked off right around local
+      // midnight could get logged under the server's still-yesterday (or
+      // still-today) UTC date and disagree with what's on screen a
+      // couple hours later.
+      const localDate = new Date().toLocaleDateString('en-CA');
+      const { xpAwarded, unlocked } = await api.post(`/habits/${habit.id}/toggle`, { date: localDate });
       if (xpAwarded) toast.xp(xpAwarded, habit.name);
       unlocked?.forEach((k) => toast.achievement(k.replace(/_/g, ' ')));
       loadHabits();

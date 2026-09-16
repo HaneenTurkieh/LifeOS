@@ -3,15 +3,15 @@ const router = express.Router();
 const { db } = require('../db/connection');
 const { addXp, getHabitStreak, evaluateAchievements, todayIso } = require('../lib/gamification');
 
-async function withMeta(habit) {
+async function withMeta(habit, today = todayIso()) {
   const [logsResult, doneTodayResult] = await Promise.all([
     db.execute({ sql: `SELECT date FROM habit_logs WHERE habit_id = ? AND date >= date('now', '-29 days')`, args: [habit.id] }),
-    db.execute({ sql: `SELECT 1 FROM habit_logs WHERE habit_id = ? AND date = ?`, args: [habit.id, todayIso()] }),
+    db.execute({ sql: `SELECT 1 FROM habit_logs WHERE habit_id = ? AND date = ?`, args: [habit.id, today] }),
   ]);
   const last30 = logsResult.rows.map((r) => r.date);
   return {
     ...habit,
-    streak:         await getHabitStreak(habit.id), // needs gamification.js migrated
+    streak:         await getHabitStreak(habit.id, today), // needs gamification.js migrated
     completionRate: Math.round((last30.length / 30) * 100),
     last30,
     doneToday: !!doneTodayResult.rows[0],
@@ -20,8 +20,16 @@ async function withMeta(habit) {
 
 router.get('/', async (req, res) => {
   try {
+    // Client sends its own local date (same ?date= pattern as
+    // GET /dashboard) — without this, doneToday/streak were computed
+    // against the server's UTC "today", which silently disagrees with
+    // the user's actual calendar day for a window around local midnight
+    // in any UTC+ timezone (this app's whole userbase). That's what made
+    // a just-completed habit look undone again a couple hours later, or
+    // a new day's habit still look "done" from before midnight.
+    const today = req.query.date || todayIso();
     const result = await db.execute({ sql: `SELECT * FROM habits WHERE user_id = ? ORDER BY id ASC`, args: [req.user.id] });
-    res.json(await Promise.all(result.rows.map(withMeta)));
+    res.json(await Promise.all(result.rows.map((h) => withMeta(h, today))));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -31,7 +39,7 @@ router.post('/', async (req, res) => {
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
     const insertResult = await db.execute({ sql: `INSERT INTO habits (user_id, name, icon, color, target_per_week) VALUES (?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), icon, color, target_per_week] });
     const habitResult = await db.execute({ sql: `SELECT * FROM habits WHERE id = ? AND user_id = ?`, args: [Number(insertResult.lastInsertRowid), req.user.id] });
-    res.status(201).json(await withMeta(habitResult.rows[0]));
+    res.status(201).json(await withMeta(habitResult.rows[0], req.body.date));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -74,7 +82,7 @@ router.post('/:id/toggle', async (req, res) => {
       }
     }
     const unlocked = await evaluateAchievements(req.user.id);
-    res.json({ habit: await withMeta(habit), xpAwarded, unlocked });
+    res.json({ habit: await withMeta(habit, date), xpAwarded, unlocked });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 

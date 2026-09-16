@@ -233,7 +233,7 @@ async function syncStreakShields(userId, todayOverride) {
   return { streak, shields, justShielded, justEarnedShield };
 }
 
-async function getHabitStreak(habitId) {
+async function getHabitStreak(habitId, todayOverride) {
   // Bounded to ~2 years — the streak-walk below stops at the first gap
   // it finds, so it only ever needs a contiguous recent tail of data, not
   // a habit's entire history. Without this, an account with years of
@@ -248,7 +248,11 @@ async function getHabitStreak(habitId) {
   });
   const dates = new Set(result.rows.map((r) => r.date));
   let streak = 0;
-  let cursorIso = todayIso();
+  // todayOverride: same convention as getOverallStreak/syncStreakShields
+  // above — the caller passes the client's own local date so this lines
+  // up with whatever calendar day the rest of the response is built on,
+  // instead of silently falling back to the server's own UTC "now".
+  let cursorIso = todayOverride || todayIso();
   if (!dates.has(cursorIso)) cursorIso = shiftIsoDate(cursorIso, -1);
   while (dates.has(cursorIso)) {
     streak++;
