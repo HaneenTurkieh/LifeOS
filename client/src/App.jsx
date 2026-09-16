@@ -19,6 +19,7 @@ import { useTheme }      from './context/ThemeContext.jsx';
 import { useLanguage }   from './context/LanguageContext.jsx';
 import useTaskReminders  from './hooks/useTaskReminders.js';
 import useMilestoneReminders from './hooks/useMilestoneReminders.js';
+import useDateRollover    from './hooks/useDateRollover.js';
 import { isTodayBirthday } from './utils/birthday.js';
 import { api }           from './api/client.js';
 // Every page below is lazy-loaded so each route becomes its own JS chunk
@@ -256,6 +257,15 @@ function AppShell() {
   const [buddyWave, setBuddyWave] = useState(false);
   useTaskReminders();
   useMilestoneReminders();
+  // See useDateRollover.js — reloads the whole app the moment the local
+  // calendar date actually changes, so every page's mount-time "today"
+  // logic (Dashboard/Focus/AITools, all computed with
+  // toLocaleDateString('en-CA') only at fetch time) reruns fresh instead
+  // of silently staying on yesterday until something forces a remount.
+  // Gated on the same focus.isRunning already computed above for
+  // focusBarVisible, so it never reloads out from under an active Flow
+  // session.
+  useDateRollover({ isRunning: focus?.isRunning });
 
   // ── Companion mood ────────────────────────────────────────────
   // Feeds the floating buddy's expression from today's mood-of-the-day
