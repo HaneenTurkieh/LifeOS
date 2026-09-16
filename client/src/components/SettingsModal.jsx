@@ -648,6 +648,11 @@ function PremiumTab() {
     { key: 'green',  label: lang === 'ar' ? 'أخضر'    : 'Green',  swatch: 'linear-gradient(135deg,#6EE7B7,#2DA76E)' },
     { key: 'coral',  label: lang === 'ar' ? 'مرجاني'  : 'Coral',  swatch: 'linear-gradient(135deg,#FF9C8A,#E85A42)' },
     { key: 'gold',   label: lang === 'ar' ? 'ذهبي'    : 'Gold',   swatch: 'linear-gradient(135deg,#FFC773,#F59E0B)' },
+    // Added Sept 2026 as lower-gendered-perception options alongside the
+    // seven above — same reasoning as the green/coral/gold trio: real
+    // Tailwind ramp values (see index.css), not invented hex.
+    { key: 'teal',   label: lang === 'ar' ? 'فيروزي'  : 'Teal',   swatch: 'linear-gradient(135deg,#2DD4BF,#0D9488)' },
+    { key: 'slate',  label: lang === 'ar' ? 'رمادي مزرق' : 'Slate', swatch: 'linear-gradient(135deg,#94A3B8,#475569)' },
   ];
   const themeSectionTitle = lang === 'ar' ? 'لون التطبيق' : 'App color';
   const themeLockedNote   = lang === 'ar' ? 'ميزة بريميوم' : 'Premium feature';

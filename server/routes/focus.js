@@ -1660,7 +1660,7 @@ router.post('/grace-passes/use', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Database error' }); }
 });
 
-const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'gold'];
+const ALLOWED_THEMES = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'gold', 'teal', 'slate'];
 router.post('/premium/theme', async (req, res) => {
   try {
     const current = await getPremium(req.user.id);

@@ -11,7 +11,9 @@ migrateStorageKey(localStorage, 'aurora_theme',       STORAGE_KEY);
 migrateStorageKey(localStorage, 'aurora_accent',      ACCENT_STORAGE_KEY);
 migrateStorageKey(localStorage, 'aurora_font_scale',  FONT_STORAGE_KEY);
 const MODES   = ['light', 'dark', 'system'];
-export const ACCENTS = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'gold'];
+// teal/slate added Sept 2026 — see index.css's matching [data-accent]
+// blocks and SettingsModal.jsx's THEME_PRESETS for the swatches/labels.
+export const ACCENTS = ['purple', 'orange', 'pink', 'blue', 'green', 'coral', 'gold', 'teal', 'slate'];
 // Second personalization axis ("Themes"), independent of accent color —
 // which mood the animated glow/orbs behind every page use (see
 // GlobalBackground.jsx, which reads this straight off context — unlike

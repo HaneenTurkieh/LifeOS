@@ -84,6 +84,32 @@
   --accent-600: 245 158 11;
   --accent-700: 180 116 8;
 }
+/* Two more presets (Sept 2026) — added specifically as lower-gendered-
+   perception alternatives to purple/pink for anyone who wants one
+   (business feedback was that the default palette skewed feminine-coded).
+   Values are Tailwind's own standard teal/slate ramps, not invented on
+   the spot — same reasoning as green/coral/gold above: proven, already-
+   accessible steps rather than new hand-picked hex values. */
+[data-accent="teal"] {
+  --accent-50:  240 253 250;
+  --accent-100: 204 251 241;
+  --accent-200: 153 246 228;
+  --accent-300: 94  234 212;
+  --accent-400: 45  212 191;
+  --accent-500: 20  184 166;
+  --accent-600: 13  148 136;
+  --accent-700: 15  118 110;
+}
+[data-accent="slate"] {
+  --accent-50:  248 250 252;
+  --accent-100: 241 245 249;
+  --accent-200: 226 232 240;
+  --accent-300: 203 213 225;
+  --accent-400: 148 163 184;
+  --accent-500: 100 116 139;
+  --accent-600: 71  85  105;
+  --accent-700: 51  65  85;
+}
 /* Festive mode — set on <html data-festive="birthday|ramadan|eid"> by
    FestiveDecoration.jsx (BirthdayCelebration.jsx for the birthday
    case) for as long as the occasion lasts.
