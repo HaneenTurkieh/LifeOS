@@ -59,7 +59,7 @@ function resolveIsDark(mode) {
 function applyTheme(isDark) {
   document.documentElement.classList.toggle('dark', isDark);
   const meta = document.getElementById('theme-color-meta');
-  if (meta) meta.setAttribute('content', isDark ? '#0c0a1a' : '#F4F6FB');
+  if (meta) meta.setAttribute('content', isDark ? '#0A0A0D' : '#F4F6FB');
 }
 function applyAccent(preset) {
   if (preset && preset !== 'purple' && ACCENTS.includes(preset)) {

@@ -75,8 +75,11 @@ export default {
         'glow-ring': '0 0 0 1px rgb(var(--accent-500) / 0.15), 0 0 24px rgb(var(--accent-500) / 0.18)',
       },
       backgroundImage: {
-        'app-gradient': 'radial-gradient(circle at 10% 0%, #EFEAFF 0%, #F4F6FB 35%, #EAF4F6 100%)',
-        'app-gradient-dark': 'radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%)',
+        // Kept in sync with index.html's #splash gradient (same recipe,
+        // duplicated there since the splash has to render before any CSS
+        // bundle loads) — teal-neutral now, not the old purple.
+        'app-gradient': 'radial-gradient(circle at 10% 0%, #E7F7F2 0%, #F4F6FB 35%, #EAF4F6 100%)',
+        'app-gradient-dark': 'radial-gradient(circle at 10% 0%, #1C1C21 0%, #0A0A0D 45%, #131316 100%)',
         'card-sheen': 'linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.25) 100%)',
         'hero-gradient': 'linear-gradient(135deg, #7C6AF0 0%, #5B47E0 45%, #4634B8 100%)',
         'mesh-light': 'radial-gradient(at 15% 10%, rgba(124,92,255,0.10) 0px, transparent 50%), radial-gradient(at 85% 0%, rgba(96,165,250,0.08) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(52,211,153,0.06) 0px, transparent 50%)',

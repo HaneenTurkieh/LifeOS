@@ -13,8 +13,10 @@
          Google re-checks this periodically. -->
     <meta name="google-site-verification" content="xrwVyNi11GmdlCTzj8qsBBJCflmOVkUa47mTOXRmkqs" />
 
-    <!-- Theme color — updated dynamically by ThemeContext -->
-    <meta id="theme-color-meta" name="theme-color" content="#c3a1f7" />
+    <!-- Theme color — updated dynamically by ThemeContext. Pastel teal now
+         (was a pastel purple, #c3a1f7) to match the app's new standard
+         look instead of the old default accent. -->
+    <meta id="theme-color-meta" name="theme-color" content="#CCFBF1" />
 
     <!-- App icon — the violet ribbon mark -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
@@ -62,7 +64,7 @@
           if (isDark) {
             document.documentElement.classList.add('dark');
             var meta = document.getElementById('theme-color-meta');
-            if (meta) meta.setAttribute('content', '#0c0a1a');
+            if (meta) meta.setAttribute('content', '#0A0A0D');
           }
         } catch (e) {
           // localStorage blocked (private mode) — silently fall back to light
@@ -92,25 +94,30 @@
       instead, once actually ready AND after the minimum hold above.
     -->
     <style>
+      /* Recolored teal (was purple) — this splash is what actually renders
+         as "the loading page," including the native PWA launch screen
+         (manifest.json's background_color mirrors the light stop below),
+         so every piece of it — gradient, logo glow, wordmark, dot — needs
+         to be teal too, not just the icon file. */
       #splash {
         position: fixed; inset: 0; z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: 18px;
-        background: radial-gradient(circle at 10% 0%, #EFEAFF 0%, #F4F6FB 35%, #EAF4F6 100%);
+        background: radial-gradient(circle at 10% 0%, #E7F7F2 0%, #F4F6FB 35%, #EAF4F6 100%);
         opacity: 1; transition: opacity 0.35s ease;
       }
       #splash.splash-hide { opacity: 0; pointer-events: none; }
       html.dark #splash {
-        background: radial-gradient(circle at 10% 0%, #1b1633 0%, #0c0a1a 45%, #11182b 100%);
+        background: radial-gradient(circle at 10% 0%, #1C1C21 0%, #0A0A0D 45%, #131316 100%);
       }
-      #splash img { width: 56px; height: 56px; filter: drop-shadow(0 8px 20px rgba(124,92,255,0.35)); }
+      #splash img { width: 56px; height: 56px; filter: drop-shadow(0 8px 20px rgba(20,184,166,0.35)); }
       #splash span {
         font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 1.1rem;
-        letter-spacing: 0.3em; color: #6B5BD6; text-transform: uppercase;
+        letter-spacing: 0.3em; color: #0F766E; text-transform: uppercase;
       }
-      html.dark #splash span { color: #C3B4FF; }
+      html.dark #splash span { color: #5EEAD4; }
       #splash .dot {
-        width: 6px; height: 6px; border-radius: 999px; background: #A78BFA;
+        width: 6px; height: 6px; border-radius: 999px; background: #2DD4BF;
         animation: splash-pulse 1.1s ease-in-out infinite;
       }
       @keyframes splash-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
