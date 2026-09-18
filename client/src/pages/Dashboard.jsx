@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 // anything on desktop while fixing touch. Safe to do delay-free because the
 // drag handle below already sets touch-action:none, so the browser's own
 // scroll gesture was never going to race it anyway.
-import { DndContext, DragOverlay, pointerWithin, rectIntersection, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, rectIntersection, closestCenter, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw, WifiOff, GripVertical } from 'lucide-react';
 import { api }            from '../api/client.js';
@@ -182,22 +182,26 @@ function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCom
   );
 }
 
-// Real bug this fixes ("card jumps to wrong column"/"feels laggy" right
-// after switching to dnd-kit): the default closestCenter strategy compares
-// the CENTER of the whole dragged card's rectangle to each column's center
-// — not where the finger/cursor actually is. Since the floating card keeps
-// whatever offset you grabbed it at, its center can lag well behind your
-// thumb, so nothing registers until you've dragged noticeably past a
-// column boundary, and then it can resolve to a column that isn't the one
-// you're visually over. pointerWithin checks which droppable your actual
-// pointer coordinate is inside — "drop where my finger is," which is what
-// people expect for direct-manipulation dragging on touch. Falling back to
-// rectIntersection only when the pointer isn't over any column (e.g. it
-// drifted off the board entirely) keeps a drop still registering in that
-// edge case instead of silently doing nothing.
+// Real bug this fixes ("the column that highlights depends on my finger,
+// not where the task card actually is"): the previous version used
+// pointerWithin, which decides purely off the literal pointer/finger
+// coordinate. That's fine when you grab a card by its middle, but the only
+// grabbable spot here is the small handle in its corner (see
+// TaskCardVisual's dragHandleProps) — so the finger and the card's own
+// visible body can end up over two different columns at once. The card
+// follows your finger at a fixed offset from wherever you grabbed it, so
+// dragging down from a handle near the card's top can walk your finger
+// into "Done" well before the card's own body visually gets there —
+// pointerWithin would highlight (and drop into) Done anyway, even though
+// the card on screen still reads as sitting in "In Progress". rectIntersection
+// instead measures how much of the CARD's own rectangle overlaps each
+// column, so the decision tracks what you're actually looking at — the
+// floating card — not a thumb hidden underneath it. Falling back to
+// closestCenter only covers the edge case where the card gets dragged
+// completely off the board with no overlap anywhere.
 function boardCollisionDetection(args) {
-  const pointerHits = pointerWithin(args);
-  return pointerHits.length > 0 ? pointerHits : rectIntersection(args);
+  const rectHits = rectIntersection(args);
+  return rectHits.length > 0 ? rectHits : closestCenter(args);
 }
 function daysUntil(deadline) {
   if (!deadline) return null;
