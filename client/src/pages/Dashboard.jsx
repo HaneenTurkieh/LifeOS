@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 // anything on desktop while fixing touch. Safe to do delay-free because the
 // drag handle below already sets touch-action:none, so the browser's own
 // scroll gesture was never going to race it anyway.
-import { DndContext, DragOverlay, closestCenter, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, pointerWithin, rectIntersection, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw, WifiOff, GripVertical } from 'lucide-react';
 import { api }            from '../api/client.js';
@@ -90,8 +90,16 @@ function TaskCardVisual({ task, isDark, t, onComplete, onDelete, justCompletedId
             suspenders on top of what dnd-kit's PointerSensor already
             respects, to stop the browser's own scroll gesture from racing
             the drag gesture on the handle itself. */}
+        {/* -m-2/p-2 grows the actual touch target to ~30px square, well past
+            the 14px icon itself (real bug: a hit box that small is hard to
+            land a thumb on reliably, which read as "still choppy" — every
+            near miss either grabbed nothing or dragged from a spot that
+            wasn't where the visual grip appeared) — the padding pushes the
+            icon back in by the same amount the negative margin pulls the
+            box out, so it lands within a couple px of its old position,
+            imperceptible at this size. */}
         <span {...dragHandleProps}
-          className="shrink-0 mt-0.5 text-ink/20 dark:text-white/20 cursor-grab active:cursor-grabbing touch-none"
+          className="shrink-0 -m-2 p-2 text-ink/20 dark:text-white/20 cursor-grab active:cursor-grabbing touch-none flex items-center justify-center"
           aria-label={t('dash.dragToReorder')}
           title={t('dash.dragToReorder')}>
           <GripVertical size={14} />
@@ -174,6 +182,23 @@ function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCom
   );
 }
 
+// Real bug this fixes ("card jumps to wrong column"/"feels laggy" right
+// after switching to dnd-kit): the default closestCenter strategy compares
+// the CENTER of the whole dragged card's rectangle to each column's center
+// — not where the finger/cursor actually is. Since the floating card keeps
+// whatever offset you grabbed it at, its center can lag well behind your
+// thumb, so nothing registers until you've dragged noticeably past a
+// column boundary, and then it can resolve to a column that isn't the one
+// you're visually over. pointerWithin checks which droppable your actual
+// pointer coordinate is inside — "drop where my finger is," which is what
+// people expect for direct-manipulation dragging on touch. Falling back to
+// rectIntersection only when the pointer isn't over any column (e.g. it
+// drifted off the board entirely) keeps a drop still registering in that
+// edge case instead of silently doing nothing.
+function boardCollisionDetection(args) {
+  const pointerHits = pointerWithin(args);
+  return pointerHits.length > 0 ? pointerHits : rectIntersection(args);
+}
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -826,7 +851,7 @@ export default function Dashboard() {
                     dragged straight between columns by hand. Done isn't
                     capped by the rough-day "just 2" limit below — what's
                     already finished today is never something to hide. */}
-                <DndContext sensors={sensors} collisionDetection={closestCenter}
+                <DndContext sensors={sensors} collisionDetection={boardCollisionDetection}
                   onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <TaskColumn id="todo"  title={t('dash.colNotStarted')} tasks={todoCol}
