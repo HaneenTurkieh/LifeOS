@@ -77,7 +77,12 @@ export default function MobileNav() {
                 <motion.div
                   className="flex flex-col items-center gap-0.5 py-1.5 w-full rounded-2xl"
                   animate={isActive ? { y: -3 } : { y: 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+                  // Same underdamped-spring fix as Sidebar.jsx's tab
+                  // highlight (damping:28 at this stiffness was a ratio
+                  // of ~0.63 — bouncy) — damping:45 lands it just past
+                  // critical so the small lift settles cleanly instead
+                  // of wobbling on every tab switch.
+                  transition={{ type: 'spring', stiffness: 500, damping: 45 }}
                 >
                   <motion.div
                     whileTap={{ scale: 0.90 }}

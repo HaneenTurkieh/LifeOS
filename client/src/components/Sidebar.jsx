@@ -1,7 +1,7 @@
 // Sidebar.jsx
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Clock, ListChecks, Target, Timer,
   BarChart3, Rocket, Sparkles, TreePine, Settings,
@@ -96,17 +96,38 @@ export default function Sidebar() {
             >
               {({ isActive }) => (
                 <>
-                  {isActive && (
-                    <motion.span
-                      layoutId="sidebar-active"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                      className="absolute inset-0 rounded-2xl"
-                      style={{
-                        background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
-                        boxShadow: '0 8px 24px rgb(var(--accent-500) / 0.5)',
-                      }}
-                    />
-                  )}
+                  {/* Real bug this fixes ("quirky when a tab is chosen" —
+                      reported as both overshoot/bounce AND a flash/
+                      disappear): stiffness:400 damping:30 is a damping
+                      ratio of ~0.75 — meaningfully underdamped, so the
+                      pill visibly overshot its target and sprang back
+                      before settling, which at this size and speed reads
+                      as a flicker as much as a bounce. damping:42 here
+                      brings it to just past critical (ratio ~1.08) — it
+                      still glides smoothly between icons, it just no
+                      longer overshoots and snaps back. AnimatePresence
+                      wraps this element too (with a plain fade `exit`) as
+                      a belt-and-suspenders guard: without it, the
+                      *outgoing* tab's pill was removed from the DOM
+                      instantly on the same click that starts the
+                      incoming tab's pill animating in, with nothing
+                      declared for that removal — an abrupt unmount
+                      rather than a controlled fade is exactly what a
+                      "disappear" looks like. */}
+                  <AnimatePresence>
+                    {isActive && (
+                      <motion.span
+                        layoutId="sidebar-active"
+                        transition={{ type: 'spring', stiffness: 380, damping: 42 }}
+                        exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                        className="absolute inset-0 rounded-2xl"
+                        style={{
+                          background: 'linear-gradient(135deg, rgb(var(--accent-500)) 0%, rgb(var(--accent-600)) 100%)',
+                          boxShadow: '0 8px 24px rgb(var(--accent-500) / 0.5)',
+                        }}
+                      />
+                    )}
+                  </AnimatePresence>
                   <motion.span
                     whileHover={!isActive ? {
                       y: -4, scale: 1.18,
