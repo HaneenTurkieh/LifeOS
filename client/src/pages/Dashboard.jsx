@@ -1,16 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-// Migrated from @hello-pangea/dnd — that library is mouse-first (press-and-
-// hold to disambiguate a drag from a page scroll), which made task
-// drag-and-drop on the Dashboard genuinely quirky with fingers on phones/
-// iPads. dnd-kit talks to Pointer Events directly and lets a drag start
-// after a small movement threshold with no forced delay, so it doesn't cost
-// anything on desktop while fixing touch. Safe to do delay-free because the
-// drag handle below already sets touch-action:none, so the browser's own
-// scroll gesture was never going to race it anyway.
-import { DndContext, DragOverlay, rectIntersection, closestCenter, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { CheckCircle2, Circle, Clock, Smile, TreePine, Trash2, Info, Target, Square, Sparkles, TrendingUp, TrendingDown, Minus, RefreshCw, WifiOff, GripVertical } from 'lucide-react';
 import { api }            from '../api/client.js';
 import { useToast }       from '../context/ToastContext.jsx';
@@ -37,172 +29,145 @@ const MOOD_OPTIONS = [
   { value:5, emoji:'🤩', label:'mood.great' },
 ];
 
-// The visible task card — shared by both the in-column draggable slot
-// (DraggableTaskCard below) and the floating copy dnd-kit renders under
-// the cursor while dragging (DragOverlay, in Dashboard() below). Kept as
-// one function so the two never drift apart visually.
-function TaskCardVisual({ task, isDark, t, onComplete, onDelete, justCompletedId, dragHandleProps, elevated }) {
-  const dl        = daysUntil(task.deadline);
-  const isOverdue = dl !== null && dl < 0;
-  const isToday   = dl !== null && dl === 0;
-  const isSoon    = dl !== null && dl > 0 && dl <= 3;
-  const isDone    = task.status === 'done';
-  return (
-    <div className="rounded-xl px-3 py-2.5 group"
-      style={{
-        // "elevated" is only ever true for the DragOverlay copy — the
-        // in-column original just goes invisible while dragging (see
-        // DraggableTaskCard), so it never needs this look itself.
-        background: elevated
-          ? isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.95)'
-          : isDark ? 'rgba(255,255,255,0.028)' : 'rgba(255,255,255,0.55)',
-        border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.80)',
-        boxShadow: elevated ? '0 8px 20px rgba(0,0,0,0.18)' : undefined,
-      }}>
-      <div className="flex items-start gap-2">
-        {!isDone && (
-          <button onClick={() => onComplete(task)} disabled={justCompletedId === task.id}
-            className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
-            {justCompletedId === task.id
-              ? <CheckCircle2 size={15} className="text-sage-500" />
-              : <Circle size={15} />}
-          </button>
-        )}
-        {isDone && <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-sage-500" />}
-        <p className={`text-xs font-medium truncate flex-1 min-w-0 ${
-          isDone ? 'text-ink/40 dark:text-white/35 line-through' : 'text-ink dark:text-white'
-        }`}>{task.title}</p>
-        <button onClick={() => onDelete(task)}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400">
-          <Trash2 size={12} />
-        </button>
-        {/* Dedicated drag handle — used to be the whole card (dragHandleProps
-            spread on the outer div), which is exactly what made this quirky
-            on phones/iPads: every tap on the complete/delete buttons was
-            also a tap on the drag handle, so a touch with even a hair of
-            movement could get eaten as a micro-drag instead of a click, and
-            swiping past the list to scroll the page fought with starting a
-            drag. Confining dragHandleProps to this one small, always-visible
-            grip (not gated behind group-hover, which never fires on touch
-            anyway) leaves the rest of the card free for ordinary taps and
-            scrolling — desktop drag still works the same, just from this
-            handle instead of anywhere on the row. touch-none is belt-and-
-            suspenders on top of what dnd-kit's PointerSensor already
-            respects, to stop the browser's own scroll gesture from racing
-            the drag gesture on the handle itself. */}
-        {/* -m-2/p-2 grows the actual touch target to ~30px square, well past
-            the 14px icon itself (real bug: a hit box that small is hard to
-            land a thumb on reliably, which read as "still choppy" — every
-            near miss either grabbed nothing or dragged from a spot that
-            wasn't where the visual grip appeared) — the padding pushes the
-            icon back in by the same amount the negative margin pulls the
-            box out, so it lands within a couple px of its old position,
-            imperceptible at this size. */}
-        <span {...dragHandleProps}
-          className="shrink-0 -m-2 p-2 text-ink/20 dark:text-white/20 cursor-grab active:cursor-grabbing touch-none flex items-center justify-center"
-          aria-label={t('dash.dragToReorder')}
-          title={t('dash.dragToReorder')}>
-          <GripVertical size={14} />
-        </span>
-      </div>
-      {(task.deadline || task.priority) && (
-        <div className="flex items-center gap-1.5 mt-1.5 ps-[21px]">
-          {task.deadline && (
-            <span className={`text-[10px] font-medium ${
-              isOverdue || isToday ? 'text-coral-500' : isSoon ? 'text-sun-600' : 'text-ink/35 dark:text-white/25'
-            }`}>
-              {isOverdue ? t('dash.overdue')
-              : isToday  ? t('dash.dueToday')
-              : dl === 1 ? t('dash.dueTomorrow')
-              : isSoon   ? t('dash.dueInDays', { n: dl })
-              : formatDeadline(task.deadline)}
-            </span>
-          )}
-          {!isDone && (
-            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-              task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
-              task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
-                                           'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
-            }`}>{t(`tasks.${task.priority}`)}</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// One draggable slot inside a TaskColumn. useDraggable just hands back a
-// transform (how far the pointer has moved) — unlike @hello-pangea/dnd it
-// does NOT reposition the card as position:fixed itself, so the old
-// GlassCard backdrop-filter containing-block bug (dragged card rendering
-// at some offset, straddling columns) never comes up here: the original
-// slot simply hides while dragging, and DragOverlay (see Dashboard() below)
-// renders the floating copy already portaled straight to document.body.
-function DraggableTaskCard({ task, isDark, t, onComplete, onDelete, justCompletedId }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: String(task.id) });
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    visibility: isDragging ? 'hidden' : 'visible',
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <TaskCardVisual task={task} isDark={isDark} t={t} onComplete={onComplete} onDelete={onDelete}
-        justCompletedId={justCompletedId} dragHandleProps={{ ...attributes, ...listeners }} />
-    </div>
-  );
-}
-
 // One column of the Dashboard's Today's Tasks kanban board (Not
-// Started / In Progress / Done — see the DndContext in Dashboard()
+// Started / In Progress / Done — see the DragDropContext in Dashboard()
 // below). Kept at module scope, like DeltaBadge, since it has no state
 // of its own — everything it needs comes in as props.
 function TaskColumn({ id, title, tasks, isDark, t, onComplete, onDelete, justCompletedId }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef}
-      className="flex flex-col gap-2 rounded-2xl p-2.5 min-h-[88px] transition-colors"
-      style={{
-        background: isOver
-          ? 'rgb(var(--accent-500) / 0.08)'
-          : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
-      }}>
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-ink/40 dark:text-white/35">{title}</span>
-        <span className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-ink/5 dark:bg-white/8 text-ink/40 dark:text-white/35">
-          {tasks.length}
-        </span>
-      </div>
-      {tasks.length === 0 ? (
-        <p className="text-[11px] text-ink/25 dark:text-white/20 px-1 py-2">—</p>
-      ) : tasks.map((task) => (
-        <DraggableTaskCard key={task.id} task={task} isDark={isDark} t={t}
-          onComplete={onComplete} onDelete={onDelete} justCompletedId={justCompletedId} />
-      ))}
-    </div>
+    <Droppable droppableId={id}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.droppableProps}
+          className="flex flex-col gap-2 rounded-2xl p-2.5 min-h-[88px] transition-colors"
+          style={{
+            background: snapshot.isDraggingOver
+              ? 'rgb(var(--accent-500) / 0.08)'
+              : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+          }}>
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-ink/40 dark:text-white/35">{title}</span>
+            <span className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-ink/5 dark:bg-white/8 text-ink/40 dark:text-white/35">
+              {tasks.length}
+            </span>
+          </div>
+          {tasks.length === 0 ? (
+            <p className="text-[11px] text-ink/25 dark:text-white/20 px-1 py-2">—</p>
+          ) : tasks.map((task, index) => {
+            const dl        = daysUntil(task.deadline);
+            const isOverdue = dl !== null && dl < 0;
+            const isToday   = dl !== null && dl === 0;
+            const isSoon    = dl !== null && dl > 0 && dl <= 3;
+            const isDone    = task.status === 'done';
+            return (
+              <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                {(dragProvided, dragSnapshot) => {
+                  const card = (
+                    <div ref={dragProvided.innerRef} {...dragProvided.draggableProps}
+                      className="rounded-xl px-3 py-2.5 group"
+                      style={{
+                        ...dragProvided.draggableProps.style,
+                        background: dragSnapshot.isDragging
+                          ? isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.95)'
+                          : isDark ? 'rgba(255,255,255,0.028)' : 'rgba(255,255,255,0.55)',
+                        border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.80)',
+                        boxShadow: dragSnapshot.isDragging ? '0 8px 20px rgba(0,0,0,0.18)' : undefined,
+                      }}>
+                      <div className="flex items-start gap-2">
+                        {!isDone && (
+                          <button onClick={() => onComplete(task)} disabled={justCompletedId === task.id}
+                            className="shrink-0 mt-0.5 text-ink/25 dark:text-white/25 hover:text-sage-500 transition">
+                            {justCompletedId === task.id
+                              ? <CheckCircle2 size={15} className="text-sage-500" />
+                              : <Circle size={15} />}
+                          </button>
+                        )}
+                        {isDone && <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-sage-500" />}
+                        <p className={`text-xs font-medium truncate flex-1 min-w-0 ${
+                          isDone ? 'text-ink/40 dark:text-white/35 line-through' : 'text-ink dark:text-white'
+                        }`}>{task.title}</p>
+                        <button onClick={() => onDelete(task)}
+                          className="shrink-0 opacity-0 group-hover:opacity-100 transition text-ink/25 hover:text-coral-500 dark:text-white/25 dark:hover:text-coral-400">
+                          <Trash2 size={12} />
+                        </button>
+                        {/* Dedicated drag handle — used to be the whole card
+                            (dragHandleProps spread on the outer div), which
+                            is exactly what made this quirky on phones/
+                            iPads: every tap on the complete/delete buttons
+                            was also a tap on the drag handle, so a touch
+                            with even a hair of movement could get eaten as
+                            a micro-drag instead of a click, and swiping
+                            past the list to scroll the page fought with
+                            starting a drag. Confining dragHandleProps to
+                            this one small, always-visible grip (not gated
+                            behind group-hover, which never fires on touch
+                            anyway) leaves the rest of the card free for
+                            ordinary taps and scrolling — desktop drag still
+                            works the same, just from this handle instead of
+                            anywhere on the row. touch-none is belt-and-
+                            suspenders on top of what the library already
+                            sets, to stop the browser's own scroll gesture
+                            from racing the drag gesture on the handle itself. */}
+                        <span {...dragProvided.dragHandleProps}
+                          className="shrink-0 mt-0.5 text-ink/20 dark:text-white/20 cursor-grab active:cursor-grabbing touch-none"
+                          aria-label={t('dash.dragToReorder')}
+                          title={t('dash.dragToReorder')}>
+                          <GripVertical size={14} />
+                        </span>
+                      </div>
+                      {(task.deadline || task.priority) && (
+                        <div className="flex items-center gap-1.5 mt-1.5 ps-[21px]">
+                          {task.deadline && (
+                            <span className={`text-[10px] font-medium ${
+                              isOverdue || isToday ? 'text-coral-500' : isSoon ? 'text-sun-600' : 'text-ink/35 dark:text-white/25'
+                            }`}>
+                              {isOverdue ? t('dash.overdue')
+                              : isToday  ? t('dash.dueToday')
+                              : dl === 1 ? t('dash.dueTomorrow')
+                              : isSoon   ? t('dash.dueInDays', { n: dl })
+                              : formatDeadline(task.deadline)}
+                            </span>
+                          )}
+                          {!isDone && (
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                              task.priority === 'high'   ? 'bg-coral-400/15 text-coral-500' :
+                              task.priority === 'medium' ? 'bg-sun-400/15 text-sun-600'     :
+                                                           'bg-lavender-100 dark:bg-lavender-500/15 text-lavender-600 dark:text-lavender-300'
+                            }`}>{t(`tasks.${task.priority}`)}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                  // Real bug this fixes (the "task lands in the wrong spot
+                  // mid-drag" report): this whole board sits inside a
+                  // GlassCard that uses `backdrop-filter: blur(...)` for the
+                  // frosted-glass look. Per the CSS spec, backdrop-filter
+                  // (like filter/transform/perspective) creates a new
+                  // containing block for any descendant with `position:
+                  // fixed` — and @hello-pangea/dnd positions the card
+                  // you're actively dragging with `position: fixed`,
+                  // assuming that's relative to the browser viewport. With
+                  // the blurred GlassCard in the way, "fixed" ends up
+                  // relative to THAT card instead, so the dragged item
+                  // renders at some offset position straddling columns
+                  // instead of tracking the cursor. Portaling just the
+                  // actively-dragged item straight to document.body sidesteps
+                  // the blurred ancestor entirely — the fix @hello-pangea/dnd's
+                  // own docs recommend for exactly this situation. Only the
+                  // one card being dragged is portaled; everything else stays
+                  // exactly where it was.
+                  return dragSnapshot.isDragging ? createPortal(card, document.body) : card;
+                }}
+              </Draggable>
+            );
+          })}
+          {provided.placeholder}
+        </div>
+      )}
+    </Droppable>
   );
 }
 
-// Real bug this fixes ("the column that highlights depends on my finger,
-// not where the task card actually is"): the previous version used
-// pointerWithin, which decides purely off the literal pointer/finger
-// coordinate. That's fine when you grab a card by its middle, but the only
-// grabbable spot here is the small handle in its corner (see
-// TaskCardVisual's dragHandleProps) — so the finger and the card's own
-// visible body can end up over two different columns at once. The card
-// follows your finger at a fixed offset from wherever you grabbed it, so
-// dragging down from a handle near the card's top can walk your finger
-// into "Done" well before the card's own body visually gets there —
-// pointerWithin would highlight (and drop into) Done anyway, even though
-// the card on screen still reads as sitting in "In Progress". rectIntersection
-// instead measures how much of the CARD's own rectangle overlaps each
-// column, so the decision tracks what you're actually looking at — the
-// floating card — not a thumb hidden underneath it. Falling back to
-// closestCenter only covers the edge case where the card gets dragged
-// completely off the board with no overlap anywhere.
-function boardCollisionDetection(args) {
-  const rectHits = rectIntersection(args);
-  return rectHits.length > 0 ? rectHits : closestCenter(args);
-}
 function daysUntil(deadline) {
   if (!deadline) return null;
   const [dy, dm, dd] = deadline.split('-').map(Number);
@@ -269,17 +234,6 @@ export default function Dashboard() {
   // simply unreachable there. Tap-to-open popover works on every device.
   const [openHint,     setOpenHint]     = useState(null);
   const [justCompletedId, setJustCompletedId] = useState(null);
-  // Tracks whichever task is currently being dragged, purely so
-  // DragOverlay (see the render section below) has something to draw —
-  // dnd-kit doesn't keep this for you the way the old library's per-item
-  // snapshot did.
-  const [activeDragTask, setActiveDragTask] = useState(null);
-  // distance:8 (not the default delay-based activation) — an 8px pointer
-  // move starts the drag immediately, no press-and-hold. Safe on touch
-  // specifically because the handle above already sets touch-action:none,
-  // so the browser's own scroll gesture was never competing with it; on a
-  // mouse this is imperceptible, so the laptop drag feel is unchanged.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   // Real bug that used to live here: the rough/meh-mood quote was a
   // single hardcoded string (t('dash.roughQuote')), so it looked
   // identical literally every time someone had a low mood day. Fixed
@@ -449,26 +403,14 @@ export default function Dashboard() {
       });
     }
   };
-  const handleDragStart = (event) => {
-    const task = data?.todaysTasks?.find((tk) => String(tk.id) === String(event.active.id));
-    setActiveDragTask(task || null);
-  };
-  const handleDragEnd = (event) => {
-    setActiveDragTask(null);
-    const { active, over } = event;
-    if (!over) return; // dropped outside any column
-    const task = data?.todaysTasks?.find((tk) => String(tk.id) === String(active.id));
+  const handleDragEnd = (result) => {
+    const { source, destination, draggableId } = result;
+    if (!destination) return; // dropped outside any column
+    if (source.droppableId === destination.droppableId) return; // reordering within a column isn't persisted (yet)
+    const task = data?.todaysTasks?.find((t) => String(t.id) === draggableId);
     if (!task) return;
-    // dnd-kit's `over.id` is just the droppable id we gave each TaskColumn
-    // (todo/doing/done) — not a source+destination pair the way the old
-    // library handed us, so the task's own current status stands in for
-    // "source column" here, using the exact same rule the column filters
-    // below use to sort tasks into todo/doing/done in the first place.
-    const sourceCol = task.status === 'done' ? 'done' : task.status === 'doing' ? 'doing' : 'todo';
-    const destCol = String(over.id);
-    if (sourceCol === destCol) return; // reordering within a column isn't persisted (yet)
-    if (destCol === 'done') completeTask(task, { viaDrag: true });
-    else moveTask(task, destCol);
+    if (destination.droppableId === 'done') completeTask(task, { viaDrag: true });
+    else moveTask(task, destination.droppableId);
   };
   const deleteTask = async (task) => {
     try {
@@ -855,8 +797,7 @@ export default function Dashboard() {
                     dragged straight between columns by hand. Done isn't
                     capped by the rough-day "just 2" limit below — what's
                     already finished today is never something to hide. */}
-                <DndContext sensors={sensors} collisionDetection={boardCollisionDetection}
-                  onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                <DragDropContext onDragEnd={handleDragEnd}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <TaskColumn id="todo"  title={t('dash.colNotStarted')} tasks={todoCol}
                       isDark={isDark} t={t} onComplete={completeTask} onDelete={deleteTask} justCompletedId={justCompletedId} />
@@ -865,20 +806,7 @@ export default function Dashboard() {
                     <TaskColumn id="done"  title={t('dash.colDone')} tasks={doneTasksToday}
                       isDark={isDark} t={t} onComplete={completeTask} onDelete={deleteTask} justCompletedId={justCompletedId} />
                   </div>
-                  {/* The floating copy that actually tracks the cursor/finger
-                      while dragging — automatically portaled to document.body
-                      by dnd-kit itself, which is what lets DraggableTaskCard
-                      above skip the manual createPortal(card, document.body)
-                      workaround the old library needed to escape the
-                      GlassCard's backdrop-filter (blur) containing block. */}
-                  <DragOverlay>
-                    {activeDragTask ? (
-                      <TaskCardVisual task={activeDragTask} isDark={isDark} t={t}
-                        onComplete={() => {}} onDelete={() => {}} justCompletedId={justCompletedId}
-                        dragHandleProps={{}} elevated />
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
+                </DragDropContext>
                 {isRoughDay && pendingTasks.length > 2 && (
                   <p className="text-xs text-ink/35 dark:text-white/25 text-center py-2">
                     {t('dash.moreTasks', { n: pendingTasks.length - 2 })} →{' '}
@@ -942,7 +870,7 @@ export default function Dashboard() {
             />
             <div className="relative flex items-center gap-4">
               <motion.div
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[rgb(var(--accent-700))] shadow-glow"
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-3xl bg-gradient-to-br from-[rgb(var(--accent-500))] to-[#6366F1] shadow-glow"
                 animate={{ y: [0, -5, 0] }}
                 transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
               >

@@ -471,7 +471,13 @@ router.post('/:id/invite-to-room', requireInstructor, async (req, res) => {
             WHERE m.channel_id = ?`,
       args: [channel.id],
     })).rows;
-    const link = `/learning?room=${code}`;
+    // Carry the password in the link too, not just the code — otherwise
+    // clicking the invite drops the student on the Flow page with only
+    // half of what /focus/rooms/join needs, and they're stuck typing the
+    // password back in by hand from the notification text. It's already
+    // handed to them in plaintext in the notification body below, so
+    // putting it in the link isn't a new exposure.
+    const link = `/learning?room=${code}&pw=${encodeURIComponent(password)}`;
     // Keyed on the code, not date+link like the old version — every
     // invite here creates a brand-new room with a brand-new code, so
     // there's nothing to dedupe against; this key just has to be unique
