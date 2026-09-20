@@ -457,6 +457,40 @@ router.put('/:id', async (req, res) => {
           spawnedOccurrences = missingDates.length;
         }
       }
+
+      // ── Trim occurrences past a newly set/tightened "Ends on" ──────
+      // Real bug this fixes ("added a deadline to a recurring task and
+      // it's still repeating after it"): a task that started with
+      // recurrence on but no deadline yet never got anything pre-
+      // generated (the pre-generation block up above requires BOTH
+      // recurrence and deadline) — so the very first save that finally
+      // adds a deadline, with "Ends on" still blank, falls back to
+      // DEFAULT_RECURRENCE_WINDOW_DAYS and eagerly creates a full 90
+      // days of future 'todo' rows via the backfill block above, none of
+      // which the user ever asked for. The backfill block only ever
+      // ADDS missing rows up to genUntil — it has no matching path that
+      // REMOVES rows once "Ends on" is set (or tightened) on some later
+      // save, so those already-generated future rows just sit there and
+      // keep showing up on the calendar past the date the user just told
+      // the task to stop at. This deletes exactly those stragglers:
+      // same identity match as the backfill/spawn logic elsewhere in
+      // this file (user_id + title + recurrence), only rows dated after
+      // the new cutoff, never the row being saved right now, and never
+      // anything already marked done — a completed occurrence is kept
+      // forever like any other finished task, so trimming the future
+      // can't erase past XP/streak history.
+      if (updates.recurrence_until) {
+        try {
+          await db.execute({
+            sql:  `DELETE FROM tasks
+                   WHERE user_id = ? AND title = ? AND recurrence = ? AND status = 'todo'
+                         AND deadline > ? AND id != ?`,
+            args: [req.user.id, updates.title, updates.recurrence, updates.recurrence_until, req.params.id],
+          });
+        } catch (e) {
+          console.error('trim-past-recurrence_until failed (non-fatal):', e.message);
+        }
+      }
     }
 
     if (!wasDone && isNowDone) {
