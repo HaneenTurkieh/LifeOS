@@ -758,11 +758,13 @@ export function FocusProvider({ children }) {
       const ss = String(timeLeft % 60).padStart(2, '0');
       document.title = `${mm}:${ss} · ${MODES[mode]?.emoji || MODES.focus.emoji} Flow`;
     } else {
-      // Was just 'Nuvora' — overwrote the fuller '<title>' set in
-      // index.html the moment this effect ran (which is on every page
-      // load, since FocusContext wraps the whole app), so the tab never
-      // actually showed "Life OS" outside of an active Flow session.
-      document.title = 'Nuvora — Life OS';
+      // Mirrors index.html's own <title> — kept in sync so this effect
+      // (which overwrites it on every page load, since FocusContext
+      // wraps the whole app) never regresses it back to a longer string
+      // that narrow OS chrome (Window menu, Mission Control/Alt-Tab,
+      // pinned-tab tooltips) truncates from the left, cutting "Nuvora"
+      // off and leaving only "Life OS" visible.
+      document.title = 'Nuvora-Life OS';
     }
   }, [isRunning, timeLeft, mode]);
 
