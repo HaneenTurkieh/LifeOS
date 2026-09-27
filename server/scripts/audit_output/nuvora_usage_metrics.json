@@ -1,0 +1,138 @@
+{
+  "generated_at_utc": "2026-09-21T22:12:34.608Z",
+  "exclusion": {
+    "method": "users.email = <email> COLLATE NOCASE, resolved to user id(s) for the founder account AND each extra-exclude email, merged, then user_id NOT IN (...) applied to every base query before aggregation",
+    "owner_accounts_excluded": 1,
+    "extra_accounts_excluded": 1,
+    "extra_exclude_emails_requested": 1
+  },
+  "data_period": {
+    "earliest_session_utc": "2026-07-25T22:40:09.000Z",
+    "latest_session_utc": "2026-09-21T07:00:32.000Z",
+    "note": "DB FACT — MIN/MAX of planted_trees.planted_at across all non-owner rows"
+  },
+  "users": {
+    "real_users_with_at_least_one_session": 7,
+    "users_with_two_plus_sessions": 4,
+    "users_with_two_plus_sessions_pct": 57.1,
+    "users_active_two_plus_distinct_days": 3,
+    "users_active_two_plus_distinct_days_pct": 42.9,
+    "users_returned_within_7_days": 3,
+    "users_returned_within_7_days_pct": 42.9
+  },
+  "sessions": {
+    "total_recorded": 123,
+    "total_completed": 115,
+    "total_abandoned_or_interrupted": 8,
+    "completion_rate_pct": 93.5,
+    "total_actual_minutes_all_sessions": 7272,
+    "total_actual_minutes_completed_only": 7065,
+    "total_actual_hours_all_sessions": 121.2,
+    "total_actual_hours_completed_only": 117.8,
+    "avg_actual_duration_min_all_sessions": 59.1,
+    "median_actual_duration_min_all_sessions": 60,
+    "avg_actual_duration_min_completed_only": 61.4,
+    "median_actual_duration_min_completed_only": 60,
+    "planned_duration_avg": null,
+    "planned_duration_median": null,
+    "planned_duration_note": "NOT AVAILABLE — no planned/target duration is persisted per session anywhere in the schema. focus_sessions/planted_trees only store duration_minutes, which is the ACTUAL elapsed time. For a naturally-completed (\"alive\") session, actual necessarily equals the configured Pomodoro length (the row is only written once the countdown reaches zero), but that target length itself is never saved as a separate field, so no derived \"actual ≥ 80% of planned\" measure can be computed without inventing data. Do not report a planned-duration figure.",
+    "sessions_linked_to_task": 37,
+    "sessions_linked_to_task_pct": 30.1
+  },
+  "shared_focus_rooms": {
+    "total_rooms_created": 11,
+    "distinct_users_who_joined_a_room": 4,
+    "shared_sessions_inferred": 52,
+    "shared_sessions_note": "INFERRED from planted_trees.task_name = 'Room session', a naming convention in routes/focus.js, not a stored boolean/FK — treat as an estimate."
+  },
+  "weekly_series": [
+    {
+      "week": "2026-W30",
+      "active_users": 1,
+      "completed_sessions": 2
+    },
+    {
+      "week": "2026-W31",
+      "active_users": 1,
+      "completed_sessions": 15
+    },
+    {
+      "week": "2026-W32",
+      "active_users": 3,
+      "completed_sessions": 22
+    },
+    {
+      "week": "2026-W33",
+      "active_users": 3,
+      "completed_sessions": 48
+    },
+    {
+      "week": "2026-W34",
+      "active_users": 2,
+      "completed_sessions": 5
+    },
+    {
+      "week": "2026-W35",
+      "active_users": 1,
+      "completed_sessions": 2
+    },
+    {
+      "week": "2026-W36",
+      "active_users": 1,
+      "completed_sessions": 5
+    },
+    {
+      "week": "2026-W37",
+      "active_users": 3,
+      "completed_sessions": 11
+    },
+    {
+      "week": "2026-W38",
+      "active_users": 1,
+      "completed_sessions": 4
+    },
+    {
+      "week": "2026-W39",
+      "active_users": 1,
+      "completed_sessions": 1
+    }
+  ],
+  "suspicious_accounts_flagged_not_excluded": [
+    {
+      "anonymized_id": "3d6576aa03f66d61",
+      "reason": "Email matches a common test/demo/throwaway pattern (heuristic — verify manually before excluding)",
+      "session_count": 0,
+      "account_created_at": "2026-09-07 14:17:48"
+    }
+  ],
+  "session_distribution_per_anonymized_user": [
+    {
+      "anonymized_id": "8d631eccd7975b6f",
+      "session_count": 95
+    },
+    {
+      "anonymized_id": "7dd2989fdf0c576d",
+      "session_count": 14
+    },
+    {
+      "anonymized_id": "e9fb513667d525cf",
+      "session_count": 9
+    },
+    {
+      "anonymized_id": "0b72b6d510748c5a",
+      "session_count": 2
+    },
+    {
+      "anonymized_id": "cc678f0374c5e946",
+      "session_count": 1
+    },
+    {
+      "anonymized_id": "2b4f302ddb0e60a1",
+      "session_count": 1
+    },
+    {
+      "anonymized_id": "69803bb7b821ffbf",
+      "session_count": 1
+    }
+  ]
+}

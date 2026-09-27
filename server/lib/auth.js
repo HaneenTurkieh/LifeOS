@@ -45,6 +45,20 @@ if (process.env.NODE_ENV !== 'test' && !process.env.JWT_SECRET) {
 // server never rejects something the UI showed as "strong".
 const PASSWORD_MIN_LENGTH = 8;
 
+// Checking only for the PRESENCE of a letter/digit/special char let
+// something like "aaaaaaaa1!" or 8 spaces + "1a!" pass every check above
+// while being almost entirely one padded-out repeated character — long,
+// but not actually strong. This closes that hole without a full
+// entropy/dictionary checker: reject anything that's mostly one repeated
+// character run, or has very few distinct characters relative to its
+// length. Mirrors getPasswordStrength's hasVariety check in Login.jsx.
+function hasPasswordVariety(password) {
+  const uniqueChars = new Set(password).size;
+  const longestRun = (password.match(/(.)\1*/g) || [])
+    .reduce((max, run) => Math.max(max, run.length), 0);
+  return longestRun <= 2 && uniqueChars >= Math.ceil(password.length / 2);
+}
+
 function validatePassword(password) {
   if (!password || password.length < PASSWORD_MIN_LENGTH) {
     return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
@@ -57,6 +71,9 @@ function validatePassword(password) {
   }
   if (!/[^a-zA-Z0-9]/.test(password)) {
     return 'Password must include at least one special character (like ! @ # $ %)';
+  }
+  if (!hasPasswordVariety(password)) {
+    return 'Password is too repetitive (e.g. one character padded out) — please use a more varied password';
   }
   return null; // valid
 }

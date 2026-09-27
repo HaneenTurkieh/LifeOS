@@ -240,25 +240,42 @@ function WelcomeStage({ onPick, t, parallax = { x: 0, y: 0 } }) {
 
 // Mirrors the server's rule in server/lib/auth.js (validatePassword) so the
 // bar never tells someone their password is "Strong" right before the
-// server rejects it for missing a character class. 4 checks, 1 point each.
+// server rejects it for missing a character class. 5 checks, 1 point each.
+//
+// The first 4 checks only look for the PRESENCE of a character class, which
+// let something like "aaaaaaaa1!" or "        1a!" (8 spaces padding out
+// the length, plus the 3 required extras) hit a perfect score — long, and
+// technically has a letter/digit/special char, but it's almost entirely one
+// repeated filler character, not an actually strong password. The 5th check
+// (hasVariety) catches that: it fails a password that's mostly one
+// character run (longestRun) or has very few distinct characters relative
+// to its length (uniqueChars). This is a lightweight repetition guard, not
+// a full entropy/dictionary checker (e.g. it won't catch "Password1!") —
+// but it directly closes the "pad with a repeated character" hole.
 function getPasswordStrength(password) {
   if (!password) return { score: 0, ratio: 0 };
+  const uniqueChars = new Set(password).size;
+  const longestRun = (password.match(/(.)\1*/g) || [])
+    .reduce((max, run) => Math.max(max, run.length), 0);
+  const hasVariety = longestRun <= 2 && uniqueChars >= Math.ceil(password.length / 2);
   const checks = [
     password.length >= 8,
     /[a-zA-Z]/.test(password),
     /[0-9]/.test(password),
     /[^a-zA-Z0-9]/.test(password),
+    hasVariety,
   ];
   const score = checks.filter(Boolean).length;
   return { score, ratio: score / checks.length };
 }
 
 const STRENGTH_META = [
-  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' }, // 0-1
-  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' },
-  { labelKey: 'login.pwStrengthFair',   color: '#f59e0b' },
-  { labelKey: 'login.pwStrengthGood',   color: '#eab308' },
-  { labelKey: 'login.pwStrengthStrong', color: '#22c55e' },
+  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' }, // 0
+  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' }, // 1
+  { labelKey: 'login.pwStrengthWeak',   color: '#ef4444' }, // 2
+  { labelKey: 'login.pwStrengthFair',   color: '#f59e0b' }, // 3
+  { labelKey: 'login.pwStrengthGood',   color: '#eab308' }, // 4
+  { labelKey: 'login.pwStrengthStrong', color: '#22c55e' }, // 5
 ];
 
 export default function Login() {
@@ -396,7 +413,7 @@ export default function Login() {
     // Instructor signup has no password fields on screen (see the form
     // below) — nothing to validate here, the server generates it.
     if (!isLogin && !isInstructorSignup && password !== confirmPassword) { setError(t('login.pwMismatch')); return; }
-    if (!isLogin && !isInstructorSignup && getPasswordStrength(password).score < 4) { setError(t('login.pwRequirements')); return; }
+    if (!isLogin && !isInstructorSignup && getPasswordStrength(password).score < 5) { setError(t('login.pwRequirements')); return; }
     setSubmitting(true);
     try {
       if (isLogin) {
