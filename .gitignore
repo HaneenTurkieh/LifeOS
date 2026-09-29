@@ -17,3 +17,12 @@ Nuvora_Brand_Brief.md
 server/db/dashboard.sqlite3
 server/db/dashboard.sqlite3-shm
 server/db/dashboard.sqlite3-wal
+# macOS Finder metadata — never useful to track, clutters diffs.
+.DS_Store
+
+# Scratch dir Motion's chat-upload flow drops files into; not part of the app.
+.tmp_motion_upload/
+
+# Generated usage/analytics reports — internal, regenerable, not meant for
+# public repo history even when anonymized.
+server/scripts/audit_output/
