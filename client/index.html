@@ -20,6 +20,14 @@
          Google re-checks this periodically. -->
     <meta name="google-site-verification" content="xrwVyNi11GmdlCTzj8qsBBJCflmOVkUa47mTOXRmkqs" />
 
+    <!-- Canonical — static fallback pointing at the real (www) host, since
+         nuvora.ps itself is just a 308 redirect to www.nuvora.ps and should
+         never be the URL search engines index. App.jsx (CanonicalLink)
+         rewrites href's path to match the current route once the app
+         mounts, so each public page (/, /welcome, /pricing, /terms, …)
+         canonicalizes to itself instead of every route claiming "/". -->
+    <link id="canonical-link" rel="canonical" href="https://www.nuvora.ps/" />
+
     <!-- Theme color — updated dynamically by ThemeContext. Pastel teal now
          (was a pastel purple, #c3a1f7) to match the app's new standard
          look instead of the old default accent. -->

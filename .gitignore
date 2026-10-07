@@ -26,3 +26,7 @@ server/db/dashboard.sqlite3-wal
 # Generated usage/analytics reports — internal, regenerable, not meant for
 # public repo history even when anonymized.
 server/scripts/audit_output/
+
+# Vite drops these when a build is interrupted/killed mid-run; harmless and
+# regenerable, never meant to be tracked.
+client/vite.config.js.timestamp-*.mjs

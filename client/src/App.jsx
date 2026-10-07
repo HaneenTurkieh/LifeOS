@@ -189,8 +189,27 @@ function useHideSplash() {
   }, []);
 }
 
+// Keeps <link id="canonical-link"> (index.html) pointed at the CURRENT
+// route instead of the static "/" fallback it ships with. Without this,
+// every route — /pricing, /terms, /welcome, even a logged-in /goals —
+// would tell search engines its canonical URL is the homepage, which
+// tells them to treat those pages as duplicates of "/" and drop them
+// from the index instead of ranking them on their own. Always rewritten
+// against www.nuvora.ps specifically: nuvora.ps (no www) is a 308
+// redirect at the DNS/Vercel level, never a page itself, so a canonical
+// pointing there would just send crawlers through an extra redirect hop.
+function useCanonicalLink() {
+  const location = useLocation();
+  useEffect(() => {
+    const link = document.getElementById('canonical-link');
+    if (!link) return;
+    link.href = `https://www.nuvora.ps${location.pathname}`;
+  }, [location.pathname]);
+}
+
 export default function App() {
   useHideSplash();
+  useCanonicalLink();
   return (
     <>
       <GlobalBackground />

@@ -1,6 +1,6 @@
 # Nuvora — Personal Life Operating System
 
-**Live:** [nuvora.ps](https://nuvora.ps) · **Author:** Haneen Turkieh · **Status:** Private / active development
+**Live:** [www.nuvora.ps](https://www.nuvora.ps) · **Author:** Haneen Turkieh · **Status:** Private / active development
 
 Nuvora is a full-stack productivity platform combining task and goal management,
 habit tracking, a shared-focus Pomodoro system with a gamified "forest" mechanic,
