@@ -13,7 +13,6 @@
         "@libsql/client": "^0.17.4",
         "argon2": "^0.41.1",
         "bcryptjs": "^2.4.3",
-        "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
         "google-auth-library": "^9.14.1",
@@ -21,8 +20,7 @@
         "jszip": "^3.10.1",
         "mammoth": "^1.12.0",
         "multer": "^2.2.0",
-        "nodemailer": "^9.0.3",
-        "resend": "^4.8.0",
+        "nodemailer": "^10.1.0",
         "web-push": "^3.6.7"
     },
     "devDependencies": {

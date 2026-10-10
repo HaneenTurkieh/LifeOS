@@ -28,10 +28,14 @@ async function reviewBankTransfer(id, { approve }) {
   if (!row) return { ok: false, reason: 'not_found' };
   if (row.status !== 'pending') return { ok: false, reason: 'already_reviewed', status: row.status };
 
-  await db.execute({
-    sql: `UPDATE bank_transfer_requests SET status = ?, reviewed_at = datetime('now') WHERE id = ?`,
+  // Atomic claim — see the matching comment in routes/lahza.js. An admin
+  // double-click, or the SMS webhook firing at the same moment as a manual
+  // approval, used to both pass the 'pending' check above and both grant.
+  const claim = await db.execute({
+    sql: `UPDATE bank_transfer_requests SET status = ?, reviewed_at = datetime('now') WHERE id = ? AND status = 'pending'`,
     args: [approve ? 'approved' : 'rejected', id],
   });
+  if (!claim.rowsAffected) return { ok: false, reason: 'already_reviewed' };
 
   const itemType = row.item_type || 'premium';
   // Gifting only ever applies to tree/collection requests (trees.js is

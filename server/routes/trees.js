@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
 const { getZodiacSign } = require('../lib/zodiac');
+const { requireVerified } = require('../lib/auth');
 
 // ── Tree catalogue ────────────────────────────────────────────
 const TREES = [
@@ -317,7 +318,7 @@ router.post('/equip', async (req, res) => {
 // approves/rejects from Settings → Stats → Bank transfers, which now
 // grants a user_trees row instead of flipping is_premium when the
 // request's item_type is 'tree'/'collection' (see routes/admin.js).
-router.post('/bank-transfer', async (req, res) => {
+router.post('/bank-transfer', requireVerified, async (req, res) => {
   const { item_type, item_key, reference_note, gift_recipient_email } = req.body;
   let item, priceUsd, label;
   if (item_type === 'tree') {

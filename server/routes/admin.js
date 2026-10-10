@@ -28,12 +28,32 @@ function itemLabel(itemType, planKey) {
   return PLANS.find((p) => p.key === planKey)?.name || planKey;
 }
 
-function requireOwner(req, res, next) {
+async function requireOwner(req, res, next) {
   if (!isOwnerEmail(req.user?.email)) {
     return res.status(403).json({ error: 'Not authorized' });
   }
+  // Owner powers also require a VERIFIED email, so signing up with the
+  // owner's address (without owning the inbox) gets nothing.
+  try {
+    const r = await db.execute({ sql: `SELECT email_verified FROM users WHERE id = ?`, args: [req.user.id] });
+    if (!r.rows[0] || !Number(r.rows[0].email_verified)) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+  } catch (e) {
+    return res.status(503).json({ error: 'Service temporarily unavailable' });
+  }
   next();
 }
+
+// ── GET /whoami-ip — owner-only diagnostic ─────────────────────────
+// Rate limiting keys on req.ip, which is only the real visitor address if
+// Express's `trust proxy` hop count (index.js) matches the host's proxy
+// chain. Open this once in production while signed in as owner: `ip`
+// should be YOUR public address (not a 10.x / proxy address). If it isn't,
+// the hop count in index.js needs adjusting.
+router.get('/whoami-ip', requireOwner, (req, res) => {
+  res.json({ ip: req.ip, ips: req.ips, xForwardedFor: req.headers['x-forwarded-for'] || null });
+});
 
 // ── GET /stats — total users + signup growth, owner-only ──────────
 router.get('/stats', requireOwner, async (req, res) => {

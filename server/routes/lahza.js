@@ -5,6 +5,8 @@ const { PLANS } = require('./focus');
 const { PREMIUM_TREES, TREE_COLLECTIONS } = require('./trees');
 const { initializeTransaction, verifyTransaction } = require('../lib/lahza');
 const { grantPurchase } = require('../lib/grantPurchase');
+const { rateLimit } = require('../lib/rateLimit');
+const { requireVerified } = require('../lib/auth');
 
 const CLIENT_URL = process.env.CLIENT_URL || 'https://nuvora.ps';
 
@@ -45,11 +47,35 @@ async function completeLahzaPayment(reference) {
 
   const verified = await verifyTransaction(reference);
   if (!verified.success) {
-    await db.execute({
-      sql: `UPDATE bank_transfer_requests SET status = 'rejected', reviewed_at = datetime('now') WHERE id = ?`,
-      args: [row.id],
-    });
+    // Used to flip the row to 'rejected' right here. But "not successful
+    // YET" is a normal state — a customer still on the 3-D Secure screen,
+    // or the redirect landing a moment before Lahza finalises — and once
+    // the row was 'rejected', the real charge.success webhook that arrived
+    // seconds later hit the `status !== 'pending'` guard above and granted
+    // NOTHING: a customer who genuinely paid ended up with no product.
+    // Leave it pending instead; the webhook (or the next verify) completes
+    // it if/when the money actually lands, and an abandoned checkout is
+    // harmless as a pending row.
     return { ok: false, reason: 'payment_not_successful', verified };
+  }
+
+  // Optional strict check that Lahza collected what we asked for. Off by
+  // default ONLY because this integration was written from Lahza's docs
+  // and hasn't been confirmed against a live transaction yet (their
+  // amount/currency fields might not be shaped exactly as assumed) — a
+  // wrong guess here would block real, paid orders. After one real test
+  // payment, set LAHZA_STRICT_AMOUNT_CHECK=1 on the server. Until then a
+  // mismatch is logged loudly instead of blocking.
+  {
+    const expectedUsd = Number(row.amount_usd);
+    const amountBad   = typeof verified.amount === 'number' && Number.isFinite(expectedUsd) && verified.amount + 0.01 < expectedUsd;
+    const currencyBad = verified.currency && String(verified.currency).toUpperCase() !== 'USD';
+    if (amountBad || currencyBad) {
+      console.error('[lahza] verify mismatch for', reference, { expectedUsd, got: verified.amount, currency: verified.currency });
+      if (process.env.LAHZA_STRICT_AMOUNT_CHECK === '1') {
+        return { ok: false, reason: 'amount_mismatch' };
+      }
+    }
   }
 
   // Trust our own recorded price, not whatever the verify call echoes
@@ -57,13 +83,34 @@ async function completeLahzaPayment(reference) {
   // told Lahza how much to charge in the first place, using the live
   // catalogue price, not anything the client could have tampered with.
   // This step just confirms Lahza actually collected that amount.
-  await db.execute({
-    sql: `UPDATE bank_transfer_requests SET status = 'approved', reviewed_at = datetime('now') WHERE id = ?`,
+  // ATOMIC claim. The webhook and the post-redirect verify() both fire
+  // within moments of a payment, and both used to read 'pending', then both
+  // write 'approved', then both grant — so the same payment could grant
+  // twice (a second 'premium' grant stacks months on top of the first).
+  // `AND status = 'pending'` makes the database pick exactly one winner;
+  // the loser sees 0 rows changed and just reports alreadyProcessed.
+  const claim = await db.execute({
+    sql: `UPDATE bank_transfer_requests SET status = 'approved', reviewed_at = datetime('now') WHERE id = ? AND status = 'pending'`,
     args: [row.id],
   });
+  if (!claim.rowsAffected) {
+    return { ok: true, alreadyProcessed: true, status: 'approved', itemType: row.item_type, itemKey: row.plan_key, isGift: Boolean(row.gift_recipient_email), giftRecipientEmail: row.gift_recipient_email || null, ...itemInfo };
+  }
 
   const grantToUserId = row.gift_recipient_id || row.user_id;
-  await grantPurchase({ itemType: row.item_type || 'premium', planKey: row.plan_key, userId: grantToUserId });
+  try {
+    await grantPurchase({ itemType: row.item_type || 'premium', planKey: row.plan_key, userId: grantToUserId });
+  } catch (e) {
+    // We already claimed the row, so a failed grant would strand a paying
+    // customer (row says 'approved', nothing granted). Put it back to
+    // 'pending' so the next webhook retry / verify completes it.
+    console.error('[lahza] grantPurchase failed after claim — reverting to pending:', reference, e.message);
+    await db.execute({
+      sql: `UPDATE bank_transfer_requests SET status = 'pending', reviewed_at = NULL WHERE id = ?`,
+      args: [row.id],
+    }).catch(() => {});
+    throw e;
+  }
 
   // Same "tell the recipient, not the payer" gift email as the manual
   // bank-transfer approval path (routes/admin.js) — a gift recipient
@@ -91,9 +138,12 @@ async function completeLahzaPayment(reference) {
 // shape (item_type/item_key/gift_recipient_email) so the client can
 // reuse the same form for "pay by card instantly" as it does for "pay by
 // bank transfer and wait for review", just hitting a different endpoint.
-router.post('/checkout', async (req, res) => {
+router.post('/checkout', requireVerified, async (req, res) => {
   try {
-    const { item_type, item_key, gift_recipient_email } = req.body;
+    if (rateLimit([`checkout:user:${req.user.id}`], { 'checkout:user:': { max: 20, windowMs: 60 * 60 * 1000 } })) {
+      return res.status(429).json({ error: 'Too many checkout attempts. Please try again later.' });
+    }
+    const { item_type, item_key, gift_recipient_email } = req.body || {};
     const itemType = ['premium', 'tree', 'collection'].includes(item_type) ? item_type : 'premium';
     const item = resolveItem(itemType, item_key);
     if (!item) return res.status(400).json({ error: 'Unknown item' });
@@ -150,6 +200,9 @@ router.post('/checkout', async (req, res) => {
 // the redirect completes.
 router.get('/verify/:reference', async (req, res) => {
   try {
+    if (rateLimit([`lahzaverify:user:${req.user.id}`], { 'lahzaverify:user:': { max: 60, windowMs: 10 * 60 * 1000 } })) {
+      return res.status(429).json({ error: 'Too many requests. Please try again shortly.' });
+    }
     const row = (await db.execute({
       sql: `SELECT user_id FROM bank_transfer_requests WHERE lahza_reference = ?`,
       args: [req.params.reference],

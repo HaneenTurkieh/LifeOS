@@ -59,6 +59,42 @@ async function initDb() {
   if (!(await hasColumn('users', 'shield_milestone'))) {
     await db.execute(`ALTER TABLE users ADD COLUMN shield_milestone INTEGER DEFAULT 0 NOT NULL`);
   }
+
+  // Session revocation (Oct 2026 security audit). JWTs are stateless, so
+  // before this a token stayed valid for its full 7 days no matter what —
+  // logging out only deleted it from the browser, and changing/resetting
+  // a password didn't kill sessions that already existed (e.g. a stolen
+  // token). token_version is baked into every new token and checked on
+  // each request: bumping it invalidates every older token for that user
+  // at once (password change/reset). revoked_tokens is the per-token
+  // denylist used by plain Log out, so one device logging out doesn't
+  // sign out the user's other devices. Existing tokens (no version/jti)
+  // stay valid — they count as version 0, which is the column default.
+  if (!(await hasColumn('users', 'token_version'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0`);
+  }
+  // Email verification. Existing accounts are grandfathered in as verified
+  // (they predate this check); every NEW password sign-up starts unverified
+  // until the emailed link is opened. Google sign-ins are verified by Google.
+  // Only a SHA-256 hash of the emailed token is stored.
+  if (!(await hasColumn('users', 'email_verified'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(`UPDATE users SET email_verified = 1`);
+  }
+  if (!(await hasColumn('users', 'verify_token_hash'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN verify_token_hash TEXT DEFAULT NULL`);
+  }
+  if (!(await hasColumn('users', 'verify_expires'))) {
+    await db.execute(`ALTER TABLE users ADD COLUMN verify_expires TEXT DEFAULT NULL`);
+  }
+  // The shared demo account: end every old demo session on each boot (it used
+  // to be a normal 7-day login) — new ones come from POST /auth/demo and are
+  // read-only and short.
+  await db.execute(`UPDATE users SET token_version = token_version + 1 WHERE email = 'demo@nuvora.app' COLLATE NOCASE`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS revoked_tokens (
+    jti        TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL
+  )`);
   await db.execute(`CREATE TABLE IF NOT EXISTS user_shielded_dates (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -584,7 +620,7 @@ async function initDb() {
     const FREE_PREMIUM_EMAILS = ['haneenturkieh@hotmail.com', '20tasbeeh06@gmail.com'];
     for (const email of FREE_PREMIUM_EMAILS) {
       const row = (await db.execute({
-        sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE`, args: [email],
+        sql: `SELECT id FROM users WHERE email = ? COLLATE NOCASE AND email_verified = 1`, args: [email],
       })).rows[0];
       if (row) {
         await db.execute({

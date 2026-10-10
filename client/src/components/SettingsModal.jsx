@@ -958,11 +958,13 @@ function PremiumTab() {
                     style={{ background:'linear-gradient(135deg, rgb(var(--accent-500)), rgb(var(--accent-600)))', boxShadow:'0 3px 10px rgb(var(--accent-500) / 0.30)' }}>
                     <CreditCard size={13}/> {payingWithCard ? t('shop.redirectingToLahza') : t('shop.payWithCard')}
                   </button>
+                  {bankDetails && (
                   <button onClick={() => setBankPlan(transferOpen ? null : plan.key)}
                     className="mt-1.5 w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-white transition"
                     style={{ background:'linear-gradient(135deg,#FFB84D, rgb(var(--accent-500)))', boxShadow:'0 3px 10px rgba(255,184,77,0.30)' }}>
                     <Landmark size={13}/> {t('settings.payByBankTransfer')}
                   </button>
+                  )}
 
                   {transferOpen && bankDetails && (
                     <div className="mt-3 rounded-xl p-3 flex flex-col gap-2 text-start"

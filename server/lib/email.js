@@ -21,7 +21,7 @@ function resetEmailHtml({ name, resetUrl }) {
     </div>
     <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">Reset your password</h2>
     <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
-      Hi ${name || 'there'}, we received a request to reset your Nuvora password.
+      Hi ${esc(name) || 'there'}, we received a request to reset your Nuvora password.
       This link expires in 30 minutes.
     </p>
     <div style="text-align:center;margin:28px 0;">
@@ -34,6 +34,31 @@ function resetEmailHtml({ name, resetUrl }) {
       If you didn't request this, you can safely ignore this email.<br/>
       Or paste this link in your browser:<br/>
       <span style="word-break:break-all;color:#7C6AF0;">${resetUrl}</span>
+    </p>
+  </div>`;
+}
+
+function verifyEmailHtml({ name, verifyUrl }) {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img src="${CLIENT_URL}/icon-192.png" width="48" height="48" alt="Nuvora" style="border-radius:14px;display:inline-block;" />
+    </div>
+    <h2 style="color:#1E2233;text-align:center;margin:0 0 8px;">Confirm your email</h2>
+    <p style="color:#5A5F73;font-size:14px;line-height:1.6;text-align:center;">
+      Hi ${esc(name) || 'there'}, welcome to Nuvora! Tap the button below to confirm this is your email address.
+      This link expires in 24 hours.
+    </p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${verifyUrl}"
+        style="display:inline-block;background:linear-gradient(135deg,#7C6AF0,#5B47E0);color:#fff;text-decoration:none;padding:13px 32px;border-radius:14px;font-weight:700;font-size:14px;">
+        Confirm email
+      </a>
+    </div>
+    <p style="color:#9AA0B5;font-size:12px;line-height:1.6;text-align:center;">
+      If you didn't create a Nuvora account, you can safely ignore this email.<br/>
+      Or paste this link in your browser:<br/>
+      <span style="word-break:break-all;color:#7C6AF0;">${verifyUrl}</span>
     </p>
   </div>`;
 }
@@ -302,6 +327,16 @@ async function sendPasswordResetEmail({ to, name, rawToken }) {
   });
 }
 
+// ── Public: email verification ──────────────────────────────────
+async function sendVerificationEmail({ to, name, rawToken }) {
+  const verifyUrl = `${CLIENT_URL}/verify-email?token=${rawToken}`;
+  await dispatch({
+    to, label: 'email verification',
+    subject: 'Confirm your Nuvora email ✦',
+    html: verifyEmailHtml({ name, verifyUrl }),
+  });
+}
+
 // ── Public: feedback — now reuses the same working Brevo-first
 // chain as password reset, instead of feedback.js's old standalone
 // Resend-only call (which silently no-op'd whenever RESEND_API_KEY
@@ -393,7 +428,7 @@ async function sendChannelInviteEmail({ to, channelName, joinCode, instructorNam
 }
 
 module.exports = {
-  sendPasswordResetEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail,
+  sendPasswordResetEmail, sendVerificationEmail, sendFeedbackEmail, sendPremiumRequestEmail, sendReminderDigestEmail,
   sendInstructorCredentialsEmail, sendChannelInviteEmail, sendBankTransferRequestEmail,
   sendTreeGiftGrantedEmail,
 };

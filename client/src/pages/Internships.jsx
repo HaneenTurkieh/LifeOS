@@ -8,6 +8,7 @@ import Modal from '../components/Modal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageLoader from '../components/Loader.jsx';
 import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
+import { safeUrl } from '../utils/safeUrl.js';
 
 const COLUMNS = [
   { key: 'applied',   title: 'Applied',   accent: 'bg-lavender-400' },
@@ -149,7 +150,7 @@ No explanation, no markdown fences, just the JSON object.`,
                     {item.applied_date && <p className="text-[11px] text-ink/40 mt-1.5">Applied {item.applied_date}</p>}
                     {item.notes        && <p className="text-xs text-ink/45 mt-1.5">{item.notes}</p>}
                     {item.link         && (
-                      <a href={item.link} target="_blank" rel="noreferrer"
+                      <a href={safeUrl(item.link)} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1 text-[11px] text-lavender-600 hover:underline mt-1.5">
                         <LinkIcon size={10}/> Listing
                       </a>

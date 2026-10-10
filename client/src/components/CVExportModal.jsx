@@ -33,6 +33,13 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
+// cv_photo is interpolated straight into an <img src="…"> inside the HTML
+// built below. The app only ever produces a JPEG data URL for it (the
+// cropper), so anything else is dropped rather than trusted.
+function safePhoto(value) {
+  return (typeof value === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value)) ? value : '';
+}
+
 // Building a "contact line" (email · phone · location) is the same
 // three-way join across all three templates, so it lives here once.
 function contactLine(userEmail, profile) {
@@ -195,7 +202,7 @@ function buildMinimal(userName, userEmail, profile, data) {
   return `
 <div style="padding:56px 64px;max-width:794px;margin:0 auto;font-family:'Inter',-apple-system,sans-serif;color:#111827;font-size:13px;line-height:1.65">
   <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #111827;display:flex;align-items:center;gap:20px">
-    ${profile.cv_photo ? `<img src="${profile.cv_photo}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;flex-shrink:0" />` : ''}
+    ${profile.cv_photo ? `<img src="${esc(safePhoto(profile.cv_photo))}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;flex-shrink:0" />` : ''}
     <div>
       <div style="font-size:26px;font-weight:700;letter-spacing:-0.5px">${esc(userName) || 'Your Name'}</div>
       ${profile.cv_headline ? `<div style="font-size:14px;color:#374151;margin-top:3px;font-weight:600">${esc(profile.cv_headline)}</div>` : ''}
@@ -295,7 +302,7 @@ function buildModern(userName, userEmail, profile, data) {
     <!-- Avatar circle — real photo if the person uploaded one, otherwise
          falls back to an initial-letter placeholder like before. -->
     ${profile.cv_photo
-      ? `<img src="${profile.cv_photo}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1.5px solid ${accent}44;margin-bottom:16px" />`
+      ? `<img src="${esc(safePhoto(profile.cv_photo))}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1.5px solid ${accent}44;margin-bottom:16px" />`
       : `<div style="width:64px;height:64px;border-radius:50%;background:${accent}1A;border:1.5px solid ${accent}44;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:${accent};margin-bottom:16px">
       ${esc((userName||'?')[0].toUpperCase())}
     </div>`}
@@ -393,7 +400,7 @@ function buildAcademic(userName, userEmail, profile, data) {
 <div style="padding:60px 72px;max-width:794px;margin:0 auto;font-family:'Georgia','Times New Roman',serif;color:#1a1a1a;font-size:13.5px;line-height:1.7">
   <!-- Header — centred -->
   <div style="text-align:center;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #1a1a1a">
-    ${profile.cv_photo ? `<img src="${profile.cv_photo}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;margin:0 auto 16px;display:block" />` : ''}
+    ${profile.cv_photo ? `<img src="${esc(safePhoto(profile.cv_photo))}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;margin:0 auto 16px;display:block" />` : ''}
     <div style="font-size:30px;font-weight:700;letter-spacing:1px;text-transform:uppercase">${esc(userName)||'Your Name'}</div>
     ${profile.cv_headline ? `<div style="font-size:13px;color:#333;margin-top:8px;font-style:italic">${esc(profile.cv_headline)}</div>` : ''}
     <div style="font-size:11px;color:#555;margin-top:8px;letter-spacing:1px">

@@ -7,6 +7,8 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
+const { db } = require('../db/connection');
+const { isDemoEmail } = require('./demo');
 
 // In production, ALWAYS set a real JWT_SECRET environment variable.
 //
@@ -59,9 +61,16 @@ function hasPasswordVariety(password) {
   return longestRun <= 2 && uniqueChars >= Math.ceil(password.length / 2);
 }
 
+// Upper bound so nobody can make the server Argon2-hash a huge string on
+// every signup / login attempt (cheap CPU-exhaustion attack).
+const PASSWORD_MAX_LENGTH = 200;
+
 function validatePassword(password) {
-  if (!password || password.length < PASSWORD_MIN_LENGTH) {
+  if (!password || typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH) {
     return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
+  }
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    return `Password must be at most ${PASSWORD_MAX_LENGTH} characters`;
   }
   if (!/[a-zA-Z]/.test(password)) {
     return 'Password must include at least one letter';
@@ -105,27 +114,101 @@ function comparePassword(plainPassword, hash) {
   return argon2.verify(hash, plainPassword);
 }
 
+// Login for an email that doesn't exist used to return in a couple of
+// milliseconds while a real account took a full Argon2 verify — a timing
+// difference that lets anyone probe which emails have accounts. Burning a
+// real verify against a throwaway hash makes both paths cost the same.
+let dummyHash = null;
+async function burnPasswordCheck(plainPassword) {
+  try {
+    if (!dummyHash) dummyHash = await argon2.hash(crypto.randomBytes(16).toString('hex'), { type: argon2.argon2id });
+    await argon2.verify(dummyHash, String(plainPassword));
+  } catch (_) { /* irrelevant — only the elapsed time matters */ }
+}
+
 // True for any hash that isn't already Argon2 — i.e. still needs
 // upgrading. Called right after a successful login.
 function needsRehash(hash) {
   return !(typeof hash === 'string' && hash.startsWith('$argon2'));
 }
 
-function signToken(user) {
+// ---------- Session tokens + revocation ----------
+// Every token carries:
+//   jti — a random id, so ONE token can be revoked on its own (Log out)
+//   tv  — the user's token_version at sign time, so ALL of a user's older
+//         tokens die at once when it's bumped (password change / reset).
+// Tokens issued before this existed have neither; they're treated as
+// tv 0 / no jti, so nobody gets signed out by the rollout itself.
+const revokedJtis = new Map();   // jti -> exp (seconds) — in-memory mirror of revoked_tokens
+const versionCache = new Map();  // userId -> { tv, at } — short cache so auth isn't a DB hit per request
+const VERSION_CACHE_MS = 15 * 1000;
+
+function signToken(user, opts = {}) {
   return jwt.sign(
-    { id: user.id, name: user.name, email: user.email },
+    {
+      id: user.id, name: user.name, email: user.email,
+      tv: Number(user.token_version || 0),
+    },
     JWT_SECRET,
-    { expiresIn: TOKEN_EXPIRY }
+    { expiresIn: opts.expiresIn || TOKEN_EXPIRY, algorithm: 'HS256', jwtid: crypto.randomUUID() }
   );
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET); // throws if invalid/expired
+  // Pin the algorithm so a token can never pick its own ("alg" confusion).
+  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }); // throws if invalid/expired
+}
+
+// Loads the still-unexpired revocations into memory at boot, then keeps
+// both the table and the Map tidy. Called once from index.js after initDb.
+async function initAuth() {
+  const nowSec = Math.floor(Date.now() / 1000);
+  await db.execute({ sql: `DELETE FROM revoked_tokens WHERE expires_at < ?`, args: [nowSec] });
+  const rows = (await db.execute(`SELECT jti, expires_at FROM revoked_tokens`)).rows;
+  for (const r of rows) revokedJtis.set(r.jti, Number(r.expires_at));
+
+  setInterval(() => {
+    const now = Math.floor(Date.now() / 1000);
+    for (const [jti, exp] of revokedJtis.entries()) if (exp < now) revokedJtis.delete(jti);
+    db.execute({ sql: `DELETE FROM revoked_tokens WHERE expires_at < ?`, args: [now] }).catch(() => {});
+  }, 60 * 60 * 1000).unref();
+}
+
+// Revokes ONE token (plain Log out). Tokens minted before jti existed
+// can't be singled out, so those fall back to bumping the user's version.
+async function revokeToken(payload) {
+  if (!payload?.jti) return revokeAllUserTokens(payload.id);
+  const exp = Number(payload.exp) || Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
+  revokedJtis.set(payload.jti, exp); // takes effect instantly on this instance
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO revoked_tokens (jti, expires_at) VALUES (?, ?)`,
+    args: [payload.jti, exp],
+  });
+}
+
+// Invalidates EVERY existing token for a user (password change/reset).
+async function revokeAllUserTokens(userId) {
+  await db.execute({ sql: `UPDATE users SET token_version = token_version + 1 WHERE id = ?`, args: [userId] });
+  versionCache.delete(userId);
+}
+
+async function currentTokenVersion(userId) {
+  const hit = versionCache.get(userId);
+  const now = Date.now();
+  if (hit && now - hit.at < VERSION_CACHE_MS) return hit.tv;
+  const row = (await db.execute({ sql: `SELECT token_version FROM users WHERE id = ?`, args: [userId] })).rows[0];
+  const tv = row ? Number(row.token_version || 0) : null; // null = account no longer exists
+  versionCache.set(userId, { tv, at: now });
+  if (versionCache.size > 20000) versionCache.clear(); // hard ceiling, can never grow unbounded
+  return tv;
 }
 
 // Express middleware: requires a valid `Authorization: Bearer <token>`
-// header. On success it sets req.user = { id, name, email }.
-function authenticate(req, res, next) {
+// header. On success it sets req.user = { id, name, email } (plus
+// req.tokenPayload with jti/exp for Log out). Also rejects tokens that
+// were revoked, were issued before a password change/reset, or belong to
+// an account that has since been deleted.
+async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
   const [scheme, token] = header.split(' ');
 
@@ -133,11 +216,61 @@ function authenticate(req, res, next) {
     return res.status(401).json({ error: 'Missing or malformed Authorization header' });
   }
 
+  let payload;
   try {
-    req.user = verifyToken(token);
-    next();
+    payload = verifyToken(token);
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  if (payload.jti && revokedJtis.has(payload.jti)) {
+    return res.status(401).json({ error: 'Session ended. Please log in again.' });
+  }
+
+  try {
+    const tv = await currentTokenVersion(payload.id);
+    if (tv === null || Number(payload.tv || 0) !== tv) {
+      return res.status(401).json({ error: 'Session ended. Please log in again.' });
+    }
+  } catch (err) {
+    // Fail CLOSED: if we can't confirm the session is still valid, don't
+    // let the request through.
+    console.error('authenticate: session check failed:', err.message);
+    return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+  }
+
+  const isDemo = isDemoEmail(payload.email);
+  // The shared demo account is strictly READ-ONLY (see lib/demo.js): it can
+  // look at everything but change nothing, and it can always sign out.
+  if (isDemo && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+      && req.originalUrl.split('?')[0] !== '/api/auth/logout') {
+    return res.status(403).json({
+      error: 'Demo mode is read-only. Create a free account to do this.',
+      code:  'DEMO_READONLY',
+    });
+  }
+
+  req.user = { id: payload.id, name: payload.name, email: payload.email, isDemo };
+  req.tokenPayload = payload;
+  next();
+}
+
+// Use AFTER authenticate on routes that move money or reach other people
+// (payments, gifts, owner tools). Looks the flag up fresh from the DB so a
+// token issued before verification can't carry stale information.
+async function requireVerified(req, res, next) {
+  try {
+    const r = await db.execute({ sql: `SELECT email_verified FROM users WHERE id = ?`, args: [req.user.id] });
+    if (!r.rows[0] || !Number(r.rows[0].email_verified)) {
+      return res.status(403).json({
+        error: 'Please confirm your email first: open the link we emailed you, or tap "Resend email" at the top of the page.',
+        code:  'EMAIL_NOT_VERIFIED',
+      });
+    }
+    next();
+  } catch (err) {
+    console.error('requireVerified:', err.message);
+    res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   }
 }
 
@@ -166,4 +299,5 @@ function timingSafeEqual(a, b) {
 module.exports = {
   hashPassword, comparePassword, needsRehash, signToken, verifyToken, authenticate,
   generateResetToken, hashResetToken, timingSafeEqual, validatePassword,
+  initAuth, revokeToken, revokeAllUserTokens, burnPasswordCheck, requireVerified,
 };

@@ -47,4 +47,46 @@ function rateLimit(keys, rulesByPrefix) {
   return limited;
 }
 
-module.exports = { rateLimit };
+// ── Cheap fixed-window counter + Express middleware ─────────────
+// The sliding-window rateLimit() above stores one timestamp per hit,
+// which is fine for a handful of sensitive endpoints (login, reset) but
+// would hold hundreds of timestamps per user for a blanket "every API
+// request" limiter. This one only stores {count, resetAt} per key, so
+// memory stays tiny no matter how busy a key is.
+const windows = new Map(); // key -> { count, resetAt }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, w] of windows.entries()) {
+    if (w.resetAt <= now) windows.delete(key);
+  }
+}, 60 * 1000).unref();
+
+function fixedWindowHit(key, max, windowMs) {
+  const now = Date.now();
+  let w = windows.get(key);
+  if (!w || w.resetAt <= now) {
+    w = { count: 0, resetAt: now + windowMs };
+    windows.set(key, w);
+  }
+  w.count += 1;
+  return { limited: w.count > max, retryAfterSec: Math.max(1, Math.ceil((w.resetAt - now) / 1000)) };
+}
+
+/**
+ * Express middleware factory.
+ * @param {{name:string, max:number, windowMs:number, key:(req)=>string}} opts
+ */
+function limiter({ name, max, windowMs, key }) {
+  return (req, res, next) => {
+    const k = `${name}:${key(req)}`;
+    const { limited, retryAfterSec } = fixedWindowHit(k, max, windowMs);
+    if (limited) {
+      res.setHeader('Retry-After', String(retryAfterSec));
+      return res.status(429).json({ error: 'Too many requests. Please slow down and try again shortly.' });
+    }
+    next();
+  };
+}
+
+module.exports = { rateLimit, limiter, fixedWindowHit };

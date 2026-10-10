@@ -8,8 +8,6 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import NuvoraBuddy  from '../components/NuvoraBuddy.jsx';
 
-const DEMO_EMAIL       = 'demo@nuvora.app';
-const DEMO_PASSWORD    = 'password123';
 // Public Client ID, not a secret — safe to ship in the bundle. Blank until
 // a real one is set (see client/.env.example): the Google button quietly
 // stays off instead of rendering something broken.
@@ -302,7 +300,7 @@ export default function Login() {
   const [error,           setError]           = useState('');
   const [submitting,      setSubmitting]      = useState(false);
 
-  const { login, register, registerInstructor, loginWithGoogle } = useAuth();
+  const { login, loginDemo, register, registerInstructor, loginWithGoogle } = useAuth();
   const { resolvedTheme }   = useTheme();
   const { t, lang }         = useLanguage();
   const toast                = useToast();
@@ -403,7 +401,13 @@ export default function Login() {
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchMode = () => { if (isMorphing) return; setMode(isLogin ? 'signup' : 'login'); setError(''); };
-  const fillDemo   = () => { setMode('login'); setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); setError(''); };
+  const fillDemo   = async () => {
+    if (submitting) return;
+    setError('');
+    try { setSubmitting(true); await loginDemo(); navigate(redirectTo, { replace: true }); }
+    catch (err) { setError(err.message || 'The demo is not available right now.'); }
+    finally { setSubmitting(false); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();

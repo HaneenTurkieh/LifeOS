@@ -497,6 +497,7 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
           {t('shop.payWithCardHint')}
         </p>
 
+        {bankDetails ? (<>
         <div className="flex items-center gap-2 my-4">
           <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
           <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(30,34,51,0.35)' }}>
@@ -551,6 +552,13 @@ function BankTransferModal({ item, itemType, bankDetails, note, onNoteChange, on
             {loading ? t('settings.sending') : t('settings.bankTransferSubmit')}
           </motion.button>
         </div>
+        </>) : (
+        <div className="flex gap-2 mt-4">
+          <button onClick={onCancel} className="flex-1 rounded-2xl py-2.5 text-sm font-semibold bg-ink/5" style={{ color: 'rgba(30,34,51,0.55)' }}>
+            {t('common.cancel')}
+          </button>
+        </div>
+        )}
       </motion.div>
     </motion.div>
   );

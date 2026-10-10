@@ -33,6 +33,7 @@ import PageLoader from '../components/Loader.jsx';
 import CVExportModal from '../components/CVExportModal.jsx';
 import AvatarCropper from '../components/AvatarCropper.jsx';
 import VoiceInputButton, { appendText } from '../components/VoiceInputButton.jsx';
+import { safeUrl } from '../utils/safeUrl.js';
 
 // Experience and Education come first — they're what a resume actually
 // leads with. Projects/Skills/Certifications round it out below.
@@ -664,7 +665,7 @@ ${rawText}`,
                 {p.description && <p className="text-sm text-ink/50 dark:text-white/40 mt-1.5">{p.description}</p>}
                 {p.tech        && <p className="text-xs text-lavender-600 font-medium mt-2">{p.tech}</p>}
                 {p.link        && (
-                  <a href={p.link} target="_blank" rel="noreferrer"
+                  <a href={safeUrl(p.link)} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-ink/40 hover:underline mt-1 block truncate">{p.link}</a>
                 )}
               </GlassCard>

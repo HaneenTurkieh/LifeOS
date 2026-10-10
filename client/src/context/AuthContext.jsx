@@ -56,6 +56,14 @@ export function AuthProvider({ children }) {
     return u;
   };
 
+  // Starts the short, read-only demo session (see server lib/demo.js).
+  const loginDemo = async () => {
+    const { token, user: u } = await api.post('/auth/demo', {});
+    setToken(token);
+    setUser(u);
+    return u;
+  };
+
   const register = async (name, email, password) => {
     const { token, user: u, welcomeXp } = await api.post('/auth/register', { name, email, password });
     setToken(token);
@@ -90,6 +98,13 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    // Clearing localStorage alone left the token valid on the server for
+    // its full 7 days — anyone who'd copied it could keep using it after
+    // the owner "logged out". Tell the server to end THIS session first
+    // (api.post reads the token synchronously on call, so clearing it on the
+    // next line can't race the request). Fire-and-forget: logging out must
+    // still work instantly offline.
+    api.post('/auth/logout', {}).catch(() => {});
     setToken(null);
     setUser(null);
   };
@@ -108,7 +123,11 @@ export function AuthProvider({ children }) {
   };
 
   const changePassword = async (currentPassword, newPassword) => {
-    return api.post('/auth/me/password', { currentPassword, newPassword });
+    const res = await api.post('/auth/me/password', { currentPassword, newPassword });
+    // Changing the password ends every other session on the server, so this
+    // device is handed a fresh token to stay signed in.
+    if (res?.token) setToken(res.token);
+    return res;
   };
 
   return (
@@ -116,6 +135,7 @@ export function AuthProvider({ children }) {
       user,
       loading,
       login,
+      loginDemo,
       register,
       registerInstructor,
       loginWithGoogle,

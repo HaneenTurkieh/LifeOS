@@ -7,6 +7,7 @@ import Sidebar           from './components/Sidebar.jsx';
 import MobileNav         from './components/MobileNav.jsx';
 import FocusBar          from './components/FocusBar.jsx';
 import HomeGate          from './components/HomeGate.jsx';
+import AccountBanner      from './components/AccountBanner.jsx';
 import GlobalSearch      from './components/GlobalSearch.jsx';
 import NotificationBell  from './components/NotificationBell.jsx';
 import NuvoraBuddy       from './components/NuvoraBuddy.jsx';
@@ -31,6 +32,7 @@ import { api }           from './api/client.js';
 const Login          = lazy(() => import('./pages/Login.jsx'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
 const ResetPassword  = lazy(() => import('./pages/ResetPassword.jsx'));
+const VerifyEmail    = lazy(() => import('./pages/VerifyEmail.jsx'));
 const Terms          = lazy(() => import('./pages/legal/Terms.jsx'));
 const Privacy        = lazy(() => import('./pages/legal/Privacy.jsx'));
 const Refund         = lazy(() => import('./pages/legal/Refund.jsx'));
@@ -218,6 +220,7 @@ export default function App() {
           <Route path="/login"           element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
+          <Route path="/verify-email"    element={<VerifyEmail />} />
           {/* Public — no login required. A domain/OAuth reviewer needs these
               reachable without an account. */}
           <Route path="/terms"           element={<Terms />} />
@@ -450,6 +453,7 @@ function AppShell() {
       <Sidebar />
       {/* lg:pe-28 is the logical version of lg:pr-28 — flips in RTL */}
       <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 lg:pe-28 pb-24 lg:pb-10 pt-20 max-w-[1600px] mx-auto w-full">
+        <AccountBanner />
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}

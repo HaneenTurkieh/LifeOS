@@ -33,7 +33,18 @@ router.get('/profile', async (req, res) => {
 
 router.put('/profile', async (req, res) => {
   try {
-    const { cv_summary = '', cv_headline = '', cv_phone = '', cv_location = '', cv_photo = '' } = req.body;
+    const { cv_summary = '', cv_headline = '', cv_phone = '', cv_location = '', cv_photo = '' } = req.body || {};
+    // None of these had any type or length checks, and cv_photo goes
+    // straight into an <img src> in the CV preview/print window — it may
+    // only ever be an uploaded image (data URL), never an arbitrary string.
+    const limits = { cv_summary: 3000, cv_headline: 200, cv_phone: 40, cv_location: 200 };
+    for (const [field, max] of Object.entries(limits)) {
+      const v = { cv_summary, cv_headline, cv_phone, cv_location }[field];
+      if (typeof v !== 'string' || v.length > max) return res.status(400).json({ error: `${field} is invalid or too long.` });
+    }
+    if (typeof cv_photo !== 'string' || (cv_photo && !/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(cv_photo))) {
+      return res.status(400).json({ error: 'Photo must be an uploaded image.' });
+    }
     // Same ~300KB cap as the account avatar (routes/auth.js) — a base64
     // JPEG at that size is already a small, low-res headshot; anything
     // bigger is someone accidentally uploading a full-res camera photo.

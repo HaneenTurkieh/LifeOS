@@ -26,7 +26,9 @@
 // worded credit still has a chance at matching — the real safety net is
 // the amount-matching step after, not the wording match.
 const express = require('express');
+const crypto  = require('crypto');
 const router  = express.Router();
+const { rateLimit } = require('../lib/rateLimit');
 const { db } = require('../db/connection');
 const { reviewBankTransfer } = require('../lib/reviewBankTransfer');
 const { USD_TO_NIS_RATE } = require('./focus');
@@ -50,10 +52,42 @@ function parseIncomingIls(text) {
   return Number.isFinite(amount) ? amount : null;
 }
 
-router.post('/webhook', express.json(), async (req, res) => {
+// The secret is accepted ONLY as an `x-webhook-secret` header (put it under
+// "Headers" in the iOS Shortcut's Get Contents of URL action) and compared
+// in constant time. A `?secret=` query string is deliberately NOT accepted:
+// URLs end up in server/proxy access logs, browser history and crash reports.
+function secretMatches(req) {
+  const expected = process.env.BANK_SMS_WEBHOOK_SECRET;
+  if (!expected) return false;
+  const given = String(req.headers['x-webhook-secret'] || '');
+  const a = crypto.createHash('sha256').update(given).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+// An identical SMS replayed (Shortcut firing twice, or someone with the
+// secret re-sending a captured request) must not approve a SECOND pending
+// request of the same price. Remember each text for 24h.
+const seenSms = new Map(); // sha256(text) -> ts
+function alreadySeen(text) {
+  const now = Date.now();
+  for (const [k, t] of seenSms) if (now - t > 24 * 60 * 60 * 1000) seenSms.delete(k);
+  const h = crypto.createHash('sha256').update(String(text)).digest('hex');
+  if (seenSms.has(h)) return true;
+  seenSms.set(h, now);
+  return false;
+}
+
+router.post('/webhook', express.json({ limit: '20kb' }), async (req, res) => {
   try {
-    if (!process.env.BANK_SMS_WEBHOOK_SECRET || req.query.secret !== process.env.BANK_SMS_WEBHOOK_SECRET) {
+    if (rateLimit([`banksms:ip:${req.ip}`], { 'banksms:ip:': { max: 30, windowMs: 60 * 1000 } })) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+    if (!secretMatches(req)) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (alreadySeen(req.body?.text)) {
+      return res.json({ matched: false, reason: 'duplicate_sms' });
     }
 
     const ils = parseIncomingIls(req.body?.text);

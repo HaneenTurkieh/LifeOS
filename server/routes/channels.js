@@ -762,7 +762,15 @@ router.get('/:id/export.csv', requireInstructor, async (req, res) => {
         ORDER BY u.name COLLATE NOCASE ASC`,
       args: [channel.id, channel.id, channel.id, channel.id, channel.id, channel.id],
     })).rows;
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // CSV/formula injection: a student can set their display name to
+    // something like =HYPERLINK(...) or @SUM(...), and Excel/Sheets run
+    // anything starting with = + - @ as a formula when the INSTRUCTOR opens
+    // this export. Prefixing a single quote keeps it as plain text.
+    const esc = (v) => {
+      let t = String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+      return `"${t.replace(/"/g, '""')}"`;
+    };
     const header = ['Name', 'Email', 'Tasks assigned', 'Tasks done', 'Goals assigned', 'Goals done', 'Channel Points'];
     const lines = [header.join(',')].concat(
       rows.map((r) => [r.name, r.email, r.tasks_assigned, r.tasks_done, r.goals_assigned, r.goals_done, r.channel_points].map(esc).join(','))

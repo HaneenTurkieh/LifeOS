@@ -1,13 +1,14 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/connection');
-const { hashPassword, comparePassword } = require('../lib/auth');
+const { hashPassword, comparePassword, requireVerified } = require('../lib/auth');
 const { getPremium } = require('../lib/premium');
 const { getLevelInfo } = require('../lib/gamification');
 const { GRACE_PERIOD_DAYS } = require('../lib/usageLimits');
 const { isTodayBirthday } = require('../lib/birthday');
 const { attachEquippedTrees } = require('../lib/equippedTreeDisplay');
 const crypto  = require('crypto');
+const { rateLimit } = require('../lib/rateLimit');
 
 function getWeekStart() {
   const now  = new Date();
@@ -804,9 +805,13 @@ router.get('/leaderboard', async (req, res) => {
 
 router.post('/rooms', async (req, res) => {
   try {
-    const { name, password } = req.body;
-    if (!name?.trim())     return res.status(400).json({ error: 'Room name is required' });
-    if (!password?.trim()) return res.status(400).json({ error: 'Password is required' });
+    const { name, password } = req.body || {};
+    if (typeof name !== 'string' || !name.trim())         return res.status(400).json({ error: 'Room name is required' });
+    if (typeof password !== 'string' || !password.trim()) return res.status(400).json({ error: 'Password is required' });
+    if (name.trim().length > 60 || password.length > 100) return res.status(400).json({ error: 'Room name or password is too long' });
+    if (rateLimit([`roomcreate:user:${req.user.id}`], { 'roomcreate:user:': { max: 20, windowMs: 60 * 60 * 1000 } })) {
+      return res.status(429).json({ error: 'You are creating rooms too quickly. Please try again later.' });
+    }
     const code          = generateCode();
     const password_hash = await hashPassword(password);
     await db.execute({
@@ -824,9 +829,22 @@ router.post('/rooms', async (req, res) => {
 
 router.post('/rooms/join', async (req, res) => {
   try {
-    const { code, password } = req.body;
-    if (!code?.trim())     return res.status(400).json({ error: 'Room code is required' });
-    if (!password?.trim()) return res.status(400).json({ error: 'Password is required' });
+    const { code, password } = req.body || {};
+    if (typeof code !== 'string' || !code.trim())         return res.status(400).json({ error: 'Room code is required' });
+    if (typeof password !== 'string' || !password.trim()) return res.status(400).json({ error: 'Password is required' });
+    // Room code + password was guessable at full speed (nothing limited
+    // attempts). Cap per user AND per room code, so a botnet of accounts
+    // can't grind one room either. 429 (not 401) so a lockout never trips
+    // the client's "session invalid → log out" handler.
+    if (rateLimit(
+      [`roomjoin:user:${req.user.id}`, `roomjoin:code:${code.trim().toUpperCase()}`],
+      {
+        'roomjoin:user:': { max: 15, windowMs: 10 * 60 * 1000 },
+        'roomjoin:code:': { max: 40, windowMs: 10 * 60 * 1000 },
+      }
+    )) {
+      return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes and try again.' });
+    }
     const roomRow = (await db.execute({ sql: `SELECT * FROM focus_rooms WHERE code = ?`, args: [code.toUpperCase()] })).rows[0];
     if (!roomRow) return res.status(404).json({ error: 'Room not found' });
     const valid = await comparePassword(password, roomRow.password_hash);
@@ -1361,20 +1379,26 @@ const USD_TO_NIS_RATE = 3.01;
 const PLANS_WITH_NIS = PLANS.map((p) => ({ ...p, priceNis: Math.round(p.price * USD_TO_NIS_RATE) }));
 router.get('/premium/plans', (req, res) => res.json({ plans: PLANS_WITH_NIS }));
 
-// ── Bank transfer details — single source of truth for the client's
-// "Pay by bank transfer" panel, so the IBAN/bank name only ever lives in
-// one place server-side rather than being hardcoded into the frontend
-// bundle too. Reflect is a real Bank of Palestine-partnered USD account
-// tied to Arab Bank per Haneen — genuinely local for now, can move to a
-// SWIFT-capable account later if Nuvora ever needs real international
-// transfers.
-const BANK_TRANSFER_DETAILS = {
-  iban:          'PS29ARAB900030022523400072701',
-  bankName:      'Arab Bank (Reflect account)',
-  accountName:   'Haneen Turkieh',
-  currency:      'USD',
-};
-router.get('/premium/bank-transfer/details', (req, res) => res.json(BANK_TRANSFER_DETAILS));
+// ── Bank transfer details — read from private environment settings
+// (BANK_IBAN, BANK_NAME, BANK_ACCOUNT_NAME, BANK_CURRENCY) so the account
+// number is NEVER written into the source code / public repository.
+// If BANK_IBAN isn't set, bank transfer is simply switched off: this
+// returns 404 and the client hides the "Pay by bank transfer" option.
+function bankTransferDetails() {
+  const iban = (process.env.BANK_IBAN || '').replace(/\s+/g, '');
+  if (!iban) return null;
+  return {
+    iban,
+    bankName:    process.env.BANK_NAME         || 'Bank transfer',
+    accountName: process.env.BANK_ACCOUNT_NAME || '',
+    currency:    process.env.BANK_CURRENCY     || 'USD',
+  };
+}
+router.get('/premium/bank-transfer/details', (req, res) => {
+  const d = bankTransferDetails();
+  if (!d) return res.status(404).json({ error: 'Bank transfer is not available right now' });
+  res.json(d);
+});
 
 // ── Level-milestone free trial — reaching TRIAL_LEVEL unlocks a
 // one-time free trial of Premium, no payment involved. Framed as a
@@ -1519,7 +1543,7 @@ router.post('/premium/request', async (req, res) => {
 // bank app herself and approves or rejects from the owner-only Stats
 // tab (routes/admin.js). Approving is the ONLY thing that ever flips
 // is_premium here; submitting a request never does.
-router.post('/premium/bank-transfer', async (req, res) => {
+router.post('/premium/bank-transfer', requireVerified, async (req, res) => {
   const { plan_key, reference_note } = req.body;
   const plan = PLANS.find(p => p.key === plan_key);
   if (!plan) return res.status(400).json({ error: 'Unknown plan' });
