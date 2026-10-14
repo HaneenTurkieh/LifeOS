@@ -8,6 +8,9 @@
   are left out on purpose too: they're transactional, not content, and
   reset-password carries a one-time token in its query string.
 
+  /welcome is left out too: it renders the same page as "/" (its canonical
+  points there), so listing both only creates a duplicate.
+
   Update "lastmod" when a page's actual content changes, not on every
   deploy — it's a hint to crawlers about freshness, not a build timestamp.
 -->
@@ -17,12 +20,6 @@
     <lastmod>2026-10-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://www.nuvora.ps/welcome</loc>
-    <lastmod>2026-10-07</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.nuvora.ps/pricing</loc>

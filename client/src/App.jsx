@@ -205,7 +205,26 @@ function useCanonicalLink() {
   useEffect(() => {
     const link = document.getElementById('canonical-link');
     if (!link) return;
-    link.href = `https://www.nuvora.ps${location.pathname}`;
+    // /welcome shows the exact same Landing page as "/", so Google (rightly)
+    // treats them as duplicates and picks "/" — point /welcome's canonical
+    // at "/" ourselves so there's no disagreement.
+    const path = location.pathname === '/welcome' ? '/' : location.pathname;
+    link.href = `https://www.nuvora.ps${path}`;
+
+    // Transactional pages (sign-in, password reset, email confirmation)
+    // should never appear in search results.
+    const PRIVATE = ['/login', '/forgot-password', '/reset-password', '/verify-email'];
+    let robots = document.querySelector('meta[name="robots"]');
+    if (PRIVATE.includes(location.pathname)) {
+      if (!robots) {
+        robots = document.createElement('meta');
+        robots.setAttribute('name', 'robots');
+        document.head.appendChild(robots);
+      }
+      robots.setAttribute('content', 'noindex, nofollow');
+    } else if (robots) {
+      robots.remove();
+    }
   }, [location.pathname]);
 }
 
