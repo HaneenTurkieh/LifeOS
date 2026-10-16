@@ -259,9 +259,31 @@ export async function streamChat(path, body, { onDelta, onDone, onError, idleTim
   }
 }
 
+// One-shot helper for features that just need the finished answer from POST
+// /chat (quick-add boxes, CV review, project breakdown…). The server now
+// ALWAYS replies to /chat as a stream (see streamChat above), so reading it
+// with res.json() fails — Safari reports that as "The string did not match
+// the expected pattern". This collects the stream and resolves with the
+// final 'done' event, which carries the same { text, actions, … } fields the
+// old single-response JSON had, so callers keep using `res.text` unchanged.
+function chatOnce(body) {
+  return new Promise((resolve, reject) => {
+    streamChat('/chat', body, {
+      onDone:  (evt) => resolve(evt),
+      onError: (e)   => {
+        const err = new Error(e?.message || 'Something went wrong. Please try again.');
+        err.code = e?.code || null;
+        reject(err);
+      },
+    });
+  });
+}
+
 export const api = {
   get:    (path, opts)       => request(path, opts),
-  post:   (path, body, opts) => request(path, { method: 'POST',   body: JSON.stringify(body), ...opts }),
+  post:   (path, body, opts) => path === '/chat'
+    ? chatOnce(body)
+    : request(path, { method: 'POST',   body: JSON.stringify(body), ...opts }),
   put:    (path, body, opts) => request(path, { method: 'PUT',    body: JSON.stringify(body), ...opts }),
   patch:  (path, body, opts) => request(path, { method: 'PATCH',  body: JSON.stringify(body), ...opts }),
   del:    (path, opts)       => request(path, { method: 'DELETE', ...opts }),
